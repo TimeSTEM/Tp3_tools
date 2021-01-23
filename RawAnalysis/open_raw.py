@@ -1,49 +1,45 @@
-from bitstring import BitArray
 import numpy
 import matplotlib.pyplot as plt
 import time
 
-i = 0
-j = 0
-index = 0
+xL = list() #x position
+yL = list() #Y position
+globalTL = list() #Global Time
+tdc1RL = list() #Rising Edge tdc1 Time
+tdc1RL_dif = list() #Difference in tdc1 Time
 
-xL = list()
-yL = list()
-globalTL = list()
-tdc1RL = list()
-tdc1RL_dif = list()
+datas = [r"FromTP3\tdc_check_000"+format(i, '.0f').zfill(3)+r".tpx3" for i in range(4)]
+#datas = ["temp.tpx3"]
 
-#datas = [r"FromTP3\tdc_check_000"+format(i, '.0f').zfill(3)+r".tpx3" for i in range(4)]
-datas = ["temp.tpx3"]
-
-i = [0, 0]
-final_tdc = 0
-final_event = 0
-start = time.time()
+i = [0, 0] #Counter. First index is electron event and second is tdc event.
+final_tdc = 0 #Last tdc time received
+start = time.time() 
 
 for data in datas:
     with open(data, "rb") as f:
         all_data = f.read()
-        index = 0
+        index = 0 #Reading index.
         while True:
-            byte = all_data[index: index+8]
+            byte = all_data[index: index+8] #8 bytes header
             byte=byte[::-1]
-            if byte==b'':
+            if byte==b'': #Breaks if there is none
                 break
             tpx3_header = byte[4:8] #4 bytes=32 bits
-            assert tpx3_header==b'3XPT'
+            assert tpx3_header==b'3XPT' #must be this
             chip_index = byte[3] #1 byte
             #mode = byte[2] #1 byte
             size_chunk1 = byte[1] #1 byte
             size_chunk2 = byte[0] #1 byte
-            total_size = size_chunk1+ size_chunk2*256
+            total_size = size_chunk1+ size_chunk2*256 #Number of pixels in chunk
             for j in range(int(total_size/8)):
-                index+=8
+                index+=8 #Go to next 8 bytes
                 byte = all_data[index:index+8]
                 byte=byte[::-1]
-                id = (byte[0] & 240)>>4
-                if id==11:
-                    i[0]+=1
+                id = (byte[0] & 240)>>4 #240 = 1111 0000. 240 >> 4 = 0000 11111.
+                if id==11: #11 = 0xb (Electron Event)
+                    i[0]+=1 #Increment Electron Event
+                    
+                    #Bit displacement syntax. Fastest way to do it.
                     dcol = ((byte[0] & 15)<<4) + ((byte[1] & 224)>>4)
                     spix = ((byte[1] & 31)<<3) + ((byte[2] & 128)>>5)
                     pix = (byte[2] & 112)>>4
@@ -79,25 +75,26 @@ for data in datas:
                     yL.append(y)
                     globalTL.append(global_time/1e9)
                 
-                elif id==6:
-                    i[1]+=1
+                elif id==6: #6 = 0xb. This is a tdc event.
+                    i[1]+=1 #Increment tdc event.
                     coarseT = ((byte[2] & 15)<<31) + ((byte[3] & 255)<<23) + ((byte[4] & 255)<<15) + ((byte[5] & 255)<<7) + ((byte[6] & 254)>>1)
                     fineT = ((byte[6] & 1)<<3) + ((byte[7] & 224)>>5)
                     tdcT = coarseT * (1/320e6) + fineT*260e-12
                     final_tdc = tdcT
 
+                    #Syntax to grab time difference between consecutive tdc's
                     try:
                         tdc1RL_dif.append((tdcT-new)*1e6)
                     except:
                         pass
                     new = tdcT
                     
-                    triggerType = byte[0] & 15
+                    triggerType = byte[0] & 15 #15 = 1111. Get trigger Type.
                     if triggerType==15: tdc1RL.append(tdcT)
                     elif triggerType==10: print('tdc1Fal')
                     elif triggerType==14: print('tdc2Ris')
                     elif triggerType==11: print('tdc2Fal')
-            index+=8
+            index+=8 #Goes back to next header
                 
 finish = time.time()
 print(f'Total time is {finish-start} with {i} events. Events per second is {sum(i) / (finish-start)}. Final tdc is {final_tdc}')
@@ -105,10 +102,9 @@ print(f'Total time is {finish-start} with {i} events. Events per second is {sum(
 fig, ax = plt.subplots(3, 1)
 ax[0].hist2d(xL, yL, bins=256, range=([0, 1024], [0, 256]))
 ax[1].plot(globalTL, label='Electrons')
-if tdc1RL: ax[1].plot(tdc1RL, color='red', label='TDC1Ris')
-if tdc1RL_dif: ax[2].hist(tdc1RL_dif, bins=1000)
+ax[1].plot(tdc1RL, color='red', label='TDC1Ris')
+ax[2].hist(tdc1RL_dif, bins=100)
                 
-
 ax[1].legend()
 ax[0].set_ylabel('Y')
 ax[0].set_xlabel('X')
