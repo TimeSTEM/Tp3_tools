@@ -3,7 +3,6 @@ import time
 import numpy
 
 def create_data(Tdif):
-
     
     #Message First Part
     data = b'TPX3'
@@ -89,18 +88,30 @@ def create_tdc(Tdif, trigger='tdc1Ris'):
     data2 = bytes.fromhex(hex_msg)
     return data+data2[::-1]
 
+"""
+Set Script Parameters Here
+"""
 filename = '../RawAnalysis/temp.tpx3'
-SERVER_HOST = '127.0.0.1'
-#SERVER_HOST = '129.175.81.162'
-SERVER_PORT = 65431
+SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
+#SERVER_HOST = '129.175.81.162' #When not using in localhost
+SERVER_PORT = 65431 #Pick a port to connect your socket
+SAVE_FILE = False #Save a file in filename $PATH.
+INFINITE_SERVER = False #This hangs for a new client after a client has been disconnected.
+MAX_LOOPS = 1 #Maximum number of loops. MAX_LOOPS = 0 means not maximal value.
+
+"""
+Script starts here
+"""
 
 serv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 serv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 serv.bind((SERVER_HOST, SERVER_PORT))
 serv.listen()
 
-while True:
-#if 1:
+isRunning = True
+
+while isRunning:
+    if not INFINITE_SERVER: isRunning=False
     print('Waiting a new client connection..')
     conn, addr = serv.accept()
     with conn:
@@ -118,24 +129,21 @@ while True:
 
             final_data=b''
             
-            #Above means we have 100 us apart from the beginning of the events
-            #and the tdc signal. This makes approximately a 64x64 image and
-            #using a scan time of ~1.5 us for each pixel.
-            
-
             final_data+=create_tdc(time.perf_counter_ns(), 'tdc1Ris')
             time.sleep(0.001)
             num = 1000
             for i in range(num):
                 final_data+=create_data(time.perf_counter_ns())
             
-            myFile.write(final_data)
+            if SAVE_FILE: myFile.write(final_data)
             
             try:
                 conn.send(final_data)
             except:
-                print('Connection Closed. Opening a new one..')
+                print('Connection broken by client. Opening a new one..')
                 break
 
-            if loop>=100:
+            if MAX_LOOPS and loop>=MAX_LOOPS:
                 break
+
+            
