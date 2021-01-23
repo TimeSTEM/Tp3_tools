@@ -1,0 +1,122 @@
+from bitstring import BitArray
+import numpy
+import matplotlib.pyplot as plt
+import time
+
+i = 0
+j = 0
+index = 0
+
+xL = list()
+yL = list()
+globalTL = list()
+tdc1RL = list()
+tdc1RL_dif = list()
+
+#datas = [r"FromTP3\tdc_check_000"+format(i, '.0f').zfill(3)+r".tpx3" for i in range(4)]
+datas = ["temp.tpx3"]
+
+i = [0, 0]
+final_tdc = 0
+final_event = 0
+start = time.time()
+
+for data in datas:
+    with open(data, "rb") as f:
+        all_data = f.read()
+        index = 0
+        while True:
+            byte = all_data[index: index+8]
+            byte=byte[::-1]
+            if byte==b'':
+                break
+            tpx3_header = byte[4:8] #4 bytes=32 bits
+            assert tpx3_header==b'3XPT'
+            chip_index = byte[3] #1 byte
+            #mode = byte[2] #1 byte
+            size_chunk1 = byte[1] #1 byte
+            size_chunk2 = byte[0] #1 byte
+            total_size = size_chunk1+ size_chunk2*256
+            for j in range(int(total_size/8)):
+                index+=8
+                byte = all_data[index:index+8]
+                byte=byte[::-1]
+                id = (byte[0] & 240)>>4
+                if id==11:
+                    i[0]+=1
+                    dcol = ((byte[0] & 15)<<4) + ((byte[1] & 224)>>4)
+                    spix = ((byte[1] & 31)<<3) + ((byte[2] & 128)>>5)
+                    pix = (byte[2] & 112)>>4
+                    
+                    x = int(dcol + pix/4)
+                    y = int(spix + (pix & 3))
+
+                    toa = ((byte[2] & 15)<<10) + ((byte[3] & 255)<<2) + ((byte[4] & 192)>>6)
+                    tot = ((byte[4] & 63)<<4) + ((byte[5] & 240)>>4)
+                    ftoa = (byte[5] & 15)
+                    spidr = ((byte[6] & 255)<<8) + ((byte[7] & 255))
+                    ctoa = toa<<4 | ~ftoa & 15
+                    
+                    spidrT = spidr * 25.0 * 16384.0
+                    toa_ns = toa * 25.0
+                    tot_ns = tot * 25.0
+                    global_time = spidrT + ctoa * 25.0/16.0
+
+                    if chip_index==0:
+                        x = 255 - x
+                        y = y
+                    elif chip_index==1:
+                        x = 255*4 - x
+                        y = y
+                    elif chip_index==2:
+                        x = 255*3 - x
+                        y = y
+                    elif chip_index==3:
+                        x = 255*2 - x
+                        y = y
+
+                    xL.append(x)
+                    yL.append(y)
+                    globalTL.append(global_time/1e9)
+                
+                elif id==6:
+                    i[1]+=1
+                    coarseT = ((byte[2] & 15)<<31) + ((byte[3] & 255)<<23) + ((byte[4] & 255)<<15) + ((byte[5] & 255)<<7) + ((byte[6] & 254)>>1)
+                    fineT = ((byte[6] & 1)<<3) + ((byte[7] & 224)>>5)
+                    tdcT = coarseT * (1/320e6) + fineT*260e-12
+                    final_tdc = tdcT
+
+                    try:
+                        tdc1RL_dif.append((tdcT-new)*1e6)
+                    except:
+                        pass
+                    new = tdcT
+                    
+                    triggerType = byte[0] & 15
+                    if triggerType==15: tdc1RL.append(tdcT)
+                    elif triggerType==10: print('tdc1Fal')
+                    elif triggerType==14: print('tdc2Ris')
+                    elif triggerType==11: print('tdc2Fal')
+            index+=8
+                
+finish = time.time()
+print(f'Total time is {finish-start} with {i} events. Events per second is {sum(i) / (finish-start)}. Final tdc is {final_tdc}')
+
+fig, ax = plt.subplots(3, 1)
+ax[0].hist2d(xL, yL, bins=256, range=([0, 1024], [0, 256]))
+ax[1].plot(globalTL, label='Electrons')
+if tdc1RL: ax[1].plot(tdc1RL, color='red', label='TDC1Ris')
+if tdc1RL_dif: ax[2].hist(tdc1RL_dif, bins=1000)
+                
+
+ax[1].legend()
+ax[0].set_ylabel('Y')
+ax[0].set_xlabel('X')
+
+ax[1].set_ylabel('Time Elapsed (s)')
+ax[1].set_xlabel('Counts')
+
+ax[2].set_ylabel('Counts')
+ax[2].set_xlabel('Time Difference (us)')
+plt.show()
+
