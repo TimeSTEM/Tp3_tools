@@ -88,8 +88,8 @@ SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 #SERVER_HOST = '129.175.81.162' #When not using in localhost
 SERVER_PORT = 65431 #Pick a port to connect your socket
 SAVE_FILE = False #Save a file in filename $PATH.
-INFINITE_SERVER = False #This hangs for a new client after a client has been disconnected.
-MAX_LOOPS = 1 #Maximum number of loops. MAX_LOOPS = 0 means not maximal value.
+INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
+MAX_LOOPS = 1000 #Maximum number of loops. MAX_LOOPS = 0 means not maximal value.
 
 
 """
