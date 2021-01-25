@@ -6,7 +6,8 @@ def create_data(Tdif):
     
     #Message Header
     data = b'TPX3'
-    data+=b'\x03' #This is chip index. Always 03 for no reason.
+    ci = int(numpy.random.rand()*4)
+    data+=bytes([ci]) #This is chip index. Always 03 for no reason.
     data+=b'\x00' #Mode. 
     sending = int(numpy.random.rand()*5)*8
     data+=bytes([sending]) #Number of pixels in chunk [LSB]
@@ -89,7 +90,7 @@ SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 SERVER_PORT = 65431 #Pick a port to connect your socket
 SAVE_FILE = False #Save a file in filename $PATH.
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
-MAX_LOOPS = 1000 #Maximum number of loops. MAX_LOOPS = 0 means not maximal value.
+MAX_LOOPS = 0 #Maximum number of loops. MAX_LOOPS = 0 means not maximal value.
 
 
 """
