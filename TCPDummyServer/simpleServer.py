@@ -10,7 +10,7 @@ def create_data(Tdif):
     ci = int(numpy.random.rand()*4)
     data+=bytes([ci]) #This is chip index. Always 03 for no reason.
     data+=b'\x00' #Mode. 
-    sending = int(numpy.random.rand()*5)*8
+    sending = int(numpy.random.rand()*3+1)*8
     data+=bytes([sending]) #Number of pixels in chunk [LSB]
     data+=b'\x00' #Number of pixels in chunk [MSB]
     
@@ -89,13 +89,13 @@ Options for server are:
     - 129.175.108.58 for Patrick's;
 """
 filename = '../RawAnalysis/temp.tpx3'
-SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
-#SERVER_HOST = '129.175.81.162' #When not using in localhost
+#SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
+SERVER_HOST = '129.175.108.58' #When not using in localhost
 SERVER_PORT = 65431 #Pick a port to connect your socket
 SAVE_FILE = False #Save a file in filename $PATH.
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 MAX_LOOPS = 0 #Maximum number of loops. MAX_LOOPS = 0 means not maximal value.
-INTERVAL_TDC = 0.01
+INTERVAL_TDC = 0.05
 
 
 """
@@ -119,13 +119,12 @@ while isRunning:
         
         final_data = b''
 
-        for i in range(10):
+        for i in range(1000):
             final_data+=create_data(time.perf_counter_ns())
         conn.send(final_data)
 
         while True:
 
-            final_data=b''
             
             if loop * INTERVAL_TDC < time.perf_counter_ns()/1e9:
                 loop = math.ceil( (time.perf_counter_ns()/1e9) / INTERVAL_TDC )
@@ -135,11 +134,13 @@ while isRunning:
             
             if SAVE_FILE: myFile.write(final_data)
             
-            try:
-                conn.send(final_data)
-            except:
-                print('Connection broken by client. Opening a new one..')
-                break
+            if len(final_data)>=4096:
+                try:
+                    conn.send(final_data)
+                    final_data=b''
+                except:
+                    print('Connection broken by client. Opening a new one..')
+                    break
 
             if MAX_LOOPS and loop>=MAX_LOOPS:
                 break
