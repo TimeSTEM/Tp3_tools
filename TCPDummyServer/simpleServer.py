@@ -89,8 +89,8 @@ Options for server are:
     - 129.175.108.58 for Patrick's;
 """
 filename = '../RawAnalysis/temp.tpx3'
-SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
-#SERVER_HOST = '129.175.108.58' #When not using in localhost
+#SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
+SERVER_HOST = '129.175.108.58' #When not using in localhost
 SERVER_PORT = 65431 #Pick a port to connect your socket
 SAVE_FILE = False #Save a file in filename $PATH.
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
@@ -115,6 +115,7 @@ while isRunning:
     conn, addr = serv.accept() #It hangs here until a client connects.
     with conn:
         print('connected by', addr)
+        start = time.perf_counter_ns()
         if SEND_TIME:
             INTERVAL_TDC = float(conn.recv(8))
         if SAVE_FILE: myFile = open(filename, 'wb')
@@ -136,15 +137,18 @@ while isRunning:
             
             if SAVE_FILE: myFile.write(final_data)
             
-            if len(final_data)>=4096:
-                try:
-                    conn.send(final_data)
-                    final_data=b''
-                except:
-                    print('Connection broken by client. Opening a new one..')
-                    break
+            try:
+                conn.send(final_data)
+                final_data=b''
+            except:
+                print('Connection broken by client. Opening a new one..')
+                finish = time.perf_counter_ns()
+                print(f"Total elapsed time is {(finish-start)/1e9} s. Number of loops are {loop}.")
+                break
 
             if MAX_LOOPS and loop>=MAX_LOOPS:
+                finish = time.perf_counter_ns()
+                print(f"Total elapsed time is {(finish-start)/1e9} s. Number of loops are {loop}.")
                 break
 
             
