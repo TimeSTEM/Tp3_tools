@@ -89,13 +89,14 @@ Options for server are:
     - 129.175.108.58 for Patrick's;
 """
 filename = '../RawAnalysis/temp.tpx3'
-#SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
-SERVER_HOST = '129.175.108.58' #When not using in localhost
+SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
+#SERVER_HOST = '129.175.108.58' #When not using in localhost
 SERVER_PORT = 65431 #Pick a port to connect your socket
 SAVE_FILE = False #Save a file in filename $PATH.
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 MAX_LOOPS = 0 #Maximum number of loops. MAX_LOOPS = 0 means not maximal value.
 INTERVAL_TDC = 0.05
+SEND_TIME = True #If True you must send a time to replace interval tdc.
 
 
 """
@@ -114,7 +115,9 @@ while isRunning:
     conn, addr = serv.accept() #It hangs here until a client connects.
     with conn:
         print('connected by', addr)
-        myFile = open(filename, 'wb')
+        if SEND_TIME:
+            INTERVAL_TDC = float(conn.recv(8))
+        if SAVE_FILE: myFile = open(filename, 'wb')
         loop = 0
         
         final_data = b''
@@ -124,7 +127,6 @@ while isRunning:
         conn.send(final_data)
 
         while True:
-
             
             if loop * INTERVAL_TDC < time.perf_counter_ns()/1e9:
                 loop = math.ceil( (time.perf_counter_ns()/1e9) / INTERVAL_TDC )
