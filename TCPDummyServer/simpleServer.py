@@ -123,8 +123,9 @@ while isRunning:
         
         final_data = b''
 
-        for i in range(1000):
+        for i in range(10):
             final_data+=create_data(time.perf_counter_ns())
+        final_data+=create_tdc(time.perf_counter_ns(), 'tdc1Ris')
         conn.send(final_data)
 
         while True:
