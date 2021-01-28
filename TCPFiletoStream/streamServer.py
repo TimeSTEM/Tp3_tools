@@ -50,9 +50,10 @@ SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 #SERVER_HOST = '129.175.108.58' #When not using in localhost
 SERVER_PORT = 65431 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
-CREATE_TDC = True
-TIME_INTERVAL = 0.001
-MAX_LOOPS = 0
+CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
+TIME_INTERVAL = 0.001 #If no sleep, streaming is too fast
+MAX_LOOPS = 0 #Max number of loops
+FILE_EXISTS = False #False if you streaming directly
 
 """
 Script starts here
@@ -64,23 +65,48 @@ serv.listen()
 
 isRunning = True
 
+def open_and_read(filepath, number):
+    with open(filepath, "rb") as f:
+        data = f.read()
+        if CREATE_TDC: data += create_tdc(int(TIME_INTERVAL*loop*1e9))
+    return data
+
 while isRunning:
     if not INFINITE_SERVER: isRunning=False
     print('Waiting a new client connection..')
     conn, addr = serv.accept() #It hangs here until a client connects.
+    conn.settimeout(0.001)
     with conn:
         print('connected by', addr)
         loop = 0
         
         while True:
-            try:
-                now_file = os.path.join(FOLDER, "tdc_check_000"+format(loop, '.0f').zfill(3)+".tpx3")
-                f = open(now_file, "rb")
-                now_data = f.read()
-                if CREATE_TDC: now_data += create_tdc(int(TIME_INTERVAL*loop*1e9))
-            except FileNotFoundError:
-                loop = 0
-                #now_data = b''
+            now_file = os.path.join(FOLDER, "tdc_check_000"+format(loop, '.0f').zfill(3)+".tpx3")
+            if os.path.isfile(now_file):
+                now_data = open_and_read(now_file, loop)
+            else:
+                if FILE_EXISTS:
+                    loop = 0
+                else:
+                    while not os.path.isfile(now_file):
+                        try:
+                            data = conn.recv(64)
+                            if not data:
+                                break
+                        except socket.timeout:
+                            """
+                            Just so we dont hang in conn.recv
+                            """
+                            pass
+                        except ConnectionResetError:
+                            print(f'Nionswift closed without Stoping camera. Reinitializating')
+                            break
+                    try:
+                        now_data = open_and_read(now_file, loop)
+                        print(f'New file found. Opening it.')
+                    except FileNotFoundError:
+                        print(f'Connection broken by client. Reinitializating')
+                        break
 
             try:
                 conn.send(now_data)
