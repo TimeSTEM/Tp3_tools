@@ -44,10 +44,12 @@ Set Script Parameters Here
 Options for server are:
     - 129.175.81.162 for my PC;
     - 129.175.108.58 for Patrick's;
+    - 192.0.0.11 in my old dell computer (Ubuntu);
+    - 192.168.199.11 in CheeTah's computer (Ubuntu);
 """
 FOLDER = 'Files_00'
-SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
-#SERVER_HOST = '129.175.108.58' #When not using in localhost
+#SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
+SERVER_HOST = '192.0.0.11' #When not using in localhost
 SERVER_PORT = 65431 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
@@ -75,15 +77,16 @@ while isRunning:
     if not INFINITE_SERVER: isRunning=False
     print('Waiting a new client connection..')
     conn, addr = serv.accept() #It hangs here until a client connects.
-    conn.settimeout(0.001)
+    conn.settimeout(0.005)
     with conn:
         print('connected by', addr)
         loop = 0
+        now_data=b''
         
         while True:
             now_file = os.path.join(FOLDER, "tdc_check_000"+format(loop, '.0f').zfill(3)+".tpx3")
             if os.path.isfile(now_file):
-                now_data = open_and_read(now_file, loop)
+                now_data += open_and_read(now_file, loop)
             else:
                 if FILE_EXISTS:
                     loop = 0
@@ -102,7 +105,7 @@ while isRunning:
                             print(f'Nionswift closed without Stoping camera. Reinitializating')
                             break
                     try:
-                        now_data = open_and_read(now_file, loop)
+                        now_data += open_and_read(now_file, loop)
                         print(f'New file found. Opening it.')
                     except FileNotFoundError:
                         print(f'Connection broken by client. Reinitializating')
@@ -110,8 +113,11 @@ while isRunning:
 
             try:
                 conn.send(now_data)
+                now_data = b''
             except ConnectionResetError:
                 break
+            except socket.timeout:
+                pass
 
             loop+=1
             time.sleep(TIME_INTERVAL)
