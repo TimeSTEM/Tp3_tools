@@ -89,8 +89,8 @@ Options for server are:
     - 129.175.108.58 for Patrick's;
 """
 filename = '../RawAnalysis/temp.tpx3'
-#SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
-SERVER_HOST = '129.175.108.58' #When not using in localhost
+SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
+#SERVER_HOST = '129.175.108.58' #When not using in localhost
 SERVER_PORT = 65431 #Pick a port to connect your socket
 SAVE_FILE = False #Save a file in filename $PATH.
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.

@@ -53,7 +53,7 @@ INFINITE_SERVER = True #This hangs for a new client after a client has been disc
 CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
 TIME_INTERVAL = 0.001 #If no sleep, streaming is too fast
 MAX_LOOPS = 0 #Max number of loops
-FILE_EXISTS = False #False if you streaming directly
+FILE_EXISTS = True #False if you streaming directly
 
 """
 Script starts here
