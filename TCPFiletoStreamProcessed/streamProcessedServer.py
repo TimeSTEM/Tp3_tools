@@ -84,6 +84,74 @@ def data_from_raw_electron(self, data, softBinning=True, toa=False, TimeDelay=No
     except AssertionError:
         return (pos, gt)
 
+    def append_position(chip_index, data, softBinning):
+        y = 0
+        dcol = ((data[0] & 15) << 4) + ((data[1] & 224) >> 4)
+        pix = (data[2] & 112) >> 4
+        x = int(dcol + pix / 4)
+        if not softBinning:
+            spix = ((data[1] & 31) << 3) + ((data[2] & 128) >> 5)
+            y = int(spix + (pix & 3))
+
+        if chip_index == 0:
+            x = 255 - x
+            y = y
+        elif chip_index == 1:
+            x = 255 * 4 - x
+            y = y
+        elif chip_index == 2:
+            x = 255 * 3 - x
+            y = y
+        elif chip_index == 3:
+            x = 255 * 2 - x
+            y = y
+
+        pos.append([x, y])
+
+    def get_time(data):
+        toa = ((data[2] & 15) << 10) + ((data[3] & 255) << 2) + ((data[4] & 192) >> 6)
+        ftoa = (data[5] & 15)
+        spidr = ((data[6] & 255) << 8) + (data[7] & 255)
+        ctoa = toa << 4 | ~ftoa & 15
+        spidrT = spidr * 25.0 * 16384.0
+        toa_ns = toa * 25.0
+        return spidrT + ctoa * 25.0 / 16.0
+
+    if toa:
+        t0 = get_time(data[0:8])
+        for i in range(int(total_size / 9)):
+            ci = data[8 + i*9]  # Chip Index
+            time = get_time(data[i*9:8+i*9])
+            if TimeDelay <= (time - t0) <= TimeDelay + TimeWidth:
+                append_position(ci, data[i*9:8+i*9], softBinning=softBinning)
+            gt.append(time/1e9)
+    else:
+        for i in range(int(total_size / 9)):
+            ci = data[8 + i*9] #Chip Index
+            append_position(ci, data[i*9:8+i*9], softBinning=softBinning)
+            gt.append(0)
+
+    #print(f'{gt[0]} and {gt[-1]} and {TimeWidth}')
+    return (pos, gt)
+
+def data_from_raw_tdc(self, data):
+    """
+    Notes
+    -----
+    Trigger type can return 15 if tdc1 Rising edge; 10 if tdc1 Falling Edge; 14 if tdc2 Rising Edge;
+    11 if tdc2 Falling edge. tdcT returns time in seconds up to ~107s
+    """
+    assert not len(data)%9
+
+    coarseT = ((data[2] & 15) << 31) + ((data[3] & 255) << 23) + ((data[4] & 255) << 15) + (
+                (data[5] & 255) << 7) + ((data[6] & 254) >> 1)
+    fineT = ((data[6] & 1) << 3) + ((data[7] & 224) >> 5)
+    tdcT = coarseT * (1 / 320e6) + fineT * 260e-12
+
+    triggerType = data[0] & 15
+    a = tdcT - int(tdcT / 26.8435456) * 26.8435456
+    return (tdcT, triggerType, a)
+
 while isRunning:
     if not INFINITE_SERVER: isRunning=False
     print('Waiting a new client connection..')
