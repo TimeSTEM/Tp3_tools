@@ -6,3 +6,6 @@ This contain raw data analysis scripts. *open_raw.py* describes opens a set or a
 
 ## TCPDummyServer
 This is a TCPDummyServer. Executing in localhost puts it in hanging until a connection is stablished. You can either created a client python file or a simple telnet client (such as [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html), for example), can do the trick. Comment file writing to prevent huge data files being created in *temp.tpx3*.
+
+## TCPFiletoStream
+My attempt to stream the raw files via TCP directly. In your data reading environment, you use the same processing as TCPDummyServer. 
