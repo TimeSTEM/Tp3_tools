@@ -55,7 +55,6 @@ INFINITE_SERVER = True #This hangs for a new client after a client has been disc
 CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
 TIME_INTERVAL = 0.001 #If no sleep, streaming is too fast
 MAX_LOOPS = 0 #Max number of loops
-FILE_EXISTS = True #False if you streaming directly
 
 """
 Script starts here
@@ -165,30 +164,27 @@ while isRunning:
         while True:
             now_file = os.path.join(FOLDER, "tdc_check_000"+format(loop, '.0f').zfill(3)+".tpx3")
             if os.path.isfile(now_file):
-                now_data += open_and_read(now_file, loop)
+                now_data = open_and_read(now_file, loop)
             else:
-                if FILE_EXISTS:
-                    loop = 0
-                else:
-                    while not os.path.isfile(now_file):
-                        try:
-                            data = conn.recv(64)
-                            if not data:
-                                break
-                        except socket.timeout:
-                            """
-                            Just so we dont hang in conn.recv
-                            """
-                            pass
-                        except ConnectionResetError:
-                            print(f'Nionswift closed without Stoping camera. Reinitializating')
-                            break
+                while not os.path.isfile(now_file):
                     try:
-                        now_data += open_and_read(now_file, loop)
-                        print(f'New file found. Opening it.')
-                    except FileNotFoundError:
-                        print(f'Connection broken by client. Reinitializating')
+                        data = conn.recv(64)
+                        if not data:
+                            break
+                    except socket.timeout:
+                        """
+                        Just so we dont hang in conn.recv
+                        """
+                        pass
+                    except ConnectionResetError:
+                        print(f'Nionswift closed without Stoping camera. Reinitializating')
                         break
+                try:
+                    now_data = open_and_read(now_file, loop)
+                    print(f'New file found. Opening it.')
+                except FileNotFoundError:
+                    print(f'Connection broken by client. Reinitializating')
+                    break
 
             try:
                 conn.send(now_data)
