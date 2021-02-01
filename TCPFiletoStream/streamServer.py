@@ -47,15 +47,15 @@ Options for server are:
     - 192.0.0.11 in my old dell computer (Ubuntu);
     - 192.168.199.11 in CheeTah's computer (Ubuntu);
 """
-FOLDER = 'Files_00'
+FOLDER = '/home/asi/load_files/data'
 #SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
-SERVER_HOST = '192.0.0.11' #When not using in localhost
+SERVER_HOST = '192.168.199.11' #When not using in localhost
 SERVER_PORT = 65431 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
-TIME_INTERVAL = 0.001 #If no sleep, streaming is too fast
+TIME_INTERVAL = 0.5 #If no sleep, streaming is too fast
 MAX_LOOPS = 0 #Max number of loops
-FILE_EXISTS = True #False if you streaming directly
+FILE_EXISTS = False #False if you streaming directly
 
 """
 Script starts here
@@ -75,6 +75,8 @@ def open_and_read(filepath, number):
 
 while isRunning:
     if not INFINITE_SERVER: isRunning=False
+    for f in os.listdir(FOLDER):
+        os.remove(os.path.join(FOLDER, f))
     print('Waiting a new client connection..')
     conn, addr = serv.accept() #It hangs here until a client connects.
     conn.settimeout(0.005)
@@ -84,7 +86,7 @@ while isRunning:
         now_data=b''
         
         while True:
-            now_file = os.path.join(FOLDER, "tdc_check_000"+format(loop, '.0f').zfill(3)+".tpx3")
+            now_file = os.path.join(FOLDER, "raw000"+format(loop, '.0f').zfill(3)+".tpx3")
             if os.path.isfile(now_file):
                 now_data += open_and_read(now_file, loop)
             else:
@@ -106,7 +108,7 @@ while isRunning:
                             break
                     try:
                         now_data += open_and_read(now_file, loop)
-                        print(f'New file found. Opening it.')
+                        print(f'New file found at {loop}. Opening it.')
                     except FileNotFoundError:
                         print(f'Connection broken by client. Reinitializating')
                         break
