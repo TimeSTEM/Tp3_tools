@@ -53,7 +53,7 @@ SERVER_HOST = '192.168.199.11' #When not using in localhost
 SERVER_PORT = 65431 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
-TIME_INTERVAL = 0.5 #If no sleep, streaming is too fast
+TIME_INTERVAL = 0.25 #If no sleep, streaming is too fast
 MAX_LOOPS = 0 #Max number of loops
 FILE_EXISTS = False #False if you streaming directly
 
