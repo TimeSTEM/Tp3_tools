@@ -51,9 +51,9 @@ FOLDER = 'Files_00'
 SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 #SERVER_HOST = '192.0.0.11' #When not using in localhost
 SERVER_PORT = 65431 #Pick a port to connect your socket
-INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
-CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
-TIME_INTERVAL = 0.001 #If no sleep, streaming is too fast
+INFINITE_SERVER = False #This hangs for a new client after a client has been disconnected.
+CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
+TIME_INTERVAL = 0.000 #If no sleep, streaming is too fast
 MAX_LOOPS = 0 #Max number of loops
 
 """
@@ -72,14 +72,14 @@ def open_and_read(filepath, number):
         if CREATE_TDC: data += create_tdc(int(TIME_INTERVAL*loop*1e9))
     return data
 
-def data_from_raw_electron(self, data, softBinning=True, toa=False, TimeDelay=None, TimeWidth=None):
+def data_from_raw_electron(data, softBinning=True, toa=False, TimeDelay=None, TimeWidth=None):
     total_size = len(data)
 
     pos = list()
     gt = list()
 
     try:
-        assert not total_size % 9 and bool(total_size)
+        assert not total_size % 8 and bool(total_size)
     except AssertionError:
         return (pos, gt)
 
@@ -133,7 +133,7 @@ def data_from_raw_electron(self, data, softBinning=True, toa=False, TimeDelay=No
     #print(f'{gt[0]} and {gt[-1]} and {TimeWidth}')
     return (pos, gt)
 
-def data_from_raw_tdc(self, data):
+def data_from_raw_tdc(data):
     """
     Notes
     -----
@@ -175,7 +175,7 @@ while isRunning:
                         """
                         Just so we dont hang in conn.recv
                         """
-                        pass
+                        print(f'Timeout at loop {loop}.')
                     except ConnectionResetError:
                         print(f'Nionswift closed without Stoping camera. Reinitializating')
                         break
@@ -185,6 +185,8 @@ while isRunning:
                 except FileNotFoundError:
                     print(f'Connection broken by client. Reinitializating')
                     break
+
+            a = data_from_raw_electron(now_data)
 
             try:
                 conn.send(now_data)
