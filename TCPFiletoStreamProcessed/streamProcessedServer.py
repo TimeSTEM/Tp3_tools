@@ -55,6 +55,7 @@ SERVER_HOST = '192.168.199.11' #When not using in localhost
 SERVER_PORT = 8088 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
+MAX_LOOPS = 45
 
 """
 Script starts here
@@ -73,6 +74,7 @@ def open_and_read(filepath, number):
     return data
 
 def check_data(data):
+    print(len(data))
     electron_data = b''
     tdc_data = b''
     nbytes = len(data)
@@ -195,8 +197,8 @@ def create_image_from_events(data):
 while isRunning:
     if not INFINITE_SERVER: isRunning=False
     print('Deleting previous files..')
-    for f in os.listdir(FOLDER):
-        os.remove(os.path.join(FOLDER, f))
+    #for f in os.listdir(FOLDER):
+    #    os.remove(os.path.join(FOLDER, f))
     print('Waiting a new client connection..')
     conn, addr = serv.accept() #It hangs here until a client connects.
     conn.settimeout(0.005)
@@ -265,3 +267,5 @@ while isRunning:
                 pass
 
             loop+=1
+            if MAX_LOOPS and loop>MAX_LOOPS:
+                loop = 0
