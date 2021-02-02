@@ -2,6 +2,8 @@ import socket
 import os
 import numpy
 import time
+import pickle
+import sys
 
 def create_tdc(Tdif, trigger='tdc1Ris'):
     
@@ -102,7 +104,6 @@ def check_data(data):
     return electron_data, tdc_data
 
 
-
 def data_from_raw_electron(data, softBinning=True, toa=False, TimeDelay=None, TimeWidth=None):
     total_size = len(data)
 
@@ -182,6 +183,17 @@ def data_from_raw_tdc(data):
     a = tdcT - int(tdcT / 26.8435456) * 26.8435456
     return (tdcT, triggerType, a)
 
+def create_image_from_events(data):
+    imagedata = numpy.zeros((1, 1024), dtype=numpy.int16)
+    unique, frequency = numpy.unique(data, return_counts=True, axis=0)
+    try:
+        rows, cols = zip(*unique)
+        imagedata[cols, rows] = frequency
+    except ValueError:
+        pass
+    return imagedata
+        
+
 while isRunning:
     if not INFINITE_SERVER: isRunning=False
     print('Waiting a new client connection..')
@@ -207,6 +219,7 @@ while isRunning:
                         Just so we dont hang in conn.recv
                         """
                         print(f'Timeout at loop {loop}.')
+                        break
                     except ConnectionResetError:
                         print(f'Nionswift closed without Stoping camera. Reinitializating')
                         break
@@ -217,11 +230,14 @@ while isRunning:
                     print(f'Connection broken by client. Reinitializating')
                     break
 
-            a = check_data(now_data)
-            #print(len(a), len(a[0]))
+            electron_event, tdc_event = check_data(now_data)
+            pos, _ = data_from_raw_electron(electron_event)
+            final_data = create_image_from_events(pos)
+
+            final_send_data = pickle.dumps(final_data)
 
             try:
-                conn.send(now_data)
+                conn.send(final_data)
                 now_data = b''
             except ConnectionResetError:
                 break
