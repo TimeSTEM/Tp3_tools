@@ -72,6 +72,37 @@ def open_and_read(filepath, number):
         if CREATE_TDC: data += create_tdc(int(TIME_INTERVAL*loop*1e9))
     return data
 
+def check_data(data):
+    electron_data = b''
+    tdc_data = b''
+    nbytes = len(data)
+    assert nbytes % 8 == 0
+    index = 0
+    while index<nbytes:
+        packet = data[index:index+8]
+        packet = packet[::-1]
+        tpx3_header = packet[4:8]
+        assert tpx3_header == b'3XPT'
+        chip_index = packet[3]
+        size1 = packet[1]
+        size2 = packet[2]
+        total_size = size1 + size2 * 256
+        for j in range(int(total_size/8)):
+            index+=8
+            packet = data[index:index+8]
+            packet = packet[::-1]
+            packet_id = (packet[0] & 240) >> 4
+            if packet_id == 11:
+                electron_data+=packet + bytes([chip_index])
+            elif packet_id == 6:
+                tdc_data += packet + bytes([chip_index])
+            else:
+                pass
+        index+=8
+    return electron_data, tdc_data
+
+
+
 def data_from_raw_electron(data, softBinning=True, toa=False, TimeDelay=None, TimeWidth=None):
     total_size = len(data)
 
@@ -79,7 +110,7 @@ def data_from_raw_electron(data, softBinning=True, toa=False, TimeDelay=None, Ti
     gt = list()
 
     try:
-        assert not total_size % 8 and bool(total_size)
+        assert not total_size % 9 and bool(total_size)
     except AssertionError:
         return (pos, gt)
 
@@ -186,7 +217,8 @@ while isRunning:
                     print(f'Connection broken by client. Reinitializating')
                     break
 
-            a = data_from_raw_electron(now_data)
+            a = check_data(now_data)
+            #print(len(a), len(a[0]))
 
             try:
                 conn.send(now_data)
