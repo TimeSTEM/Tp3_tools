@@ -48,8 +48,8 @@ Options for server are:
     - 192.0.0.11 in my old dell computer (Ubuntu);
     - 192.168.199.11 in CheeTah's computer (Ubuntu);
 """
-#FOLDER = 'Files_00'
-FOLDER = '/home/asi/load_files/data'
+FOLDER = 'Files_00'
+#FOLDER = '/home/asi/load_files/data'
 #SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 SERVER_HOST = '192.168.199.11' #When not using in localhost
 SERVER_PORT = 8088 #Pick a port to connect your socket
@@ -73,9 +73,25 @@ def open_and_read(filepath, number):
         if CREATE_TDC: data += create_tdc(int(TIME_INTERVAL*loop*1e9))
     return data
 
+def correct_chip_index(chip_index, x):
+    if chip_index == 0:
+        x = 255 - x
+    elif chip_index == 1:
+        x = 255 * 4 - x
+    elif chip_index == 2:
+        x = 255 * 3 - x
+    elif chip_index == 3:
+        x = 255 * 2 - x
+
+    return x
+
+
 def check_data(data):
+    
+    pos = list()
+
     electron_data = list()
-    tdc_data = b''
+    tdc_data = list()
     nbytes = len(data)
     assert nbytes % 8 == 0
     index = data.index(b'TPX3')
@@ -94,18 +110,18 @@ def check_data(data):
             packet = packet[::-1]
             packet_id = (packet[0] & 240) >> 4
             if packet_id == 11:
-                #electron_data.append(list(packet + bytes([chip_index])))
-                #print(list(packet + bytes([chip_index])))
+                dcol = ((packet[0] & 15) << 4) + ((packet[1] & 224) >> 4)
+                pix = (packet[2] & 112) >> 4
+                x = int(dcol + pix / 4)
+                x = correct_chip_index(chip_index, x)
+                pos.append(x)
                 electron_data += packet + bytes([chip_index])
             elif packet_id == 6:
                 tdc_data += packet + bytes([chip_index])
             else:
                 pass
         index+=8
-    #electron_data = ''.join(electron_data)
-    #electron_data = bytearray(electron_data, 'utf-16')
-    #print(len(electron_data))
-    return electron_data, tdc_data
+    return electron_data, tdc_data, pos
 
 
 def data_from_raw_electron(data, softBinning=True, toa=False, TimeDelay=None, TimeWidth=None):
@@ -202,7 +218,7 @@ def create_image_from_events(data, softBinning):
             rows, cols = zip(*unique)
             imagedata[cols, rows] = frequency
     except:
-        print(unique)
+        print(data, unique, frequency)
     return imagedata
         
 
@@ -248,12 +264,14 @@ while isRunning:
                 break
 
             p0 = time.time()
-            electron_event, tdc_event = check_data(now_data)
+            electron_event, tdc_event, pos = check_data(now_data)
             p1 = time.time()
-            pos, _ = data_from_raw_electron(electron_event)
+            #pos, _ = data_from_raw_electron(electron_event)
             p2 = time.time()
             final_data = create_image_from_events(pos, True)
             p3 = time.time()
+
+            #print(len(pos), len(firstPos))
             
             print(f'{p1-p0} and {p2-p1} and {p3-p2}')
 
