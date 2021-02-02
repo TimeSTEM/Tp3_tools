@@ -55,7 +55,7 @@ SERVER_HOST = '192.168.199.11' #When not using in localhost
 SERVER_PORT = 8088 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
-MAX_LOOPS = 45
+MAX_LOOPS = 0
 
 """
 Script starts here
@@ -74,8 +74,7 @@ def open_and_read(filepath, number):
     return data
 
 def check_data(data):
-    print(len(data))
-    electron_data = b''
+    electron_data = list()
     tdc_data = b''
     nbytes = len(data)
     assert nbytes % 8 == 0
@@ -95,18 +94,24 @@ def check_data(data):
             packet = packet[::-1]
             packet_id = (packet[0] & 240) >> 4
             if packet_id == 11:
-                electron_data+=packet + bytes([chip_index])
+                #electron_data.append(list(packet + bytes([chip_index])))
+                #print(list(packet + bytes([chip_index])))
+                electron_data += packet + bytes([chip_index])
             elif packet_id == 6:
                 tdc_data += packet + bytes([chip_index])
             else:
                 pass
         index+=8
+    #electron_data = ''.join(electron_data)
+    #electron_data = bytearray(electron_data, 'utf-16')
+    #print(len(electron_data))
     return electron_data, tdc_data
 
 
 def data_from_raw_electron(data, softBinning=True, toa=False, TimeDelay=None, TimeWidth=None):
     total_size = len(data)
-
+    packets = int(total_size/9)
+    
     pos = list()
     gt = list()
 
@@ -115,7 +120,8 @@ def data_from_raw_electron(data, softBinning=True, toa=False, TimeDelay=None, Ti
     except AssertionError:
         return (pos, gt)
 
-    def append_position(chip_index, data, softBinning):
+    def get_position(data, softBinning=True):
+        chip_index = data[8]
         y = 0
         dcol = ((data[0] & 15) << 4) + ((data[1] & 224) >> 4)
         pix = (data[2] & 112) >> 4
@@ -137,7 +143,8 @@ def data_from_raw_electron(data, softBinning=True, toa=False, TimeDelay=None, Ti
             x = 255 * 2 - x
             y = y
 
-        pos.append([x, y])
+        if softBinning: return x
+        else: return [x, y]
 
     def get_time(data):
         toa = ((data[2] & 15) << 10) + ((data[3] & 255) << 2) + ((data[4] & 192) >> 6)
@@ -157,10 +164,12 @@ def data_from_raw_electron(data, softBinning=True, toa=False, TimeDelay=None, Ti
                 append_position(ci, data[i*9:8+i*9], softBinning=softBinning)
             gt.append(time/1e9)
     else:
-        for i in range(int(total_size / 9)):
-            ci = data[8 + i*9] #Chip Index
-            append_position(ci, data[i*9:8+i*9], softBinning=softBinning)
-            gt.append(0)
+        pos = [get_position(data[i*9:9+i*9], softBinning=softBinning) for i in range(packets)]
+
+        #for i in range(int(total_size / 9)):
+        #    ci = data[8 + i*9] #Chip Index
+        #    append_position(ci, data[i*9:8+i*9], softBinning=softBinning)
+        #    gt.append(0)
 
     #print(f'{gt[0]} and {gt[-1]} and {TimeWidth}')
     return (pos, gt)
@@ -183,14 +192,17 @@ def data_from_raw_tdc(data):
     a = tdcT - int(tdcT / 26.8435456) * 26.8435456
     return (tdcT, triggerType, a)
 
-def create_image_from_events(data):
+def create_image_from_events(data, softBinning):
     imagedata = numpy.zeros((1, 1024), dtype=numpy.int16)
     unique, frequency = numpy.unique(data, return_counts=True, axis=0)
     try:
-        rows, cols = zip(*unique)
-        imagedata[cols, rows] = frequency
-    except ValueError:
-        pass
+        if softBinning:
+            imagedata[0, unique] = frequency
+        else:
+            rows, cols = zip(*unique)
+            imagedata[cols, rows] = frequency
+    except:
+        print(unique)
     return imagedata
         
 
@@ -240,7 +252,7 @@ while isRunning:
             p1 = time.time()
             pos, _ = data_from_raw_electron(electron_event)
             p2 = time.time()
-            final_data = create_image_from_events(pos)
+            final_data = create_image_from_events(pos, True)
             p3 = time.time()
             
             print(f'{p1-p0} and {p2-p1} and {p3-p2}')
