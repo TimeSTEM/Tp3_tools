@@ -2,7 +2,6 @@ import socket
 import os
 import numpy
 import time
-import pickle
 import json
 
 def create_tdc(Tdif, trigger='tdc1Ris'):
@@ -49,14 +48,13 @@ Options for server are:
     - 192.0.0.11 in my old dell computer (Ubuntu);
     - 192.168.199.11 in CheeTah's computer (Ubuntu);
 """
-FOLDER = 'Files_00'
-SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
-#SERVER_HOST = '192.0.0.11' #When not using in localhost
-SERVER_PORT = 65431 #Pick a port to connect your socket
+#FOLDER = 'Files_00'
+FOLDER = '/home/asi/load_files/data'
+#SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
+SERVER_HOST = '192.168.199.11' #When not using in localhost
+SERVER_PORT = 8088 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
-TIME_INTERVAL = 0.000 #If no sleep, streaming is too fast
-MAX_LOOPS = 0 #Max number of loops
 
 """
 Script starts here
@@ -79,15 +77,15 @@ def check_data(data):
     tdc_data = b''
     nbytes = len(data)
     assert nbytes % 8 == 0
-    index = 0
-    while index<nbytes:
+    index = data.index(b'TPX3')
+    while index+8<nbytes:
         packet = data[index:index+8]
         packet = packet[::-1]
         tpx3_header = packet[4:8]
         assert tpx3_header == b'3XPT'
         chip_index = packet[3]
         size1 = packet[1]
-        size2 = packet[2]
+        size2 = packet[0]
         total_size = size1 + size2 * 256
         for j in range(int(total_size/8)):
             index+=8
@@ -196,6 +194,9 @@ def create_image_from_events(data):
 
 while isRunning:
     if not INFINITE_SERVER: isRunning=False
+    print('Deleting previous files..')
+    for f in os.listdir(FOLDER):
+        os.remove(os.path.join(FOLDER, f))
     print('Waiting a new client connection..')
     conn, addr = serv.accept() #It hangs here until a client connects.
     conn.settimeout(0.005)
@@ -205,36 +206,42 @@ while isRunning:
         now_data=b''
         
         while True:
-            now_file = os.path.join(FOLDER, "tdc_check_000"+format(loop, '.0f').zfill(3)+".tpx3")
-            if os.path.isfile(now_file):
-                now_data = open_and_read(now_file, loop)
-            else:
-                while not os.path.isfile(now_file):
-                    try:
-                        data = conn.recv(64)
-                        if not data:
-                            break
-                    except socket.timeout:
-                        """
-                        Just so we dont hang in conn.recv
-                        """
-                        print(f'Timeout at loop {loop}.')
-                        break
-                    except ConnectionResetError:
-                        print(f'Nionswift closed without Stoping camera. Reinitializating')
-                        break
+            start = time.time()
+            now_file = os.path.join(FOLDER, "raw00"+format(loop, '.0f').zfill(4)+".tpx3")
+            next_file = os.path.join(FOLDER, "raw00"+format(loop+1, '.0f').zfill(4)+".tpx3")
+            #if os.path.isfile(now_file):
+            #    now_data = open_and_read(now_file, loop)
+            #else:
+            while not os.path.isfile(next_file):
                 try:
-                    now_data = open_and_read(now_file, loop)
-                    print(f'New file found. Opening it.')
-                except FileNotFoundError:
-                    print(f'Connection broken by client. Reinitializating')
+                    data = conn.recv(64)
+                    if not data:
+                        break
+                except socket.timeout:
+                    """
+                    Just so we dont hang in conn.recv
+                    """
+                    pass
+                except ConnectionResetError:
+                    print(f'Nionswift closed without Stoping camera. Reinitializating')
                     break
+            try:
+                now_data = open_and_read(now_file, loop)
+                #print(len(now_data))
+                #print(f'New file found. Opening it.')
+            except FileNotFoundError:
+                print(f'Connection broken by client. Reinitializating')
+                break
 
+            p0 = time.time()
             electron_event, tdc_event = check_data(now_data)
+            p1 = time.time()
             pos, _ = data_from_raw_electron(electron_event)
+            p2 = time.time()
             final_data = create_image_from_events(pos)
-
-            final_send_data = pickle.dumps(final_data)
+            p3 = time.time()
+            
+            print(f'{p1-p0} and {p2-p1} and {p3-p2}')
 
             header = dict()
             header['timeAtFrame'] = 0
@@ -245,7 +252,6 @@ while isRunning:
             header['width'] = 1024
             header['height'] = 1
 
-
             try:
                 conn.send(json.dumps(header, separators=(',', ':')).encode() + b'\n')
                 conn.send(final_data)
@@ -255,9 +261,7 @@ while isRunning:
                 break
             except socket.timeout:
                 pass
+            except BrokenPipeError:
+                pass
 
             loop+=1
-            time.sleep(TIME_INTERVAL)
-
-            if MAX_LOOPS and loop==MAX_LOOPS:
-                break
