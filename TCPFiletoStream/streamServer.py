@@ -47,9 +47,10 @@ Options for server are:
     - 192.0.0.11 in my old dell computer (Ubuntu);
     - 192.168.199.11 in CheeTah's computer (Ubuntu);
 """
-FOLDER = '/home/asi/load_files/data'
-#SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
-SERVER_HOST = '192.168.199.11' #When not using in localhost
+FOLDER = 'Files_00'
+#FOLDER = '/home/asi/load_files/data'
+SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
+#SERVER_HOST = '192.168.199.11' #When not using in localhost
 SERVER_PORT = 65431 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
@@ -86,7 +87,7 @@ while isRunning:
         now_data=b''
         
         while True:
-            now_file = os.path.join(FOLDER, "raw000"+format(loop, '.0f').zfill(3)+".tpx3")
+            now_file = os.path.join(FOLDER, "tdc_check_000"+format(loop, '.0f').zfill(3)+".tpx3")
             if os.path.isfile(now_file):
                 now_data += open_and_read(now_file, loop)
             else:

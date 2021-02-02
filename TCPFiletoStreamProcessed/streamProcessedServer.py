@@ -3,7 +3,7 @@ import os
 import numpy
 import time
 import pickle
-import sys
+import json
 
 def create_tdc(Tdif, trigger='tdc1Ris'):
     
@@ -53,7 +53,7 @@ FOLDER = 'Files_00'
 SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 #SERVER_HOST = '192.0.0.11' #When not using in localhost
 SERVER_PORT = 65431 #Pick a port to connect your socket
-INFINITE_SERVER = False #This hangs for a new client after a client has been disconnected.
+INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
 TIME_INTERVAL = 0.000 #If no sleep, streaming is too fast
 MAX_LOOPS = 0 #Max number of loops
@@ -236,8 +236,20 @@ while isRunning:
 
             final_send_data = pickle.dumps(final_data)
 
+            header = dict()
+            header['timeAtFrame'] = 0
+            header['frameNumber'] = loop
+            header['measurementID'] = 'Null'
+            header['dataSize'] = 1024*2
+            header['bitDepth'] = 16
+            header['width'] = 1024
+            header['height'] = 1
+
+
             try:
+                conn.send(json.dumps(header, separators=(',', ':')).encode() + b'\n')
                 conn.send(final_data)
+                conn.send(b'\n')
                 now_data = b''
             except ConnectionResetError:
                 break
