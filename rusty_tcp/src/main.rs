@@ -20,10 +20,10 @@ fn build_data(data: &Vec<u8>) -> Vec<u8> {
     let mut _y: u16;
     let mut _spix: u16;
     */
-    let mut _pix: u16;
-    let mut _dcol: u16;
+    let mut _pix: u8;
+    let mut _dcol: u8;
 
-    let mut x: u16;
+    let mut x: u8;
     
     while index < file_data.len() {
         assert_eq!(Some(&[84, 80, 88, 51][..]), file_data.get(index..index+4));
@@ -39,9 +39,9 @@ fn build_data(data: &Vec<u8>) -> Vec<u8> {
             _tot = ((file_data[index+10] & 240) as u16)>>4 | ((file_data[index+11] & 63) as u16)<<4;
             _toa = ((file_data[index+11] & 192) as u16)>>6 | (file_data[index+12] as u16)<<2 | ((file_data[13] & 15) as u16)<<10;
             */
-            _pix = (file_data[index+13] & 112) as u16>>4;
+            _pix = (file_data[index+13] & 112)>>4;
             //_spix = ((file_data[index+13] & 128) as u16)>>5 | ((file_data[index+14] & 31) as u16)<<3;
-            _dcol = ((file_data[index+14] & 224) as u16)>>4 | ((file_data[index+15] & 15) as u16)<<4;
+            _dcol = ((file_data[index+14] & 224))>>4 | ((file_data[index+15] & 15))<<4;
 
             x = _dcol | _pix >> 2;
             //_y = _spix | (_pix & 3);
@@ -59,6 +59,24 @@ fn build_data(data: &Vec<u8>) -> Vec<u8> {
     }
     final_data
 }
+
+fn has_data(number: u16) -> bool {
+    let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw00000");
+    let ct: String = number.to_string();
+    path.push_str(&ct);
+    path.push_str(".tpx3");
+    
+    let mut valid = true;
+    
+    if let Ok(myfile) = File::open(path) {
+        valid = true;
+    }
+    else {
+        valid = false;
+    }
+    valid
+}
+
 
 fn open_and_read(number: u16) -> (Vec<u8>, bool) {
     let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw00000");
@@ -79,9 +97,14 @@ fn open_and_read(number: u16) -> (Vec<u8>, bool) {
     (buffer, valid)
 }
 
+fn create_header() -> String {
+    let mut msg: String = String::from("{timeAtFrame:");
+    msg
+}
+
 
 fn main() {
-    let mut counter = 1u16;
+    let mut counter = 0u16;
 
     let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
     if let Ok((socket, addr)) = listener.accept() {
@@ -96,14 +119,18 @@ fn main() {
         }
         loop {
             let start = Instant::now();
-            let (buffer, valid) = open_and_read(counter);
-            if valid==false {
+            let msg = create_header();
+            let s: Vec<u8> = msg.into_bytes();
+
+            if has_data(counter)==false {
                 counter = 0;
-                let (buffer, valid) = open_and_read(counter);
             }
+            
+            let (mydata, _) = open_and_read(counter);
 
-            let my_real_data = build_data(&buffer);
+            let my_real_data = build_data(&mydata);
 
+            sock.write(&s);
             sock.write(&my_real_data);
             let elapsed = start.elapsed();
             println!("{} and {:?}", counter, elapsed);
