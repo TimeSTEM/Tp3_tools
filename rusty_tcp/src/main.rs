@@ -1,7 +1,6 @@
-use std::io;
 use std::io::prelude::*;
 use std::fs::File;
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpListener;
 use std::time::Instant;
 
 
@@ -17,10 +16,9 @@ fn correct_x_position(chip_index: u8, pos: u8) -> usize {
 }
 
     
-
 fn build_data(data: &Vec<u8>) -> Vec<u8> {
     
-    let mut file_data = data;
+    let file_data = data;
     let mut final_data = vec![0; 2048];
     let mut index = 0;
     
@@ -82,14 +80,15 @@ fn has_data(number: u16) -> bool {
     path.push_str(&ct);
     path.push_str(".tpx3");
     
-    let mut valid = true;
+    let valid;
     
-    if let Ok(myfile) = File::open(path) {
+    if let Ok(_myfile) = File::open(path) {
         valid = true;
     }
     else {
         valid = false;
     }
+
     valid
 }
 
@@ -100,7 +99,7 @@ fn open_and_read(number: u16) -> (Vec<u8>, bool) {
     path.push_str(&ct);
     path.push_str(".tpx3");
     let mut buffer: Vec<u8> = Vec::new();
-    let mut valid = true;
+    let valid;
     
     if let Ok(myfile) = File::open(path) {
         let mut myfile = myfile;
@@ -113,7 +112,7 @@ fn open_and_read(number: u16) -> (Vec<u8>, bool) {
     (buffer, valid)
 }
 
-fn create_header(time: f64, frame: u16, data_size: u32, bitDepth: u8, width: u16, height: u16) -> Vec<u8> {
+fn create_header(time: f64, frame: u16, data_size: u32, bitdepth: u8, width: u16, height: u16) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(time.to_string()));
     msg.push_str(",\"frameNumber\":");
@@ -121,7 +120,7 @@ fn create_header(time: f64, frame: u16, data_size: u32, bitDepth: u8, width: u16
     msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
     msg.push_str(&(data_size.to_string()));
     msg.push_str(",\"bitDepth\":");
-    msg.push_str(&(bitDepth.to_string()));
+    msg.push_str(&(bitdepth.to_string()));
     msg.push_str(",\"width\":");
     msg.push_str(&(width.to_string()));
     msg.push_str(",\"height\":");
@@ -139,13 +138,16 @@ fn main() {
     if let Ok((socket, addr)) = listener.accept() {
         println!("new client {:?}", addr);
         let mut sock = socket;
+        
+        /*
         let mut my_data = [0 as u8; 50];
-        //while let Ok(size) = sock.read(&mut my_data){
-        //    sock.write(&my_data[0..size]);
-        //    if size<50 {
-        //        break
-        //    }
-        //}
+        while let Ok(size) = sock.read(&mut my_data){
+            sock.write(&my_data[0..size]);
+            if size<50 {
+                break
+            }
+        }
+        */
         loop {
             let start = Instant::now();
             let msg = create_header(0.352, counter, 2048, 16, 1024, 1);
@@ -155,11 +157,10 @@ fn main() {
             }
             
             let (mydata, _) = open_and_read(counter);
-
             let my_real_data = build_data(&mydata);
 
-            sock.write(&msg);
-            sock.write(&my_real_data);
+            sock.write(&msg).expect("Header not sent.");
+            sock.write(&my_real_data).expect("Data not sent.");
             let elapsed = start.elapsed();
             println!("{} and {:?}", counter, elapsed);
             counter+=1;
