@@ -2,7 +2,9 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::net::TcpListener;
 use std::time::Instant;
-
+use std::time::Duration;
+use std::thread;
+use std::sync::mpsc;
 
 fn correct_x_position(chip_index: u8, pos: u8) -> usize {
     let x = pos as usize;
@@ -15,11 +17,11 @@ fn correct_x_position(chip_index: u8, pos: u8) -> usize {
     }
 }
 
-fn build_data(data: &Vec<u8>, bin: bool) -> Vec<u8> {
+fn build_data(data: &Vec<u8>, bin: bool, section: usize) -> Vec<u8> {
     
     let file_data = data;
     let mut final_data = vec![0; 2048*(255 * (bin as usize) + 1)];
-    //let mut final_data = vec![0; 524288];
+    let file_data_len = file_data.len();
     let mut index = 0;
     
     let mut total_size: u16;
@@ -40,7 +42,7 @@ fn build_data(data: &Vec<u8>, bin: bool) -> Vec<u8> {
         index+=1;
     }
 
-    while index < file_data.len() {
+    while index < file_data.len()/section {
         assert_eq!(Some(&[84, 80, 88, 51][..]), file_data.get(index..index+4));
         
         chip_index = file_data[index+4];
@@ -61,7 +63,6 @@ fn build_data(data: &Vec<u8>, bin: bool) -> Vec<u8> {
             let x: u8 = dcol | pix >> 2;
             let y: usize = (spix | (pix & 3)) as usize;
 
-            //let x = x as usize;
             let x = correct_x_position(chip_index, x);
 
             let array_pos = 2*x + 2048*y*(bin as usize);
@@ -164,12 +165,40 @@ fn main() {
                 counter = 0;
             }
             
-            let (mydata, _) = open_and_read(counter);
-            let my_real_data = build_data(&mydata, false);
+            let (mydata, _) = open_and_read(1);
+            let (mydata2, _) = open_and_read(2);
+            let (mydata3, _) = open_and_read(3);
+            //let my_real_data = build_data(&mydata, false, 0, 1);
+            
+            let (tx, rx) = mpsc::channel();
+
+            let tx1 = mpsc::Sender::clone(&tx);
+            let tx2 = mpsc::Sender::clone(&tx);
+
+            thread::spawn(move || {
+                let val = build_data(&mydata, false, 1);
+                tx.send(val).unwrap();
+            });
+            
+            thread::spawn(move || {
+                let val = build_data(&mydata2, false, 1);
+                tx1.send(val).unwrap();
+            });
+            
+            thread::spawn(move || {
+                let val = build_data(&mydata3, false, 1);
+                tx2.send(val).unwrap();
+            });
+            
+            let received = rx.recv().unwrap();
+            let received2 = rx.recv().unwrap();
+            let received3 = rx.recv().unwrap();
+
 
             let elapsed = start.elapsed();
             sock.write(&msg).expect("Header not sent.");
-            sock.write(&my_real_data).expect("Data not sent.");
+            //sock.write(&my_real_data).expect("Data not sent.");
+            sock.write(&received).expect("Data not sent.");
             println!("{} and {:?}", counter, elapsed);
             counter+=1;
         }
