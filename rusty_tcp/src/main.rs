@@ -15,12 +15,11 @@ fn correct_x_position(chip_index: u8, pos: u8) -> usize {
     }
 }
 
-    
-fn build_data(data: &Vec<u8>) -> Vec<u8> {
+fn build_data(data: &Vec<u8>, bin: bool) -> Vec<u8> {
     
     let file_data = data;
-    //let mut final_data = vec![0; 2048];
-    let mut final_data = vec![0; 524288];
+    let mut final_data = vec![0; 2048*(255 * (bin as usize) + 1)];
+    //let mut final_data = vec![0; 524288];
     let mut index = 0;
     
     let mut total_size: u16;
@@ -37,14 +36,18 @@ fn build_data(data: &Vec<u8>) -> Vec<u8> {
     let mut dcol: u8;
     let mut spix: u8;
 
-    
+    while file_data.get(index..index+4) != Some(&[84, 80, 88, 51]) {
+        index+=1;
+    }
+
     while index < file_data.len() {
         assert_eq!(Some(&[84, 80, 88, 51][..]), file_data.get(index..index+4));
         
         chip_index = file_data[index+4];
         total_size = (file_data[index+6] as u16) | (file_data[index+7] as u16)<<8;
 
-        for _i in 0..total_size/8 {
+        let _nloop = total_size / 8;
+        for _i in 0.._nloop {
             /*
             _spidr = (file_data[index+8] as u16) | (file_data[index+9] as u16)<<8;
             _ftoa = file_data[index+10] & 15;
@@ -55,18 +58,19 @@ fn build_data(data: &Vec<u8>) -> Vec<u8> {
             spix = ((file_data[index+13] & 128))>>5 | ((file_data[index+14] & 31))<<3;
             dcol = ((file_data[index+14] & 224))>>4 | ((file_data[index+15] & 15))<<4;
             id = (file_data[index+15] & 240) >> 4;
-
             let x: u8 = dcol | pix >> 2;
             let y: usize = (spix | (pix & 3)) as usize;
 
             //let x = x as usize;
             let x = correct_x_position(chip_index, x);
 
+            let array_pos = 2*x + 2048*y*(bin as usize);
+
             if id==11 {
-                final_data[2*x +2048*y]+=1;
-                if final_data[2*x+2048*y]==255 {
-                    final_data[(2*x+2048*y+1)] += 1;
-                    final_data[2*x+2048*y] = 0;
+                final_data[array_pos]+=1;
+                if final_data[array_pos]==255 {
+                    final_data[(array_pos+1)] += 1;
+                    final_data[array_pos] = 0;
                 }
             }
 
@@ -154,14 +158,14 @@ fn main() {
         */
         loop {
             let start = Instant::now();
-            let msg = create_header(0.352, counter, 524288, 16, 1024, 256);
+            let msg = create_header(0.352, counter, 2048, 16, 1024, 1);
 
             while has_data(counter)==false {
                 counter = 0;
             }
             
             let (mydata, _) = open_and_read(counter);
-            let my_real_data = build_data(&mydata);
+            let my_real_data = build_data(&mydata, false);
 
             let elapsed = start.elapsed();
             sock.write(&msg).expect("Header not sent.");
