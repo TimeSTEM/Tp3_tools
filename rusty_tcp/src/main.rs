@@ -4,6 +4,20 @@ use std::fs::File;
 use std::net::{TcpListener, TcpStream};
 use std::time::Instant;
 
+
+fn correct_x_position(chip_index: u8, pos: u8) -> usize {
+    let x = pos as usize;
+    match chip_index {
+        0 => 255 - x,
+        1 => 255 * 4 - x,
+        2 => 255 * 3 - x,
+        3 => 255 * 2 - x,
+        _ => x,
+    }
+}
+
+    
+
 fn build_data(data: &Vec<u8>) -> Vec<u8> {
     
     let mut file_data = data;
@@ -11,7 +25,7 @@ fn build_data(data: &Vec<u8>) -> Vec<u8> {
     let mut index = 0;
     
     let mut total_size: u16;
-    let mut _chip_index: u8;
+    let mut chip_index: u8;
     /*
     let mut _spidr: u16;
     let mut _ftoa: u8;
@@ -28,7 +42,7 @@ fn build_data(data: &Vec<u8>) -> Vec<u8> {
     while index < file_data.len() {
         assert_eq!(Some(&[84, 80, 88, 51][..]), file_data.get(index..index+4));
         
-        _chip_index = file_data[index+4];
+        chip_index = file_data[index+4];
         total_size = (file_data[index+6] as u16) | (file_data[index+7] as u16)<<8;
 
         let _nloop = total_size / 8;
@@ -46,7 +60,8 @@ fn build_data(data: &Vec<u8>) -> Vec<u8> {
             x = _dcol | _pix >> 2;
             //_y = _spix | (_pix & 3);
 
-            let x = x as usize;
+            //let x = x as usize;
+            let x = correct_x_position(chip_index, x);
 
             final_data[2*x]+=1;
             if final_data[2*x]==255 {
@@ -57,6 +72,7 @@ fn build_data(data: &Vec<u8>) -> Vec<u8> {
         }
         index = index + 8;
     }
+    final_data.push(10);
     final_data
 }
 
@@ -97,9 +113,22 @@ fn open_and_read(number: u16) -> (Vec<u8>, bool) {
     (buffer, valid)
 }
 
-fn create_header() -> String {
-    let mut msg: String = String::from("{timeAtFrame:");
-    msg
+fn create_header(time: f64, frame: u16, data_size: u32, bitDepth: u8, width: u16, height: u16) -> Vec<u8> {
+    let mut msg: String = String::from("{\"timeAtFrame\":");
+    msg.push_str(&(time.to_string()));
+    msg.push_str(",\"frameNumber\":");
+    msg.push_str(&(frame.to_string()));
+    msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
+    msg.push_str(&(data_size.to_string()));
+    msg.push_str(",\"bitDepth\":");
+    msg.push_str(&(bitDepth.to_string()));
+    msg.push_str(",\"width\":");
+    msg.push_str(&(width.to_string()));
+    msg.push_str(",\"height\":");
+    msg.push_str(&(height.to_string()));
+    msg.push_str("}\n");
+    let s: Vec<u8> = msg.into_bytes();
+    s
 }
 
 
@@ -111,16 +140,15 @@ fn main() {
         println!("new client {:?}", addr);
         let mut sock = socket;
         let mut my_data = [0 as u8; 50];
-        while let Ok(size) = sock.read(&mut my_data){
-            sock.write(&my_data[0..size]);
-            if size<50 {
-                break
-            }
-        }
+        //while let Ok(size) = sock.read(&mut my_data){
+        //    sock.write(&my_data[0..size]);
+        //    if size<50 {
+        //        break
+        //    }
+        //}
         loop {
             let start = Instant::now();
-            let msg = create_header();
-            let s: Vec<u8> = msg.into_bytes();
+            let msg = create_header(0.352, counter, 2048, 16, 1024, 1);
 
             if has_data(counter)==false {
                 counter = 0;
@@ -130,7 +158,7 @@ fn main() {
 
             let my_real_data = build_data(&mydata);
 
-            sock.write(&s);
+            sock.write(&msg);
             sock.write(&my_real_data);
             let elapsed = start.elapsed();
             println!("{} and {:?}", counter, elapsed);

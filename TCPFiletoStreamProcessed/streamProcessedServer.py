@@ -50,8 +50,8 @@ Options for server are:
 """
 FOLDER = 'Files_00'
 #FOLDER = '/home/asi/load_files/data'
-#SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
-SERVER_HOST = '192.168.199.11' #When not using in localhost
+SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
+#SERVER_HOST = '192.168.199.11' #When not using in localhost
 SERVER_PORT = 8088 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
@@ -251,7 +251,8 @@ while isRunning:
                     """
                     Just so we dont hang in conn.recv
                     """
-                    pass
+                    loop = 0
+                    next_file = os.path.join(FOLDER, "raw00"+format(loop+1, '.0f').zfill(4)+".tpx3")
                 except ConnectionResetError:
                     print(f'Nionswift closed without Stoping camera. Reinitializating')
                     break
