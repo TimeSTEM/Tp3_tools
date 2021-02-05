@@ -53,10 +53,10 @@ fn correct_x_position(chip_index: u8, pos: u8) -> usize {
 fn build_data(data: &[u8], bin: bool, section: usize) -> [u8; 2049] {
     
     let file_data = data;
-    //let mut file_data_iter = file_data.iter();
-    let mut array_final_data = [0; 2049];
+    let mut final_data = [0; 2049];
     let file_data_len = file_data.len();
     let mut index = 0;
+    let packet_size = 8;
     let mut total_size: usize;
     let mut chip_index: u8;
 
@@ -65,13 +65,13 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> [u8; 2049] {
     }
     
     while index < file_data.len()/section {
-        assert_eq!(Some(&[84, 80, 88, 51][..]), file_data.get(index..index+4));
         
+        assert_eq!(Some(&[84, 80, 88, 51][..]), file_data.get(index..index+4));
         chip_index = file_data[index+4];
         total_size = (file_data[index+6] as usize) | (file_data[index+7] as usize)<<8;
 
         if (index + (total_size as usize)) > file_data.len()/section {break}
-        let _nloop = total_size / 8;
+        let _nloop = total_size / packet_size;
         for _i in 0.._nloop  {
         
             let packet = Packet {
@@ -95,20 +95,20 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> [u8; 2049] {
 
             if packet.id()==11 {
                 let array_pos = 2*packet.x();
-                array_final_data[array_pos] += 1;
-                if array_final_data[array_pos]==255 {
-                    array_final_data[(array_pos+1)] += 1;
-                    array_final_data[array_pos] = 0;
+                final_data[array_pos] += 1;
+                if final_data[array_pos]==255 {
+                    final_data[(array_pos+1)] += 1;
+                    final_data[array_pos] = 0;
                 }
             }
             
 
-            index = index + 8;
+            index = index + packet_size;
         }
-        index = index + 8;
+        index = index + packet_size;
     }
-    array_final_data[2048] = 10;
-    array_final_data
+    final_data[2048] = 10;
+    final_data
 }
 
 
@@ -206,7 +206,7 @@ fn main() {
             }
         }
         */
-        let mut global_counter = 0;
+        let mut gt = 0 ;
         let start = Instant::now();
         loop {
             let msg = create_header(0.352, counter, 2048, 16, 1024, 1);
@@ -242,8 +242,8 @@ fn main() {
             sock.write(&msg).expect("Header not sent.");
             sock.write(&received).expect("Data not sent.");
             counter+=1;
-            global_counter+=1;
-            if global_counter==500 {
+            gt+=1;
+            if gt==1000 {
                 let elapsed = start.elapsed();
                 println!("{} and {:?}", counter, elapsed);
             }
