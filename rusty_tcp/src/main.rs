@@ -4,6 +4,41 @@ use std::net::TcpListener;
 use std::time::Instant;
 use std::thread;
 use std::sync::mpsc;
+        
+struct Packet {
+    chip_index: u8,
+    i08: u8,
+    i09: u8,
+    i10: u8,
+    i11: u8,
+    i12: u8,
+    i13: u8,
+    i14: u8,
+    i15: u8,
+}
+
+impl Packet {
+    fn x(&self) -> usize {
+        let mut temp = ((((self.i14 & 224))>>4 | ((self.i15 & 15))<<4) | (((self.i13 & 112)>>4)>>2)) as usize;
+        match self.chip_index {
+            0 => 255 - temp,
+            1 => 255 * 4 - temp,
+            2 => 255 * 3 - temp,
+            3 => 255 * 2 - temp,
+            _ => temp,
+        }
+    }
+    
+    fn y(&self) -> usize {
+        (   ( ((self.i13 & 128))>>5 | ((self.i14 & 31))<<3 ) | ( (((self.i13 & 112)>>4)) & 3 )   ) as usize
+    }
+
+    fn id(&self) -> u8 {
+        (self.i15 & 240) >> 4
+    }
+}
+
+
 
 fn correct_x_position(chip_index: u8, pos: u8) -> usize {
     let x = pos as usize;
@@ -151,24 +186,27 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
         let _nloop = total_size / 8;
         if (index + (total_size as usize)) > file_data.len()/section {break}
         for _i in 0.._nloop {
+            let packet = Packet {
+                chip_index: chip_index,
+                i08: file_data[index+8],
+                i09: file_data[index+9],
+                i10: file_data[index+10],
+                i11: file_data[index+11],
+                i12: file_data[index+12],
+                i13: file_data[index+13],
+                i14: file_data[index+14],
+                i15: file_data[index+15],
+            };
+
             /*
             _spidr = (file_data[index+8] as u16) | (file_data[index+9] as u16)<<8;
             _ftoa = file_data[index+10] & 15;
             _tot = ((file_data[index+10] & 240) as u16)>>4 | ((file_data[index+11] & 63) as u16)<<4;
             _toa = ((file_data[index+11] & 192) as u16)>>6 | (file_data[index+12] as u16)<<2 | ((file_data[13] & 15) as u16)<<10;
             */
-            pix = (file_data[index+13] & 112)>>4;
-            spix = ((file_data[index+13] & 128))>>5 | ((file_data[index+14] & 31))<<3;
-            dcol = ((file_data[index+14] & 224))>>4 | ((file_data[index+15] & 15))<<4;
-            id = (file_data[index+15] & 240) >> 4;
-            let x: u8 = dcol | pix >> 2;
-            let y: usize = (spix | (pix & 3)) as usize;
 
-            let x = correct_x_position(chip_index, x);
-
-            let array_pos = 2*x + 2048*y*(bin as usize);
-
-            if id==11 {
+            if packet.id()==11 {
+                let array_pos = 2*packet.x() + 2048*packet.y()*(bin as usize);
                 final_data[array_pos] += 1;
                 if final_data[array_pos]==255 {
                     final_data[(array_pos+1)] += 1;
@@ -185,12 +223,12 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
 }
 
 
-fn has_data(number: u16) -> bool {
-    let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw00000");
-    let ct: String = number.to_string();
-    path.push_str(&ct);
-    path.push_str(".tpx3");
-    
+    fn has_data(number: u16) -> bool {
+        let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw00000");
+        let ct: String = number.to_string();
+        path.push_str(&ct);
+        path.push_str(".tpx3");
+        
     let valid;
     
     if let Ok(_myfile) = File::open(path) {
