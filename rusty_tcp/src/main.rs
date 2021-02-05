@@ -2,7 +2,6 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::net::TcpListener;
 use std::time::Instant;
-use std::time::Duration;
 use std::thread;
 use std::sync::mpsc;
 
@@ -20,7 +19,8 @@ fn correct_x_position(chip_index: u8, pos: u8) -> usize {
 fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
     
     let file_data = data;
-    let mut final_data = vec![0; 2048*(255 * (bin as usize) + 1)];
+    let mut file_data_iter = file_data.iter();
+    let mut final_data: Vec<u8> = vec![0; 2048*(255 * (bin as usize) + 1)];
     let file_data_len = file_data.len();
     let mut index = 0;
     
@@ -41,9 +41,63 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
     while file_data.get(index..index+4) != Some(&[84, 80, 88, 51]) {
         index+=1;
     }
+    
+    
+    let mut global_counter = 0;
+    let mut final_data2: Vec<u8> = vec![0; 2048];
+    file_data_iter.nth(index);
+    
+    while let Some(i) = file_data_iter.nth(1) {
+        assert_eq!(file_data_iter.next(), Some(&51));
+        file_data_iter.next(); 
+        file_data_iter.next(); 
+        let size = (*file_data_iter.next().unwrap() as u16) | (*file_data_iter.next().unwrap() as u16) << 8;
+        file_data_iter.nth((size-4) as usize);
+        
+        let mut i13_iter = file_data_iter.clone().step_by(8);
+        let mut i14_iter = file_data_iter.clone().step_by(8);
+        let mut i15_iter = file_data_iter.clone().step_by(8);
+        
+        let i13 = *file_data_iter.next().unwrap(); //index 13
+        let i14 = *file_data_iter.next().unwrap(); //index 14
+        let i15 = *file_data_iter.next().unwrap(); //index 15
+            
+        let pix = (i13 & 112)>>4;
+        let spix = ((i13 & 128))>>5 | ((i14 & 31))<<3;
+        let dcol = ((i14 & 224))>>4 | ((i15 & 15))<<4;
+        let id = (i15 & 240) >> 4;
+            
+        let x = dcol | pix >> 2;
+        let x = correct_x_position(0, x);
+        let array_pos = 2*x;
+            
+        if id==11 {
+            final_data2[array_pos] += 1;
+            if final_data2[array_pos]==255 {
+                final_data2[(array_pos+1)] += 1;
+                final_data2[array_pos] = 0;
+            }
+        }
+        global_counter+=1;
+        
+        match file_data_iter.next() {
+            Some(i) => continue,
+            None => break,
+        }
+    }
+    println!("{}", global_counter);
+    
 
+
+    //while let Some(i) = file_data_iter.next() {
+        //assert_eq!(file_data_iter.next(), Some(&80));
+   //     file_data_iter.nth(5);
+   //     let chip_index = file_data_iter.next();
+    //}
 
     //println!("{}", index);
+
+    /*
     while index < file_data.len()/section {
         assert_eq!(Some(&[84, 80, 88, 51][..]), file_data.get(index..index+4));
         
@@ -71,7 +125,7 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
             let array_pos = 2*x + 2048*y*(bin as usize);
 
             if id==11 {
-                final_data[array_pos]+=1;
+                final_data[array_pos] += 1;
                 if final_data[array_pos]==255 {
                     final_data[(array_pos+1)] += 1;
                     final_data[array_pos] = 0;
@@ -81,9 +135,11 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
         }
         index = index + 8;
     }
-    final_data.push(10);
-    final_data
+    */
+    final_data2.push(10);
+    final_data2
 }
+
 
 fn has_data(number: u16) -> bool {
     let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw00000");
@@ -147,7 +203,7 @@ fn sum_vec(vec1: &[u8], vec2: &[u8]) -> Vec<u8> {
 }
 
 fn sum2_vec(vec1: &[u8], vec2: &[u8]) -> Vec<u8> {
-    let mut new_vec:Vec<u8> = vec![127; 2048*256];
+    let mut new_vec:Vec<u8> = vec![127; 2048];
     for i in 0..vec1.len()-1 {
         let mut new_value = (vec1[i] as u16) + (vec2[i] as u16);
         if new_value > 255 {
@@ -181,7 +237,7 @@ fn main() {
         */
         loop {
             let start = Instant::now();
-            let msg = create_header(0.352, counter, 524288, 16, 1024, 256);
+            let msg = create_header(0.352, counter, 2048, 16, 1024, 1);
 
             while has_data(counter)==false {
                 counter = 0;
@@ -189,7 +245,7 @@ fn main() {
             
             let (mydata, _) = open_and_read(counter);
             let mydata2 = mydata.clone();
-            //let my_real_data = build_data(&mydata, false, 0, 1);
+            let mydatalen = mydata.len();
             
             let (tx, rx) = mpsc::channel();
 
@@ -197,19 +253,19 @@ fn main() {
             let tx2 = mpsc::Sender::clone(&tx);
 
             thread::spawn(move || {
-                let val = build_data(&mydata[..], true, 1);
+                let val = build_data(&mydata, false, 1);
                 tx.send(val).unwrap();
             });
             
             //thread::spawn(move || {
-            //    let val = build_data(&mydata2[1000000..], true, 1);
+            //    let val = build_data(&mydata2[mydatalen/2..], false, 1);
             //    tx1.send(val).unwrap();
             //});
             
             let received = rx.recv().unwrap();
             //let received2 = rx.recv().unwrap();
 
-            //let received_finish: Vec<u8> = sum2_vec(&received, &received2);
+            //let received_finish: Vec<u8> = sum_vec(&received, &received2);
 
             sock.write(&msg).expect("Header not sent.");
             sock.write(&received).expect("Data not sent.");
