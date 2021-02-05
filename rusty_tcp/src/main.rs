@@ -17,7 +17,7 @@ fn correct_x_position(chip_index: u8, pos: u8) -> usize {
     }
 }
 
-fn build_data(data: &Vec<u8>, bin: bool, section: usize) -> Vec<u8> {
+fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
     
     let file_data = data;
     let mut final_data = vec![0; 2048*(255 * (bin as usize) + 1)];
@@ -42,6 +42,8 @@ fn build_data(data: &Vec<u8>, bin: bool, section: usize) -> Vec<u8> {
         index+=1;
     }
 
+
+    //println!("{}", index);
     while index < file_data.len()/section {
         assert_eq!(Some(&[84, 80, 88, 51][..]), file_data.get(index..index+4));
         
@@ -49,6 +51,7 @@ fn build_data(data: &Vec<u8>, bin: bool, section: usize) -> Vec<u8> {
         total_size = (file_data[index+6] as u16) | (file_data[index+7] as u16)<<8;
 
         let _nloop = total_size / 8;
+        if (index + (total_size as usize)) > file_data.len()/section {break}
         for _i in 0.._nloop {
             /*
             _spidr = (file_data[index+8] as u16) | (file_data[index+9] as u16)<<8;
@@ -74,7 +77,6 @@ fn build_data(data: &Vec<u8>, bin: bool, section: usize) -> Vec<u8> {
                     final_data[array_pos] = 0;
                 }
             }
-
             index = index + 8;
         }
         index = index + 8;
@@ -139,8 +141,28 @@ fn create_header(time: f64, frame: u16, data_size: u32, bitdepth: u8, width: u16
     s
 }
 
+fn sum_vec(vec1: &[u8], vec2: &[u8]) -> Vec<u8> {
+    let new_vec:Vec<u8> = vec1.iter().zip(vec2.iter()).map(|(a, b)| a+b).collect();
+    new_vec
+}
+
+fn sum2_vec(vec1: &[u8], vec2: &[u8]) -> Vec<u8> {
+    let mut new_vec:Vec<u8> = vec![127; 2048*256];
+    for i in 0..vec1.len()-1 {
+        let mut new_value = (vec1[i] as u16) + (vec2[i] as u16);
+        if new_value > 255 {
+            new_value = new_value - 255;
+            new_vec[i+1] += 1;
+        }
+        new_vec[i] = new_value as u8;
+    }
+    new_vec.push(10);
+    new_vec
+}
+
 
 fn main() {
+
     let mut counter = 0u16;
 
     let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
@@ -159,15 +181,14 @@ fn main() {
         */
         loop {
             let start = Instant::now();
-            let msg = create_header(0.352, counter, 2048, 16, 1024, 1);
+            let msg = create_header(0.352, counter, 524288, 16, 1024, 256);
 
             while has_data(counter)==false {
                 counter = 0;
             }
             
-            let (mydata, _) = open_and_read(1);
-            let (mydata2, _) = open_and_read(2);
-            let (mydata3, _) = open_and_read(3);
+            let (mydata, _) = open_and_read(counter);
+            let mydata2 = mydata.clone();
             //let my_real_data = build_data(&mydata, false, 0, 1);
             
             let (tx, rx) = mpsc::channel();
@@ -176,31 +197,25 @@ fn main() {
             let tx2 = mpsc::Sender::clone(&tx);
 
             thread::spawn(move || {
-                let val = build_data(&mydata, false, 1);
+                let val = build_data(&mydata[..], true, 1);
                 tx.send(val).unwrap();
             });
             
-            thread::spawn(move || {
-                let val = build_data(&mydata2, false, 1);
-                tx1.send(val).unwrap();
-            });
-            
-            thread::spawn(move || {
-                let val = build_data(&mydata3, false, 1);
-                tx2.send(val).unwrap();
-            });
+            //thread::spawn(move || {
+            //    let val = build_data(&mydata2[1000000..], true, 1);
+            //    tx1.send(val).unwrap();
+            //});
             
             let received = rx.recv().unwrap();
-            let received2 = rx.recv().unwrap();
-            let received3 = rx.recv().unwrap();
+            //let received2 = rx.recv().unwrap();
 
+            //let received_finish: Vec<u8> = sum2_vec(&received, &received2);
 
-            let elapsed = start.elapsed();
             sock.write(&msg).expect("Header not sent.");
-            //sock.write(&my_real_data).expect("Data not sent.");
             sock.write(&received).expect("Data not sent.");
-            println!("{} and {:?}", counter, elapsed);
             counter+=1;
+            let elapsed = start.elapsed();
+            println!("{} and {:?}", counter, elapsed);
         }
     }
 }
