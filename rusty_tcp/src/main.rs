@@ -4,6 +4,7 @@ use std::net::TcpListener;
 use std::time::Instant;
 use std::thread;
 use std::sync::mpsc;
+            
         
 struct Packet {
     chip_index: u8,
@@ -37,17 +38,22 @@ impl Packet {
         (self.i15 & 240) >> 4
     }
 
-}
-
-fn correct_x_position(chip_index: u8, pos: u8) -> usize {
-    let x = pos as usize;
-    match chip_index {
-        0 => 255 - x,
-        1 => 255 * 4 - x,
-        2 => 255 * 3 - x,
-        3 => 255 * 2 - x,
-        _ => x,
+    fn spidr(&self) -> u16 {
+        (self.i08 as u16) | (self.i09 as u16)<<8
     }
+
+    fn ftoa(&self) -> u8 {
+        self.i10 & 15
+    }
+
+    fn tot(&self) -> u8 {
+        (self.i10 & 240)>>4 | (self.i11 & 63)<<4
+    }
+
+    fn toa(&self) -> u16 {
+        ((self.i11 & 192) as u16)>>6 | (self.i12 as u16)<<2 | ((self.i13 & 15) as u16)<<10
+    }
+
 }
 
 fn build_data(data: &[u8], bin: bool, section: usize) -> [u8; 2049] {
@@ -76,22 +82,16 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> [u8; 2049] {
         
             let packet = Packet {
                 chip_index: chip_index,
-                i08: file_data[index+8],
-                i09: file_data[index+9],
-                i10: file_data[index+10],
-                i11: file_data[index+11],
-                i12: file_data[index+12],
+                i08: 0,
+                i09: 0,
+                i10: 0,
+                i11: 0,
+                i12: 0,
                 i13: file_data[index+13],
                 i14: file_data[index+14],
                 i15: file_data[index+15],
             };
         
-            /*
-            _spidr = (file_data[index+8] as u16) | (file_data[index+9] as u16)<<8;
-            _ftoa = file_data[index+10] & 15;
-            _tot = ((file_data[index+10] & 240) as u16)>>4 | ((file_data[index+11] & 63) as u16)<<4;
-            _toa = ((file_data[index+11] & 192) as u16)>>6 | (file_data[index+12] as u16)<<2 | ((file_data[13] & 15) as u16)<<10;
-            */
 
             if packet.id()==11 {
                 let array_pos = 2*packet.x();
@@ -101,7 +101,6 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> [u8; 2049] {
                     final_data[array_pos] = 0;
                 }
             }
-            
 
             index = index + packet_size;
         }
