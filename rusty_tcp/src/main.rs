@@ -42,25 +42,69 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
         index+=1;
     }
     
-    
+    /*
     let mut global_counter = 0;
     let mut final_data2: Vec<u8> = vec![0; 2048];
     file_data_iter.nth(index);
+    
+    
+    loop {
+        file_data_iter.next(); 
+        file_data_iter.next(); 
+        assert_eq!(file_data_iter.next(), Some(&51));
+        file_data_iter.next(); 
+        file_data_iter.next(); 
+        let mut new_iter = file_data_iter.take(1000).clone();
+        new_iter.count();
+        let size = (*file_data_iter.next().unwrap() as u16) | (*file_data_iter.next().unwrap() as u16) << 8;
+        file_data_iter.nth((size-1) as usize);
+        match file_data_iter.next() {
+          Some(i) => continue,
+            None => break,
+        }
+    }
+
+
     
     while let Some(i) = file_data_iter.nth(1) {
         assert_eq!(file_data_iter.next(), Some(&51));
         file_data_iter.next(); 
         file_data_iter.next(); 
         let size = (*file_data_iter.next().unwrap() as u16) | (*file_data_iter.next().unwrap() as u16) << 8;
+        
+        //file_data_iter.take((size-4) as usize);
+        let mut packet_iter = file_data_iter.map(|i| i.clone()).take(size as usize);
         file_data_iter.nth((size-4) as usize);
+        /*
+        let mut i8_iter = packet_iter.clone(); packet_iter.next();
+        let mut i9_iter = packet_iter.clone(); packet_iter.next();
+        let mut i10_iter = packet_iter.clone(); packet_iter.next();
+        let mut i11_iter = packet_iter.clone(); packet_iter.next();
+        let mut i12_iter = packet_iter.clone(); packet_iter.next();
+        let mut i13_iter = packet_iter.clone(); packet_iter.next();
+        let mut i14_iter = packet_iter.clone(); packet_iter.next();
+        let mut i15_iter = packet_iter.clone();
+        */
+        //let mut pix_iter = i13_iter.clone().step_by(8).map(|&x| (x & 112)>>4);
+        //let id_iter = i15_iter.clone().step_by(8).map(|&x| (x & 240)>>4);
         
-        let mut i13_iter = file_data_iter.clone().step_by(8);
-        let mut i14_iter = file_data_iter.clone().step_by(8);
-        let mut i15_iter = file_data_iter.clone().step_by(8);
-        
+        //println!("{:?}", packet_iter.count());
+        packet_iter.count();
+
         let i13 = *file_data_iter.next().unwrap(); //index 13
         let i14 = *file_data_iter.next().unwrap(); //index 14
         let i15 = *file_data_iter.next().unwrap(); //index 15
+
+        //println!("{:?} and {:?} and {:?} and {:?}", id_iter.next(), id_iter.next(), id_iter.next(), size);
+        //println!("{:?} and {:?} and {:?} and {:?}", i15_iter_id.next(), i15_iter_id.next(), i15_iter_id.next(), i15_iter_id.next());
+        //for (i, val) in i13_iter {
+        //    let a = val;
+            //let my_13 = i;
+            //let my_14 = i14_iter.next().unwrap().1;
+            //let i15 = i15_iter.next().unwrap().1;
+            //println!("{:?}", i14_iter.next().unwrap().1);
+        //}
+
             
         let pix = (i13 & 112)>>4;
         let spix = ((i13 & 128))>>5 | ((i14 & 31))<<3;
@@ -81,12 +125,12 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
         global_counter+=1;
         
         match file_data_iter.next() {
-            Some(i) => continue,
+          Some(i) => continue,
             None => break,
         }
     }
-    println!("{}", global_counter);
-    
+    //println!("{}", global_counter);
+    */
 
 
     //while let Some(i) = file_data_iter.next() {
@@ -97,7 +141,7 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
 
     //println!("{}", index);
 
-    /*
+    
     while index < file_data.len()/section {
         assert_eq!(Some(&[84, 80, 88, 51][..]), file_data.get(index..index+4));
         
@@ -135,9 +179,9 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
         }
         index = index + 8;
     }
-    */
-    final_data2.push(10);
-    final_data2
+    
+    final_data.push(10);
+    final_data
 }
 
 
