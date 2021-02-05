@@ -6,6 +6,7 @@ use std::thread;
 use std::sync::mpsc;
         
 struct Packet {
+    how_many: u16,
     chip_index: u8,
     i08: u8,
     i09: u8,
@@ -35,6 +36,10 @@ impl Packet {
 
     fn id(&self) -> u8 {
         (self.i15 & 240) >> 4
+    }
+
+    fn all_id(&self) -> Vec<u8>{
+        vec![(self.i15 & 240) >> 4]
     }
 }
 
@@ -187,6 +192,7 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
         if (index + (total_size as usize)) > file_data.len()/section {break}
         for _i in 0.._nloop {
             let packet = Packet {
+                how_many: total_size,
                 chip_index: chip_index,
                 i08: file_data[index+8],
                 i09: file_data[index+9],
@@ -204,6 +210,12 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
             _tot = ((file_data[index+10] & 240) as u16)>>4 | ((file_data[index+11] & 63) as u16)<<4;
             _toa = ((file_data[index+11] & 192) as u16)>>6 | (file_data[index+12] as u16)<<2 | ((file_data[13] & 15) as u16)<<10;
             */
+
+            for val in packet.all_id() {
+                println!("{}", val);
+            }
+
+
 
             if packet.id()==11 {
                 let array_pos = 2*packet.x() + 2048*packet.y()*(bin as usize);
