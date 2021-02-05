@@ -6,7 +6,6 @@ use std::thread;
 use std::sync::mpsc;
         
 struct Packet {
-    how_many: u16,
     chip_index: u8,
     i08: u8,
     i09: u8,
@@ -38,12 +37,7 @@ impl Packet {
         (self.i15 & 240) >> 4
     }
 
-    fn all_id(&self) -> Vec<u8>{
-        vec![(self.i15 & 240) >> 4]
-    }
 }
-
-
 
 fn correct_x_position(chip_index: u8, pos: u8) -> usize {
     let x = pos as usize;
@@ -56,143 +50,31 @@ fn correct_x_position(chip_index: u8, pos: u8) -> usize {
     }
 }
 
-fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
+fn build_data(data: &[u8], bin: bool, section: usize) -> [u8; 2049] {
     
     let file_data = data;
-    let mut file_data_iter = file_data.iter();
-    let mut final_data: Vec<u8> = vec![0; 2048*(255 * (bin as usize) + 1)];
+    //let mut file_data_iter = file_data.iter();
+    let mut array_final_data = [0; 2049];
     let file_data_len = file_data.len();
     let mut index = 0;
-    
-    let mut total_size: u16;
+    let mut total_size: usize;
     let mut chip_index: u8;
-    let mut id: u8;
-    /*
-    let mut _spidr: u16;
-    let mut _ftoa: u8;
-    let mut _tot: u16;
-    let mut _toa: u16;
-    let mut _y: u16;
-    */
-    let mut pix: u8;
-    let mut dcol: u8;
-    let mut spix: u8;
 
     while file_data.get(index..index+4) != Some(&[84, 80, 88, 51]) {
         index+=1;
     }
     
-    /*
-    let mut global_counter = 0;
-    let mut final_data2: Vec<u8> = vec![0; 2048];
-    file_data_iter.nth(index);
-    
-    
-    loop {
-        file_data_iter.next(); 
-        file_data_iter.next(); 
-        assert_eq!(file_data_iter.next(), Some(&51));
-        file_data_iter.next(); 
-        file_data_iter.next(); 
-        let mut new_iter = file_data_iter.take(1000).clone();
-        new_iter.count();
-        let size = (*file_data_iter.next().unwrap() as u16) | (*file_data_iter.next().unwrap() as u16) << 8;
-        file_data_iter.nth((size-1) as usize);
-        match file_data_iter.next() {
-          Some(i) => continue,
-            None => break,
-        }
-    }
-
-
-    
-    while let Some(i) = file_data_iter.nth(1) {
-        assert_eq!(file_data_iter.next(), Some(&51));
-        file_data_iter.next(); 
-        file_data_iter.next(); 
-        let size = (*file_data_iter.next().unwrap() as u16) | (*file_data_iter.next().unwrap() as u16) << 8;
-        
-        //file_data_iter.take((size-4) as usize);
-        let mut packet_iter = file_data_iter.map(|i| i.clone()).take(size as usize);
-        file_data_iter.nth((size-4) as usize);
-        /*
-        let mut i8_iter = packet_iter.clone(); packet_iter.next();
-        let mut i9_iter = packet_iter.clone(); packet_iter.next();
-        let mut i10_iter = packet_iter.clone(); packet_iter.next();
-        let mut i11_iter = packet_iter.clone(); packet_iter.next();
-        let mut i12_iter = packet_iter.clone(); packet_iter.next();
-        let mut i13_iter = packet_iter.clone(); packet_iter.next();
-        let mut i14_iter = packet_iter.clone(); packet_iter.next();
-        let mut i15_iter = packet_iter.clone();
-        */
-        //let mut pix_iter = i13_iter.clone().step_by(8).map(|&x| (x & 112)>>4);
-        //let id_iter = i15_iter.clone().step_by(8).map(|&x| (x & 240)>>4);
-        
-        //println!("{:?}", packet_iter.count());
-        packet_iter.count();
-
-        let i13 = *file_data_iter.next().unwrap(); //index 13
-        let i14 = *file_data_iter.next().unwrap(); //index 14
-        let i15 = *file_data_iter.next().unwrap(); //index 15
-
-        //println!("{:?} and {:?} and {:?} and {:?}", id_iter.next(), id_iter.next(), id_iter.next(), size);
-        //println!("{:?} and {:?} and {:?} and {:?}", i15_iter_id.next(), i15_iter_id.next(), i15_iter_id.next(), i15_iter_id.next());
-        //for (i, val) in i13_iter {
-        //    let a = val;
-            //let my_13 = i;
-            //let my_14 = i14_iter.next().unwrap().1;
-            //let i15 = i15_iter.next().unwrap().1;
-            //println!("{:?}", i14_iter.next().unwrap().1);
-        //}
-
-            
-        let pix = (i13 & 112)>>4;
-        let spix = ((i13 & 128))>>5 | ((i14 & 31))<<3;
-        let dcol = ((i14 & 224))>>4 | ((i15 & 15))<<4;
-        let id = (i15 & 240) >> 4;
-            
-        let x = dcol | pix >> 2;
-        let x = correct_x_position(0, x);
-        let array_pos = 2*x;
-            
-        if id==11 {
-            final_data2[array_pos] += 1;
-            if final_data2[array_pos]==255 {
-                final_data2[(array_pos+1)] += 1;
-                final_data2[array_pos] = 0;
-            }
-        }
-        global_counter+=1;
-        
-        match file_data_iter.next() {
-          Some(i) => continue,
-            None => break,
-        }
-    }
-    //println!("{}", global_counter);
-    */
-
-
-    //while let Some(i) = file_data_iter.next() {
-        //assert_eq!(file_data_iter.next(), Some(&80));
-   //     file_data_iter.nth(5);
-   //     let chip_index = file_data_iter.next();
-    //}
-
-    //println!("{}", index);
-
-    
     while index < file_data.len()/section {
         assert_eq!(Some(&[84, 80, 88, 51][..]), file_data.get(index..index+4));
         
         chip_index = file_data[index+4];
-        total_size = (file_data[index+6] as u16) | (file_data[index+7] as u16)<<8;
+        total_size = (file_data[index+6] as usize) | (file_data[index+7] as usize)<<8;
 
-        let _nloop = total_size / 8;
         if (index + (total_size as usize)) > file_data.len()/section {break}
-        for _i in 0.._nloop {
+        let _nloop = total_size / 8;
+        for _i in 0.._nloop  {
+        
             let packet = Packet {
-                how_many: total_size,
                 chip_index: chip_index,
                 i08: file_data[index+8],
                 i09: file_data[index+9],
@@ -203,7 +85,7 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
                 i14: file_data[index+14],
                 i15: file_data[index+15],
             };
-
+        
             /*
             _spidr = (file_data[index+8] as u16) | (file_data[index+9] as u16)<<8;
             _ftoa = file_data[index+10] & 15;
@@ -211,27 +93,22 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
             _toa = ((file_data[index+11] & 192) as u16)>>6 | (file_data[index+12] as u16)<<2 | ((file_data[13] & 15) as u16)<<10;
             */
 
-            for val in packet.all_id() {
-                println!("{}", val);
-            }
-
-
-
             if packet.id()==11 {
-                let array_pos = 2*packet.x() + 2048*packet.y()*(bin as usize);
-                final_data[array_pos] += 1;
-                if final_data[array_pos]==255 {
-                    final_data[(array_pos+1)] += 1;
-                    final_data[array_pos] = 0;
+                let array_pos = 2*packet.x();
+                array_final_data[array_pos] += 1;
+                if array_final_data[array_pos]==255 {
+                    array_final_data[(array_pos+1)] += 1;
+                    array_final_data[array_pos] = 0;
                 }
             }
+            
+
             index = index + 8;
         }
         index = index + 8;
     }
-    
-    final_data.push(10);
-    final_data
+    array_final_data[2048] = 10;
+    array_final_data
 }
 
 
@@ -329,8 +206,9 @@ fn main() {
             }
         }
         */
+        let mut global_counter = 0;
+        let start = Instant::now();
         loop {
-            let start = Instant::now();
             let msg = create_header(0.352, counter, 2048, 16, 1024, 1);
 
             while has_data(counter)==false {
@@ -364,8 +242,11 @@ fn main() {
             sock.write(&msg).expect("Header not sent.");
             sock.write(&received).expect("Data not sent.");
             counter+=1;
-            let elapsed = start.elapsed();
-            println!("{} and {:?}", counter, elapsed);
+            global_counter+=1;
+            if global_counter==500 {
+                let elapsed = start.elapsed();
+                println!("{} and {:?}", counter, elapsed);
+            }
         }
     }
 }
