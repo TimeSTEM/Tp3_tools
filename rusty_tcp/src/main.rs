@@ -59,20 +59,15 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
     
     let file_data = data;
     let mut final_data = vec![0; 2048 * (256 - 255 * (bin as usize))];
-    let file_data_len = file_data.len();
     let mut index = 0;
-    let packet_size = 8;
-    let mut total_size: usize;
-    let mut chip_index: u8;
     let mut packet_chunks = file_data.chunks_exact(8);
 
     while file_data.get(index..index+4) != Some(&[84, 80, 88, 51]) {
+        packet_chunks.next();
         index+=1;
     }
-
     
     let mut ci: u8 = 0;
-    
     loop {
         match packet_chunks.next() {
             None => break,
