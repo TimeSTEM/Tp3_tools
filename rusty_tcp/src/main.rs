@@ -105,43 +105,30 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
     final_data
 }
 
+fn has_data(number: u16) -> bool {
+    let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw00000");
+    let ct: String = number.to_string();
+    path.push_str(&ct);
+    path.push_str(".tpx3");
 
-    fn has_data(number: u16) -> bool {
-        let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw00000");
-        let ct: String = number.to_string();
-        path.push_str(&ct);
-        path.push_str(".tpx3");
-        
-    let valid;
-    
-    if let Ok(_myfile) = File::open(path) {
-        valid = true;
+    match File::open(path) {
+        Ok(_myfile) => true,
+        Err(_) => false,
     }
-    else {
-        valid = false;
-    }
-
-    valid
 }
 
-
-fn open_and_read(number: u16) -> (Vec<u8>, bool) {
+fn open_and_read(number: u16) -> Vec<u8> {
     let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw00000");
     let ct: String = number.to_string();
     path.push_str(&ct);
     path.push_str(".tpx3");
     let mut buffer: Vec<u8> = Vec::new();
-    let valid;
     
     if let Ok(myfile) = File::open(path) {
         let mut myfile = myfile;
         myfile.read_to_end(&mut buffer).expect("Error in read to buffer.");
-        valid = true;
     }
-    else {
-        valid = false;
-    }
-    (buffer, valid)
+    buffer
 }
 
 fn create_header(time: f64, frame: u16, data_size: u32, bitdepth: u8, width: u16, height: u16) -> Vec<u8> {
@@ -185,26 +172,26 @@ fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
     new_vec
 }
 
-
 fn main() {
 
     let mut counter = 0u16;
-    let bin = true;
+    let mut bin: bool = true;
 
     let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
     if let Ok((socket, addr)) = listener.accept() {
         println!("new client {:?}", addr);
         let mut sock = socket;
         
-        /*
-        let mut my_data = [0 as u8; 50];
-        while let Ok(size) = sock.read(&mut my_data){
-            sock.write(&my_data[0..size]);
-            if size<50 {
-                break
-            }
-        }
-        */
+        
+        let mut my_data = [0 as u8; 16];
+        if let Ok(size) = sock.read(&mut my_data){
+            match my_data[0] {
+                0 => bin = false,
+                1 => bin = true,
+                _ => panic!("crash and burn"),
+            };
+        };
+        
         let mut gt = 0;
         let start = Instant::now();
         loop {
@@ -214,7 +201,7 @@ fn main() {
                 counter = 0;
             }
             
-            let (mydata, _) = open_and_read(counter);
+            let mydata = open_and_read(counter);
             let received = build_data(&mydata[..], bin, 1);
             
             /*
