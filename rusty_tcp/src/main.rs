@@ -5,7 +5,6 @@ use std::time::Instant;
 use std::thread;
 use std::sync::mpsc;
             
-        
 struct Packet {
     chip_index: u8,
     i08: u8,
@@ -56,10 +55,10 @@ impl Packet {
 
 }
 
-fn build_data(data: &[u8], bin: bool, section: usize) -> [u8; 2049] {
+fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
     
     let file_data = data;
-    let mut final_data = [0; 2049];
+    let mut final_data = vec![0; 2048 * (256 - 255 * (bin as usize))];
     let file_data_len = file_data.len();
     let mut index = 0;
     let packet_size = 8;
@@ -69,7 +68,7 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> [u8; 2049] {
     while file_data.get(index..index+4) != Some(&[84, 80, 88, 51]) {
         index+=1;
     }
-    
+
     while index < file_data.len()/section {
         
         assert_eq!(Some(&[84, 80, 88, 51][..]), file_data.get(index..index+4));
@@ -79,34 +78,59 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> [u8; 2049] {
         if (index + (total_size as usize)) > file_data.len()/section {break}
         let _nloop = total_size / packet_size;
         for _i in 0.._nloop  {
-        
-            let packet = Packet {
-                chip_index: chip_index,
-                i08: 0,
-                i09: 0,
-                i10: 0,
-                i11: 0,
-                i12: 0,
-                i13: file_data[index+13],
-                i14: file_data[index+14],
-                i15: file_data[index+15],
+             
+            match bin {
+                true => {
+                    let packet = Packet {
+                        chip_index: chip_index,
+                        i08: 0,
+                        i09: 0,
+                        i10: 0,
+                        i11: 0,
+                        i12: 0,
+                        i13: file_data[index+13],
+                        i14: file_data[index+14],
+                        i15: file_data[index+15],
+                    };
+            
+                    if packet.id()==11 {
+                        let array_pos = 2*packet.x();
+                        final_data[array_pos] += 1;
+                        if final_data[array_pos]==255 {
+                            final_data[(array_pos+1)] += 1;
+                            final_data[array_pos] = 0;
+                        };
+                    };
+                },
+                false => {
+                    let packet = Packet {
+                        chip_index: chip_index,
+                        i08: file_data[index+8],
+                        i09: file_data[index+9],
+                        i10: file_data[index+10],
+                        i11: file_data[index+11],
+                        i12: file_data[index+12],
+                        i13: file_data[index+13],
+                        i14: file_data[index+14],
+                        i15: file_data[index+15],
+                    };
+            
+                    if packet.id()==11 {
+                        let array_pos = 2*packet.x() + 2048*packet.y();
+                        final_data[array_pos] += 1;
+                        if final_data[array_pos]==255 {
+                            final_data[(array_pos+1)] += 1;
+                            final_data[array_pos] = 0;
+                        };
+                    };
+                },
             };
-        
-
-            if packet.id()==11 {
-                let array_pos = 2*packet.x();
-                final_data[array_pos] += 1;
-                if final_data[array_pos]==255 {
-                    final_data[(array_pos+1)] += 1;
-                    final_data[array_pos] = 0;
-                }
-            }
 
             index = index + packet_size;
         }
         index = index + packet_size;
     }
-    final_data[2048] = 10;
+    final_data.push(10);
     final_data
 }
 
@@ -167,22 +191,26 @@ fn create_header(time: f64, frame: u16, data_size: u32, bitdepth: u8, width: u16
     s
 }
 
-fn sum_vec(vec1: &[u8], vec2: &[u8]) -> Vec<u8> {
-    let new_vec:Vec<u8> = vec1.iter().zip(vec2.iter()).map(|(a, b)| a+b).collect();
+fn from_16_to_8(data: &[u16]) -> Vec<u8> {
+    let vec1 = data;
+    let mut new_vec: Vec<u8> = vec1.iter().map(|&x| x as u8).collect();
+    let mut it1 = vec1.iter().enumerate().filter(|&(a, b)| b>&255);
+    for (i, val) in it1 {
+        new_vec[i+1] += (val / 255) as u8;
+        new_vec[i] = (val % 255) as u8;
+    }
     new_vec
 }
 
-fn sum2_vec(vec1: &[u8], vec2: &[u8]) -> Vec<u8> {
-    let mut new_vec:Vec<u8> = vec![127; 2048];
-    for i in 0..vec1.len()-1 {
-        let mut new_value = (vec1[i] as u16) + (vec2[i] as u16);
-        if new_value > 255 {
-            new_value = new_value - 255;
-            new_vec[i+1] += 1;
-        }
-        new_vec[i] = new_value as u8;
+fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
+    let vec1 = data;
+    let vec2 = data2;
+    let mut new_vec: Vec<u8> = vec1.iter().zip(vec2.iter()).map(|(a, b)| (a+b) as u8).collect();
+    let mut it1 = vec1.iter().zip(vec2.iter()).map(|(a, b)| a+b).enumerate().filter(|&(a, b)| b>255);
+    for (i, val) in it1 {
+        new_vec[i+1] += (val / 255) as u8;
+        new_vec[i] = (val % 255) as u8;
     }
-    new_vec.push(10);
     new_vec
 }
 
@@ -190,6 +218,7 @@ fn sum2_vec(vec1: &[u8], vec2: &[u8]) -> Vec<u8> {
 fn main() {
 
     let mut counter = 0u16;
+    let bin = true;
 
     let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
     if let Ok((socket, addr)) = listener.accept() {
@@ -205,38 +234,40 @@ fn main() {
             }
         }
         */
-        let mut gt = 0 ;
+        let mut gt = 0;
         let start = Instant::now();
         loop {
-            let msg = create_header(0.352, counter, 2048, 16, 1024, 1);
+            let msg = create_header(0.352, counter, 2048*(256-255*(bin as u32)), 16, 1024, 256 - 255*(bin as u16));
 
             while has_data(counter)==false {
                 counter = 0;
             }
             
             let (mydata, _) = open_and_read(counter);
-            let mydata2 = mydata.clone();
-            let mydatalen = mydata.len();
+            let received = build_data(&mydata[..], bin, 1);
             
+            
+            /*
+            let mydata2 = mydata.clone();
             let (tx, rx) = mpsc::channel();
 
             let tx1 = mpsc::Sender::clone(&tx);
             let tx2 = mpsc::Sender::clone(&tx);
 
             thread::spawn(move || {
-                let val = build_data(&mydata, false, 1);
+                let val = build_data(&mydata[..], bin, 1);
                 tx.send(val).unwrap();
             });
             
-            //thread::spawn(move || {
-            //    let val = build_data(&mydata2[mydatalen/2..], false, 1);
-            //    tx1.send(val).unwrap();
-            //});
+            thread::spawn(move || {
+                let val = build_data(&mydata2[1000000..], bin, 1);
+                tx1.send(val).unwrap();
+            });
             
             let received = rx.recv().unwrap();
-            //let received2 = rx.recv().unwrap();
-
-            //let received_finish: Vec<u8> = sum_vec(&received, &received2);
+            let received2 = rx.recv().unwrap();
+            let final_received = double_from_16_to_8(&received, &received2);
+            */
 
             sock.write(&msg).expect("Header not sent.");
             sock.write(&received).expect("Data not sent.");
@@ -244,7 +275,8 @@ fn main() {
             gt+=1;
             if gt==1000 {
                 let elapsed = start.elapsed();
-                println!("{} and {:?}", counter, elapsed);
+                println!("Time elapsed for each 1000 iterations is: {:?}", elapsed);
+                gt = 0;
             }
         }
     }
