@@ -91,10 +91,10 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
                         false => array_pos = 2*packet.x() + 2048*packet.y(),
                         true => array_pos = 2*packet.x()
                     };
-                    final_data[array_pos] += 1;
-                    if final_data[array_pos]==255 {
-                        final_data[(array_pos+1)] += 1;
-                        final_data[array_pos] = 0;
+                    final_data[array_pos+1] += 1;
+                    if final_data[array_pos+1]==255 {
+                        final_data[array_pos] += 1;
+                        final_data[array_pos+1] = 0;
                     }
                 }
                 
