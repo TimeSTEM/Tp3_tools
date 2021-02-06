@@ -4,7 +4,7 @@ use std::net::TcpListener;
 use std::time::Instant;
 use std::thread;
 use std::sync::mpsc;
-            
+ 
 struct Packet {
     chip_index: u8,
     i08: u8,
@@ -64,11 +64,55 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
     let packet_size = 8;
     let mut total_size: usize;
     let mut chip_index: u8;
+    let mut packet_chunks = file_data.chunks_exact(8);
 
     while file_data.get(index..index+4) != Some(&[84, 80, 88, 51]) {
         index+=1;
     }
 
+    
+    let mut ci: u8 = 0;
+    
+    loop {
+        match packet_chunks.next() {
+            None => break,
+            Some(&[84, 80, 88, 51, nci, _, _, _]) => ci = nci,
+            Some(x) => {
+                let packet = Packet {
+                    chip_index: ci,
+                    i08: 0,
+                    i09: 0,
+                    i10: 0,
+                    i11: 0,
+                    i12: 0,
+                    i13: x[5],
+                    i14: x[6],
+                    i15: x[7],
+                };
+                
+                if packet.id()==11 {
+                    let array_pos: usize;
+                    match bin {
+                        false => array_pos = 2*packet.x() + 2048*packet.y(),
+                        true => array_pos = 2*packet.x()
+                    };
+                    final_data[array_pos] += 1;
+                    if final_data[array_pos]==255 {
+                        final_data[(array_pos+1)] += 1;
+                        final_data[array_pos] = 0;
+                    }
+                }
+                
+            },
+        }
+    }
+    
+    
+    
+    
+    
+        
+    /*
     while index < file_data.len()/section {
         
         assert_eq!(Some(&[84, 80, 88, 51][..]), file_data.get(index..index+4));
@@ -105,11 +149,11 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
                 false => {
                     let packet = Packet {
                         chip_index: chip_index,
-                        i08: file_data[index+8],
-                        i09: file_data[index+9],
-                        i10: file_data[index+10],
-                        i11: file_data[index+11],
-                        i12: file_data[index+12],
+                        i08: 0,
+                        i09: 0,
+                        i10: 0,
+                        i11: 0,
+                        i12: 0,
                         i13: file_data[index+13],
                         i14: file_data[index+14],
                         i15: file_data[index+15],
@@ -130,6 +174,7 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
         }
         index = index + packet_size;
     }
+    */
     final_data.push(10);
     final_data
 }
@@ -245,7 +290,6 @@ fn main() {
             
             let (mydata, _) = open_and_read(counter);
             let received = build_data(&mydata[..], bin, 1);
-            
             
             /*
             let mydata2 = mydata.clone();
