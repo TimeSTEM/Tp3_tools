@@ -58,7 +58,7 @@ impl Packet {
 fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
     
     let file_data = data;
-    let mut final_data = if bin {vec![0; 2048]} else {vec![0; 256*2048]};
+    let mut final_data = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
     let mut index = 0;
     let mut packet_chunks = file_data.chunks_exact(8);
 
@@ -88,16 +88,24 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
                 if packet.id()==11 {
                     let array_pos: usize;
                     match bin {
-                        false => array_pos = 2*packet.x() + 2048*packet.y(),
-                        true => array_pos = 2*packet.x()
+                        false => array_pos = 4*packet.x() + 4*1024*packet.y(),
+                        true => array_pos = 4*packet.x()
                     };
-                    final_data[array_pos+1] += 1;
+                    
+                    final_data[array_pos+3] += 1;
+                    if final_data[array_pos+3]==255 {
+                        final_data[array_pos+2] += 1;
+                        final_data[array_pos+3] = 0;
+                    };
+                    if final_data[array_pos+2]==255 {
+                        final_data[array_pos+1] += 1;
+                        final_data[array_pos+2] = 0;
+                    };
                     if final_data[array_pos+1]==255 {
                         final_data[array_pos] += 1;
                         final_data[array_pos+1] = 0;
-                    }
+                    };
                 }
-                
             },
         }
     }
@@ -117,7 +125,7 @@ fn has_data(path: &str, number: u16) -> bool {
 }
 
 fn remake_dir(path: &str) {
-    fs::remove_dir_all(path);
+    fs::remove_dir_all(path).expect("Could not remove directory.");
     fs::create_dir(path);
 }
 
@@ -188,8 +196,7 @@ fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
 }
 
 fn connect_and_loop() {
-    let mut my_path: String = String::from("C:\\Users\\AUAD\\Documents\\mydata\\raw");
-    //let mut my_path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
+    let mut my_path: String = String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw");
     //let mut my_path: String = String::from("/home/asi/load_files/data");
     //remake_dir(&my_path);
     //my_path.push_str("//raw");
@@ -201,28 +208,24 @@ fn connect_and_loop() {
     if let Ok((socket, addr)) = listener.accept() {
         println!("New client connected at {:?}", addr);
         let mut sock = socket;
-        sock.set_read_timeout(Some(Duration::from_micros(500)));
-        
+        sock.set_read_timeout(Some(Duration::from_micros(500))).unwrap();
         
         let mut my_data = [0 as u8; 4];
         if let Ok(size) = sock.read(&mut my_data){
             match my_data[0] {
                 0 => bin = false,
                 1 => bin = true,
-                _ => panic!("crash and burn"),
+                _ => bin = panic!("Binning choice must be 0 | 1."),
             };
         };
         
-        let mut gt = 0;
         let mut counter = 0u16;
-        let start = Instant::now();
-        let mut running:bool = true;
         let result = loop {
-            
-
-            let msg = create_header(0.352, counter, 2048*(256-255*(bin as u32)), 16, 1024, 256 - 255*(bin as u16));
+            let start = Instant::now();
+            let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
 
             while has_data(&my_path, counter+1)==false {
+                counter = 0;
                 if let Ok(size) = sock.read(&mut my_data) {
                     if size == 0 {
                         break;
@@ -230,8 +233,6 @@ fn connect_and_loop() {
                 };
             }
 
-            
-            
             let mydata = open_and_read(&my_path, counter, false);
             let received = build_data(&mydata[..], bin, 1);
             
@@ -273,12 +274,9 @@ fn connect_and_loop() {
             };
             
             counter+=1;
-            println!("{:?}", counter);
-            gt+=1;
-            if gt==100 {
+            if counter==25 {
                 let elapsed = start.elapsed();
                 println!("Time elapsed for each 1000 iterations is: {:?}", elapsed);
-                gt = 0;
             };
         };
         println!("Number of loops were: {}.", counter)
