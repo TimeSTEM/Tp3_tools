@@ -1,7 +1,7 @@
 use std::io::prelude::*;
 use std::fs;
 use std::net::TcpListener;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{thread, time};
 use std::sync::mpsc;
  
@@ -188,17 +188,20 @@ fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
 }
 
 fn connect_and_loop() {
-    let mut my_path: String = String::from("/home/asi/load_files/data");
-    remake_dir(&my_path);
-    my_path.push_str("/raw");
+    let mut my_path: String = String::from("C:\\Users\\AUAD\\Documents\\mydata\\raw");
+    //let mut my_path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
+    //let mut my_path: String = String::from("/home/asi/load_files/data");
+    //remake_dir(&my_path);
+    //my_path.push_str("//raw");
     
     let mut bin: bool = true;
 
-    //let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
-    let listener = TcpListener::bind("192.168.199.11:8088").unwrap();
+    let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
+    //let listener = TcpListener::bind("192.168.199.11:8088").unwrap();
     if let Ok((socket, addr)) = listener.accept() {
         println!("New client connected at {:?}", addr);
         let mut sock = socket;
+        sock.set_read_timeout(Some(Duration::from_micros(500)));
         
         
         let mut my_data = [0 as u8; 4];
@@ -215,19 +218,21 @@ fn connect_and_loop() {
         let start = Instant::now();
         let mut running:bool = true;
         let result = loop {
+            
+
             let msg = create_header(0.352, counter, 2048*(256-255*(bin as u32)), 16, 1024, 256 - 255*(bin as u16));
 
             while has_data(&my_path, counter+1)==false {
                 if let Ok(size) = sock.read(&mut my_data) {
-                    if my_data == [0, 0, 0, 13] {
-                        running = false;
+                    if size == 0 {
                         break;
                     };
                 };
             }
+
             
             
-            let mydata = open_and_read(&my_path, counter, true);
+            let mydata = open_and_read(&my_path, counter, false);
             let received = build_data(&mydata[..], bin, 1);
             
             /*
@@ -267,11 +272,8 @@ fn connect_and_loop() {
                 },
             };
             
-            if running==false {
-                println!("Client {} disconnected on message. Waiting a new one.", addr);
-                break counter;
-            };
             counter+=1;
+            println!("{:?}", counter);
             gt+=1;
             if gt==100 {
                 let elapsed = start.elapsed();
