@@ -106,8 +106,8 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
 }
 
 fn has_data(number: u16) -> bool {
-    let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
-    //let mut path: String = String::from("/home/asi/load_files/data/raw");
+    //let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
+    let mut path: String = String::from("/home/asi/load_files/data/raw");
     let ct: String = format!("{:06}", number);
     path.push_str(&ct);
     path.push_str(".tpx3");
@@ -118,8 +118,8 @@ fn has_data(number: u16) -> bool {
 }
 
 fn open_and_read(number: u16, delete: bool) -> Vec<u8> {
-    let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
-    //let mut path: String = String::from("/home/asi/load_files/data/raw");
+    //let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
+    let mut path: String = String::from("/home/asi/load_files/data/raw");
     let ct: String = format!("{:06}", number);
     path.push_str(&ct);
     path.push_str(".tpx3");
@@ -191,7 +191,7 @@ fn connect_and_loop() {
         let mut sock = socket;
         
         
-        let mut my_data = [0 as u8; 16];
+        let mut my_data = [0 as u8; 4];
         if let Ok(size) = sock.read(&mut my_data){
             match my_data[0] {
                 0 => bin = false,
@@ -202,15 +202,25 @@ fn connect_and_loop() {
         
         let mut gt = 0;
         let mut counter = 0u16;
+        let mut running:bool = true;
         let start = Instant::now();
         let result = loop {
             let msg = create_header(0.352, counter, 2048*(256-255*(bin as u32)), 16, 1024, 256 - 255*(bin as u16));
 
             while has_data(counter+1)==false {
-                counter = 0;
-                let sleep_time = time::Duration::from_micros(500);
-                thread::sleep(sleep_time);
+                if let Ok(size) = sock.read(&mut my_data) {
+                    if my_data == [0, 0, 0, 13] {
+                        running = false;
+                        break;
+                    };
+                };
+                //let sleep_time = time::Duration::from_micros(250);
+                //thread::sleep(sleep_time);
             }
+            
+            if running==false {
+                break counter;
+            };
             
             let mydata = open_and_read(counter, true);
             let received = build_data(&mydata[..], bin, 1);
@@ -238,14 +248,14 @@ fn connect_and_loop() {
             */
 
             match sock.write(&msg) {
-                Ok(_) => {},
+                Ok(a) => {},
                 Err(_) => {
                     println!("Client {} disconnected on header. Waiting a new one.", addr);
                     break counter;
                 },
             };
             match sock.write(&received) {
-                Ok(_) => {},
+                Ok(a) => {},
                 Err(_) => {
                     println!("Client {} disconnected on data. Waiting a new one.", addr);
                     break counter;
@@ -253,7 +263,7 @@ fn connect_and_loop() {
             };
             counter+=1;
             gt+=1;
-            if gt==1000 {
+            if gt==100 {
                 let elapsed = start.elapsed();
                 println!("Time elapsed for each 1000 iterations is: {:?}", elapsed);
                 gt = 0;
@@ -265,6 +275,7 @@ fn connect_and_loop() {
 
 fn main() {
     loop {
+        println!{"Waiting for a new client."}
         connect_and_loop();
     }
 }
