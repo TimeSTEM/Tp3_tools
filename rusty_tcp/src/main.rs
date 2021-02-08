@@ -118,8 +118,8 @@ fn has_data(number: u16) -> bool {
 }
 
 fn open_and_read(number: u16) -> Vec<u8> {
-    let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw00000");
-    let ct: String = number.to_string();
+    let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
+    let ct: String = format!("{:06}", number);
     path.push_str(&ct);
     path.push_str(".tpx3");
     let mut buffer: Vec<u8> = Vec::new();
