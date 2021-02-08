@@ -105,9 +105,8 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
     final_data
 }
 
-fn has_data(number: u16) -> bool {
-    //let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
-    let mut path: String = String::from("/home/asi/load_files/data/raw");
+fn has_data(path: &str, number: u16) -> bool {
+    let mut path = path.to_string();
     let ct: String = format!("{:06}", number);
     path.push_str(&ct);
     path.push_str(".tpx3");
@@ -117,9 +116,13 @@ fn has_data(number: u16) -> bool {
     }
 }
 
-fn open_and_read(number: u16, delete: bool) -> Vec<u8> {
-    //let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
-    let mut path: String = String::from("/home/asi/load_files/data/raw");
+fn remake_dir(path: &str) {
+    fs::remove_dir_all(path);
+    fs::create_dir(path);
+}
+
+fn open_and_read(path: &str, number: u16, delete: bool) -> Vec<u8> {
+    let mut path = path.to_string();
     let ct: String = format!("{:06}", number);
     path.push_str(&ct);
     path.push_str(".tpx3");
@@ -132,7 +135,10 @@ fn open_and_read(number: u16, delete: bool) -> Vec<u8> {
             Err(error) => panic!("Problem opening the file {}. Error: {:?}", number, error),
         };
     if delete {
-        fs::remove_file(&path);
+        match fs::remove_file(&path) {
+            Ok(_) => {},
+            Err(_) => {},
+        };
     };
     }
     buffer
@@ -182,6 +188,10 @@ fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
 }
 
 fn connect_and_loop() {
+    let mut my_path: String = String::from("/home/asi/load_files/data");
+    remake_dir(&my_path);
+    my_path.push_str("/raw");
+    
     let mut bin: bool = true;
 
     //let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
@@ -202,27 +212,22 @@ fn connect_and_loop() {
         
         let mut gt = 0;
         let mut counter = 0u16;
-        let mut running:bool = true;
         let start = Instant::now();
+        let mut running:bool = true;
         let result = loop {
             let msg = create_header(0.352, counter, 2048*(256-255*(bin as u32)), 16, 1024, 256 - 255*(bin as u16));
 
-            while has_data(counter+1)==false {
+            while has_data(&my_path, counter+1)==false {
                 if let Ok(size) = sock.read(&mut my_data) {
                     if my_data == [0, 0, 0, 13] {
                         running = false;
                         break;
                     };
                 };
-                //let sleep_time = time::Duration::from_micros(250);
-                //thread::sleep(sleep_time);
             }
             
-            if running==false {
-                break counter;
-            };
             
-            let mydata = open_and_read(counter, true);
+            let mydata = open_and_read(&my_path, counter, true);
             let received = build_data(&mydata[..], bin, 1);
             
             /*
@@ -260,6 +265,11 @@ fn connect_and_loop() {
                     println!("Client {} disconnected on data. Waiting a new one.", addr);
                     break counter;
                 },
+            };
+            
+            if running==false {
+                println!("Client {} disconnected on message. Waiting a new one.", addr);
+                break counter;
             };
             counter+=1;
             gt+=1;
