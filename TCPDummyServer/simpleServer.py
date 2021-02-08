@@ -91,7 +91,7 @@ Options for server are:
 filename = '../RawAnalysis/temp.tpx3'
 SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 #SERVER_HOST = '129.175.108.58' #When not using in localhost
-SERVER_PORT = 65431 #Pick a port to connect your socket
+SERVER_PORT = 8088 #Pick a port to connect your socket
 SAVE_FILE = False #Save a file in filename $PATH.
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 MAX_LOOPS = 0 #Maximum number of loops. MAX_LOOPS = 0 means not maximal value.

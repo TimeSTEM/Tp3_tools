@@ -51,7 +51,7 @@ FOLDER = 'Files_00'
 #FOLDER = '/home/asi/load_files/data'
 SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 #SERVER_HOST = '192.168.199.11' #When not using in localhost
-SERVER_PORT = 65431 #Pick a port to connect your socket
+SERVER_PORT = 8088 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
 TIME_INTERVAL = 0.25 #If no sleep, streaming is too fast
@@ -76,8 +76,8 @@ def open_and_read(filepath, number):
 
 while isRunning:
     if not INFINITE_SERVER: isRunning=False
-    for f in os.listdir(FOLDER):
-        os.remove(os.path.join(FOLDER, f))
+    #for f in os.listdir(FOLDER):
+    #    os.remove(os.path.join(FOLDER, f))
     print('Waiting a new client connection..')
     conn, addr = serv.accept() #It hangs here until a client connects.
     conn.settimeout(0.005)
@@ -87,7 +87,7 @@ while isRunning:
         now_data=b''
         
         while True:
-            now_file = os.path.join(FOLDER, "tdc_check_000"+format(loop, '.0f').zfill(3)+".tpx3")
+            now_file = os.path.join(FOLDER, "raw000"+format(loop, '.0f').zfill(3)+".tpx3")
             if os.path.isfile(now_file):
                 now_data += open_and_read(now_file, loop)
             else:
