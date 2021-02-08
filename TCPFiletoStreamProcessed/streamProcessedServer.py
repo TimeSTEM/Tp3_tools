@@ -209,7 +209,8 @@ def data_from_raw_tdc(data):
     return (tdcT, triggerType, a)
 
 def create_image_from_events(data, softBinning):
-    imagedata = numpy.zeros((1, 1024), dtype=numpy.int16)
+    dt = numpy.dtype(numpy.uint16).newbyteorder('>')
+    imagedata = numpy.zeros((1, 1024), dtype=dt)
     unique, frequency = numpy.unique(data, return_counts=True, axis=0)
     try:
         if softBinning:
