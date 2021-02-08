@@ -1,5 +1,5 @@
 use std::io::prelude::*;
-use std::fs::File;
+use std::fs;
 use std::net::TcpListener;
 use std::time::Instant;
 use std::{thread, time};
@@ -58,7 +58,7 @@ impl Packet {
 fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
     
     let file_data = data;
-    let mut final_data = vec![0; 2048 * (256 - 255 * (bin as usize))];
+    let mut final_data = if bin {vec![0; 2048]} else {vec![0; 256*2048]};
     let mut index = 0;
     let mut packet_chunks = file_data.chunks_exact(8);
 
@@ -106,28 +106,34 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
 }
 
 fn has_data(number: u16) -> bool {
-    //let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw00000");
-    let mut path: String = String::from("/home/asi/load_files/data/raw");
+    let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
+    //let mut path: String = String::from("/home/asi/load_files/data/raw");
     let ct: String = format!("{:06}", number);
     path.push_str(&ct);
     path.push_str(".tpx3");
-    match File::open(path) {
+    match fs::File::open(path) {
         Ok(_myfile) => true,
         Err(_) => false,
     }
 }
 
-fn open_and_read(number: u16) -> Vec<u8> {
-    //let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
-    let mut path: String = String::from("/home/asi/load_files/data/raw");
+fn open_and_read(number: u16, delete: bool) -> Vec<u8> {
+    let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
+    //let mut path: String = String::from("/home/asi/load_files/data/raw");
     let ct: String = format!("{:06}", number);
     path.push_str(&ct);
     path.push_str(".tpx3");
     let mut buffer: Vec<u8> = Vec::new();
     
-    if let Ok(myfile) = File::open(path) {
+    if let Ok(myfile) = fs::File::open(&path) {
         let mut myfile = myfile;
-        myfile.read_to_end(&mut buffer).expect("Error in read to buffer.");
+        match myfile.read_to_end(&mut buffer) {
+            Ok(_) => {},
+            Err(error) => panic!("Problem opening the file {}. Error: {:?}", number, error),
+        };
+    if delete {
+        fs::remove_file(&path);
+    };
     }
     buffer
 }
@@ -150,6 +156,7 @@ fn create_header(time: f64, frame: u16, data_size: u32, bitdepth: u8, width: u16
     s
 }
 
+#[allow(dead_code)]
 fn from_16_to_8(data: &[u16]) -> Vec<u8> {
     let vec1 = data;
     let mut new_vec: Vec<u8> = vec1.iter().map(|&x| x as u8).collect();
@@ -161,6 +168,7 @@ fn from_16_to_8(data: &[u16]) -> Vec<u8> {
     new_vec
 }
 
+#[allow(dead_code)]
 fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
     let vec1 = data;
     let vec2 = data2;
@@ -173,15 +181,13 @@ fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
     new_vec
 }
 
-fn main() {
-
-    let mut counter = 0u16;
+fn connect_and_loop() {
     let mut bin: bool = true;
 
     //let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
     let listener = TcpListener::bind("192.168.199.11:8088").unwrap();
     if let Ok((socket, addr)) = listener.accept() {
-        println!("new client {:?}", addr);
+        println!("New client connected at {:?}", addr);
         let mut sock = socket;
         
         
@@ -195,18 +201,18 @@ fn main() {
         };
         
         let mut gt = 0;
+        let mut counter = 0u16;
         let start = Instant::now();
-        println!("Starting looping...");
-        loop {
+        let result = loop {
             let msg = create_header(0.352, counter, 2048*(256-255*(bin as u32)), 16, 1024, 256 - 255*(bin as u16));
 
             while has_data(counter+1)==false {
-                //counter = 0;
-                let ten_millis = time::Duration::from_millis(1);
-                thread::sleep(ten_millis);
+                counter = 0;
+                let sleep_time = time::Duration::from_micros(500);
+                thread::sleep(sleep_time);
             }
             
-            let mydata = open_and_read(counter);
+            let mydata = open_and_read(counter, true);
             let received = build_data(&mydata[..], bin, 1);
             
             /*
@@ -231,17 +237,34 @@ fn main() {
             let final_received = double_from_16_to_8(&received, &received2);
             */
 
-            sock.write(&msg).expect("Header not sent.");
-            sock.write(&received).expect("Data not sent.");
+            match sock.write(&msg) {
+                Ok(_) => {},
+                Err(_) => {
+                    println!("Client {} disconnected on header. Waiting a new one.", addr);
+                    break counter;
+                },
+            };
+            match sock.write(&received) {
+                Ok(_) => {},
+                Err(_) => {
+                    println!("Client {} disconnected on data. Waiting a new one.", addr);
+                    break counter;
+                },
+            };
             counter+=1;
             gt+=1;
-            let elapsed = start.elapsed();
-            println!("Time elapsed for each 1000 iterations is: {:?} and {}", elapsed, counter);
             if gt==1000 {
-                //let elapsed = start.elapsed();
-                //println!("Time elapsed for each 1000 iterations is: {:?}", elapsed);
+                let elapsed = start.elapsed();
+                println!("Time elapsed for each 1000 iterations is: {:?}", elapsed);
                 gt = 0;
-            }
-        }
+            };
+        };
+        println!("Number of loops were: {}.", counter)
+    }
+}
+
+fn main() {
+    loop {
+        connect_and_loop();
     }
 }
