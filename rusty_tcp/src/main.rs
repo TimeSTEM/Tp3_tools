@@ -2,7 +2,7 @@ use std::io::prelude::*;
 use std::fs::File;
 use std::net::TcpListener;
 use std::time::Instant;
-use std::thread;
+use std::{thread, time};
 use std::sync::mpsc;
  
 struct Packet {
@@ -106,11 +106,11 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
 }
 
 fn has_data(number: u16) -> bool {
-    let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw00000");
-    let ct: String = number.to_string();
+    //let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw00000");
+    let mut path: String = String::from("/home/asi/load_files/data/raw");
+    let ct: String = format!("{:06}", number);
     path.push_str(&ct);
     path.push_str(".tpx3");
-
     match File::open(path) {
         Ok(_myfile) => true,
         Err(_) => false,
@@ -118,7 +118,8 @@ fn has_data(number: u16) -> bool {
 }
 
 fn open_and_read(number: u16) -> Vec<u8> {
-    let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
+    //let mut path: String = String::from("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStreamProcessed\\Files_00\\raw");
+    let mut path: String = String::from("/home/asi/load_files/data/raw");
     let ct: String = format!("{:06}", number);
     path.push_str(&ct);
     path.push_str(".tpx3");
@@ -177,7 +178,8 @@ fn main() {
     let mut counter = 0u16;
     let mut bin: bool = true;
 
-    let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
+    //let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
+    let listener = TcpListener::bind("192.168.199.11:8088").unwrap();
     if let Ok((socket, addr)) = listener.accept() {
         println!("new client {:?}", addr);
         let mut sock = socket;
@@ -194,11 +196,14 @@ fn main() {
         
         let mut gt = 0;
         let start = Instant::now();
+        println!("Starting looping...");
         loop {
             let msg = create_header(0.352, counter, 2048*(256-255*(bin as u32)), 16, 1024, 256 - 255*(bin as u16));
 
-            while has_data(counter)==false {
-                counter = 0;
+            while has_data(counter+1)==false {
+                //counter = 0;
+                let ten_millis = time::Duration::from_millis(1);
+                thread::sleep(ten_millis);
             }
             
             let mydata = open_and_read(counter);
@@ -230,9 +235,11 @@ fn main() {
             sock.write(&received).expect("Data not sent.");
             counter+=1;
             gt+=1;
+            let elapsed = start.elapsed();
+            println!("Time elapsed for each 1000 iterations is: {:?} and {}", elapsed, counter);
             if gt==1000 {
-                let elapsed = start.elapsed();
-                println!("Time elapsed for each 1000 iterations is: {:?}", elapsed);
+                //let elapsed = start.elapsed();
+                //println!("Time elapsed for each 1000 iterations is: {:?}", elapsed);
                 gt = 0;
             }
         }
