@@ -1,5 +1,6 @@
 use std::io::prelude::*;
 use std::fs;
+use std::io::BufReader;
 use std::net::TcpListener;
 use std::time::{Duration, Instant};
 use std::{thread, time};
@@ -19,7 +20,7 @@ struct Packet {
 
 impl Packet {
     fn x(&self) -> usize {
-        let mut temp = ((((self.i14 & 224))>>4 | ((self.i15 & 15))<<4) | (((self.i13 & 112)>>4)>>2)) as usize;
+        let temp = ((((self.i14 & 224))>>4 | ((self.i15 & 15))<<4) | (((self.i13 & 112)>>4)>>2)) as usize;
         match self.chip_index {
             0 => 255 - temp,
             1 => 255 * 4 - temp,
@@ -55,7 +56,7 @@ impl Packet {
 
 }
 
-fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
+fn build_data(data: &[u8], bin: bool) -> Vec<u8> {
     
     let file_data = data;
     let mut final_data = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
@@ -86,28 +87,27 @@ fn build_data(data: &[u8], bin: bool, section: usize) -> Vec<u8> {
                 };
                 
                 if packet.id()==11 {
-                    let array_pos: usize;
-                    match bin {
-                        false => array_pos = 4*packet.x() + 4*1024*packet.y(),
-                        true => array_pos = 4*packet.x()
+                    let array_pos = match bin {
+                        false => 4*packet.x() + 4*1024*packet.y(),
+                        true => 4*packet.x()
                     };
                     
                     final_data[array_pos+3] += 1;
                     if final_data[array_pos+3]==255 {
-                        final_data[array_pos+2] += 1;
                         final_data[array_pos+3] = 0;
+                        final_data[array_pos+2] += 1;
+                        if final_data[array_pos+2]==255 {
+                            final_data[array_pos+1] += 1;
+                            final_data[array_pos+2] = 0;
+                            if final_data[array_pos+1]==255 {
+                                final_data[array_pos] += 1;
+                                final_data[array_pos+1] = 0;
+                            };
+                        };
                     };
-                    if final_data[array_pos+2]==255 {
-                        final_data[array_pos+1] += 1;
-                        final_data[array_pos+2] = 0;
-                    };
-                    if final_data[array_pos+1]==255 {
-                        final_data[array_pos] += 1;
-                        final_data[array_pos+1] = 0;
-                    };
-                }
+                };
             },
-        }
+        };
     }
     final_data.push(10);
     final_data
@@ -129,26 +129,54 @@ fn remake_dir(path: &str) {
     fs::create_dir(path);
 }
 
+
+#[allow(dead_code)]
+fn bufopen_and_read() {
+    let path: String = String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw000000.tpx3");
+    //let path: String = String::from("A:\\wobbler_data\\raw000000.tpx3");
+    let f = fs::File::open(&path).unwrap();
+    let mut f = BufReader::new(f);
+    let mut buffer: Vec<u8> = Vec::new();
+    
+    while f.read_until(b'\n', &mut buffer).unwrap() != 0 {
+    };
+}
+
+#[allow(dead_code)]
+fn open_and_read_speed_test(path: &str, number: u16) {
+    let path: String = String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw000000.tpx3");
+    let mut buffer: Vec<u8> = Vec::new();
+
+    if let Ok(mut myfile) = fs::File::open(&path) {
+        match myfile.read_to_end(&mut buffer) {
+            Ok(_) => {},
+            Err(error) => panic!("Problem opening the file {}. Error: {:?}", number, error),
+        };
+    };
+}
+
 fn open_and_read(path: &str, number: u16, delete: bool) -> Vec<u8> {
     let mut path = path.to_string();
     let ct: String = format!("{:06}", number);
     path.push_str(&ct);
     path.push_str(".tpx3");
-    let mut buffer: Vec<u8> = Vec::new();
     
-    if let Ok(myfile) = fs::File::open(&path) {
-        let mut myfile = myfile;
+    let mut buffer: Vec<u8> = Vec::new();
+
+
+    if let Ok(mut myfile) = fs::File::open(&path) {
         match myfile.read_to_end(&mut buffer) {
-            Ok(_) => {},
+            Ok(_) => {
+                if delete {
+                    match fs::remove_file(&path) {
+                        Ok(_) => {},
+                        Err(_) => {},
+                    };
+                };
+            },
             Err(error) => panic!("Problem opening the file {}. Error: {:?}", number, error),
         };
-    if delete {
-        match fs::remove_file(&path) {
-            Ok(_) => {},
-            Err(_) => {},
-        };
     };
-    }
     buffer
 }
 
@@ -174,7 +202,7 @@ fn create_header(time: f64, frame: u16, data_size: u32, bitdepth: u8, width: u16
 fn from_16_to_8(data: &[u16]) -> Vec<u8> {
     let vec1 = data;
     let mut new_vec: Vec<u8> = vec1.iter().map(|&x| x as u8).collect();
-    let mut it1 = vec1.iter().enumerate().filter(|&(a, b)| b>&255);
+    let it1 = vec1.iter().enumerate().filter(|&(a, b)| b>&255);
     for (i, val) in it1 {
         new_vec[i+1] += (val / 255) as u8;
         new_vec[i] = (val % 255) as u8;
@@ -187,7 +215,7 @@ fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
     let vec1 = data;
     let vec2 = data2;
     let mut new_vec: Vec<u8> = vec1.iter().zip(vec2.iter()).map(|(a, b)| (a+b) as u8).collect();
-    let mut it1 = vec1.iter().zip(vec2.iter()).map(|(a, b)| a+b).enumerate().filter(|&(a, b)| b>255);
+    let it1 = vec1.iter().zip(vec2.iter()).map(|(a, b)| a+b).enumerate().filter(|&(a, b)| b>255);
     for (i, val) in it1 {
         new_vec[i+1] += (val / 255) as u8;
         new_vec[i] = (val % 255) as u8;
@@ -196,7 +224,8 @@ fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
 }
 
 fn connect_and_loop() {
-    let mut my_path: String = String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw");
+    let my_path: String = String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw");
+    //let my_path: String = String::from("A:\\wobbler_data\\raw");
     //let mut my_path: String = String::from("/home/asi/load_files/data");
     //remake_dir(&my_path);
     //my_path.push_str("//raw");
@@ -211,16 +240,16 @@ fn connect_and_loop() {
         sock.set_read_timeout(Some(Duration::from_micros(500))).unwrap();
         
         let mut my_data = [0 as u8; 4];
-        if let Ok(size) = sock.read(&mut my_data){
+        if let Ok(_) = sock.read(&mut my_data){
             match my_data[0] {
                 0 => bin = false,
                 1 => bin = true,
-                _ => bin = panic!("Binning choice must be 0 | 1."),
+                _ => panic!("Binning choice must be 0 | 1."),
             };
         };
         
         let mut counter = 0u16;
-        let result = loop {
+        let _result = loop {
             let start = Instant::now();
             let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
 
@@ -233,8 +262,10 @@ fn connect_and_loop() {
                 };
             }
 
+            open_and_read_speed_test(&my_path, counter);
+            let elapsed = start.elapsed();
             let mydata = open_and_read(&my_path, counter, false);
-            let received = build_data(&mydata[..], bin, 1);
+            let received = build_data(&mydata[..], bin);
             
             /*
             let mydata2 = mydata.clone();
@@ -259,14 +290,14 @@ fn connect_and_loop() {
             */
 
             match sock.write(&msg) {
-                Ok(a) => {},
+                Ok(_) => {},
                 Err(_) => {
                     println!("Client {} disconnected on header. Waiting a new one.", addr);
                     break counter;
                 },
             };
             match sock.write(&received) {
-                Ok(a) => {},
+                Ok(_) => {},
                 Err(_) => {
                     println!("Client {} disconnected on data. Waiting a new one.", addr);
                     break counter;
@@ -275,7 +306,6 @@ fn connect_and_loop() {
             
             counter+=1;
             if counter==25 {
-                let elapsed = start.elapsed();
                 println!("Time elapsed for each 1000 iterations is: {:?}", elapsed);
             };
         };
