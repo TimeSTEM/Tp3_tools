@@ -92,6 +92,7 @@ fn build_data(data: &[u8], bin: bool) -> Vec<u8> {
                         true => 4*packet.x()
                     };
                     
+
                     final_data[array_pos+3] += 1;
                     if final_data[array_pos+3]==255 {
                         final_data[array_pos+3] = 0;
@@ -104,7 +105,9 @@ fn build_data(data: &[u8], bin: bool) -> Vec<u8> {
                                 final_data[array_pos+1] = 0;
                             };
                         };
+                        
                     };
+                
                 };
             },
         };
@@ -127,36 +130,6 @@ fn has_data(path: &str, number: u16) -> bool {
 fn remake_dir(path: &str) {
     fs::remove_dir_all(path).expect("Could not remove directory.");
     fs::create_dir(path);
-}
-
-
-#[allow(dead_code)]
-fn bufopen_and_read() {
-    //let path: String = String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw000000.tpx3");
-    //let path: String = String::from("A:\\wobbler_data\\raw000000.tpx3");
-    let path: String = String::from("/home/asi/load_files/wobbler_data/raw000000.tpx3");
-    let f = fs::File::open(&path).unwrap();
-    let mut f = BufReader::new(f);
-    let mut buffer: Vec<u8> = Vec::new();
-    
-    while f.read_until(b'\n', &mut buffer).unwrap() != 0 {
-    };
-}
-
-#[allow(dead_code)]
-fn open_and_read_speed_test(path: &str, number: u16) {
-    let mut path = path.to_string();
-    let ct: String = format!("{:06}", number);
-    path.push_str(&ct);
-    path.push_str(".tpx3");
-    let mut buffer: Vec<u8> = Vec::new();
-
-    if let Ok(mut myfile) = fs::File::open(&path) {
-        match myfile.read_to_end(&mut buffer) {
-            Ok(_) => {},
-            Err(error) => panic!("Problem opening the file {}. Error: {:?}", number, error),
-        };
-    };
 }
 
 fn open_and_read(path: &str, number: u16, delete: bool) -> Vec<u8> {
@@ -228,47 +201,47 @@ fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
 }
 
 fn connect_and_loop() {
+    let mut my_path: String = String::from("/home/asi/load_files/data");
     //let my_path: String = String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw");
-    //let my_path: String = String::from("A:\\wobbler_data\\raw");
-    //let mut my_path: String = String::from("/home/asi/load_files/data");
-    let mut my_path: String = String::from("/home/asi/load_files/wobbler_data/raw");
-    //remake_dir(&my_path);
-    //my_path.push_str("//raw");
+    //let mut my_path: String = String::from("/home/asi/load_files/wobbler_data/raw");
+    
+    remake_dir(&my_path);
+    my_path.push_str("//raw");
     
     let mut bin: bool = true;
 
     //let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
     let listener = TcpListener::bind("192.168.199.11:8088").unwrap();
+    
     if let Ok((socket, addr)) = listener.accept() {
         println!("New client connected at {:?}", addr);
         let mut sock = socket;
-        sock.set_read_timeout(Some(Duration::from_micros(500))).unwrap();
         
         let mut my_data = [0 as u8; 4];
         if let Ok(_) = sock.read(&mut my_data){
-            match my_data[0] {
-                0 => bin = false,
-                1 => bin = true,
+            bin = match my_data[0] {
+                0 => false,
+                1 => true,
                 _ => panic!("Binning choice must be 0 | 1."),
             };
         };
+        sock.set_read_timeout(Some(Duration::from_micros(1_000))).unwrap();
+        println!("Received data is {:?}.", my_data);
         
         let mut counter = 0u16;
         let start = Instant::now();
-        let _result = loop {
+        'global: loop {
             let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
 
             while has_data(&my_path, counter+1)==false {
-                counter = 0;
                 if let Ok(size) = sock.read(&mut my_data) {
                     if size == 0 {
-                        break;
+                        break 'global;
                     };
                 };
             }
 
-            //open_and_read_speed_test(&my_path, counter);
-            let mydata = open_and_read(&my_path, counter, false);
+            let mydata = open_and_read(&my_path, counter, true);
             let received = build_data(&mydata[..], bin);
             let elapsed = start.elapsed();
             
@@ -298,21 +271,17 @@ fn connect_and_loop() {
                 Ok(_) => {},
                 Err(_) => {
                     println!("Client {} disconnected on header. Waiting a new one.", addr);
-                    break counter;
+                    break;
                 },
             };
             match sock.write(&received) {
                 Ok(_) => {},
                 Err(_) => {
                     println!("Client {} disconnected on data. Waiting a new one.", addr);
-                    break counter;
+                    break;
                 },
             };
-            
             counter+=1;
-            if counter==100 {
-                println!("Time elapsed for each iterations is: {:?}. Counter is {}", elapsed, counter);
-            };
         };
         println!("Number of loops were: {}.", counter)
     }
