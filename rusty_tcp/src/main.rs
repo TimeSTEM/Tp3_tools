@@ -132,8 +132,9 @@ fn remake_dir(path: &str) {
 
 #[allow(dead_code)]
 fn bufopen_and_read() {
-    let path: String = String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw000000.tpx3");
+    //let path: String = String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw000000.tpx3");
     //let path: String = String::from("A:\\wobbler_data\\raw000000.tpx3");
+    let path: String = String::from("/home/asi/load_files/wobbler_data/raw000000.tpx3");
     let f = fs::File::open(&path).unwrap();
     let mut f = BufReader::new(f);
     let mut buffer: Vec<u8> = Vec::new();
@@ -144,7 +145,10 @@ fn bufopen_and_read() {
 
 #[allow(dead_code)]
 fn open_and_read_speed_test(path: &str, number: u16) {
-    let path: String = String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw000000.tpx3");
+    let mut path = path.to_string();
+    let ct: String = format!("{:06}", number);
+    path.push_str(&ct);
+    path.push_str(".tpx3");
     let mut buffer: Vec<u8> = Vec::new();
 
     if let Ok(mut myfile) = fs::File::open(&path) {
@@ -224,16 +228,17 @@ fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
 }
 
 fn connect_and_loop() {
-    let my_path: String = String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw");
+    //let my_path: String = String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw");
     //let my_path: String = String::from("A:\\wobbler_data\\raw");
     //let mut my_path: String = String::from("/home/asi/load_files/data");
+    let mut my_path: String = String::from("/home/asi/load_files/wobbler_data/raw");
     //remake_dir(&my_path);
     //my_path.push_str("//raw");
     
     let mut bin: bool = true;
 
-    let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
-    //let listener = TcpListener::bind("192.168.199.11:8088").unwrap();
+    //let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
+    let listener = TcpListener::bind("192.168.199.11:8088").unwrap();
     if let Ok((socket, addr)) = listener.accept() {
         println!("New client connected at {:?}", addr);
         let mut sock = socket;
@@ -249,8 +254,8 @@ fn connect_and_loop() {
         };
         
         let mut counter = 0u16;
+        let start = Instant::now();
         let _result = loop {
-            let start = Instant::now();
             let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
 
             while has_data(&my_path, counter+1)==false {
@@ -262,10 +267,10 @@ fn connect_and_loop() {
                 };
             }
 
-            open_and_read_speed_test(&my_path, counter);
-            let elapsed = start.elapsed();
+            //open_and_read_speed_test(&my_path, counter);
             let mydata = open_and_read(&my_path, counter, false);
             let received = build_data(&mydata[..], bin);
+            let elapsed = start.elapsed();
             
             /*
             let mydata2 = mydata.clone();
@@ -305,8 +310,8 @@ fn connect_and_loop() {
             };
             
             counter+=1;
-            if counter==25 {
-                println!("Time elapsed for each 1000 iterations is: {:?}", elapsed);
+            if counter==100 {
+                println!("Time elapsed for each iterations is: {:?}. Counter is {}", elapsed, counter);
             };
         };
         println!("Number of loops were: {}.", counter)
