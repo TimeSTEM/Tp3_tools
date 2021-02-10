@@ -209,7 +209,6 @@ fn connect_and_loop(local: bool) {
     let mut my_path: String = match local {
         //true => String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw"),
         true => String::from("/home/yves/Documents/wobbler_data/raw"),
-        //true => String::from("/tmp/ramisk/wobbler_data/raw"),
         false => String::from("/home/asi/load_files/data"),
     };
 
@@ -235,7 +234,7 @@ fn connect_and_loop(local: bool) {
             bin = match my_data[0] {
                 0 => false,
                 1 => true,
-                _ => false, //panic!("Binning choice must be 0 | 1."),
+                _ => true, //panic!("Binning choice must be 0 | 1."),
             };
         };
         sock.set_read_timeout(Some(Duration::from_micros(1_000))).unwrap();
@@ -296,6 +295,7 @@ fn connect_and_loop(local: bool) {
             };
             counter+=1;
             if counter % 100 == 0 {
+                counter = 0;
                 let elapsed = start.elapsed();
                 println!("Total elapsed time is: {:?}", elapsed);
             }
