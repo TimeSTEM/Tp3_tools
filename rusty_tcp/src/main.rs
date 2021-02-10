@@ -76,11 +76,11 @@ fn build_data(data: &[u8], bin: bool) -> Vec<u8> {
             Some(x) => {
                 let packet = Packet {
                     chip_index: ci,
-                    i08: 0,
-                    i09: 0,
-                    i10: 0,
-                    i11: 0,
-                    i12: 0,
+                    i08: x[0],
+                    i09: x[1],
+                    i10: x[2],
+                    i11: x[3],
+                    i12: x[4],
                     i13: x[5],
                     i14: x[6],
                     i15: x[7],
@@ -233,7 +233,7 @@ fn connect_and_loop(local: bool) {
             bin = match my_data[0] {
                 0 => false,
                 1 => true,
-                _ => true, //panic!("Binning choice must be 0 | 1."),
+                _ => false, //panic!("Binning choice must be 0 | 1."),
             };
         };
         sock.set_read_timeout(Some(Duration::from_micros(1_000))).unwrap();
@@ -245,6 +245,7 @@ fn connect_and_loop(local: bool) {
             let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
 
             while has_data(&my_path, counter+1)==false {
+                counter = 0;
                 if let Ok(size) = sock.read(&mut my_data) {
                     if size == 0 {
                         break 'global;
