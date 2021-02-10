@@ -106,6 +106,7 @@ fn build_data(data: &[u8], bin: bool) -> Vec<u8> {
                             };
                         };
                         
+                        
                     };
                 
                 };
@@ -116,7 +117,7 @@ fn build_data(data: &[u8], bin: bool) -> Vec<u8> {
     final_data
 }
 
-fn has_data(path: &str, number: u16) -> bool {
+fn has_data(path: &str, number: usize) -> bool {
     let mut path = path.to_string();
     let ct: String = format!("{:06}", number);
     path.push_str(&ct);
@@ -132,7 +133,7 @@ fn remake_dir(path: &str) {
     fs::create_dir(path);
 }
 
-fn open_and_read(path: &str, number: u16, delete: bool) -> Vec<u8> {
+fn open_and_read(path: &str, number: usize, delete: bool) -> Vec<u8> {
     let mut path = path.to_string();
     let ct: String = format!("{:06}", number);
     path.push_str(&ct);
@@ -157,7 +158,7 @@ fn open_and_read(path: &str, number: u16, delete: bool) -> Vec<u8> {
     buffer
 }
 
-fn create_header(time: f64, frame: u16, data_size: u32, bitdepth: u8, width: u16, height: u16) -> Vec<u8> {
+fn create_header(time: f64, frame: usize, data_size: u32, bitdepth: u8, width: u16, height: u16) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(time.to_string()));
     msg.push_str(",\"frameNumber\":");
@@ -200,19 +201,29 @@ fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
     new_vec
 }
 
-fn connect_and_loop() {
-    let mut my_path: String = String::from("/home/asi/load_files/data");
-    //let my_path: String = String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw");
-    //let mut my_path: String = String::from("/home/asi/load_files/wobbler_data/raw");
-    
-    remake_dir(&my_path);
-    my_path.push_str("//raw");
-    
+fn connect_and_loop(local: bool) {
+
+
     let mut bin: bool = true;
 
-    //let listener = TcpListener::bind("127.0.0.1:8088").unwrap();
-    let listener = TcpListener::bind("192.168.199.11:8088").unwrap();
-    
+    let mut my_path: String = match local {
+        true => String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw"),
+        false => String::from("/home/asi/load_files/data"),
+    };
+
+    match local {
+        true => {println!("Running locally. Won't delete folder. Attempting to connect to localhost...");},
+        false => {
+            remake_dir(&my_path);
+            my_path.push_str("//raw");
+        },
+    };
+
+    let listener = match local {
+        true => TcpListener::bind("127.0.0.1:8088").unwrap(),
+        false => TcpListener::bind("192.168.199.11:8088").unwrap(),
+    };
+
     if let Ok((socket, addr)) = listener.accept() {
         println!("New client connected at {:?}", addr);
         let mut sock = socket;
@@ -222,13 +233,13 @@ fn connect_and_loop() {
             bin = match my_data[0] {
                 0 => false,
                 1 => true,
-                _ => panic!("Binning choice must be 0 | 1."),
+                _ => true, //panic!("Binning choice must be 0 | 1."),
             };
         };
         sock.set_read_timeout(Some(Duration::from_micros(1_000))).unwrap();
         println!("Received data is {:?}.", my_data);
         
-        let mut counter = 0u16;
+        let mut counter = 0usize;
         let start = Instant::now();
         'global: loop {
             let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
@@ -241,9 +252,8 @@ fn connect_and_loop() {
                 };
             }
 
-            let mydata = open_and_read(&my_path, counter, true);
+            let mydata = open_and_read(&my_path, counter, false);
             let received = build_data(&mydata[..], bin);
-            let elapsed = start.elapsed();
             
             /*
             let mydata2 = mydata.clone();
@@ -282,14 +292,18 @@ fn connect_and_loop() {
                 },
             };
             counter+=1;
+            if counter % 100 == 0 {
+                let elapsed = start.elapsed();
+                println!("Total elapsed time is: {:?}", elapsed);
+            }
         };
-        println!("Number of loops were: {}.", counter)
+        println!("Number of loops were: {}.", counter);
     }
 }
 
 fn main() {
     loop {
         println!{"Waiting for a new client."}
-        connect_and_loop();
+        connect_and_loop(true);
     }
 }
