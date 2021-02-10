@@ -207,7 +207,9 @@ fn connect_and_loop(local: bool) {
     let mut bin: bool = true;
 
     let mut my_path: String = match local {
-        true => String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw"),
+        //true => String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw"),
+        true => String::from("/home/yves/Documents/wobbler_data/raw"),
+        //true => String::from("/tmp/ramisk/wobbler_data/raw"),
         false => String::from("/home/asi/load_files/data"),
     };
 
@@ -253,7 +255,7 @@ fn connect_and_loop(local: bool) {
                 };
             }
 
-            let mydata = open_and_read(&my_path, counter, false);
+            let mydata = open_and_read(&my_path, counter, !local);
             let received = build_data(&mydata[..], bin);
             
             /*
