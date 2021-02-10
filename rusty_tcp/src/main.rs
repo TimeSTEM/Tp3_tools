@@ -233,7 +233,7 @@ fn connect_and_loop(local: bool) {
             bin = match my_data[0] {
                 0 => false,
                 1 => true,
-                _ => false, //panic!("Binning choice must be 0 | 1."),
+                _ => panic!("Binning choice must be 0 | 1."),
             };
         };
         sock.set_read_timeout(Some(Duration::from_micros(1_000))).unwrap();
@@ -255,7 +255,6 @@ fn connect_and_loop(local: bool) {
 
             let mydata = open_and_read(&my_path, counter, !local);
             let received = build_data(&mydata[..], bin);
-            
             /*
             let mydata2 = mydata.clone();
             let (tx, rx) = mpsc::channel();
