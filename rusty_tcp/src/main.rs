@@ -255,7 +255,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 _ => false, //panic!("Binning choice must be 0 | 1."),
             };
         };
-        sock.set_read_timeout(Some(Duration::from_micros(1_000))).unwrap();
+        sock.set_read_timeout(Some(Duration::from_micros(100))).unwrap();
         println!("Received data is {:?}.", my_data);
         
         let mut counter = 0usize;
