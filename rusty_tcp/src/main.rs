@@ -1,5 +1,5 @@
 use std::io::prelude::*;
-use std::fs;
+use std::{fs, io};
 use std::io::BufReader;
 use std::net::TcpListener;
 use std::time::{Duration, Instant};
@@ -133,9 +133,19 @@ fn has_data(path: &str, number: usize) -> bool {
     }
 }
 
-fn remake_dir(path: &str) {
-    fs::remove_dir_all(path).expect("Could not remove directory.");
-    fs::create_dir(path);
+fn remove_all(path: &str) -> io::Result<()> {
+    //fs::remove_dir_all(path).expect("Could not remove directory.");
+    //fs::create_dir(path);
+    let mut entries = fs::read_dir(path)?
+        .map(|res| res.map(|e| e.path()));
+    
+    for val in entries {
+        let dir = val?;
+        fs::remove_file(dir);
+    }
+
+    Ok(())
+
 }
 
 fn open_and_read(path: &str, number: usize, delete: bool) -> Vec<u8> {
@@ -222,7 +232,7 @@ fn connect_and_loop(runmode: RunningMode) {
             deletefile = false;
         },
         RunningMode::tp3 => {
-            remake_dir(&my_path);
+            remove_all(&my_path).expect("Cannot remove all files");
             my_path.push_str("//raw");
             deletefile = true;
         },
@@ -254,7 +264,6 @@ fn connect_and_loop(runmode: RunningMode) {
             let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
 
             while has_data(&my_path, counter+1)==false {
-                counter = 0;
                 if let Ok(size) = sock.read(&mut my_data) {
                     if size == 0 {
                         break 'global;
@@ -312,7 +321,7 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::debug_stem7482;
+        let myrun = RunningMode::tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
