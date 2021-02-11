@@ -5,7 +5,12 @@ use std::net::TcpListener;
 use std::time::{Duration, Instant};
 use std::{thread, time};
 use std::sync::mpsc;
- 
+
+enum RunningMode {
+    debug_stem7482,
+    tp3,
+}
+
 struct Packet {
     chip_index: u8,
     i08: u8,
@@ -200,28 +205,32 @@ fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
     new_vec
 }
 
-fn connect_and_loop(local: bool) {
-
+fn connect_and_loop(runmode: RunningMode) {
 
     let mut bin: bool = true;
+    let deletefile: bool;
 
-    let mut my_path: String = match local {
-        true => String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw"),
+    let mut my_path: String = match runmode {
+        RunningMode::debug_stem7482 => String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw"),
         //true => String::from("/home/yves/Documents/wobbler_data/raw"),
-        false => String::from("/home/asi/load_files/data"),
+        RunningMode::tp3 => String::from("/home/asi/load_files/data"),
     };
 
-    match local {
-        true => {println!("Running locally. Won't delete folder. Attempting to connect to localhost...");},
-        false => {
+    match runmode {
+        RunningMode::debug_stem7482 => {
+            println!("Running locally. Won't delete folder neither file. Attempting to connect to localhost...");
+            deletefile = false;
+        },
+        RunningMode::tp3 => {
             remake_dir(&my_path);
             my_path.push_str("//raw");
+            deletefile = true;
         },
     };
 
-    let listener = match local {
-        true => TcpListener::bind("127.0.0.1:8088").unwrap(),
-        false => TcpListener::bind("192.168.199.11:8088").unwrap(),
+    let listener = match runmode {
+        RunningMode::debug_stem7482 => TcpListener::bind("127.0.0.1:8088").unwrap(),
+        RunningMode::tp3 => TcpListener::bind("192.168.199.11:8088").unwrap(),
     };
 
     if let Ok((socket, addr)) = listener.accept() {
@@ -233,7 +242,7 @@ fn connect_and_loop(local: bool) {
             bin = match my_data[0] {
                 0 => false,
                 1 => true,
-                _ => panic!("Binning choice must be 0 | 1."),
+                _ => false, //panic!("Binning choice must be 0 | 1."),
             };
         };
         sock.set_read_timeout(Some(Duration::from_micros(1_000))).unwrap();
@@ -253,7 +262,7 @@ fn connect_and_loop(local: bool) {
                 };
             }
 
-            let mydata = open_and_read(&my_path, counter, !local);
+            let mydata = open_and_read(&my_path, counter, deletefile);
             let received = build_data(&mydata[..], bin);
             /*
             let mydata2 = mydata.clone();
@@ -303,7 +312,8 @@ fn connect_and_loop(local: bool) {
 
 fn main() {
     loop {
-        println!{"Waiting for a new client."}
-        connect_and_loop(true);
+        let myrun = RunningMode::debug_stem7482;
+        println!{"Waiting for a new client"};
+        connect_and_loop(myrun);
     }
 }
