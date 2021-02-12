@@ -47,24 +47,22 @@ Options for server are:
     - 192.0.0.11 in my old dell computer (Ubuntu);
     - 192.168.199.11 in CheeTah's computer (Ubuntu);
 """
-FOLDER = 'Files_00'
+#FOLDER = 'Files_00'
+FOLDER = 'C:\\Users\\AUAD\\Documents\\wobbler_data'
 #FOLDER = '/home/asi/load_files/data'
-SERVER_HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
-#SERVER_HOST = '192.168.199.11' #When not using in localhost
-SERVER_PORT = 8088 #Pick a port to connect your socket
+HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
+#HOST = '192.168.199.11' #When not using in localhost
+PORT = 8098 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
-TIME_INTERVAL = 0.25 #If no sleep, streaming is too fast
 MAX_LOOPS = 0 #Max number of loops
-FILE_EXISTS = False #False if you streaming directly
+TIME_INTERVAL = 0.25 #If no sleep, streaming is too fast
 
 """
 Script starts here
 """
 serv = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #AF_INET is IPV4. It expects a tuple (HOST, PORT). SOCK_STREAM is TCP protocol
 serv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #To reuse the socket.
-serv.bind((SERVER_HOST, SERVER_PORT))
-serv.listen()
 
 isRunning = True
 
@@ -76,13 +74,13 @@ def open_and_read(filepath, number):
 
 while isRunning:
     if not INFINITE_SERVER: isRunning=False
-    #for f in os.listdir(FOLDER):
-    #    os.remove(os.path.join(FOLDER, f))
     print('Waiting a new client connection..')
-    conn, addr = serv.accept() #It hangs here until a client connects.
-    conn.settimeout(0.005)
-    with conn:
-        print('connected by', addr)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as serv:
+        try:
+            serv.connect((HOST, PORT))
+        except ConnectionRefusedError:
+            pass
+        print('TCP3 raw connected.')
         loop = 0
         now_data=b''
         
@@ -91,39 +89,21 @@ while isRunning:
             if os.path.isfile(now_file):
                 now_data += open_and_read(now_file, loop)
             else:
-                if FILE_EXISTS:
-                    loop = 0
-                else:
-                    while not os.path.isfile(now_file):
-                        try:
-                            data = conn.recv(64)
-                            if not data:
-                                break
-                        except socket.timeout:
-                            """
-                            Just so we dont hang in conn.recv
-                            """
-                            pass
-                        except ConnectionResetError:
-                            print(f'Nionswift closed without Stoping camera. Reinitializating')
-                            break
-                    try:
-                        now_data += open_and_read(now_file, loop)
-                        print(f'New file found at {loop}. Opening it.')
-                    except FileNotFoundError:
-                        print(f'Connection broken by client. Reinitializating')
-                        break
+                loop = 0
 
             try:
-                conn.send(now_data)
+                serv.send(now_data)
                 now_data = b''
             except ConnectionResetError:
                 break
-            except socket.timeout:
-                pass
+            except ConnectionAbortedError:
+                """Breaking NS"""
+                break
+            except ConnectionRefusedError:
+                """Too much time off"""
+                break
 
             loop+=1
-            time.sleep(TIME_INTERVAL)
 
             if MAX_LOOPS and loop==MAX_LOOPS:
                 break
