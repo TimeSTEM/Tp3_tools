@@ -109,7 +109,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8) -> (u8
                     },
                     6 => {
                         hasTdc = true;
-                        break}
+                    break}
                     _ => {},
                 }
             },
@@ -266,8 +266,10 @@ fn connect_and_loop(runmode: RunningMode) {
             
             let mut counter = 0usize;
             let last_ci = 0u8;
-            let last_buffer_ci = 0u8;
-            let mut buffer_pack_data: [u8; 32768] = [0; 32768];
+            let mut last_buffer_ci = 0u8;
+            let mut hasTdc: bool = false;
+            let mut remain: usize = 0;
+            let mut buffer_pack_data: [u8; 512000] = [0; 512000];
             let start = Instant::now();
             'global: loop {
                 let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
@@ -288,7 +290,10 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            let (last_buffer_ci, remain, hasTdc) = build_data(new_data, bin, &mut mybufarray, last_buffer_ci);
+                            let result = build_data(new_data, bin, &mut mybufarray, last_buffer_ci);
+                            last_buffer_ci = result.0;
+                            remain = result.1;
+                            hasTdc = result.2;
                             if hasTdc==true {
                                 counter+=1;
 
