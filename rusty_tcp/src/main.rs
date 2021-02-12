@@ -62,10 +62,11 @@ impl Packet {
 
 }
 
-fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8) -> u8 {
+fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8) -> (u8, usize, bool) {
     
     let file_data = data;
     let mut packet_chunks = file_data.chunks_exact(8);
+    let mut hasTdc: bool = false;
 
     let mut ci: u8 = last_ci;
     loop {
@@ -85,33 +86,36 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8) -> u8 
                     i15: x[7],
                 };
                 
-                if packet.id()==11 {
-                    let array_pos = match bin {
-                        false => 4*packet.x() + 4*1024*packet.y(),
-                        true => 4*packet.x()
-                    };
-                    
-                    final_data[array_pos+3] += 1;
-                    if final_data[array_pos+3]==255 {
-                        final_data[array_pos+3] = 0;
-                        final_data[array_pos+2] += 1;
-                        if final_data[array_pos+2]==255 {
-                            final_data[array_pos+1] += 1;
-                            final_data[array_pos+2] = 0;
-                            if final_data[array_pos+1]==255 {
-                                final_data[array_pos] += 1;
-                                final_data[array_pos+1] = 0;
-                            };
+                match packet.id() {
+                    11 => {
+                        let array_pos = match bin {
+                            false => 4*packet.x() + 4*1024*packet.y(),
+                            true => 4*packet.x()
                         };
                         
-                        
-                    };
-                
-                };
+                        final_data[array_pos+3] += 1;
+                        if final_data[array_pos+3]==255 {
+                            final_data[array_pos+3] = 0;
+                            final_data[array_pos+2] += 1;
+                            if final_data[array_pos+2]==255 {
+                                final_data[array_pos+1] += 1;
+                                final_data[array_pos+2] = 0;
+                                if final_data[array_pos+1]==255 {
+                                    final_data[array_pos] += 1;
+                                    final_data[array_pos+1] = 0;
+                                }
+                            }
+                        }
+                    },
+                    6 => {
+                        hasTdc = true;
+                        break}
+                    _ => {},
+                }
             },
-        };
+        }
     }
-    ci
+    (ci, packet_chunks.count(), hasTdc)
 }
 
 fn has_data(path: &str, number: usize) -> bool {
@@ -255,39 +259,68 @@ fn connect_and_loop(runmode: RunningMode) {
                     _ => true, //panic!("Binning choice must be 0 | 1."),
                 };
             };
+            
+            pack_sock.set_read_timeout(Some(Duration::from_micros(1_000))).unwrap();
             ns_sock.set_read_timeout(Some(Duration::from_micros(100))).unwrap();
             println!("Received data is {:?}.", my_data);
             
             let mut counter = 0usize;
-            let mut last_ci = 0u8;
-            let mut last_buffer_ci = 0u8;
+            let last_ci = 0u8;
+            let last_buffer_ci = 0u8;
             let mut buffer_pack_data: [u8; 32768] = [0; 32768];
             let start = Instant::now();
             'global: loop {
                 let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
 
+                /*
                 while has_data(&my_path, counter+1)==false {
-                    counter = 0;
                     if let Ok(size) = ns_sock.read(&mut my_data) {
                         if size == 0 {
                             break 'global;
                         };
                     };
-                }
+                };
+                */
 
 
                 let mut mybufarray:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
-                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                    if size>0 {
-                        println!("{}", size);
-                        let new_data = &buffer_pack_data[0..size];
-                        last_buffer_ci = build_data(new_data, bin, &mut mybufarray, last_buffer_ci);
+                loop {
+                    if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                        if size>0 {
+                            let new_data = &buffer_pack_data[0..size];
+                            let (last_buffer_ci, remain, hasTdc) = build_data(new_data, bin, &mut mybufarray, last_buffer_ci);
+                            if hasTdc==true {
+                                counter+=1;
+
+                                match ns_sock.write(&msg) {
+                                    Ok(_) => {},
+                                    Err(_) => {
+                                        println!("Client {} disconnected on header. Waiting a new one.", ns_addr);
+                                        break 'global;
+                                    },
+                                };
+                                match ns_sock.write(&mybufarray) {
+                                    Ok(_) => {},
+                                    Err(_) => {
+                                        println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
+                                        break 'global;
+                                    },
+                                };
+                                //println!("Tdc on");
+                                break;
+                            } 
+                        }
+                        else {
+                            println!("Received zero packages");
+                            break 'global
+                        }
                     }
                 }
                 
+                /*
                 let mydata = open_and_read(&my_path, counter, deletefile);
                 let mut myarray:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
-                last_ci = build_data(&mydata[..], bin, &mut myarray, last_ci);
+                let (last_ci, _, _) = build_data(&mydata[..], bin, &mut myarray, last_ci);
                 myarray.push(10);
                 
                 /*
@@ -326,9 +359,8 @@ fn connect_and_loop(runmode: RunningMode) {
                         break;
                     },
                 };
-                counter+=1;
+                */
                 if counter % 100 == 0 {
-                    counter = 0;
                     let elapsed = start.elapsed();
                     println!("Total elapsed time is: {:?}", elapsed);
                 }
