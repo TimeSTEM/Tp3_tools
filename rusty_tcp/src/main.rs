@@ -62,7 +62,7 @@ impl Packet {
 
 }
 
-fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remainder: &mut [u8]) -> (u8, usize, bool) {
+fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remainder: &mut [u8]) -> (u8, bool) {
     
     let file_data = data;
     let rem_data = remainder;
@@ -136,7 +136,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remain
             },
         };
     };
-    (ci, packet_chunks.count(), hasTdc)
+    (ci, hasTdc)
 }
 
 fn has_data(path: &str, number: usize) -> bool {
@@ -237,8 +237,6 @@ fn connect_and_loop(runmode: RunningMode) {
     let mut bin: bool = true;
     let deletefile: bool;
 
-
-
     let pack_listener = TcpListener::bind("127.0.0.1:8098").unwrap();
     
     let ns_listener = match runmode {
@@ -271,13 +269,12 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut last_ci = 0u8;
             let mut hasTdc: bool = false;
             let mut remain: usize = 0;
-            let mut buffer_pack_data: [u8; 64000] = [0; 64000];
+            let mut buffer_pack_data: [u8; 32000] = [0; 32000];
             let mut rem_array:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
             let start = Instant::now();
             'global: loop {
                 
                 let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
-                //let mut data_array:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
                 let mut data_array:Vec<u8> = rem_array.clone();
                 let mut rem_array:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
                 data_array.push(10);
@@ -287,8 +284,7 @@ fn connect_and_loop(runmode: RunningMode) {
                             let new_data = &buffer_pack_data[0..size];
                             let result = build_data(new_data, bin, &mut data_array, last_ci, &mut rem_array);
                             last_ci = result.0;
-                            remain = result.1;
-                            hasTdc = result.2;
+                            hasTdc = result.1;
                             if hasTdc==true {
                                 counter+=1;
 
