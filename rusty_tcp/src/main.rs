@@ -62,18 +62,12 @@ impl Packet {
 
 }
 
-fn build_data(data: &[u8], bin: bool, final_data: &mut [u8]) {
+fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8) -> u8 {
     
     let file_data = data;
-    let mut index = 0;
     let mut packet_chunks = file_data.chunks_exact(8);
 
-    while file_data.get(index..index+4) != Some(&[84, 80, 88, 51]) {
-        packet_chunks.next();
-        index+=1;
-    }
-    
-    let mut ci: u8 = 0;
+    let mut ci: u8 = last_ci;
     loop {
         match packet_chunks.next() {
             None => break,
@@ -117,6 +111,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8]) {
             },
         };
     }
+    ci
 }
 
 fn has_data(path: &str, number: usize) -> bool {
@@ -219,7 +214,7 @@ fn connect_and_loop(runmode: RunningMode) {
 
     let mut my_path: String = match runmode {
         RunningMode::debug_stem7482 => String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw"),
-        RunningMode::debug_cheetah => String::from("/home/yves/Documents/wobbler_data/raw"),
+        RunningMode::debug_cheetah => String::from("/home/asi/load_files/wobbler_data/raw"),
         RunningMode::tp3 => String::from("/home/asi/load_files/data"),
     };
 
@@ -249,6 +244,7 @@ fn connect_and_loop(runmode: RunningMode) {
         if let Ok((ns_socket, ns_addr)) = ns_listener.accept() {
             println!("Nionswift connected at {:?}", ns_addr);
 
+            let mut pack_sock = packet_socket;
             let mut ns_sock = ns_socket;
             
             let mut my_data = [0 as u8; 4];
@@ -263,21 +259,35 @@ fn connect_and_loop(runmode: RunningMode) {
             println!("Received data is {:?}.", my_data);
             
             let mut counter = 0usize;
+            let mut last_ci = 0u8;
+            let mut last_buffer_ci = 0u8;
+            let mut buffer_pack_data: [u8; 32768] = [0; 32768];
             let start = Instant::now();
             'global: loop {
                 let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
 
                 while has_data(&my_path, counter+1)==false {
+                    counter = 0;
                     if let Ok(size) = ns_sock.read(&mut my_data) {
                         if size == 0 {
                             break 'global;
                         };
                     };
                 }
+
+
+                let mut mybufarray:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
+                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                    if size>0 {
+                        println!("{}", size);
+                        let new_data = &buffer_pack_data[0..size];
+                        last_buffer_ci = build_data(new_data, bin, &mut mybufarray, last_buffer_ci);
+                    }
+                }
                 
                 let mydata = open_and_read(&my_path, counter, deletefile);
                 let mut myarray:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
-                build_data(&mydata[..], bin, &mut myarray);
+                last_ci = build_data(&mydata[..], bin, &mut myarray, last_ci);
                 myarray.push(10);
                 
                 /*
@@ -330,7 +340,7 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::debug_stem7482;
+        let myrun = RunningMode::debug_cheetah;
         //let myrun = RunningMode::tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
