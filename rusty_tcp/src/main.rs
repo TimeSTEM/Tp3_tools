@@ -109,7 +109,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8) -> (u8
                     },
                     6 => {
                         hasTdc = true;
-                    break}
+                    },
                     _ => {},
                 }
             },
@@ -216,27 +216,9 @@ fn connect_and_loop(runmode: RunningMode) {
     let mut bin: bool = true;
     let deletefile: bool;
 
-    let mut my_path: String = match runmode {
-        RunningMode::debug_stem7482 => String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw"),
-        RunningMode::debug_cheetah => String::from("/home/asi/load_files/wobbler_data/raw"),
-        RunningMode::tp3 => String::from("/home/asi/load_files/data"),
-    };
 
-    match runmode {
-        RunningMode::debug_stem7482 | RunningMode::debug_cheetah => {
-            println!("Running locally. Won't delete folder neither file. Attempting to connect to localhost...");
-            deletefile = false;
-        },
-        RunningMode::tp3 => {
-            remove_all(&my_path).expect("Cannot remove all files");
-            my_path.push_str("//raw");
-            deletefile = true;
-        },
-    };
 
-    let pack_listener = match runmode {
-        RunningMode::debug_stem7482 | RunningMode::debug_cheetah | RunningMode::tp3 => TcpListener::bind("127.0.0.1:8098").unwrap(),
-    };
+    let pack_listener = TcpListener::bind("127.0.0.1:8098").unwrap();
     
     let ns_listener = match runmode {
         RunningMode::debug_stem7482 => TcpListener::bind("127.0.0.1:8088").unwrap(),
@@ -265,33 +247,22 @@ fn connect_and_loop(runmode: RunningMode) {
             println!("Received data is {:?}.", my_data);
             
             let mut counter = 0usize;
-            let last_ci = 0u8;
-            let mut last_buffer_ci = 0u8;
+            let mut last_ci = 0u8;
             let mut hasTdc: bool = false;
             let mut remain: usize = 0;
-            let mut buffer_pack_data: [u8; 512000] = [0; 512000];
+            let mut buffer_pack_data: [u8; 64000] = [0; 64000];
             let start = Instant::now();
             'global: loop {
+                
                 let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
-
-                /*
-                while has_data(&my_path, counter+1)==false {
-                    if let Ok(size) = ns_sock.read(&mut my_data) {
-                        if size == 0 {
-                            break 'global;
-                        };
-                    };
-                };
-                */
-
-
                 let mut mybufarray:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
+                mybufarray.push(10);
                 loop {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            let result = build_data(new_data, bin, &mut mybufarray, last_buffer_ci);
-                            last_buffer_ci = result.0;
+                            let result = build_data(new_data, bin, &mut mybufarray, last_ci);
+                            last_ci = result.0;
                             remain = result.1;
                             hasTdc = result.2;
                             if hasTdc==true {
@@ -323,12 +294,6 @@ fn connect_and_loop(runmode: RunningMode) {
                 }
                 
                 /*
-                let mydata = open_and_read(&my_path, counter, deletefile);
-                let mut myarray:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
-                let (last_ci, _, _) = build_data(&mydata[..], bin, &mut myarray, last_ci);
-                myarray.push(10);
-                
-                /*
                 let mydata2 = mydata.clone();
                 let (tx, rx) = mpsc::channel();
 
@@ -350,21 +315,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 let final_received = double_from_16_to_8(&received, &received2);
                 */
 
-                match ns_sock.write(&msg) {
-                    Ok(_) => {},
-                    Err(_) => {
-                        println!("Client {} disconnected on header. Waiting a new one.", ns_addr);
-                        break;
-                    },
-                };
-                match ns_sock.write(&myarray) {
-                    Ok(_) => {},
-                    Err(_) => {
-                        println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
-                        break;
-                    },
-                };
-                */
+                
                 if counter % 100 == 0 {
                     let elapsed = start.elapsed();
                     println!("Total elapsed time is: {:?}", elapsed);
@@ -377,9 +328,72 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::debug_cheetah;
+        //let myrun = RunningMode::debug_cheetah;
+        let myrun = RunningMode::debug_stem7482;
         //let myrun = RunningMode::tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
 }
+
+
+
+/*
+ *
+ *
+ * THIS IS OLD CODE WHEN READING FROM FILE
+ *
+ *
+ *
+let mut my_path: String = match runmode {
+    RunningMode::debug_stem7482 => String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw"),
+    RunningMode::debug_cheetah => String::from("/home/asi/load_files/wobbler_data/raw"),
+    RunningMode::tp3 => String::from("/home/asi/load_files/data"),
+};
+
+
+match runmode {
+    RunningMode::debug_stem7482 | RunningMode::debug_cheetah => {
+        println!("Running locally. Won't delete folder neither file. Attempting to connect to localhost...");
+        deletefile = false;
+    },
+    RunningMode::tp3 => {
+        remove_all(&my_path).expect("Cannot remove all files");
+        my_path.push_str("//raw");
+        deletefile = true;
+    },
+};
+
+while has_data(&my_path, counter+1)==false {
+    if let Ok(size) = ns_sock.read(&mut my_data) {
+        if size == 0 {
+            break 'global;
+        };
+    };
+};
+
+let mydata = open_and_read(&my_path, counter, deletefile);
+let mut myarray:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
+let (last_ci, _, _) = build_data(&mydata[..], bin, &mut myarray, last_ci);
+myarray.push(10);
+
+
+match ns_sock.write(&msg) {
+    Ok(_) => {},
+    Err(_) => {
+        println!("Client {} disconnected on header. Waiting a new one.", ns_addr);
+        break;
+    },
+};
+match ns_sock.write(&myarray) {
+    Ok(_) => {},
+    Err(_) => {
+        println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
+        break;
+    },
+};
+
+*
+* 
+* 
+*/
