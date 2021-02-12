@@ -8,6 +8,7 @@ use std::sync::mpsc;
 
 enum RunningMode {
     debug_stem7482,
+    debug_cheetah,
     tp3,
 }
 
@@ -61,10 +62,9 @@ impl Packet {
 
 }
 
-fn build_data(data: &[u8], bin: bool) -> Vec<u8> {
+fn build_data(data: &[u8], bin: bool, final_data: &mut [u8]) {
     
     let file_data = data;
-    let mut final_data = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
     let mut index = 0;
     let mut packet_chunks = file_data.chunks_exact(8);
 
@@ -97,7 +97,6 @@ fn build_data(data: &[u8], bin: bool) -> Vec<u8> {
                         true => 4*packet.x()
                     };
                     
-
                     final_data[array_pos+3] += 1;
                     if final_data[array_pos+3]==255 {
                         final_data[array_pos+3] = 0;
@@ -118,8 +117,6 @@ fn build_data(data: &[u8], bin: bool) -> Vec<u8> {
             },
         };
     }
-    final_data.push(10);
-    final_data
 }
 
 fn has_data(path: &str, number: usize) -> bool {
@@ -222,12 +219,12 @@ fn connect_and_loop(runmode: RunningMode) {
 
     let mut my_path: String = match runmode {
         RunningMode::debug_stem7482 => String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw"),
-        //true => String::from("/home/yves/Documents/wobbler_data/raw"),
+        RunningMode::debug_cheetah => String::from("/home/yves/Documents/wobbler_data/raw"),
         RunningMode::tp3 => String::from("/home/asi/load_files/data"),
     };
 
     match runmode {
-        RunningMode::debug_stem7482 => {
+        RunningMode::debug_stem7482 | RunningMode::debug_cheetah => {
             println!("Running locally. Won't delete folder neither file. Attempting to connect to localhost...");
             deletefile = false;
         },
@@ -240,7 +237,7 @@ fn connect_and_loop(runmode: RunningMode) {
 
     let listener = match runmode {
         RunningMode::debug_stem7482 => TcpListener::bind("127.0.0.1:8088").unwrap(),
-        RunningMode::tp3 => TcpListener::bind("192.168.199.11:8088").unwrap(),
+        RunningMode::tp3 | RunningMode::debug_cheetah=> TcpListener::bind("192.168.199.11:8088").unwrap(),
     };
 
     if let Ok((socket, addr)) = listener.accept() {
@@ -252,7 +249,7 @@ fn connect_and_loop(runmode: RunningMode) {
             bin = match my_data[0] {
                 0 => false,
                 1 => true,
-                _ => false, //panic!("Binning choice must be 0 | 1."),
+                _ => true, //panic!("Binning choice must be 0 | 1."),
             };
         };
         sock.set_read_timeout(Some(Duration::from_micros(100))).unwrap();
@@ -270,9 +267,12 @@ fn connect_and_loop(runmode: RunningMode) {
                     };
                 };
             }
-
+            
             let mydata = open_and_read(&my_path, counter, deletefile);
-            let received = build_data(&mydata[..], bin);
+            let mut myarray:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
+            build_data(&mydata[..], bin, &mut myarray);
+            myarray.push(10);
+            
             /*
             let mydata2 = mydata.clone();
             let (tx, rx) = mpsc::channel();
@@ -302,7 +302,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     break;
                 },
             };
-            match sock.write(&received) {
+            match sock.write(&myarray) {
                 Ok(_) => {},
                 Err(_) => {
                     println!("Client {} disconnected on data. Waiting a new one.", addr);
@@ -311,6 +311,7 @@ fn connect_and_loop(runmode: RunningMode) {
             };
             counter+=1;
             if counter % 100 == 0 {
+                counter = 0;
                 let elapsed = start.elapsed();
                 println!("Total elapsed time is: {:?}", elapsed);
             }
@@ -321,7 +322,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::tp3;
+        let myrun = RunningMode::debug_stem7482;
+        //let myrun = RunningMode::tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
