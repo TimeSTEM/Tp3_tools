@@ -1,7 +1,7 @@
 use std::io::prelude::*;
 use std::{fs, io};
 use std::io::BufReader;
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
 use std::{thread, time};
 use std::sync::mpsc;
@@ -235,88 +235,96 @@ fn connect_and_loop(runmode: RunningMode) {
         },
     };
 
-    let listener = match runmode {
+    let pack_listener = match runmode {
+        RunningMode::debug_stem7482 | RunningMode::debug_cheetah | RunningMode::tp3 => TcpListener::bind("127.0.0.1:8098").unwrap(),
+    };
+    
+    let ns_listener = match runmode {
         RunningMode::debug_stem7482 => TcpListener::bind("127.0.0.1:8088").unwrap(),
         RunningMode::tp3 | RunningMode::debug_cheetah=> TcpListener::bind("192.168.199.11:8088").unwrap(),
     };
 
-    if let Ok((socket, addr)) = listener.accept() {
-        println!("New client connected at {:?}", addr);
-        let mut sock = socket;
-        
-        let mut my_data = [0 as u8; 4];
-        if let Ok(_) = sock.read(&mut my_data){
-            bin = match my_data[0] {
-                0 => false,
-                1 => true,
-                _ => true, //panic!("Binning choice must be 0 | 1."),
-            };
-        };
-        sock.set_read_timeout(Some(Duration::from_micros(100))).unwrap();
-        println!("Received data is {:?}.", my_data);
-        
-        let mut counter = 0usize;
-        let start = Instant::now();
-        'global: loop {
-            let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
+    if let Ok((packet_socket, packet_addr)) = pack_listener.accept() {
+        println!("Localhost TP3 detected at {:?}", packet_addr);
+        if let Ok((ns_socket, ns_addr)) = ns_listener.accept() {
+            println!("Nionswift connected at {:?}", ns_addr);
 
-            while has_data(&my_path, counter+1)==false {
-                if let Ok(size) = sock.read(&mut my_data) {
-                    if size == 0 {
-                        break 'global;
-                    };
+            let mut ns_sock = ns_socket;
+            
+            let mut my_data = [0 as u8; 4];
+            if let Ok(_) = ns_sock.read(&mut my_data){
+                bin = match my_data[0] {
+                    0 => false,
+                    1 => true,
+                    _ => true, //panic!("Binning choice must be 0 | 1."),
                 };
-            }
-            
-            let mydata = open_and_read(&my_path, counter, deletefile);
-            let mut myarray:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
-            build_data(&mydata[..], bin, &mut myarray);
-            myarray.push(10);
-            
-            /*
-            let mydata2 = mydata.clone();
-            let (tx, rx) = mpsc::channel();
-
-            let tx1 = mpsc::Sender::clone(&tx);
-            let tx2 = mpsc::Sender::clone(&tx);
-
-            thread::spawn(move || {
-                let val = build_data(&mydata[..], bin, 1);
-                tx.send(val).unwrap();
-            });
-            
-            thread::spawn(move || {
-                let val = build_data(&mydata2[1000000..], bin, 1);
-                tx1.send(val).unwrap();
-            });
-            
-            let received = rx.recv().unwrap();
-            let received2 = rx.recv().unwrap();
-            let final_received = double_from_16_to_8(&received, &received2);
-            */
-
-            match sock.write(&msg) {
-                Ok(_) => {},
-                Err(_) => {
-                    println!("Client {} disconnected on header. Waiting a new one.", addr);
-                    break;
-                },
             };
-            match sock.write(&myarray) {
-                Ok(_) => {},
-                Err(_) => {
-                    println!("Client {} disconnected on data. Waiting a new one.", addr);
-                    break;
-                },
-            };
-            counter+=1;
-            if counter % 100 == 0 {
-                counter = 0;
-                let elapsed = start.elapsed();
-                println!("Total elapsed time is: {:?}", elapsed);
+            ns_sock.set_read_timeout(Some(Duration::from_micros(100))).unwrap();
+            println!("Received data is {:?}.", my_data);
+            
+            let mut counter = 0usize;
+            let start = Instant::now();
+            'global: loop {
+                let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
+
+                while has_data(&my_path, counter+1)==false {
+                    if let Ok(size) = ns_sock.read(&mut my_data) {
+                        if size == 0 {
+                            break 'global;
+                        };
+                    };
+                }
+                
+                let mydata = open_and_read(&my_path, counter, deletefile);
+                let mut myarray:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
+                build_data(&mydata[..], bin, &mut myarray);
+                myarray.push(10);
+                
+                /*
+                let mydata2 = mydata.clone();
+                let (tx, rx) = mpsc::channel();
+
+                let tx1 = mpsc::Sender::clone(&tx);
+                let tx2 = mpsc::Sender::clone(&tx);
+
+                thread::spawn(move || {
+                    let val = build_data(&mydata[..], bin, 1);
+                    tx.send(val).unwrap();
+                });
+                
+                thread::spawn(move || {
+                    let val = build_data(&mydata2[1000000..], bin, 1);
+                    tx1.send(val).unwrap();
+                });
+                
+                let received = rx.recv().unwrap();
+                let received2 = rx.recv().unwrap();
+                let final_received = double_from_16_to_8(&received, &received2);
+                */
+
+                match ns_sock.write(&msg) {
+                    Ok(_) => {},
+                    Err(_) => {
+                        println!("Client {} disconnected on header. Waiting a new one.", ns_addr);
+                        break;
+                    },
+                };
+                match ns_sock.write(&myarray) {
+                    Ok(_) => {},
+                    Err(_) => {
+                        println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
+                        break;
+                    },
+                };
+                counter+=1;
+                if counter % 100 == 0 {
+                    counter = 0;
+                    let elapsed = start.elapsed();
+                    println!("Total elapsed time is: {:?}", elapsed);
+                }
             }
-        };
-        println!("Number of loops were: {}.", counter);
+            println!("Number of loops were: {}.", counter);
+        }
     }
 }
 
