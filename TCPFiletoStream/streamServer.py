@@ -56,7 +56,7 @@ PORT = 8098 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
 MAX_LOOPS = 0 #Max number of loops
-TIME_INTERVAL = 0.05 #If no sleep, streaming is too fast
+TIME_INTERVAL = 0.01 #If no sleep, streaming is too fast
 
 """
 Script starts here

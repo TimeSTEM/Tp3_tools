@@ -60,6 +60,15 @@ impl Packet {
         ((self.i11 & 192) as u16)>>6 | (self.i12 as u16)<<2 | ((self.i13 & 15) as u16)<<10
     }
 
+    fn tdcCoarseT(&self) -> u64 {
+        ((self.i09 & 254) as u64)>>1 | ((self.i10) as u64)<<7 | ((self.i11) as u64)<<15 | ((self.i12) as u64)<<23 | ((self.i13 & 15) as u64)<<31
+    }
+    
+    fn tdcFineT(&self) -> u8 {
+        (self.i08 & 224)>>5 | (self.i09 & 1)<<3
+    }
+
+
     fn append(data: &mut [u8], index:usize, bytedepth: usize) -> bool{
         match bytedepth {
             4 => {
@@ -139,10 +148,14 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remain
                         };
                     },
                     6 => {
+                        let time:f64 = (packet.tdcCoarseT() as f64) * (1.0/320e6) + (packet.tdcFineT() as f64) * 260e-12;
                         hasTdc = true;
                         main_array = false;
+                        println!("tdc");
                     },
-                    _ => {},
+                    7 => {},
+                    4 => {},
+                    _ => {println!("Unknown");},
                 };
             },
         };
@@ -279,7 +292,7 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut hasTdc: bool = false;
             let mut remain: usize = 0;
             let mut buffer_pack_data: [u8; 64000] = [0; 64000];
-            let bytedepth = 2usize;
+            let bytedepth = 4usize;
             let mut rem_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; bytedepth*256*1024]};
             let start = Instant::now();
             'global: loop {
@@ -358,9 +371,7 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        //let myrun = RunningMode::debug_cheetah;
         let myrun = RunningMode::debug_stem7482;
-        //let myrun = RunningMode::tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
