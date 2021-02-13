@@ -60,9 +60,44 @@ impl Packet {
         ((self.i11 & 192) as u16)>>6 | (self.i12 as u16)<<2 | ((self.i13 & 15) as u16)<<10
     }
 
+    fn append(data: &mut [u8], index:usize, bytedepth: usize) -> bool{
+        match bytedepth {
+            4 => {
+                data[index+3] = data[index+3].wrapping_add(1);
+                if data[index+3]==0 {
+                    data[index+2] = data[index+2].wrapping_add(1);
+                    if data[index+2]==0 {
+                        data[index+1] = data[index+1].wrapping_add(1);
+                        if data[index+1]==0 {
+                            data[index] = data[index].wrapping_add(1);
+                        };
+                    };
+                };
+                false
+            },
+            2 => {
+                data[index+1] = data[index+1].wrapping_add(1);
+                if data[index+1]==0 {
+                    data[index] = data[index].wrapping_add(1);
+                    true
+                } else {
+                    false
+                }
+            },
+            1 => {
+                data[index] = data[index].wrapping_add(1);
+                if data[index+1]==0 {
+                    true
+                } else {
+                    false
+                }
+            },
+            _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
+        }
+    }
 }
 
-fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remainder: &mut [u8]) -> (u8, bool) {
+fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remainder: &mut [u8], bytedepth: usize) -> (u8, bool) {
     
     let file_data = data;
     let rem_data = remainder;
@@ -91,39 +126,15 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remain
                 match packet.id() {
                     11 => {
                         let array_pos = match bin {
-                            false => 4*packet.x() + 4*1024*packet.y(),
-                            true => 4*packet.x()
+                            false => bytedepth*packet.x() + bytedepth*1024*packet.y(),
+                            true => bytedepth*packet.x()
                         };
                         match main_array {
                             true => {
-                                final_data[array_pos+3] += 1;
-                                if final_data[array_pos+3]==255 {
-                                    final_data[array_pos+3] = 0;
-                                    final_data[array_pos+2] += 1;
-                                    if final_data[array_pos+2]==255 {
-                                        final_data[array_pos+1] += 1;
-                                        final_data[array_pos+2] = 0;
-                                        if final_data[array_pos+1]==255 {
-                                            final_data[array_pos] += 1;
-                                            final_data[array_pos+1] = 0;
-                                        };
-                                    };
-                                };
+                                Packet::append(final_data, array_pos, bytedepth);
                             },
                             false => {
-                                rem_data[array_pos+3] += 1;
-                                if rem_data[array_pos+3]==255 {
-                                    rem_data[array_pos+3] = 0;
-                                    rem_data[array_pos+2] += 1;
-                                    if rem_data[array_pos+2]==255 {
-                                        rem_data[array_pos+1] += 1;
-                                        rem_data[array_pos+2] = 0;
-                                        if rem_data[array_pos+1]==255 {
-                                            rem_data[array_pos] += 1;
-                                            rem_data[array_pos+1] = 0;
-                                        };
-                                    };
-                                };
+                                Packet::append(rem_data, array_pos, bytedepth);
                             },
                         };
                     },
@@ -151,8 +162,6 @@ fn has_data(path: &str, number: usize) -> bool {
 }
 
 fn remove_all(path: &str) -> io::Result<()> {
-    //fs::remove_dir_all(path).expect("Could not remove directory.");
-    //fs::create_dir(path);
     let mut entries = fs::read_dir(path)?
         .map(|res| res.map(|e| e.path()));
     
@@ -189,7 +198,7 @@ fn open_and_read(path: &str, number: usize, delete: bool) -> Vec<u8> {
     buffer
 }
 
-fn create_header(time: f64, frame: usize, data_size: u32, bitdepth: u8, width: u16, height: u16) -> Vec<u8> {
+fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(time.to_string()));
     msg.push_str(",\"frameNumber\":");
@@ -257,7 +266,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 bin = match my_data[0] {
                     0 => false,
                     1 => true,
-                    _ => true, //panic!("Binning choice must be 0 | 1."),
+                    _ => false, //panic!("Binning choice must be 0 | 1."),
                 };
             };
             
@@ -269,20 +278,21 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut last_ci = 0u8;
             let mut hasTdc: bool = false;
             let mut remain: usize = 0;
-            let mut buffer_pack_data: [u8; 32000] = [0; 32000];
-            let mut rem_array:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
+            let mut buffer_pack_data: [u8; 64000] = [0; 64000];
+            let bytedepth = 2usize;
+            let mut rem_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; bytedepth*256*1024]};
             let start = Instant::now();
             'global: loop {
                 
-                let msg = create_header(0.0, counter, 4*1024*(256-255*(bin as u32)), 32, 1024, 256 - 255*(bin as u16));
+                let msg = create_header(0.0, counter, bytedepth*1024*(256-255*(bin as usize)), bytedepth<<3, 1024, 256 - 255*(bin as usize));
                 let mut data_array:Vec<u8> = rem_array.clone();
-                let mut rem_array:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
+                let mut rem_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
                 data_array.push(10);
                 loop {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            let result = build_data(new_data, bin, &mut data_array, last_ci, &mut rem_array);
+                            let result = build_data(new_data, bin, &mut data_array, last_ci, &mut rem_array, bytedepth);
                             last_ci = result.0;
                             hasTdc = result.1;
                             if hasTdc==true {

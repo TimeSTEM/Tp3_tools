@@ -1,6 +1,6 @@
 [package]
 name = "rusty_tcp"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["yvesauad <yvesauad@gmail.com>"]
 edition = "2018"
 
