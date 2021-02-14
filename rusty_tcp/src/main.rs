@@ -72,6 +72,11 @@ impl Packet {
         (self.i08 & 224)>>5 | (self.i09 & 1)<<3
     }
 
+    fn elecT(spidr: u16, toa: u16, ftoa: u8) -> f64 {
+        let ctoa = (toa<<4) | ((!ftoa as u16) & 15);
+        (spidr as f64) * 25.0 * 16384.0 + (ctoa as f64) * 25.0 / 16.0
+    }
+
     fn tdcT(coarse: u64, fine: u8) -> f64 {
         (coarse as f64) * (1.0/320e6) + (fine as f64) * 260e-12
     }
@@ -113,66 +118,6 @@ impl Packet {
     }
 }
 
-/* THIS IS USED IN THE FUTURE WHEN I HAVE DONE MY THREAD FOR EACH INDIVIDUAL CHIP
-fn build_data_in_thread(data: &[u8], bin: bool, final_data: &mut [Vec<u8>; 4], last_ci: u8, remainder: &mut [Vec<u8>; 4], bytedepth: usize) -> (u8, bool, f64) {
-    
-    let file_data = data;
-    let rem_data = remainder;
-    let bin = bin;
-    let mut packet_chunks = file_data.chunks_exact(8);
-    let mut hasTdc: bool = false;
-    let mut main_array:bool = true;
-    let mut time = 0.0f64;
-    
-    let mut ci: u8 = last_ci;
-    loop {
-        match packet_chunks.next() {
-            None => break,
-            Some(&[84, 80, 88, 51, nci, _, _, _]) => ci = nci,
-            Some(x) => {
-                let packet = Packet {
-                    chip_index: ci,
-                    i08: x[0],
-                    i09: x[1],
-                    i10: x[2],
-                    i11: x[3],
-                    i12: x[4],
-                    i13: x[5],
-                    i14: x[6],
-                    i15: x[7],
-                };
-                
-                match packet.id() {
-                    11 => {
-                        let array_pos = match bin {
-                            false => bytedepth*packet.x_unmod() + bytedepth*256*packet.y(),
-                            true => bytedepth*packet.x_unmod()
-                        };
-                        match main_array {
-                            true => {
-                                Packet::append_to_array(&mut final_data[ci as usize], array_pos, bytedepth);
-                            },
-                            false => {
-                                Packet::append_to_array(&mut rem_data[ci as usize], array_pos, bytedepth);
-                            },
-                        };
-                    },
-                    6 => {
-                        time = Packet::tdcT(packet.tdcCoarseT(), packet.tdcFineT());
-                        hasTdc = true;
-                        main_array = false;
-                    },
-                    7 => {continue;},
-                    4 => {continue;},
-                    _ => {},
-                };
-            },
-        };
-    };
-    (ci, hasTdc, time)
-
-}
-*/
 
 fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remainder: &mut [u8], bytedepth: usize) -> (u8, bool, f64) {
     
@@ -183,6 +128,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remain
     let mut hasTdc: bool = false;
     let mut main_array:bool = true;
     let mut time = 0.0f64;
+    let mut eleT = 0.0f64;
 
     let mut ci: u8 = last_ci;
     loop {
@@ -211,6 +157,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remain
                         match main_array {
                             true => {
                                 Packet::append_to_array(final_data, array_pos, bytedepth);
+                                //eleT = Packet::elecT(packet.spidr(), packet.toa(), packet.ftoa());
                             },
                             false => {
                                 Packet::append_to_array(rem_data, array_pos, bytedepth);
@@ -555,3 +502,63 @@ match ns_sock.write(&myarray) {
  * };
  */
 
+/* THIS IS USED IN THE FUTURE WHEN I HAVE DONE MY THREAD FOR EACH INDIVIDUAL CHIP
+fn build_data_in_thread(data: &[u8], bin: bool, final_data: &mut [Vec<u8>; 4], last_ci: u8, remainder: &mut [Vec<u8>; 4], bytedepth: usize) -> (u8, bool, f64) {
+    
+    let file_data = data;
+    let rem_data = remainder;
+    let bin = bin;
+    let mut packet_chunks = file_data.chunks_exact(8);
+    let mut hasTdc: bool = false;
+    let mut main_array:bool = true;
+    let mut time = 0.0f64;
+    
+    let mut ci: u8 = last_ci;
+    loop {
+        match packet_chunks.next() {
+            None => break,
+            Some(&[84, 80, 88, 51, nci, _, _, _]) => ci = nci,
+            Some(x) => {
+                let packet = Packet {
+                    chip_index: ci,
+                    i08: x[0],
+                    i09: x[1],
+                    i10: x[2],
+                    i11: x[3],
+                    i12: x[4],
+                    i13: x[5],
+                    i14: x[6],
+                    i15: x[7],
+                };
+                
+                match packet.id() {
+                    11 => {
+                        let array_pos = match bin {
+                            false => bytedepth*packet.x_unmod() + bytedepth*256*packet.y(),
+                            true => bytedepth*packet.x_unmod()
+                        };
+                        match main_array {
+                            true => {
+                                Packet::append_to_array(&mut final_data[ci as usize], array_pos, bytedepth);
+                            },
+                            false => {
+                                Packet::append_to_array(&mut rem_data[ci as usize], array_pos, bytedepth);
+                            },
+                        };
+                    },
+                    6 => {
+                        time = Packet::tdcT(packet.tdcCoarseT(), packet.tdcFineT());
+                        hasTdc = true;
+                        main_array = false;
+                    },
+                    7 => {continue;},
+                    4 => {continue;},
+                    _ => {},
+                };
+            },
+        };
+    };
+    (ci, hasTdc, time)
+
+}
+*/
