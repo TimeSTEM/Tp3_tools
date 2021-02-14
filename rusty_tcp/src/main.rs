@@ -535,13 +535,14 @@ match ns_sock.write(&myarray) {
 * 
 */
 
+
 /*
  *
- * //let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
- * //let mut data_array_ind: [Vec<u8>; 4] = rem_array_ind.clone();
- * //let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
- * //data_array_ind[3].push(10);
- * /*for i in 0..4 {
+ *let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
+ *let mut data_array_ind: [Vec<u8>; 4] = rem_array_ind.clone();
+ *let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
+ *data_array_ind[3].push(10);
+ *for i in 0..4 {
  * match ns_sock.write(&data_array_ind[i]) {
  * Ok(_) => {},
  * Err(_) => {
@@ -550,4 +551,5 @@ match ns_sock.write(&myarray) {
  * },
  * };
  * };
- * */
+ */
+
