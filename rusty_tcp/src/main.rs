@@ -68,8 +68,11 @@ impl Packet {
         (self.i08 & 224)>>5 | (self.i09 & 1)<<3
     }
 
+    fn tdcT(coarse: u64, fine: u8) -> f64 {
+        (coarse as f64) * (1.0/320e6) + (fine as f64) * 260e-12
+    }
 
-    fn append(data: &mut [u8], index:usize, bytedepth: usize) -> bool{
+    fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) -> bool{
         match bytedepth {
             4 => {
                 data[index+3] = data[index+3].wrapping_add(1);
@@ -113,6 +116,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remain
     let mut packet_chunks = file_data.chunks_exact(8);
     let mut hasTdc: bool = false;
     let mut main_array:bool = true;
+    let mut time = 0.0f64;
 
     let mut ci: u8 = last_ci;
     loop {
@@ -140,26 +144,84 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remain
                         };
                         match main_array {
                             true => {
-                                Packet::append(final_data, array_pos, bytedepth);
+                                Packet::append_to_array(final_data, array_pos, bytedepth);
                             },
                             false => {
-                                Packet::append(rem_data, array_pos, bytedepth);
+                                Packet::append_to_array(rem_data, array_pos, bytedepth);
                             },
                         };
                     },
                     6 => {
-                        let time:f64 = (packet.tdcCoarseT() as f64) * (1.0/320e6) + (packet.tdcFineT() as f64) * 260e-12;
+                        time = Packet::tdcT(packet.tdcCoarseT(), packet.tdcFineT());
                         hasTdc = true;
                         main_array = false;
-                        println!("tdc");
                     },
-                    7 => {},
-                    4 => {},
-                    _ => {println!("Unknown");},
+                    7 => {continue;},
+                    4 => {continue;},
+                    _ => {},
                 };
             },
         };
     };
+    
+    loop {
+        match packet_chunks.next() {
+            None => break,
+            Some(&[84, 80, 88, 51, nci, _, _, _]) => ci = nci,
+            Some(x) => {
+                let packet = Packet {
+                    chip_index: ci,
+                    i08: x[0],
+                    i09: x[1],
+                    i10: x[2],
+                    i11: x[3],
+                    i12: x[4],
+                    i13: x[5],
+                    i14: x[6],
+                    i15: x[7],
+                };
+                
+                match packet.id() {
+                    11 => {
+                        let array_pos = match bin {
+                            false => bytedepth*packet.x() + bytedepth*1024*packet.y(),
+                            true => bytedepth*packet.x()
+                        };
+                        match main_array {
+                            true => {
+                                Packet::append_to_array(final_data, array_pos, bytedepth);
+                            },
+                            false => {
+                                Packet::append_to_array(rem_data, array_pos, bytedepth);
+                            },
+                        };
+                    },
+                    6 => {
+                        time = Packet::tdcT(packet.tdcCoarseT(), packet.tdcFineT());
+                        hasTdc = true;
+                        main_array = false;
+                    },
+                    7 => {continue;},
+                    4 => {continue;},
+                    _ => {},
+                };
+            },
+        };
+    };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     (ci, hasTdc)
 }
 
@@ -292,7 +354,7 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut hasTdc: bool = false;
             let mut remain: usize = 0;
             let mut buffer_pack_data: [u8; 64000] = [0; 64000];
-            let bytedepth = 4usize;
+            let bytedepth = 1usize;
             let mut rem_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; bytedepth*256*1024]};
             let start = Instant::now();
             'global: loop {
