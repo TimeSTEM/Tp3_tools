@@ -109,7 +109,7 @@ impl Packet {
     }
 }
 
-fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remainder: &mut [u8], bytedepth: usize) -> (u8, bool) {
+fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remainder: &mut [u8], bytedepth: usize) -> (u8, bool, f64) {
     
     let file_data = data;
     let rem_data = remainder;
@@ -164,7 +164,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remain
             },
         };
     };
-    (ci, hasTdc)
+    (ci, hasTdc, time)
 }
 
 fn has_data(path: &str, number: usize) -> bool {
@@ -301,7 +301,6 @@ fn connect_and_loop(runmode: RunningMode) {
             let start = Instant::now();
             'global: loop {
                 
-                let msg = create_header(0.0, counter, bytedepth*1024*(256-255*(bin as usize)), bytedepth<<3, 1024, 256 - 255*(bin as usize));
                 let mut data_array:Vec<u8> = rem_array.clone();
                 let mut rem_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
                 data_array.push(10);
@@ -312,6 +311,8 @@ fn connect_and_loop(runmode: RunningMode) {
                             let result = build_data(new_data, bin, &mut data_array, last_ci, &mut rem_array, bytedepth);
                             last_ci = result.0;
                             hasTdc = result.1;
+                            let frame_time = result.2;
+                            let msg = create_header(frame_time, counter, bytedepth*1024*(256-255*(bin as usize)), bytedepth<<3, 1024, 256 - 255*(bin as usize));
                             if hasTdc==true {
                                 counter+=1;
 
