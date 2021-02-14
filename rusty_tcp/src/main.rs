@@ -342,9 +342,9 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut pack_sock = packet_socket;
             let mut ns_sock = ns_socket;
             
-            let mut my_data = [0 as u8; 8];
-            if let Ok(_) = ns_sock.read(&mut my_data){
-                bin = match my_data[0] {
+            let mut cam_settings = [0 as u8; 8];
+            if let Ok(_) = ns_sock.read(&mut cam_settings){
+                bin = match cam_settings[0] {
                     0 => {
                         println!("Binning is false.");
                         false
@@ -355,7 +355,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     },
                     _ => panic!("Binning choice must be 0 | 1."),
                 };
-                bytedepth = match my_data[1] {
+                bytedepth = match cam_settings[1] {
                     0 => {
                         println!("Bitdepth is 8.");
                         1
@@ -374,7 +374,7 @@ fn connect_and_loop(runmode: RunningMode) {
             
             pack_sock.set_read_timeout(Some(Duration::from_micros(1_000))).unwrap();
             ns_sock.set_read_timeout(Some(Duration::from_micros(100))).unwrap();
-            println!("Received data is {:?}.", my_data);
+            println!("Received settings is {:?}.", cam_settings);
             
             let mut counter = 0usize;
             let mut last_ci = 0u8;
@@ -383,7 +383,6 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut buffer_pack_data: [u8; 64000] = [0; 64000];
             let mut rem_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; bytedepth*256*1024]};
             
-            //let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
             
             let start = Instant::now();
             'global: loop {
@@ -391,11 +390,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 let mut data_array:Vec<u8> = rem_array.clone();
                 let mut rem_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
                 
-                //let mut data_array_ind: [Vec<u8>; 4] = rem_array_ind.clone();
-                //let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
-                
                 data_array.push(10);
-                //data_array_ind[3].push(10);
                 
                 loop {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -427,16 +422,6 @@ fn connect_and_loop(runmode: RunningMode) {
                                     },
                                 };
 
-                                /*for i in 0..4 {
-                                    match ns_sock.write(&data_array_ind[i]) {
-                                        Ok(_) => {},
-                                        Err(_) => {
-                                            println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
-                                            break 'global;
-                                        },
-                                    };
-                                };
-                                */
                                 break;
                             } 
                         }
@@ -549,3 +534,20 @@ match ns_sock.write(&myarray) {
 * 
 * 
 */
+
+/*
+ *
+ * //let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
+ * //let mut data_array_ind: [Vec<u8>; 4] = rem_array_ind.clone();
+ * //let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
+ * //data_array_ind[3].push(10);
+ * /*for i in 0..4 {
+ * match ns_sock.write(&data_array_ind[i]) {
+ * Ok(_) => {},
+ * Err(_) => {
+ * println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
+ * break 'global
+ * },
+ * };
+ * };
+ * */
