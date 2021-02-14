@@ -113,6 +113,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remain
     
     let file_data = data;
     let rem_data = remainder;
+    let bin = bin;
     let mut packet_chunks = file_data.chunks_exact(8);
     let mut hasTdc: bool = false;
     let mut main_array:bool = true;
@@ -163,65 +164,6 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remain
             },
         };
     };
-    
-    loop {
-        match packet_chunks.next() {
-            None => break,
-            Some(&[84, 80, 88, 51, nci, _, _, _]) => ci = nci,
-            Some(x) => {
-                let packet = Packet {
-                    chip_index: ci,
-                    i08: x[0],
-                    i09: x[1],
-                    i10: x[2],
-                    i11: x[3],
-                    i12: x[4],
-                    i13: x[5],
-                    i14: x[6],
-                    i15: x[7],
-                };
-                
-                match packet.id() {
-                    11 => {
-                        let array_pos = match bin {
-                            false => bytedepth*packet.x() + bytedepth*1024*packet.y(),
-                            true => bytedepth*packet.x()
-                        };
-                        match main_array {
-                            true => {
-                                Packet::append_to_array(final_data, array_pos, bytedepth);
-                            },
-                            false => {
-                                Packet::append_to_array(rem_data, array_pos, bytedepth);
-                            },
-                        };
-                    },
-                    6 => {
-                        time = Packet::tdcT(packet.tdcCoarseT(), packet.tdcFineT());
-                        hasTdc = true;
-                        main_array = false;
-                    },
-                    7 => {continue;},
-                    4 => {continue;},
-                    _ => {},
-                };
-            },
-        };
-    };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     (ci, hasTdc)
 }
 
