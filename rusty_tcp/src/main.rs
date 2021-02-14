@@ -324,6 +324,7 @@ fn double_from_16_to_8(data: &[u16], data2: &[u16]) -> Vec<u8> {
 fn connect_and_loop(runmode: RunningMode) {
 
     let mut bin: bool = true;
+    let mut bytedepth = 2usize;
     let deletefile: bool;
 
     let pack_listener = TcpListener::bind("127.0.0.1:8098").unwrap();
@@ -341,12 +342,33 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut pack_sock = packet_socket;
             let mut ns_sock = ns_socket;
             
-            let mut my_data = [0 as u8; 4];
+            let mut my_data = [0 as u8; 8];
             if let Ok(_) = ns_sock.read(&mut my_data){
                 bin = match my_data[0] {
-                    0 => false,
-                    1 => true,
-                    _ => false, //panic!("Binning choice must be 0 | 1."),
+                    0 => {
+                        println!("Binning is false.");
+                        false
+                    },
+                    1 => {
+                        println!("Binning is true.");
+                        true
+                    },
+                    _ => panic!("Binning choice must be 0 | 1."),
+                };
+                bytedepth = match my_data[1] {
+                    0 => {
+                        println!("Bitdepth is 8.");
+                        1
+                    },
+                    1 => {
+                        println!("Bitdepth is 16.");
+                        2
+                    },
+                    2 => {
+                        println!("Bitdepth is 32.");
+                        4
+                    },
+                    _ => panic!("Bytedepth must be  1 | 2 | 4."),
                 };
             };
             
@@ -359,10 +381,9 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut hasTdc: bool = false;
             let mut remain: usize = 0;
             let mut buffer_pack_data: [u8; 64000] = [0; 64000];
-            let bytedepth = 1usize;
             let mut rem_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; bytedepth*256*1024]};
             
-            let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
+            //let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
             
             let start = Instant::now();
             'global: loop {
@@ -370,11 +391,11 @@ fn connect_and_loop(runmode: RunningMode) {
                 let mut data_array:Vec<u8> = rem_array.clone();
                 let mut rem_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
                 
-                let mut data_array_ind: [Vec<u8>; 4] = rem_array_ind.clone();
-                let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
+                //let mut data_array_ind: [Vec<u8>; 4] = rem_array_ind.clone();
+                //let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
                 
                 data_array.push(10);
-                data_array_ind[3].push(10);
+                //data_array_ind[3].push(10);
                 
                 loop {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -385,6 +406,7 @@ fn connect_and_loop(runmode: RunningMode) {
                             last_ci = result.0;
                             hasTdc = result.1;
                             let frame_time = result.2;
+                            
                             let msg = create_header(frame_time, counter, bytedepth*1024*(256-255*(bin as usize)), bytedepth<<3, 1024, 256 - 255*(bin as usize));
                             if hasTdc==true {
                                 counter+=1;
@@ -415,7 +437,6 @@ fn connect_and_loop(runmode: RunningMode) {
                                     };
                                 };
                                 */
-                                //println!("Tdc on");
                                 break;
                             } 
                         }
@@ -467,7 +488,6 @@ fn main() {
         connect_and_loop(myrun);
     }
 }
-
 
 
 /*
