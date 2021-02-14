@@ -113,6 +113,7 @@ impl Packet {
     }
 }
 
+/* THIS IS USED IN THE FUTURE WHEN I HAVE DONE MY THREAD FOR EACH INDIVIDUAL CHIP
 fn build_data_in_thread(data: &[u8], bin: bool, final_data: &mut [Vec<u8>; 4], last_ci: u8, remainder: &mut [Vec<u8>; 4], bytedepth: usize) -> (u8, bool, f64) {
     
     let file_data = data;
@@ -171,6 +172,7 @@ fn build_data_in_thread(data: &[u8], bin: bool, final_data: &mut [Vec<u8>; 4], l
     (ci, hasTdc, time)
 
 }
+*/
 
 fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remainder: &mut [u8], bytedepth: usize) -> (u8, bool, f64) {
     
