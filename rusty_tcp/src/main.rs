@@ -290,7 +290,7 @@ fn build_spim_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, b
     (ci, has_tdc, time)
 }
 
-fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize) -> Vec<u8> {
+fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize, xspim: usize, yspim: usize) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(time.to_string()));
     msg.push_str(",\"frameNumber\":");
@@ -303,6 +303,10 @@ fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, wid
     msg.push_str(&(width.to_string()));
     msg.push_str(",\"height\":");
     msg.push_str(&(height.to_string()));
+    msg.push_str(",\"xspim\":");
+    msg.push_str(&(xspim.to_string()));
+    msg.push_str(",\"yspim\":");
+    msg.push_str(&(yspim.to_string()));
     msg.push_str("}\n");
     let s: Vec<u8> = msg.into_bytes();
     s
@@ -340,12 +344,10 @@ fn connect_and_loop(runmode: RunningMode) {
                 is_spim = my_config.is_spim();
                 spimsize = my_config.spimsize();
             };
-
             
             pack_sock.set_read_timeout(Some(Duration::from_micros(1_000))).unwrap();
             ns_sock.set_read_timeout(Some(Duration::from_micros(100))).unwrap();
             println!("Received settings is {:?}.", cam_settings);
-            
             
             let start = Instant::now();
            
@@ -380,7 +382,7 @@ fn connect_and_loop(runmode: RunningMode) {
                                     let frame_time = result.2;
                                     
                                     if has_tdc==true {
-                                        let msg = create_header(frame_time, counter, bytedepth*1024*(256-255*(bin as usize)), bytedepth<<3, 1024, 256 - 255*(bin as usize));
+                                        let msg = create_header(frame_time, counter, bytedepth*1024*(256-255*(bin as usize)), bytedepth<<3, 1024, 256 - 255*(bin as usize), spimsize, spimsize);
                                         counter+=1;
                                         match ns_sock.write(&msg) {
                                             Ok(_) => {},
@@ -430,8 +432,23 @@ fn connect_and_loop(runmode: RunningMode) {
                                     let frame_time = result.2;
                                     
                                     if has_tdc==true {
-                                        let msg = create_header(frame_time, counter, bytedepth*1024*spimsize*spimsize, bytedepth<<3, 1024, 1);
+                                        let msg = create_header(frame_time, counter, bytedepth*1024*spimsize*spimsize, bytedepth<<3, 1024, 1, spimsize, spimsize);
                                         counter+=1;
+                                        
+                                        match ns_sock.write(&msg) {
+                                            Ok(_) => {},
+                                            Err(_) => {
+                                                println!("Client {} disconnected on header. Waiting a new one.", ns_addr);
+                                                break 'global_spim;
+                                            },
+                                        }
+                                        match ns_sock.write(&spim_data_array) {
+                                            Ok(_) => {},
+                                            Err(_) => {
+                                                println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
+                                                break 'global_spim;
+                                            },
+                                        }
                                         break;
                                     }; 
                                 } else {
