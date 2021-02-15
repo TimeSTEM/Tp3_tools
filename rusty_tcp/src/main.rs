@@ -395,75 +395,85 @@ fn connect_and_loop(runmode: RunningMode) {
             ns_sock.set_read_timeout(Some(Duration::from_micros(100))).unwrap();
             println!("Received settings is {:?}.", cam_settings);
             
-            let mut counter = 0usize;
-            let last_ci = 0u8;
-            let mut buffer_pack_data: [u8; 64000] = [0; 64000];
-            
-            let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
-            data_array.push(10);
-            
-            let mut spim_data_array:Vec<u8> = if bin {vec![0; bytedepth*1024*spimsize]} else {vec![0; 256*bytedepth*1024*spimsize]};
-            data_array.push(10);
             
             let start = Instant::now();
-            'global: loop {
-                
-                match cumul {
-                    false => {
-                        data_array = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
-                        data_array.push(10);
-                    },
-                    true => {
-                    },
-                };
+           
+            match isSpim {
+                false => {
+                    
+                    let mut counter = 0usize;
+                    let last_ci = 0u8;
+                    let mut buffer_pack_data: [u8; 64000] = [0; 64000];
+                    
+                    let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
+                    data_array.push(10);
+                    
+                    'global: loop {
+                        
+                        match cumul {
+                            false => {
+                                data_array = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
+                                data_array.push(10);
+                            },
+                            true => {
+                            },
+                        };
 
-                loop {
-                    if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                        if size>0 {
-                            let new_data = &buffer_pack_data[0..size];
-                            build_spim_data(new_data, bin, &mut spim_data_array, last_ci, bytedepth);
-                            let result = build_data(new_data, bin, &mut data_array, last_ci, bytedepth);
-                            let last_ci = result.0;
-                            let hasTdc = result.1;
-                            let frame_time = result.2;
-                            
-                            if hasTdc==true {
-                                let msg = create_header(frame_time, counter, bytedepth*1024*(256-255*(bin as usize)), bytedepth<<3, 1024, 256 - 255*(bin as usize));
-                                counter+=1;
-                                
-                                match ns_sock.write(&msg) {
-                                    Ok(_) => {},
-                                    Err(_) => {
-                                        println!("Client {} disconnected on header. Waiting a new one.", ns_addr);
-                                        break 'global;
-                                    },
-                                };
-                                
-                                match ns_sock.write(&data_array) {
-                                    Ok(_) => {},
-                                    Err(_) => {
-                                        println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
-                                        break 'global;
-                                    },
-                                };
+                        loop {
+                            if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                                if size>0 {
+                                    let new_data = &buffer_pack_data[0..size];
+                                    //build_spim_data(new_data, bin, &mut spim_data_array, last_ci, bytedepth);
+                                    let result = build_data(new_data, bin, &mut data_array, last_ci, bytedepth);
+                                    let last_ci = result.0;
+                                    let hasTdc = result.1;
+                                    let frame_time = result.2;
+                                    
+                                    if hasTdc==true {
+                                        let msg = create_header(frame_time, counter, bytedepth*1024*(256-255*(bin as usize)), bytedepth<<3, 1024, 256 - 255*(bin as usize));
+                                        counter+=1;
+                                        
+                                        match ns_sock.write(&msg) {
+                                            Ok(_) => {},
+                                            Err(_) => {
+                                                println!("Client {} disconnected on header. Waiting a new one.", ns_addr);
+                                                break 'global;
+                                            },
+                                        };
+                                        
+                                        match ns_sock.write(&data_array) {
+                                            Ok(_) => {},
+                                            Err(_) => {
+                                                println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
+                                                break 'global;
+                                            },
+                                        };
 
-                                break;
-                            } 
+                                        break;
+                                    } 
+                                }
+                                else {
+                                    println!("Received zero packages");
+                                    break 'global;
+                                }
+                            }
                         }
-                        else {
-                            println!("Received zero packages");
-                            break 'global
+                        if counter % 100 == 0 {
+                            let elapsed = start.elapsed();
+                            println!("Total elapsed time is: {:?}", elapsed);
                         }
                     }
-                }
+                    println!("Number of loops were: {}.", counter);
+                    ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
+                },
+                true => {
+       
+                    let mut spim_data_array:Vec<u8> = if bin {vec![0; bytedepth*1024*spimsize*spimsize]} else {vec![0; 256*bytedepth*1024*spimsize*spimsize]};
+                    spim_data_array.push(10);
                 
-                if counter % 100 == 0 {
-                    let elapsed = start.elapsed();
-                    println!("Total elapsed time is: {:?}", elapsed);
-                }
-            }
-            println!("Number of loops were: {}.", counter);
-            ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
+                
+                },
+            };
         }
     }
 }
