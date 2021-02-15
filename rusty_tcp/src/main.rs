@@ -153,6 +153,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytede
                             true => bytedepth*packet.x()
                         };
                         Packet::append_to_array(final_data, array_pos, bytedepth);
+                        //eleT = Packet::elecT(packet.spidr(), packet.toa(), packet.ftoa());
                     },
                     6 => {
                         time = Packet::tdcT(packet.tdcCoarseT(), packet.tdcFineT());
