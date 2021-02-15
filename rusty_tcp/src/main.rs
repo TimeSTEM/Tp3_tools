@@ -153,10 +153,61 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytede
                             true => bytedepth*packet.x()
                         };
                         Packet::append_to_array(final_data, array_pos, bytedepth);
-                        //eleT = Packet::elecT(packet.spidr(), packet.toa(), packet.ftoa());
                     },
                     6 => {
                         time = Packet::tdcT(packet.tdcCoarseT(), packet.tdcFineT());
+                        if hasTdc == true {println!("already tdc")};
+                        hasTdc = true;
+                    },
+                    7 => {continue;},
+                    4 => {continue;},
+                    _ => {},
+                };
+            },
+        };
+    };
+    (ci, hasTdc, time)
+}
+
+fn build_spim_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytedepth: usize) -> (u8, bool, f64) {
+    
+    let file_data = data;
+    let bin = bin;
+    let mut packet_chunks = file_data.chunks_exact(8);
+    let mut hasTdc: bool = false;
+    let mut time = 0.0f64;
+    let mut eleT = 0.0f64;
+
+    let mut ci: u8 = last_ci;
+    loop {
+        match packet_chunks.next() {
+            None => break,
+            Some(&[84, 80, 88, 51, nci, _, _, _]) => ci = nci,
+            Some(x) => {
+                let packet = Packet {
+                    chip_index: ci,
+                    i08: x[0],
+                    i09: x[1],
+                    i10: x[2],
+                    i11: x[3],
+                    i12: x[4],
+                    i13: x[5],
+                    i14: x[6],
+                    i15: x[7],
+                };
+                
+                match packet.id() {
+                    11 => {
+                        let array_pos = match bin {
+                            false => bytedepth*packet.x() + bytedepth*1024*packet.y(),
+                            true => bytedepth*packet.x()
+                        };
+                        Packet::append_to_array(final_data, array_pos, bytedepth);
+                        eleT = Packet::elecT(packet.spidr(), packet.toa(), packet.ftoa());
+                    },
+                    6 => {
+                        time = Packet::tdcT(packet.tdcCoarseT(), packet.tdcFineT());
+                        if hasTdc == true {println!("already tdc")};
                         hasTdc = true;
                     },
                     7 => {continue;},
@@ -265,6 +316,8 @@ fn connect_and_loop(runmode: RunningMode) {
     let mut bin: bool = true;
     let mut bytedepth = 2usize;
     let mut cumul: bool = false;
+    let mut isSpim:bool = false;
+    let mut spimsize = 0usize;
 
     let pack_listener = TcpListener::bind("127.0.0.1:8098").unwrap();
     
@@ -320,6 +373,21 @@ fn connect_and_loop(runmode: RunningMode) {
                     },
                     _ => panic!("Cumulation must be 0 | 1."),
                 };
+                isSpim = match cam_settings[3] {
+                    0 => {
+                        println!("Spim is OFF.");
+                        false
+                    },
+                    1 => {
+                        println!("Spim is ON.");
+                        spimsize = cam_settings[4] as usize;
+                        println!("Spim size is {}.", spimsize);
+                            
+                        true
+                    },
+                    _ => panic!("Spim config must be 0 | 1."),
+
+                };
 
             };
             
@@ -328,12 +396,13 @@ fn connect_and_loop(runmode: RunningMode) {
             println!("Received settings is {:?}.", cam_settings);
             
             let mut counter = 0usize;
-            let mut last_ci = 0u8;
-            let mut hasTdc: bool = false;
-            let mut remain: usize = 0;
+            let last_ci = 0u8;
             let mut buffer_pack_data: [u8; 64000] = [0; 64000];
             
             let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
+            data_array.push(10);
+            
+            let mut spim_data_array:Vec<u8> = if bin {vec![0; bytedepth*1024*spimsize]} else {vec![0; 256*bytedepth*1024*spimsize]};
             data_array.push(10);
             
             let start = Instant::now();
@@ -348,20 +417,20 @@ fn connect_and_loop(runmode: RunningMode) {
                     },
                 };
 
-                
                 loop {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
+                            build_spim_data(new_data, bin, &mut spim_data_array, last_ci, bytedepth);
                             let result = build_data(new_data, bin, &mut data_array, last_ci, bytedepth);
-                            last_ci = result.0;
-                            hasTdc = result.1;
+                            let last_ci = result.0;
+                            let hasTdc = result.1;
                             let frame_time = result.2;
                             
-                            let msg = create_header(frame_time, counter, bytedepth*1024*(256-255*(bin as usize)), bytedepth<<3, 1024, 256 - 255*(bin as usize));
                             if hasTdc==true {
+                                let msg = create_header(frame_time, counter, bytedepth*1024*(256-255*(bin as usize)), bytedepth<<3, 1024, 256 - 255*(bin as usize));
                                 counter+=1;
-
+                                
                                 match ns_sock.write(&msg) {
                                     Ok(_) => {},
                                     Err(_) => {
