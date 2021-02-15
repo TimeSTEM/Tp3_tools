@@ -264,7 +264,7 @@ fn connect_and_loop(runmode: RunningMode) {
 
     let mut bin: bool = true;
     let mut bytedepth = 2usize;
-    let deletefile: bool;
+    let mut cumul: bool = false;
 
     let pack_listener = TcpListener::bind("127.0.0.1:8098").unwrap();
     
@@ -309,6 +309,18 @@ fn connect_and_loop(runmode: RunningMode) {
                     },
                     _ => panic!("Bytedepth must be  1 | 2 | 4."),
                 };
+                cumul = match cam_settings[2] {
+                    0 => {
+                        println!("Cumulation mode is OFF.");
+                        false
+                    },
+                    1 => {
+                        println!("Cumulation mode is ON.");
+                        true
+                    },
+                    _ => panic!("Cumulation must be 0 | 1."),
+                };
+
             };
             
             pack_sock.set_read_timeout(Some(Duration::from_micros(1_000))).unwrap();
@@ -321,12 +333,21 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut remain: usize = 0;
             let mut buffer_pack_data: [u8; 64000] = [0; 64000];
             
+            let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
+            data_array.push(10);
+            
             let start = Instant::now();
             'global: loop {
                 
-                let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
-                
-                data_array.push(10);
+                match cumul {
+                    false => {
+                        data_array = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
+                        data_array.push(10);
+                    },
+                    true => {
+                    },
+                };
+
                 
                 loop {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -380,7 +401,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::debug_stem7482;
+        //let myrun = RunningMode::debug_stem7482;
+        let myrun = RunningMode::tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
