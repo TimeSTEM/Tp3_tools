@@ -119,14 +119,12 @@ impl Packet {
 }
 
 
-fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remainder: &mut [u8], bytedepth: usize) -> (u8, bool, f64) {
+fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytedepth: usize) -> (u8, bool, f64) {
     
     let file_data = data;
-    let rem_data = remainder;
     let bin = bin;
     let mut packet_chunks = file_data.chunks_exact(8);
     let mut hasTdc: bool = false;
-    let mut main_array:bool = true;
     let mut time = 0.0f64;
     let mut eleT = 0.0f64;
 
@@ -154,20 +152,11 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, remain
                             false => bytedepth*packet.x() + bytedepth*1024*packet.y(),
                             true => bytedepth*packet.x()
                         };
-                        match main_array {
-                            true => {
-                                Packet::append_to_array(final_data, array_pos, bytedepth);
-                                //eleT = Packet::elecT(packet.spidr(), packet.toa(), packet.ftoa());
-                            },
-                            false => {
-                                Packet::append_to_array(rem_data, array_pos, bytedepth);
-                            },
-                        };
+                        Packet::append_to_array(final_data, array_pos, bytedepth);
                     },
                     6 => {
                         time = Packet::tdcT(packet.tdcCoarseT(), packet.tdcFineT());
                         hasTdc = true;
-                        main_array = false;
                     },
                     7 => {continue;},
                     4 => {continue;},
@@ -330,14 +319,11 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut hasTdc: bool = false;
             let mut remain: usize = 0;
             let mut buffer_pack_data: [u8; 64000] = [0; 64000];
-            let mut rem_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; bytedepth*256*1024]};
-            
             
             let start = Instant::now();
             'global: loop {
                 
-                let mut data_array:Vec<u8> = rem_array.clone();
-                let mut rem_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
+                let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
                 
                 data_array.push(10);
                 
@@ -345,8 +331,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            let result = build_data(new_data, bin, &mut data_array, last_ci, &mut rem_array, bytedepth);
-                            //let result = build_data_in_thread(new_data, bin, &mut data_array_ind, last_ci, &mut rem_array_ind, bytedepth);
+                            let result = build_data(new_data, bin, &mut data_array, last_ci, bytedepth);
                             last_ci = result.0;
                             hasTdc = result.1;
                             let frame_time = result.2;
@@ -381,29 +366,6 @@ fn connect_and_loop(runmode: RunningMode) {
                     }
                 }
                 
-                /*
-                let mydata2 = mydata.clone();
-                let (tx, rx) = mpsc::channel();
-
-                let tx1 = mpsc::Sender::clone(&tx);
-                let tx2 = mpsc::Sender::clone(&tx);
-
-                thread::spawn(move || {
-                    let val = build_data(&mydata[..], bin, 1);
-                    tx.send(val).unwrap();
-                });
-                
-                thread::spawn(move || {
-                    let val = build_data(&mydata2[1000000..], bin, 1);
-                    tx1.send(val).unwrap();
-                });
-                
-                let received = rx.recv().unwrap();
-                let received2 = rx.recv().unwrap();
-                let final_received = double_from_16_to_8(&received, &received2);
-                */
-
-                
                 if counter % 100 == 0 {
                     let elapsed = start.elapsed();
                     println!("Total elapsed time is: {:?}", elapsed);
@@ -422,143 +384,3 @@ fn main() {
         connect_and_loop(myrun);
     }
 }
-
-
-/*
- *
- *
- * THIS IS OLD CODE WHEN READING FROM FILE
- *
- *
- *
-let mut my_path: String = match runmode {
-    RunningMode::debug_stem7482 => String::from("C:\\Users\\AUAD\\Documents\\wobbler_data\\raw"),
-    RunningMode::debug_cheetah => String::from("/home/asi/load_files/wobbler_data/raw"),
-    RunningMode::tp3 => String::from("/home/asi/load_files/data"),
-};
-
-
-match runmode {
-    RunningMode::debug_stem7482 | RunningMode::debug_cheetah => {
-        println!("Running locally. Won't delete folder neither file. Attempting to connect to localhost...");
-        deletefile = false;
-    },
-    RunningMode::tp3 => {
-        remove_all(&my_path).expect("Cannot remove all files");
-        my_path.push_str("//raw");
-        deletefile = true;
-    },
-};
-
-while has_data(&my_path, counter+1)==false {
-    if let Ok(size) = ns_sock.read(&mut my_data) {
-        if size == 0 {
-            break 'global;
-        };
-    };
-};
-
-let mydata = open_and_read(&my_path, counter, deletefile);
-let mut myarray:Vec<u8> = if bin {vec![0; 4*1024]} else {vec![0; 256*4*1024]};
-let (last_ci, _, _) = build_data(&mydata[..], bin, &mut myarray, last_ci);
-myarray.push(10);
-
-
-match ns_sock.write(&msg) {
-    Ok(_) => {},
-    Err(_) => {
-        println!("Client {} disconnected on header. Waiting a new one.", ns_addr);
-        break;
-    },
-};
-match ns_sock.write(&myarray) {
-    Ok(_) => {},
-    Err(_) => {
-        println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
-        break;
-    },
-};
-
-*
-* 
-* 
-*/
-
-
-/*
- *
- *let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
- *let mut data_array_ind: [Vec<u8>; 4] = rem_array_ind.clone();
- *let mut rem_array_ind: [Vec<u8>; 4] = if bin {[vec![0; 256], vec![0; 256], vec![0; 256], vec![0; 256]]} else {[vec![0;256*256], vec![0;256*256], vec![0;256*256], vec![0; 256*256]]};
- *data_array_ind[3].push(10);
- *for i in 0..4 {
- * match ns_sock.write(&data_array_ind[i]) {
- * Ok(_) => {},
- * Err(_) => {
- * println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
- * break 'global
- * },
- * };
- * };
- */
-
-/* THIS IS USED IN THE FUTURE WHEN I HAVE DONE MY THREAD FOR EACH INDIVIDUAL CHIP
-fn build_data_in_thread(data: &[u8], bin: bool, final_data: &mut [Vec<u8>; 4], last_ci: u8, remainder: &mut [Vec<u8>; 4], bytedepth: usize) -> (u8, bool, f64) {
-    
-    let file_data = data;
-    let rem_data = remainder;
-    let bin = bin;
-    let mut packet_chunks = file_data.chunks_exact(8);
-    let mut hasTdc: bool = false;
-    let mut main_array:bool = true;
-    let mut time = 0.0f64;
-    
-    let mut ci: u8 = last_ci;
-    loop {
-        match packet_chunks.next() {
-            None => break,
-            Some(&[84, 80, 88, 51, nci, _, _, _]) => ci = nci,
-            Some(x) => {
-                let packet = Packet {
-                    chip_index: ci,
-                    i08: x[0],
-                    i09: x[1],
-                    i10: x[2],
-                    i11: x[3],
-                    i12: x[4],
-                    i13: x[5],
-                    i14: x[6],
-                    i15: x[7],
-                };
-                
-                match packet.id() {
-                    11 => {
-                        let array_pos = match bin {
-                            false => bytedepth*packet.x_unmod() + bytedepth*256*packet.y(),
-                            true => bytedepth*packet.x_unmod()
-                        };
-                        match main_array {
-                            true => {
-                                Packet::append_to_array(&mut final_data[ci as usize], array_pos, bytedepth);
-                            },
-                            false => {
-                                Packet::append_to_array(&mut rem_data[ci as usize], array_pos, bytedepth);
-                            },
-                        };
-                    },
-                    6 => {
-                        time = Packet::tdcT(packet.tdcCoarseT(), packet.tdcFineT());
-                        hasTdc = true;
-                        main_array = false;
-                    },
-                    7 => {continue;},
-                    4 => {continue;},
-                    _ => {},
-                };
-            },
-        };
-    };
-    (ci, hasTdc, time)
-
-}
-*/
