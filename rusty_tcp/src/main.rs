@@ -239,10 +239,10 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytede
     (ci, has_tdc, time)
 }
 
-fn build_spim_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytedepth: usize) -> (u8, bool, f64) {
+fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: usize, count: usize, last_tdc: f64, xspim: usize, yspim: usize) -> (u8, bool, f64) {
     
     let file_data = data;
-    let bin = bin;
+    let line = count % yspim;
     let mut packet_chunks = file_data.chunks_exact(8);
     let mut has_tdc: bool = false;
     let mut time = 0.0f64;
@@ -268,17 +268,57 @@ fn build_spim_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, b
                 
                 match packet.id() {
                     11 => {
-                        let array_pos = match bin {
-                            false => bytedepth*packet.x() + bytedepth*1024*packet.y(),
-                            true => bytedepth*packet.x()
-                        };
-                        Packet::append_to_array(final_data, array_pos, bytedepth);
+                        let array_pos = bytedepth*packet.x() * line;
                         ele_time = Packet::elec_time(packet.spidr(), packet.toa(), packet.ftoa());
+                        Packet::append_to_array(final_data, array_pos, bytedepth);
                     },
                     6 => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
                         if has_tdc == true {println!("already tdc")};
                         has_tdc = true;
+                    },
+                    7 => {continue;},
+                    4 => {continue;},
+                    _ => {},
+                };
+            },
+        };
+    };
+    (ci, has_tdc, time)
+}
+
+fn search_next_tdc(data: &[u8], last_ci: u8) -> (u8, bool, f64) {
+    
+    let file_data = data;
+    let mut packet_chunks = file_data.chunks_exact(8);
+    let mut has_tdc: bool = false;
+    let mut time = 0.0f64;
+
+    let mut ci: u8 = last_ci;
+    loop {
+        match packet_chunks.next() {
+            None => break,
+            Some(&[84, 80, 88, 51, nci, _, _, _]) => ci = nci,
+            Some(x) => {
+                let packet = Packet {
+                    chip_index: ci,
+                    i08: x[0],
+                    i09: x[1],
+                    i10: x[2],
+                    i11: x[3],
+                    i12: x[4],
+                    i13: x[5],
+                    i14: x[6],
+                    i15: x[7],
+                };
+                
+                match packet.id() {
+                    11 => {continue;},
+                    6 => {
+                        time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
+                        if has_tdc == true {println!("already tdc")};
+                        has_tdc = true;
+                        break;
                     },
                     7 => {continue;},
                     4 => {continue;},
@@ -375,7 +415,6 @@ fn connect_and_loop(runmode: RunningMode) {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    //build_spim_data(new_data, bin, &mut spim_data_array, last_ci, bytedepth);
                                     let result = build_data(new_data, bin, &mut data_array, last_ci, bytedepth);
                                     let last_ci = result.0;
                                     let has_tdc = result.1;
@@ -416,7 +455,23 @@ fn connect_and_loop(runmode: RunningMode) {
                     let mut counter = 0usize;
                     let last_ci = 0u8;
                     let mut buffer_pack_data: [u8; 64000] = [0; 64000];
-                    
+
+                    let mut frame_time:f64 = loop {
+                        if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                            if size>0 {
+                                let new_data = &buffer_pack_data[0..size];
+                                let result = search_next_tdc(new_data, last_ci);
+                                let last_ci = result.0;
+                                let has_tdc = result.1;
+                                let frame_time = result.2;
+
+                                if has_tdc == true {
+                                    break frame_time
+                                }
+                            }
+                        }
+                    };
+
                     let mut spim_data_array:Vec<u8> = vec![0; bytedepth*1024*spimsize*spimsize];
                     spim_data_array.push(10);
                     
@@ -426,29 +481,33 @@ fn connect_and_loop(runmode: RunningMode) {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    let result = build_spim_data(new_data, bin, &mut spim_data_array, last_ci, bytedepth);
+                                    let result = build_spim_data(new_data, &mut spim_data_array, last_ci, bytedepth, counter, frame_time, spimsize, spimsize);
                                     let last_ci = result.0;
                                     let has_tdc = result.1;
-                                    let frame_time = result.2;
+                                    frame_time = result.2;
                                     
                                     if has_tdc==true {
-                                        let msg = create_header(frame_time, counter, bytedepth*1024*spimsize*spimsize, bytedepth<<3, 1024, 1, spimsize, spimsize);
                                         counter+=1;
                                         
-                                        match ns_sock.write(&msg) {
-                                            Ok(_) => {},
-                                            Err(_) => {
-                                                println!("Client {} disconnected on header. Waiting a new one.", ns_addr);
-                                                break 'global_spim;
-                                            },
+                                        if counter%spimsize==0 {
+                                            let msg = create_header(frame_time, counter, bytedepth*1024*spimsize*spimsize, bytedepth<<3, 1024, 1, spimsize, spimsize);
+                            
+                                            match ns_sock.write(&msg) {
+                                                Ok(_) => {},
+                                                Err(_) => {
+                                                    println!("Client {} disconnected on header. Waiting a new one.", ns_addr);
+                                                    break 'global_spim;
+                                                },
+                                            }
+                                            match ns_sock.write(&spim_data_array) {
+                                                Ok(_) => {},
+                                                Err(_) => {
+                                                    println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
+                                                    break 'global_spim;
+                                                },
+                                            }
                                         }
-                                        match ns_sock.write(&spim_data_array) {
-                                            Ok(_) => {},
-                                            Err(_) => {
-                                                println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
-                                                break 'global_spim;
-                                            },
-                                        }
+
                                         break;
                                     }; 
                                 } else {
