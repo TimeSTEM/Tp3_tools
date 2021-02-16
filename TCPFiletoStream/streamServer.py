@@ -56,7 +56,8 @@ PORT = 8098 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
 CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
 MAX_LOOPS = 0 #Max number of loops
-TIME_INTERVAL = 0.01 #If no sleep, streaming is too fast
+TIME_OFFSET = 0.026
+TIME_INTERVAL = 0.035 #If no sleep, streaming is too fast
 
 """
 Script starts here
@@ -69,7 +70,7 @@ isRunning = True
 def open_and_read(filepath, number):
     with open(filepath, "rb") as f:
         data = f.read()
-        if CREATE_TDC: data += create_tdc(int(TIME_INTERVAL*loop*1e9))
+        if CREATE_TDC: data += create_tdc(int((TIME_OFFSET + TIME_INTERVAL*loop)*1e9))
     return data
 
 while isRunning:

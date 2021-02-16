@@ -145,7 +145,7 @@ impl Packet {
 
     fn elec_time(spidr: u16, toa: u16, ftoa: u8) -> f64 {
         let ctoa = (toa<<4) | ((!ftoa as u16) & 15);
-        (spidr as f64) * 25.0 * 16384.0 + (ctoa as f64) * 25.0 / 16.0
+        ((spidr as f64) * 25.0 * 16384.0 + (ctoa as f64) * 25.0 / 16.0)/1e9
     }
 
     fn tdc_time(coarse: u64, fine: u8) -> f64 {
@@ -268,13 +268,13 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
                 
                 match packet.id() {
                     11 => {
-                        let array_pos = bytedepth*packet.x() * line;
                         ele_time = Packet::elec_time(packet.spidr(), packet.toa(), packet.ftoa());
+                        if (ele_time-last_tdc)/(0.05) > 1.0 {println!("{} and {}", ele_time, last_tdc);}
+                        let array_pos = bytedepth*packet.x() + bytedepth*1024*xspim*line + bytedepth*1024*((xspim as f64 * (ele_time - last_tdc)/0.05) as usize);
                         Packet::append_to_array(final_data, array_pos, bytedepth);
                     },
                     6 => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
-                        if has_tdc == true {println!("already tdc")};
                         has_tdc = true;
                     },
                     7 => {continue;},
@@ -418,9 +418,9 @@ fn connect_and_loop(runmode: RunningMode) {
                                     let result = build_data(new_data, bin, &mut data_array, last_ci, bytedepth);
                                     let last_ci = result.0;
                                     let has_tdc = result.1;
-                                    let frame_time = result.2;
                                     
                                     if has_tdc==true {
+                                        let frame_time = result.2;
                                         let msg = create_header(frame_time, counter, bytedepth*1024*(256-255*(bin as usize)), bytedepth<<3, 1024, 256 - 255*(bin as usize), spimsize, spimsize);
                                         counter+=1;
                                         match ns_sock.write(&msg) {
@@ -466,7 +466,7 @@ fn connect_and_loop(runmode: RunningMode) {
                                 let frame_time = result.2;
 
                                 if has_tdc == true {
-                                    break frame_time
+                                    break frame_time;
                                 }
                             }
                         }
@@ -484,9 +484,9 @@ fn connect_and_loop(runmode: RunningMode) {
                                     let result = build_spim_data(new_data, &mut spim_data_array, last_ci, bytedepth, counter, frame_time, spimsize, spimsize);
                                     let last_ci = result.0;
                                     let has_tdc = result.1;
-                                    frame_time = result.2;
                                     
                                     if has_tdc==true {
+                                        frame_time = result.2;
                                         counter+=1;
                                         
                                         if counter%spimsize==0 {
