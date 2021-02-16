@@ -41,24 +41,23 @@ def create_tdc(Tdif, trigger='tdc1Ris'):
 
 """
 Set Script Parameters Here
-Options for server are:
-    - 129.175.81.162 for my PC;
-    - 129.175.108.58 for Patrick's;
-    - 192.0.0.11 in my old dell computer (Ubuntu);
-    - 192.168.199.11 in CheeTah's computer (Ubuntu);
 """
-#FOLDER = 'Files_00'
-#FOLDER = 'C:\\Users\\AUAD\\Documents\\wobbler_data'
-FOLDER = 'C:\\Users\\AUAD\\Documents\\tdc_data_100ms_continuous'
-#FOLDER = '/home/asi/load_files/data'
+
+FOLDER = 'tdc_data_100ms'
+CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
 HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
-#HOST = '192.168.199.11' #When not using in localhost
 PORT = 8098 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
-CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
-MAX_LOOPS = 0 #Max number of loops
-TIME_OFFSET = 0.026
-TIME_INTERVAL = 0.035 #If no sleep, streaming is too fast
+
+"""
+Uncomment code below if you wish a meaningfull wobbler data with a fake tdc
+given by start time TIME_OFFSET and interval by TIME_INTERVAL
+"""
+#FOLDER = 'wobbler_data'
+#TIME_OFFSET = 0.026
+#TIME_INTERVAL = 0.035 #If no sleep, streaming is too fast
+#CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
+
 
 """
 Script starts here
@@ -106,6 +105,3 @@ while isRunning:
                 break
 
             loop+=1
-
-            if MAX_LOOPS and loop==MAX_LOOPS:
-                break
