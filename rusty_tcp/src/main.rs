@@ -197,9 +197,8 @@ impl Packet {
 
 fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytedepth: usize) -> (u8, bool, f64) {
     
-    let file_data = data;
     let bin = bin;
-    let mut packet_chunks = file_data.chunks_exact(8);
+    let mut packet_chunks = data.chunks_exact(8);
     let mut has_tdc: bool = false;
     let mut time = 0.0f64;
 
@@ -246,10 +245,9 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytede
 
 fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: usize, counter: usize, last_tdc: f64, xspim: usize, yspim: usize, interval: f64) -> (u8, bool, f64) {
     
-    let file_data = data;
     let line = counter % yspim;
     let max_value = bytedepth*xspim*yspim*1024;
-    let mut packet_chunks = file_data.chunks_exact(8);
+    let mut packet_chunks = data.chunks_exact(8);
     let mut has_tdc: bool = false;
     let mut time = 0.0f64;
     let mut ele_time;
@@ -361,6 +359,10 @@ fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, wid
     s
 }
 
+fn compress(data: &[u8]) {
+    let mut iter = data.iter();
+}
+
 fn connect_and_loop(runmode: RunningMode) {
 
     let bin: bool;
@@ -459,7 +461,6 @@ fn connect_and_loop(runmode: RunningMode) {
                 true => {
                     
                     let mut val:[f64; 2] = [0.0, 0.0];
-                    let interval: f64;
 
 
                     for i in 0..2 {
@@ -480,7 +481,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     }
                     
                     frame_time = val[1];
-                    interval = val[1] - val[0];
+                    let interval:f64 = val[1] - val[0];
                     
                     let mut spim_data_array:Vec<u8> = vec![0; bytedepth*1024*xspim*yspim];
                     spim_data_array.push(10);
@@ -499,12 +500,10 @@ fn connect_and_loop(runmode: RunningMode) {
                                     frame_time = result.2;
                                     
                                     if counter%yspim==0 {
-                                    let msg = create_header(frame_time, counter, bytedepth*1024*xspim*yspim, bytedepth<<3, 1024, 1, xspim, yspim);
-                                    
-                                    if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global_spim;}
-                                    if let Err(_) = ns_sock.write(&spim_data_array) {println!("Client disconnected on data."); break 'global_spim;}
-
-                                    break;
+                                        let msg = create_header(frame_time, counter, bytedepth*1024*xspim*yspim, bytedepth<<3, 1024, 1, xspim, yspim);
+                                        if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global_spim;}
+                                        if let Err(_) = ns_sock.write(&spim_data_array) {println!("Client disconnected on data."); break 'global_spim;}
+                                        break;
                                     }
                                 }
                             } else {println!("Received zero packages"); break 'global_spim;}
