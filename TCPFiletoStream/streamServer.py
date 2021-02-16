@@ -49,7 +49,7 @@ Options for server are:
 """
 #FOLDER = 'Files_00'
 #FOLDER = 'C:\\Users\\AUAD\\Documents\\wobbler_data'
-FOLDER = 'C:\\Users\\AUAD\\Documents\\tdc_data_100ms_5s'
+FOLDER = 'C:\\Users\\AUAD\\Documents\\tdc_data_100ms_continuous'
 #FOLDER = '/home/asi/load_files/data'
 HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 #HOST = '192.168.199.11' #When not using in localhost

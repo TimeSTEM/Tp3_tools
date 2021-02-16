@@ -230,7 +230,6 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytede
                     },
                     6 => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
-                        time = time - (time / (26843136000.0 * 1e-9)).floor() * 26843136000.0 * 1e-9;
                         if has_tdc == true {println!("already tdc")};
                         has_tdc = true;
                     },
@@ -274,21 +273,16 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
                 match packet.id() {
                     11 => {
                         ele_time = Packet::elec_time(packet.spidr(), packet.toa(), packet.ftoa());
-                        //if (ele_time-last_tdc)/(0.2) > 1.0 {println!("{} and {}", ele_time, last_tdc);}
-                        let array_pos = bytedepth*packet.x() + bytedepth*1024*xspim*line;// + bytedepth*1024*((xspim as f64 * (ele_time - last_tdc)/0.1) as usize);
+                        if (ele_time-last_tdc)/0.101 > 1.0 {println!("{} and {}", ele_time, last_tdc);}
+                        let array_pos = bytedepth*packet.x() + bytedepth*1024*xspim*line + bytedepth*1024*((xspim as f64 * (ele_time - last_tdc)/0.1) as usize);
                         Packet::append_to_array(final_data, array_pos, bytedepth);
                     },
                     6 => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
                         time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
-                        if has_tdc == true {
-                            println!("tdc already true");
-                        }
+                        if has_tdc == true {println!("tdc already true");}
                         has_tdc = true;
-                        if (time - last_tdc) > 0.11 {
-                            //println!("ele {} last tdc {} new tdc {} and tdc_dif {} and ct {}", ele_time, last_tdc, time, time - last_tdc, count);
-                            println!("tdc_dif: {}; counter: {}, absolute time {} and my counter {}",time - last_tdc, packet.tdc_counter(), time, count);
-                        }
+                        break;
                     },
                     7 => {continue;},
                     4 => {continue;},
