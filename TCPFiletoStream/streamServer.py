@@ -48,13 +48,14 @@ Options for server are:
     - 192.168.199.11 in CheeTah's computer (Ubuntu);
 """
 #FOLDER = 'Files_00'
-FOLDER = 'C:\\Users\\AUAD\\Documents\\wobbler_data'
+#FOLDER = 'C:\\Users\\AUAD\\Documents\\wobbler_data'
+FOLDER = 'C:\\Users\\AUAD\\Documents\\tdc_data_100ms_5s'
 #FOLDER = '/home/asi/load_files/data'
 HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 #HOST = '192.168.199.11' #When not using in localhost
 PORT = 8098 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
-CREATE_TDC = True #if you wanna to add a tdc after the end of each read frame
+CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
 MAX_LOOPS = 0 #Max number of loops
 TIME_OFFSET = 0.026
 TIME_INTERVAL = 0.035 #If no sleep, streaming is too fast

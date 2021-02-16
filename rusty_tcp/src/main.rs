@@ -143,6 +143,10 @@ impl Packet {
         (self.i08 & 224)>>5 | (self.i09 & 1)<<3
     }
 
+    fn tdc_counter(&self) -> u16 {
+        ((self.i13 & 240) as u16) >> 4 | (self.i14 as u16) << 4
+    }
+
     fn elec_time(spidr: u16, toa: u16, ftoa: u8) -> f64 {
         let ctoa = (toa<<4) | ((!ftoa as u16) & 15);
         ((spidr as f64) * 25.0 * 16384.0 + (ctoa as f64) * 25.0 / 16.0)/1e9
@@ -226,6 +230,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytede
                     },
                     6 => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
+                        time = time - (time / (26843136000.0 * 1e-9)).floor() * 26843136000.0 * 1e-9;
                         if has_tdc == true {println!("already tdc")};
                         has_tdc = true;
                     },
@@ -269,13 +274,21 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
                 match packet.id() {
                     11 => {
                         ele_time = Packet::elec_time(packet.spidr(), packet.toa(), packet.ftoa());
-                        if (ele_time-last_tdc)/(0.05) > 1.0 {println!("{} and {}", ele_time, last_tdc);}
-                        let array_pos = bytedepth*packet.x() + bytedepth*1024*xspim*line + bytedepth*1024*((xspim as f64 * (ele_time - last_tdc)/0.05) as usize);
+                        //if (ele_time-last_tdc)/(0.2) > 1.0 {println!("{} and {}", ele_time, last_tdc);}
+                        let array_pos = bytedepth*packet.x() + bytedepth*1024*xspim*line;// + bytedepth*1024*((xspim as f64 * (ele_time - last_tdc)/0.1) as usize);
                         Packet::append_to_array(final_data, array_pos, bytedepth);
                     },
                     6 => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
+                        time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
+                        if has_tdc == true {
+                            println!("tdc already true");
+                        }
                         has_tdc = true;
+                        if (time - last_tdc) > 0.11 {
+                            //println!("ele {} last tdc {} new tdc {} and tdc_dif {} and ct {}", ele_time, last_tdc, time, time - last_tdc, count);
+                            println!("tdc_dif: {}; counter: {}, absolute time {} and my counter {}",time - last_tdc, packet.tdc_counter(), time, count);
+                        }
                     },
                     7 => {continue;},
                     4 => {continue;},
@@ -472,6 +485,8 @@ fn connect_and_loop(runmode: RunningMode) {
                         }
                     };
 
+                    println!("First tdc detected at: {}", frame_time);
+
                     let mut spim_data_array:Vec<u8> = vec![0; bytedepth*1024*spimsize*spimsize];
                     spim_data_array.push(10);
                     
@@ -516,7 +531,7 @@ fn connect_and_loop(runmode: RunningMode) {
                                 }
                             }
                         }
-                        if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}", elapsed);}
+                        //if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}", elapsed);}
                     }
                     println!("Number of loops were: {}.", counter);
                     ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
