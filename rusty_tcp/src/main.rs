@@ -13,7 +13,7 @@ enum RunningMode {
 }
 
 struct config {
-    data: [u8; 8],
+    data: [u8; 16],
 }
 
 impl config {
@@ -77,10 +77,16 @@ impl config {
         }
     }
 
-    fn spimsize(&self) -> usize {
-        println!("Spim size is {}", self.data[4]);
+    fn xspim_size(&self) -> usize {
+        println!("X spim size is {}", self.data[4]);
         self.data[4] as usize
     }
+    
+    fn yspim_size(&self) -> usize {
+        println!("Y spim size is {}", self.data[5]);
+        self.data[5] as usize
+    }
+
 }
 
 struct Packet {
@@ -366,7 +372,8 @@ fn connect_and_loop(runmode: RunningMode) {
     let mut bytedepth = 2usize;
     let mut cumul: bool = false;
     let mut is_spim:bool = false;
-    let mut spimsize = 0usize;
+    let mut xspim = 0usize;
+    let mut yspim = 0usize;
 
     let pack_listener = TcpListener::bind("127.0.0.1:8098").unwrap();
     
@@ -383,14 +390,15 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut pack_sock = packet_socket;
             let mut ns_sock = ns_socket;
             
-            let mut cam_settings = [0 as u8; 8];
+            let mut cam_settings = [0 as u8; 16];
             if let Ok(_) = ns_sock.read(&mut cam_settings){
                 let my_config = config{data: cam_settings};
                 bin = my_config.bin();
                 bytedepth = my_config.bytedepth();
                 cumul = my_config.cumul();
                 is_spim = my_config.is_spim();
-                spimsize = my_config.spimsize();
+                xspim = my_config.xspim_size();
+                yspim = my_config.yspim_size();
             };
             
             pack_sock.set_read_timeout(Some(Duration::from_micros(1_000))).unwrap();
@@ -406,6 +414,7 @@ fn connect_and_loop(runmode: RunningMode) {
            
             match is_spim {
                 false => {
+                    
                     let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
                     data_array.push(10);
                     
@@ -429,27 +438,17 @@ fn connect_and_loop(runmode: RunningMode) {
                                     if has_tdc==true {
                                         frame_time = result.2;
                                         counter+=1;
-                                        let msg = create_header(frame_time, counter, bytedepth*1024*(256-255*(bin as usize)), bytedepth<<3, 1024, 256 - 255*(bin as usize), spimsize, spimsize);
-                                        match ns_sock.write(&msg) {
-                                            Ok(_) => {},
-                                            Err(_) => {
-                                                println!("Client {} disconnected on header. Waiting a new one.", ns_addr);
-                                                break 'global;
-                                            },
-                                        }
-                                        match ns_sock.write(&data_array) {
-                                            Ok(_) => {},
-                                            Err(_) => {
-                                                println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
-                                                break 'global;
-                                            },
-                                        }
+                                        let msg = match bin {
+                                            true => create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1, 1, 1),
+                                            false => create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256, 1, 1),
+                                        };
+
+                                        if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global;}
+                                        if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'global;}
+
                                         break;
-                                    }; 
-                                } else {
-                                    println!("Received zero packages");
-                                    break 'global;
-                                }
+                                    }
+                                } else {println!("Received zero packages"); break 'global;}
                             }
                         }
                         if counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);}
@@ -458,6 +457,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
                 },
                 true => {
+
                     let result = loop {
                         if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                             if size>0 {
@@ -475,7 +475,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     last_ci = result.0; 
                     frame_time = result.2;
                     
-                    let mut spim_data_array:Vec<u8> = vec![0; bytedepth*1024*spimsize*spimsize];
+                    let mut spim_data_array:Vec<u8> = vec![0; bytedepth*1024*xspim*yspim];
                     spim_data_array.push(10);
                     
                     'global_spim: loop {
@@ -483,7 +483,7 @@ fn connect_and_loop(runmode: RunningMode) {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    let result = build_spim_data(new_data, &mut spim_data_array, last_ci, bytedepth, counter, frame_time, spimsize, spimsize);
+                                    let result = build_spim_data(new_data, &mut spim_data_array, last_ci, bytedepth, counter, frame_time, xspim, yspim);
                                     last_ci = result.0;
                                     has_tdc = result.1;
                                     
@@ -491,33 +491,19 @@ fn connect_and_loop(runmode: RunningMode) {
                                         counter+=1;
                                         frame_time = result.2;
                                         
-                                        if counter%spimsize==0 {
-                                        let msg = create_header(frame_time, counter, bytedepth*1024*spimsize*spimsize, bytedepth<<3, 1024, 1, spimsize, spimsize);
-                                            match ns_sock.write(&msg) {
-                                                Ok(_) => {},
-                                                Err(_) => {
-                                                    println!("Client {} disconnected on header. Waiting a new one.", ns_addr);
-                                                    break 'global_spim;
-                                                },
-                                            }
-                                            match ns_sock.write(&spim_data_array) {
-                                                Ok(_) => {},
-                                                Err(_) => {
-                                                    println!("Client {} disconnected on data. Waiting a new one.", ns_addr);
-                                                    break 'global_spim;
-                                                },
-                                            }
-                                        }
+                                        if counter%yspim==0 {
+                                        let msg = create_header(frame_time, counter, bytedepth*1024*xspim*yspim, bytedepth<<3, 1024, 1, xspim, yspim);
+                                        
+                                        if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global_spim;}
+                                        if let Err(_) = ns_sock.write(&spim_data_array) {println!("Client disconnected on data."); break 'global_spim;}
 
                                         break;
-                                    }; 
-                                } else {
-                                    println!("Received zero packages");
-                                    break 'global_spim;
-                                }
+                                        }
+                                    }
+                                } else {println!("Received zero packages"); break 'global_spim;}
                             }
                         }
-                        if counter % (spimsize*spimsize) == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);}
+                        if counter % (xspim*yspim) == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);}
                     }
                     println!("Number of loops were: {}.", counter);
                     ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
