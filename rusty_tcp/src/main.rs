@@ -328,7 +328,7 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
                         ele_time = Packet::elec_time(packet.spidr(), packet.toa(), packet.ftoa());
                         let xpos = (xspim as f64 * ((ele_time - last_tdc)/interval)) as usize;
                         let array_pos = bytedepth * (packet.x() + 1024*xspim*line + 1024*xpos);
-                        let array_pos = if array_pos > max_value {array_pos - max_value} else {array_pos};
+                        let array_pos = if array_pos >= max_value {array_pos - max_value} else {array_pos};
                         Packet::append_to_array(final_data, array_pos, bytedepth);
                     },
                     6 if packet.tdc_type() == kind => {
@@ -376,8 +376,6 @@ fn search_next_tdc(data: &[u8], last_ci: u8, kind: u8) -> (u8, bool, f64) {
                     11 => {continue;},
                     6 if packet.tdc_type() == kind => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
-                        let tdc_counter = packet.tdc_counter();
-                        println!("Tdc {} @ {}", tdc_counter, time);
                         has_tdc = true;
                     },
                     7 => {continue;},
@@ -512,7 +510,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 true => {
                     
                     let mut val:[f64; 2] = [0.0, 0.0];
-                    let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
+                    let tdc_type = TdcType::TdcTwoFallingEdge.associate_value();
 
                     for i in 0..2 {
                         let result = loop {
@@ -534,7 +532,8 @@ fn connect_and_loop(runmode: RunningMode) {
                     
                     frame_time = val[1];
                     let interval:f64 = val[1] - val[0];
-                    
+                    println!("{}", interval);
+
                     let mut spim_data_array:Vec<u8> = vec![0; bytedepth*1024*xspim*yspim];
                     spim_data_array.push(10);
                     
@@ -561,7 +560,7 @@ fn connect_and_loop(runmode: RunningMode) {
                                 } else {println!("Received zero packages"); break 'global_spim;}
                             }
                         }
-                        if counter % (xspim*yspim) == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);}
+                        let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);
                     }
                     println!("Number of loops were: {}.", counter);
                     ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
@@ -573,8 +572,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::DebugStem7482;
-        //let myrun = RunningMode::Tp3;
+        //let myrun = RunningMode::DebugStem7482;
+        let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
