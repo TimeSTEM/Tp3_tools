@@ -525,7 +525,7 @@ fn connect_and_loop(runmode: RunningMode) {
                                     if has_tdc == true {
                                         break result;
                                     } 
-                                }
+                                } else {panic!("Could not find the two first tdc to reference");}
                             }
                         };
                         val[i] = result.2;
@@ -551,7 +551,7 @@ fn connect_and_loop(runmode: RunningMode) {
                                         counter+=1;
                                         frame_time = result.2;
                                         
-                                        if counter%yspim==0 {
+                                        if counter%(xspim*yspim)==0 {
                                             let msg = create_header(frame_time, counter, bytedepth*1024*xspim*yspim, bytedepth<<3, 1024, 1, xspim, yspim);
                                             if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global_spim;}
                                             if let Err(_) = ns_sock.write(&spim_data_array) {println!("Client disconnected on data."); break 'global_spim;}
