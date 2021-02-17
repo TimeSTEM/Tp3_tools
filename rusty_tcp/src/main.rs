@@ -372,11 +372,10 @@ fn connect_and_loop(runmode: RunningMode) {
     let xspim;
     let yspim;
 
-    let pack_listener = TcpListener::bind("127.0.0.1:8098").unwrap();
-    
+    let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not connect to packets.");
     let ns_listener = match runmode {
-        RunningMode::DebugStem7482 => TcpListener::bind("127.0.0.1:8088").unwrap(),
-        RunningMode::Tp3 => TcpListener::bind("192.168.199.11:8088").unwrap(),
+        RunningMode::DebugStem7482 => TcpListener::bind("127.0.0.1:8088").expect("Could not connect to NS in debug."),
+        RunningMode::Tp3 => TcpListener::bind("192.168.199.11:8088").expect("Could not connect to NS using TP3."),
     };
 
     if let Ok((packet_socket, packet_addr)) = pack_listener.accept() {
@@ -388,7 +387,6 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut ns_sock = ns_socket;
             
             let mut cam_settings = [0 as u8; 16];
-            //if let Ok(_) = ns_sock.read(&mut cam_settings){
             match ns_sock.read(&mut cam_settings){
                 Ok(_) => {
                     let my_config = Config{data: cam_settings};
@@ -402,8 +400,8 @@ fn connect_and_loop(runmode: RunningMode) {
                 Err(_) => panic!("Could not read cam initial settings."),
             }
             
-            pack_sock.set_read_timeout(Some(Duration::from_micros(1_000))).unwrap();
-            ns_sock.set_read_timeout(Some(Duration::from_micros(100))).unwrap();
+            pack_sock.set_read_timeout(Some(Duration::from_micros(1_000))).expect("Could not set packets socket read timeout.");
+            ns_sock.set_read_timeout(Some(Duration::from_micros(100))).expect("Could not set NS socket read timeout.");
             println!("Received settings is {:?}.", cam_settings);
             
             let start = Instant::now();
@@ -415,9 +413,7 @@ fn connect_and_loop(runmode: RunningMode) {
            
             match is_spim {
                 false => {
-                    
                     assert_eq!(xspim, 1); assert_eq!(yspim, 1);
-
                     let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
                     data_array.push(10);
                     
