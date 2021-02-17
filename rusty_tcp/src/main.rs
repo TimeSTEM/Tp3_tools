@@ -14,6 +14,17 @@ enum TdcType {
     TdcTwoFallingEdge,
 }
 
+impl TdcType {
+    fn associate_value(&self) -> u8 {
+        match *self {
+            TdcType::TdcOneRisingEdge => 15,
+            TdcType::TdcOneFallingEdge => 10,
+            TdcType::TdcTwoRisingEdge => 14,
+            TdcType::TdcTwoFallingEdge => 11,
+        }
+    }
+}
+
 struct Config {
     data: [u8; 16],
 }
@@ -155,13 +166,39 @@ impl Packet {
         ((self.i13 & 240) as u16) >> 4 | (self.i14 as u16) << 4
     }
 
-    fn tdc_type(&self) -> Result<TdcType, &str> {
+    fn tdc_type(&self) -> u8 {
+        self.i15 & 15 
+    }
+
+    fn is_tdc_type_oneris(&self) -> Result<bool, &str> {
         match self.i15 & 15 {
-            15 => Ok(TdcType::TdcOneRisingEdge), //Tdc 1 Rising Edge
-            10 => Ok(TdcType::TdcOneFallingEdge), //Tdc 1 Rising Edge
-            14 => Ok(TdcType::TdcTwoRisingEdge), //Tdc 1 Rising Edge
-            11 => Ok(TdcType::TdcTwoFallingEdge), //Tdc 1 Rising Edge
-            _ => Err("Bad TDC receival.")
+            15 => Ok(true),
+            10 | 14 | 11 => Ok(false),
+            _ => Err("Bad TDC receival"),
+        }
+    }
+    
+    fn is_tdc_type_onefal(&self) -> Result<bool, &str> {
+        match self.i15 & 15 {
+            10 => Ok(true),
+            15 | 14 | 11 => Ok(false),
+            _ => Err("Bad TDC receival"),
+        }
+    }
+    
+    fn is_tdc_type_tworis(&self) -> Result<bool, &str> {
+        match self.i15 & 15 {
+            14 => Ok(true),
+            10 | 15 | 11 => Ok(false),
+            _ => Err("Bad TDC receival"),
+        }
+    }
+
+    fn is_tdc_type_twofal(&self) -> Result<bool, &str> {
+        match self.i15 & 15 {
+            11 => Ok(true),
+            10 | 14 | 15 => Ok(false),
+            _ => Err("Bad TDC receival"),
         }
     }
     
@@ -212,7 +249,7 @@ impl Packet {
 }
 
 
-fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytedepth: usize) -> (u8, bool, f64) {
+fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytedepth: usize, kind: u8) -> (u8, bool, f64) {
     
     let bin = bin;
     let mut packet_chunks = data.chunks_exact(8);
@@ -245,11 +282,9 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytede
                         };
                         Packet::append_to_array(final_data, array_pos, bytedepth);
                     },
-                    6 => {
+                    6 if packet.tdc_type() == kind => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
-                        if has_tdc == true {println!("already tdc")};
                         has_tdc = true;
-
                     },
                     7 => {continue;},
                     4 => {continue;},
@@ -261,7 +296,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytede
     (ci, has_tdc, time)
 }
 
-fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: usize, counter: usize, last_tdc: f64, xspim: usize, yspim: usize, interval: f64) -> (u8, bool, f64) {
+fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: usize, counter: usize, last_tdc: f64, xspim: usize, yspim: usize, interval: f64, kind: u8) -> (u8, bool, f64) {
     
     let line = counter % yspim;
     let max_value = bytedepth*xspim*yspim*1024;
@@ -296,7 +331,7 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
                         let array_pos = if array_pos > max_value {array_pos - max_value} else {array_pos};
                         Packet::append_to_array(final_data, array_pos, bytedepth);
                     },
-                    6 => {
+                    6 if packet.tdc_type() == kind => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
                         time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
                         if has_tdc == true {println!("tdc already true");}
@@ -312,7 +347,7 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
     (ci, has_tdc, time)
 }
 
-fn search_next_tdc(data: &[u8], last_ci: u8, kind: TdcType) -> Result<(u8, bool, f64), &str> {
+fn search_next_tdc(data: &[u8], last_ci: u8, kind: u8) -> (u8, bool, f64) {
     
     let file_data = data;
     let mut packet_chunks = file_data.chunks_exact(8);
@@ -339,18 +374,11 @@ fn search_next_tdc(data: &[u8], last_ci: u8, kind: TdcType) -> Result<(u8, bool,
                 
                 match packet.id() {
                     11 => {continue;},
-                    6 => {
+                    6 if packet.tdc_type() == kind => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
                         let tdc_counter = packet.tdc_counter();
                         println!("Tdc {} @ {}", tdc_counter, time);
                         has_tdc = true;
-                        match packet.tdc_type() {
-                            Ok(TdcType::TdcOneRisingEdge) => {},
-                            Ok(TdcType::TdcOneFallingEdge) => {},
-                            Ok(TdcType::TdcTwoRisingEdge) => {},
-                            Ok(TdcType::TdcTwoFallingEdge) => {},
-                            Err(e) => println!("error"),
-                        };
                     },
                     7 => {continue;},
                     4 => {continue;},
@@ -359,7 +387,7 @@ fn search_next_tdc(data: &[u8], last_ci: u8, kind: TdcType) -> Result<(u8, bool,
             },
         };
     };
-    Ok((ci, has_tdc, time))
+    (ci, has_tdc, time)
 }
 
 fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize, xspim: usize, yspim: usize) -> Vec<u8> {
@@ -439,6 +467,7 @@ fn connect_and_loop(runmode: RunningMode) {
             match is_spim {
                 false => {
                     assert_eq!(xspim, 1); assert_eq!(yspim, 1);
+                    let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
                     let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
                     data_array.push(10);
                     
@@ -455,7 +484,7 @@ fn connect_and_loop(runmode: RunningMode) {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    let result = build_data(new_data, bin, &mut data_array, last_ci, bytedepth);
+                                    let result = build_data(new_data, bin, &mut data_array, last_ci, bytedepth, tdc_type);
                                     last_ci = result.0;
                                     has_tdc = result.1;
                                     
@@ -481,13 +510,16 @@ fn connect_and_loop(runmode: RunningMode) {
                     ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
                 },
                 true => {
+                    
                     let mut val:[f64; 2] = [0.0, 0.0];
+                    let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
+
                     for i in 0..2 {
                         let result = loop {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    let result = search_next_tdc(new_data, last_ci, TdcType::TdcTwoFallingEdge).unwrap();
+                                    let result = search_next_tdc(new_data, last_ci, tdc_type);
                                     let has_tdc = result.1;
 
                                     if has_tdc == true {
@@ -511,7 +543,7 @@ fn connect_and_loop(runmode: RunningMode) {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    let result = build_spim_data(new_data, &mut spim_data_array, last_ci, bytedepth, counter, frame_time, xspim, yspim, interval);
+                                    let result = build_spim_data(new_data, &mut spim_data_array, last_ci, bytedepth, counter, frame_time, xspim, yspim, interval, tdc_type);
                                     last_ci = result.0;
                                     has_tdc = result.1;
                                     
@@ -541,8 +573,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        //let myrun = RunningMode::DebugStem7482;
-        let myrun = RunningMode::Tp3;
+        let myrun = RunningMode::DebugStem7482;
+        //let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
