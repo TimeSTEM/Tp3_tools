@@ -7,6 +7,13 @@ enum RunningMode {
     Tp3,
 }
 
+enum TdcType {
+    TdcOneRisingEdge,
+    TdcOneFallingEdge,
+    TdcTwoRisingEdge,
+    TdcTwoFallingEdge,
+}
+
 struct Config {
     data: [u8; 16],
 }
@@ -148,6 +155,16 @@ impl Packet {
         ((self.i13 & 240) as u16) >> 4 | (self.i14 as u16) << 4
     }
 
+    fn tdc_type(&self) -> Result<TdcType, &str> {
+        match self.i15 & 15 {
+            15 => Ok(TdcType::TdcOneRisingEdge), //Tdc 1 Rising Edge
+            10 => Ok(TdcType::TdcOneFallingEdge), //Tdc 1 Rising Edge
+            14 => Ok(TdcType::TdcTwoRisingEdge), //Tdc 1 Rising Edge
+            11 => Ok(TdcType::TdcTwoFallingEdge), //Tdc 1 Rising Edge
+            _ => Err("Bad TDC receival.")
+        }
+    }
+    
     fn elec_time(spidr: u16, toa: u16, ftoa: u8) -> f64 {
         let ctoa = (toa<<4) | ((!ftoa as u16) & 15);
         ((spidr as f64) * 25.0 * 16384.0 + (ctoa as f64) * 25.0 / 16.0)/1e9
@@ -232,6 +249,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytede
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
                         if has_tdc == true {println!("already tdc")};
                         has_tdc = true;
+
                     },
                     7 => {continue;},
                     4 => {continue;},
@@ -294,7 +312,7 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
     (ci, has_tdc, time)
 }
 
-fn search_next_tdc(data: &[u8], last_ci: u8) -> (u8, bool, f64) {
+fn search_next_tdc(data: &[u8], last_ci: u8, kind: TdcType) -> Result<(u8, bool, f64), &str> {
     
     let file_data = data;
     let mut packet_chunks = file_data.chunks_exact(8);
@@ -326,6 +344,13 @@ fn search_next_tdc(data: &[u8], last_ci: u8) -> (u8, bool, f64) {
                         let tdc_counter = packet.tdc_counter();
                         println!("Tdc {} @ {}", tdc_counter, time);
                         has_tdc = true;
+                        match packet.tdc_type() {
+                            Ok(TdcType::TdcOneRisingEdge) => {},
+                            Ok(TdcType::TdcOneFallingEdge) => {},
+                            Ok(TdcType::TdcTwoRisingEdge) => {},
+                            Ok(TdcType::TdcTwoFallingEdge) => {},
+                            Err(e) => println!("error"),
+                        };
                     },
                     7 => {continue;},
                     4 => {continue;},
@@ -334,7 +359,7 @@ fn search_next_tdc(data: &[u8], last_ci: u8) -> (u8, bool, f64) {
             },
         };
     };
-    (ci, has_tdc, time)
+    Ok((ci, has_tdc, time))
 }
 
 fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize, xspim: usize, yspim: usize) -> Vec<u8> {
@@ -462,7 +487,7 @@ fn connect_and_loop(runmode: RunningMode) {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    let result = search_next_tdc(new_data, last_ci);
+                                    let result = search_next_tdc(new_data, last_ci, TdcType::TdcTwoFallingEdge).unwrap();
                                     let has_tdc = result.1;
 
                                     if has_tdc == true {
