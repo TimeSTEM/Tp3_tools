@@ -316,7 +316,7 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytede
     (ci, has_tdc, time)
 }
 
-fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: usize, counter: usize, last_tdc: f64, xspim: usize, yspim: usize, interval: f64, kind: u8) -> (u8, bool, f64) {
+fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: usize, counter: usize, last_tdc: f64, xspim: usize, yspim: usize, interval: f64, kind: u8) -> (u8, bool, f64, usize) {
     
     let line = counter % yspim;
     let max_value = bytedepth*xspim*yspim*1024;
@@ -324,6 +324,7 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
     let mut has_tdc: bool = false;
     let mut time = 0.0f64;
     let mut ele_time;
+    let mut counter = 0;
 
     let mut ci: u8 = last_ci;
     loop {
@@ -346,16 +347,22 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
                 match packet.id() {
                     11 => {
                         ele_time = Packet::elec_time(packet.spidr(), packet.toa(), packet.ftoa());
-                        let xpos = (xspim as f64 * ((ele_time - last_tdc)/interval)) as usize;
-                        let mut array_pos = bytedepth * (packet.x() + 1024*xspim*line + 1024*xpos);
-                        while array_pos>=max_value {array_pos -= max_value;}
-                        Packet::append_to_array(final_data, array_pos, bytedepth);
+                        if ele_time > last_tdc {
+                            let xpos = (xspim as f64 * ((ele_time - last_tdc)/interval)) as usize;
+                            let mut array_pos = bytedepth * (packet.x() + 1024*xspim*line + 1024*xpos);
+                            while array_pos>=max_value {array_pos -= max_value;}
+                            Packet::append_to_array(final_data, array_pos, bytedepth);
+                        }
                     },
                     6 if packet.tdc_type() == kind => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
                         time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
-                        if has_tdc == true {println!("tdc already true");}
+                        //if ((time-last_tdc)<0.0042) || (time-last_tdc>0.0043) {
+                        //    println!("{} and {} and {} and {} and {}", last_tdc, time, packet.tdc_counter(), time-last_tdc, counter);
+                        //}
+                        if has_tdc==true {println!("has tdc");}
                         has_tdc = true;
+                        counter+=1;
                     },
                     7 => {continue;},
                     4 => {continue;},
@@ -364,7 +371,7 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
             },
         };
     };
-    (ci, has_tdc, time)
+    (ci, has_tdc, time, counter)
 }
 
 fn search_next_tdc(data: &[u8], last_ci: u8, kind: u8) -> (u8, bool, f64) {
@@ -520,7 +527,7 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut last_ci = 0u8;
             let mut frame_time:f64;
             let mut has_tdc:bool;
-            let mut buffer_pack_data: [u8; 64000] = [0; 64000];
+            let mut buffer_pack_data: [u8; 4000] = [0; 4000];
            
             match is_spim {
                 false => {
@@ -592,11 +599,6 @@ fn connect_and_loop(runmode: RunningMode) {
 
                     println!("{:?}", time_array);
 
-
-                    //for val in filtered_array {
-                    //    println!("{}", val);
-                    //}
-
                     let interval:f64 = time_array[1] - time_array[0];
                     frame_time = tdc_vec[1].0;
 
@@ -613,10 +615,10 @@ fn connect_and_loop(runmode: RunningMode) {
                                     has_tdc = result.1;
                                     
                                     if has_tdc==true {
-                                        counter+=1;
                                         frame_time = result.2;
+                                        counter+=result.3;
                                         
-                                        if counter%(xspim*yspim)==0 {
+                                        if counter%(xspim)==0 {
                                             let msg = create_header(frame_time, counter, bytedepth*1024*xspim*yspim, bytedepth<<3, 1024, 1, xspim, yspim);
                                             if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global_spim;}
                                             if let Err(_) = ns_sock.write(&spim_data_array) {println!("Client disconnected on data."); break 'global_spim;}
@@ -629,7 +631,7 @@ fn connect_and_loop(runmode: RunningMode) {
                         let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);
                     }
                     println!("Number of loops were: {}.", counter);
-                    ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
+                    //ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
                 },
             }
         }
