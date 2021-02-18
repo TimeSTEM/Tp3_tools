@@ -266,15 +266,27 @@ impl Packet {
             _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
         }
     }
+
+    fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
+        let val0 = ((index & 4_278_190_080)>>24) as u8;
+        let val1 = ((index & 16_711_680)>>16) as u8;
+        let val2 = ((index & 65_280)>>8) as u8;
+        let val3 = (index & 255) as u8;
+        data.push(val0);
+        data.push(val1);
+        data.push(val2);
+        data.push(val3);
+    }
 }
 
 
-fn build_data(data: &[u8], final_data: &mut [u8], bin: bool, last_ci: u8, bytedepth: usize, kind: u8) -> (u8, bool, f64) {
+fn build_data(data: &[u8], final_data: &mut [u8], bin: bool, last_ci: u8, bytedepth: usize, kind: u8) -> (u8, f64, usize) {
     
     let bin = bin;
     let mut packet_chunks = data.chunks_exact(8);
     let mut has_tdc: bool = false;
     let mut time = 0.0f64;
+    let mut tdc_counter = 0;
 
     let mut ci: u8 = last_ci;
     loop {
@@ -304,7 +316,7 @@ fn build_data(data: &[u8], final_data: &mut [u8], bin: bool, last_ci: u8, bytede
                     },
                     6 if packet.tdc_type() == kind => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
-                        has_tdc = true;
+                        tdc_counter+=1;
                     },
                     7 => {continue;},
                     4 => {continue;},
@@ -313,10 +325,10 @@ fn build_data(data: &[u8], final_data: &mut [u8], bin: bool, last_ci: u8, bytede
             },
         };
     };
-    (ci, has_tdc, time)
+    (ci, time, tdc_counter)
 }
 
-fn build_spim_data(data: &[u8], final_data: &mut [u8], index_data: &mut [u8], last_ci: u8, bytedepth: usize, line_number: usize, last_tdc: f64, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> (u8, f64, usize) {
+fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: usize, line_number: usize, last_tdc: f64, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> (u8, f64, usize, Vec<u8>) {
     
     let line = line_number % yspim;
     let max_value = bytedepth*xspim*yspim*1024;
@@ -324,6 +336,7 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], index_data: &mut [u8], la
     let mut time = 0.0f64;
     let mut ele_time;
     let mut tdc_counter = 0;
+    let mut index_data:Vec<u8> = Vec::new();
 
     let mut ci: u8 = last_ci;
     loop {
@@ -350,6 +363,7 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], index_data: &mut [u8], la
                             let xpos = (xspim as f64 * ((ele_time - last_tdc)/interval)) as usize;
                             let mut array_pos = bytedepth * (packet.x() + 1024*xspim*line + 1024*xpos);
                             while array_pos>=max_value {array_pos -= max_value;}
+                            Packet::append_to_index_array(&mut index_data, array_pos);
                             Packet::append_to_array(final_data, array_pos, bytedepth);
                         }
                     },
@@ -368,7 +382,7 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], index_data: &mut [u8], la
             },
         };
     };
-    (ci, time, tdc_counter)
+    (ci, time, tdc_counter, index_data)
 }
 
 fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>) -> u8 {
@@ -507,10 +521,10 @@ fn connect_and_loop(runmode: RunningMode) {
                                     let new_data = &buffer_pack_data[0..size];
                                     let result = build_data(new_data, &mut data_array, bin, last_ci, bytedepth, tdc_type);
                                     last_ci = result.0;
-                                    has_tdc = result.1;
+                                    counter += result.2;
                                     
-                                    if has_tdc==true {
-                                        frame_time = result.2;
+                                    if result.2>0 {
+                                        frame_time = result.1;
                                         counter+=1;
                                         let msg = match bin {
                                             true => create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1, 1, 1),
@@ -533,9 +547,9 @@ fn connect_and_loop(runmode: RunningMode) {
                 true => {
                     
                     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
-                    let tdc_type = TdcType::TdcTwoFallingEdge.associate_value();
+                    //let tdc_type = TdcType::TdcTwoFallingEdge.associate_value();
+                    let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
                     let ntdc = 2;
-                    let mut index_data_array:Vec<u8> = Vec::new();
                     let mut spim_data_array:Vec<u8> = vec![0; bytedepth*1024*xspim*yspim];
                     spim_data_array.push(10);
 
@@ -567,7 +581,7 @@ fn connect_and_loop(runmode: RunningMode) {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    let result = build_spim_data(new_data, &mut spim_data_array, &mut index_data_array, last_ci, bytedepth, counter, frame_time, xspim, yspim, interval, tdc_type);
+                                    let result = build_spim_data(new_data, &mut spim_data_array, last_ci, bytedepth, counter, frame_time, xspim, yspim, interval, tdc_type);
                                     last_ci = result.0;
                                     counter+=result.2;
                                     
