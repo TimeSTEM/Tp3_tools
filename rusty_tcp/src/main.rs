@@ -347,8 +347,8 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
                     11 => {
                         ele_time = Packet::elec_time(packet.spidr(), packet.toa(), packet.ftoa());
                         let xpos = (xspim as f64 * ((ele_time - last_tdc)/interval)) as usize;
-                        let array_pos = bytedepth * (packet.x() + 1024*xspim*line + 1024*xpos);
-                        let array_pos = if array_pos >= max_value {array_pos - max_value} else {array_pos};
+                        let mut array_pos = bytedepth * (packet.x() + 1024*xspim*line + 1024*xpos);
+                        while array_pos>=max_value {array_pos -= max_value;}
                         Packet::append_to_array(final_data, array_pos, bytedepth);
                     },
                     6 if packet.tdc_type() == kind => {
@@ -570,7 +570,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 true => {
                     
                     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
-                    let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
+                    let tdc_type = TdcType::TdcTwoFallingEdge.associate_value();
                     let ntdc = 2;
 
                     loop {
@@ -578,19 +578,26 @@ fn connect_and_loop(runmode: RunningMode) {
                             if size>0 {
                                 let new_data = &buffer_pack_data[0..size];
                                 last_ci = search_any_tdc(new_data, &mut tdc_vec);
-                                if tdc_vec.len() >= ntdc {
+                                if tdc_vec.iter().filter(|(time, tdct)| tdct.associate_value()==tdc_type).count() >= ntdc {
                                     break;
                                 } 
                             }
                         }
                     };
 
-                    for tup in &tdc_vec {
-                        println!("{}", tup.1.associate_string());
-                    }
+                    let time_array: Vec<_> = tdc_vec.iter()
+                        .filter(|(time, tdct)| tdct.associate_value()==tdc_type)
+                        .map(|(time, tdct)| time)
+                        .collect();
+
+                    println!("{:?}", time_array);
 
 
-                    let interval:f64 = tdc_vec[1].0 - tdc_vec[0].0;
+                    //for val in filtered_array {
+                    //    println!("{}", val);
+                    //}
+
+                    let interval:f64 = time_array[1] - time_array[0];
                     frame_time = tdc_vec[1].0;
 
                     let mut spim_data_array:Vec<u8> = vec![0; bytedepth*1024*xspim*yspim];
