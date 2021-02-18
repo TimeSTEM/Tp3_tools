@@ -23,6 +23,16 @@ impl TdcType {
             TdcType::TdcTwoFallingEdge => 11,
         }
     }
+
+    fn associate_string(&self) -> &str {
+        match *self {
+            TdcType::TdcOneRisingEdge => "One_Rising",
+            TdcType::TdcOneFallingEdge => "One_Falling",
+            TdcType::TdcTwoRisingEdge => "Two_Rising",
+            TdcType::TdcTwoFallingEdge => "Two_Falling",
+        }
+    }
+
 }
 
 struct Config {
@@ -561,18 +571,24 @@ fn connect_and_loop(runmode: RunningMode) {
                     
                     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
                     let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
+                    let ntdc = 2;
 
                     loop {
                         if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                             if size>0 {
                                 let new_data = &buffer_pack_data[0..size];
                                 last_ci = search_any_tdc(new_data, &mut tdc_vec);
-                                if tdc_vec.len() >= 2 {
+                                if tdc_vec.len() >= ntdc {
                                     break;
                                 } 
                             }
                         }
                     };
+
+                    for tup in &tdc_vec {
+                        println!("{}", tup.1.associate_string());
+                    }
+
 
                     let interval:f64 = tdc_vec[1].0 - tdc_vec[0].0;
                     frame_time = tdc_vec[1].0;
@@ -615,8 +631,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::DebugStem7482;
-        //let myrun = RunningMode::Tp3;
+        //let myrun = RunningMode::DebugStem7482;
+        let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
