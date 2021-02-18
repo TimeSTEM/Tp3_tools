@@ -269,7 +269,7 @@ impl Packet {
 }
 
 
-fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytedepth: usize, kind: u8) -> (u8, bool, f64) {
+fn build_data(data: &[u8], final_data: &mut [u8], bin: bool, last_ci: u8, bytedepth: usize, kind: u8) -> (u8, bool, f64) {
     
     let bin = bin;
     let mut packet_chunks = data.chunks_exact(8);
@@ -316,14 +316,14 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytede
     (ci, has_tdc, time)
 }
 
-fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: usize, counter: usize, last_tdc: f64, xspim: usize, yspim: usize, interval: f64, kind: u8) -> (u8, f64, usize) {
+fn build_spim_data(data: &[u8], final_data: &mut [u8], index_data: &mut [u8], last_ci: u8, bytedepth: usize, line_number: usize, last_tdc: f64, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> (u8, f64, usize) {
     
-    let line = counter % yspim;
+    let line = line_number % yspim;
     let max_value = bytedepth*xspim*yspim*1024;
     let mut packet_chunks = data.chunks_exact(8);
     let mut time = 0.0f64;
     let mut ele_time;
-    let mut counter = 0;
+    let mut tdc_counter = 0;
 
     let mut ci: u8 = last_ci;
     loop {
@@ -353,13 +353,13 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
                             Packet::append_to_array(final_data, array_pos, bytedepth);
                         }
                     },
-                    6 if packet.tdc_type() == kind => {
+                    6 if packet.tdc_type() == tdc_kind => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
                         time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
-                        //if ((time-last_tdc)<0.0042) || (time-last_tdc>0.0043) {
-                        //    println!("{} and {} and {} and {} and {}", last_tdc, time, packet.tdc_counter(), time-last_tdc, counter);
-                        //}
-                        counter+=1;
+                        if ( (time-last_tdc) - interval ).abs() < 0.001 {
+                            println!("{} and {} and {} and {} and {}", last_tdc, time, packet.tdc_counter(), time-last_tdc, tdc_counter);
+                        }
+                        tdc_counter+=1;
                     },
                     7 => {continue;},
                     4 => {continue;},
@@ -368,48 +368,7 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
             },
         };
     };
-    (ci, time, counter)
-}
-
-fn search_next_tdc(data: &[u8], last_ci: u8, kind: u8) -> (u8, bool, f64) {
-    
-    let file_data = data;
-    let mut packet_chunks = file_data.chunks_exact(8);
-    let mut has_tdc: bool = false;
-    let mut time = 0.0f64;
-
-    let mut ci: u8 = last_ci;
-    loop {
-        match packet_chunks.next() {
-            None => break,
-            Some(&[84, 80, 88, 51, nci, _, _, _]) => ci = nci,
-            Some(x) => {
-                let packet = Packet {
-                    chip_index: ci,
-                    i08: x[0],
-                    i09: x[1],
-                    i10: x[2],
-                    i11: x[3],
-                    i12: x[4],
-                    i13: x[5],
-                    i14: x[6],
-                    i15: x[7],
-                };
-                
-                match packet.id() {
-                    11 => {continue;},
-                    6 if packet.tdc_type() == kind => {
-                        time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
-                        has_tdc = true;
-                    },
-                    7 => {continue;},
-                    4 => {continue;},
-                    _ => {},
-                };
-            },
-        };
-    };
-    (ci, has_tdc, time)
+    (ci, time, tdc_counter)
 }
 
 fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>) -> u8 {
@@ -546,7 +505,7 @@ fn connect_and_loop(runmode: RunningMode) {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    let result = build_data(new_data, bin, &mut data_array, last_ci, bytedepth, tdc_type);
+                                    let result = build_data(new_data, &mut data_array, bin, last_ci, bytedepth, tdc_type);
                                     last_ci = result.0;
                                     has_tdc = result.1;
                                     
@@ -576,6 +535,9 @@ fn connect_and_loop(runmode: RunningMode) {
                     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
                     let tdc_type = TdcType::TdcTwoFallingEdge.associate_value();
                     let ntdc = 2;
+                    let mut index_data_array:Vec<u8> = Vec::new();
+                    let mut spim_data_array:Vec<u8> = vec![0; bytedepth*1024*xspim*yspim];
+                    spim_data_array.push(10);
 
                     loop {
                         if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -599,15 +561,13 @@ fn connect_and_loop(runmode: RunningMode) {
                     let interval:f64 = time_array[1] - time_array[0];
                     frame_time = tdc_vec[1].0;
 
-                    let mut spim_data_array:Vec<u8> = vec![0; bytedepth*1024*xspim*yspim];
-                    spim_data_array.push(10);
                     
                     'global_spim: loop {
                         loop {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    let result = build_spim_data(new_data, &mut spim_data_array, last_ci, bytedepth, counter, frame_time, xspim, yspim, interval, tdc_type);
+                                    let result = build_spim_data(new_data, &mut spim_data_array, &mut index_data_array, last_ci, bytedepth, counter, frame_time, xspim, yspim, interval, tdc_type);
                                     last_ci = result.0;
                                     counter+=result.2;
                                     
@@ -636,8 +596,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        //let myrun = RunningMode::DebugStem7482;
-        let myrun = RunningMode::Tp3;
+        let myrun = RunningMode::DebugStem7482;
+        //let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
