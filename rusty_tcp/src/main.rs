@@ -316,12 +316,11 @@ fn build_data(data: &[u8], bin: bool, final_data: &mut [u8], last_ci: u8, bytede
     (ci, has_tdc, time)
 }
 
-fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: usize, counter: usize, last_tdc: f64, xspim: usize, yspim: usize, interval: f64, kind: u8) -> (u8, bool, f64, usize) {
+fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: usize, counter: usize, last_tdc: f64, xspim: usize, yspim: usize, interval: f64, kind: u8) -> (u8, f64, usize) {
     
     let line = counter % yspim;
     let max_value = bytedepth*xspim*yspim*1024;
     let mut packet_chunks = data.chunks_exact(8);
-    let mut has_tdc: bool = false;
     let mut time = 0.0f64;
     let mut ele_time;
     let mut counter = 0;
@@ -360,8 +359,6 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
                         //if ((time-last_tdc)<0.0042) || (time-last_tdc>0.0043) {
                         //    println!("{} and {} and {} and {} and {}", last_tdc, time, packet.tdc_counter(), time-last_tdc, counter);
                         //}
-                        if has_tdc==true {println!("has tdc");}
-                        has_tdc = true;
                         counter+=1;
                     },
                     7 => {continue;},
@@ -371,7 +368,7 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
             },
         };
     };
-    (ci, has_tdc, time, counter)
+    (ci, time, counter)
 }
 
 fn search_next_tdc(data: &[u8], last_ci: u8, kind: u8) -> (u8, bool, f64) {
@@ -612,11 +609,10 @@ fn connect_and_loop(runmode: RunningMode) {
                                     let new_data = &buffer_pack_data[0..size];
                                     let result = build_spim_data(new_data, &mut spim_data_array, last_ci, bytedepth, counter, frame_time, xspim, yspim, interval, tdc_type);
                                     last_ci = result.0;
-                                    has_tdc = result.1;
+                                    counter+=result.2;
                                     
-                                    if has_tdc==true {
-                                        frame_time = result.2;
-                                        counter+=result.3;
+                                    if result.2>0 {
+                                        frame_time = result.1;
                                         
                                         if counter%(xspim)==0 {
                                             let msg = create_header(frame_time, counter, bytedepth*1024*xspim*yspim, bytedepth<<3, 1024, 1, xspim, yspim);
