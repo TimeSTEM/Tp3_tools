@@ -267,15 +267,16 @@ impl Packet {
         }
     }
 
-    fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
-        let val0 = ((index & 4_278_190_080)>>24) as u8;
-        let val1 = ((index & 16_711_680)>>16) as u8;
-        let val2 = ((index & 65_280)>>8) as u8;
-        let val3 = (index & 255) as u8;
-        data.push(val0);
-        data.push(val1);
-        data.push(val2);
-        data.push(val3);
+    fn append_to_index_array(data: &mut Vec<u8>, line: usize, column: usize, x: usize) {
+        //let val0 = ((index & 4_278_190_080)>>24) as u8;
+        //let val1 = ((index & 16_711_680)>>16) as u8;
+        //let val2 = ((index & 65_280)>>8) as u8;
+        //let val3 = (index & 255) as u8;
+        //data.push(val0);
+        //data.push(val1);
+        //data.push(val2);
+        //data.push(val3);
+        data.push(10);
     }
 }
 
@@ -363,16 +364,16 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
                             let xpos = (xspim as f64 * ((ele_time - last_tdc)/interval)) as usize;
                             let mut array_pos = bytedepth * (packet.x() + 1024*xspim*line + 1024*xpos);
                             while array_pos>=max_value {array_pos -= max_value;}
-                            Packet::append_to_index_array(&mut index_data, array_pos);
+                            //Packet::append_to_index_array(&mut index_data, line, xpos, packet.x());
                             Packet::append_to_array(final_data, array_pos, bytedepth);
                         }
                     },
                     6 if packet.tdc_type() == tdc_kind => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
                         time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
-                        if ( (time-last_tdc) - interval ).abs() < 0.001 {
-                            println!("{} and {} and {} and {} and {}", last_tdc, time, packet.tdc_counter(), time-last_tdc, tdc_counter);
-                        }
+                        //if ( (time-last_tdc) - interval ).abs() < 0.001 {
+                       //     println!("{} and {} and {} and {} and {}", last_tdc, time, packet.tdc_counter(), time-last_tdc, tdc_counter);
+                        //}
                         tdc_counter+=1;
                     },
                     7 => {continue;},
@@ -447,9 +448,15 @@ fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, wid
     s
 }
 
-fn compress(data: &[u8]) {
-    let mut iter = data.iter();
+fn create_spim_header(line: u8, column: u8) -> Vec<u8> {
+    let mut msg: String = String::from("{\"linePosition\":");
+    msg.push_str(&(line.to_string()));
+    msg.push_str(",\"colPosition\":");
+    msg.push_str(&(column.to_string()));
+    let s: Vec<u8> = msg.into_bytes();
+    s
 }
+
 
 fn connect_and_loop(runmode: RunningMode) {
 
@@ -575,7 +582,6 @@ fn connect_and_loop(runmode: RunningMode) {
                     let interval:f64 = time_array[1] - time_array[0];
                     frame_time = tdc_vec[1].0;
 
-                    
                     'global_spim: loop {
                         loop {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -584,6 +590,7 @@ fn connect_and_loop(runmode: RunningMode) {
                                     let result = build_spim_data(new_data, &mut spim_data_array, last_ci, bytedepth, counter, frame_time, xspim, yspim, interval, tdc_type);
                                     last_ci = result.0;
                                     counter+=result.2;
+                                    //if let Err(_) = ns_sock.write(&result.3) {println!("Client disconnected on data."); break 'global_spim;}
                                     
                                     if result.2>0 {
                                         frame_time = result.1;
