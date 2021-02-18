@@ -398,14 +398,12 @@ fn search_next_tdc(data: &[u8], last_ci: u8, kind: u8) -> (u8, bool, f64) {
     (ci, has_tdc, time)
 }
 
-fn search_any_tdc(data: &[u8], last_ci: u8) -> (u8) {
+fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>) -> u8 {
     
     let file_data = data;
     let mut packet_chunks = file_data.chunks_exact(8);
-    let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
+    let mut ci: u8 = 0;
 
-
-    let mut ci: u8 = last_ci;
     loop {
         match packet_chunks.next() {
             None => break,
@@ -427,6 +425,8 @@ fn search_any_tdc(data: &[u8], last_ci: u8) -> (u8) {
                     11 => {continue;},
                     6 => {
                         let time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
+                        let tdc = packet.tdc_type_as_enum().unwrap();
+                        tdc_vec.push( (time, tdc) );
                     },
                     7 => {continue;},
                     4 => {continue;},
@@ -435,7 +435,7 @@ fn search_any_tdc(data: &[u8], last_ci: u8) -> (u8) {
             },
         };
     };
-    (ci)
+    ci
 }
                     
 fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize, xspim: usize, yspim: usize) -> Vec<u8> {
@@ -559,30 +559,23 @@ fn connect_and_loop(runmode: RunningMode) {
                 },
                 true => {
                     
-                    let mut val:[f64; 2] = [0.0, 0.0];
-                    let tdc_type = TdcType::TdcTwoFallingEdge.associate_value();
+                    let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
+                    let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
 
-                    for i in 0..2 {
-                        let result = loop {
-                            if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                                if size>0 {
-                                    let new_data = &buffer_pack_data[0..size];
-                                    let result = search_next_tdc(new_data, last_ci, tdc_type);
-                                    let has_tdc = result.1;
-
-                                    if has_tdc == true {
-                                        break result;
-                                    } 
-                                } else {panic!("Could not find the two first tdc to reference");}
+                    loop {
+                        if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                            if size>0 {
+                                let new_data = &buffer_pack_data[0..size];
+                                last_ci = search_any_tdc(new_data, &mut tdc_vec);
+                                if tdc_vec.len() >= 2 {
+                                    break;
+                                } 
                             }
-                        };
-                        val[i] = result.2;
-                        last_ci = result.0;
-                    }
-                    
-                    frame_time = val[1];
-                    let interval:f64 = val[1] - val[0];
-                    println!("{}", interval);
+                        }
+                    };
+
+                    let interval:f64 = tdc_vec[1].0 - tdc_vec[0].0;
+                    frame_time = tdc_vec[1].0;
 
                     let mut spim_data_array:Vec<u8> = vec![0; bytedepth*1024*xspim*yspim];
                     spim_data_array.push(10);
