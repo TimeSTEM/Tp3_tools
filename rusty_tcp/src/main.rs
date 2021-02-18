@@ -169,6 +169,16 @@ impl Packet {
     fn tdc_type(&self) -> u8 {
         self.i15 & 15 
     }
+    
+    fn tdc_type_as_enum(&self) -> Result<TdcType, &str> {
+        match self.i15 & 15 {
+            15 => Ok(TdcType::TdcOneRisingEdge),
+            10 => Ok(TdcType::TdcOneFallingEdge),
+            14 => Ok(TdcType::TdcTwoRisingEdge),
+            11 => Ok(TdcType::TdcTwoFallingEdge),
+            _ => Err("Bad TDC receival"),
+        }
+    }
 
     fn is_tdc_type_oneris(&self) -> Result<bool, &str> {
         match self.i15 & 15 {
@@ -388,6 +398,46 @@ fn search_next_tdc(data: &[u8], last_ci: u8, kind: u8) -> (u8, bool, f64) {
     (ci, has_tdc, time)
 }
 
+fn search_any_tdc(data: &[u8], last_ci: u8) -> (u8) {
+    
+    let file_data = data;
+    let mut packet_chunks = file_data.chunks_exact(8);
+    let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
+
+
+    let mut ci: u8 = last_ci;
+    loop {
+        match packet_chunks.next() {
+            None => break,
+            Some(&[84, 80, 88, 51, nci, _, _, _]) => ci = nci,
+            Some(x) => {
+                let packet = Packet {
+                    chip_index: ci,
+                    i08: x[0],
+                    i09: x[1],
+                    i10: x[2],
+                    i11: x[3],
+                    i12: x[4],
+                    i13: x[5],
+                    i14: x[6],
+                    i15: x[7],
+                };
+                
+                match packet.id() {
+                    11 => {continue;},
+                    6 => {
+                        let time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
+                    },
+                    7 => {continue;},
+                    4 => {continue;},
+                    _ => {},
+                };
+            },
+        };
+    };
+    (ci)
+}
+                    
 fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize, xspim: usize, yspim: usize) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(time.to_string()));
@@ -572,8 +622,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        //let myrun = RunningMode::DebugStem7482;
-        let myrun = RunningMode::Tp3;
+        let myrun = RunningMode::DebugStem7482;
+        //let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
