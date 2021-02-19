@@ -329,7 +329,7 @@ fn build_data(data: &[u8], final_data: &mut [u8], bin: bool, last_ci: u8, bytede
     (ci, time, tdc_counter)
 }
 
-fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: usize, line_number: usize, last_tdc: f64, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> (u8, f64, usize, Vec<u8>) {
+fn build_spim_data(data: &[u8], last_ci: u8, bytedepth: usize, line_number: usize, last_tdc: f64, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> (u8, f64, usize, Vec<u8>) {
     
     let line = line_number % yspim;
     let max_value = xspim*yspim*1024;
@@ -365,7 +365,6 @@ fn build_spim_data(data: &[u8], final_data: &mut [u8], last_ci: u8, bytedepth: u
                             let mut array_pos = (packet.x() + 1024*xspim*line + 1024*xpos);
                             while array_pos>=max_value {array_pos -= max_value;}
                             Packet::append_to_index_array(&mut index_data, array_pos);
-                            Packet::append_to_array(final_data, array_pos, bytedepth);
                         }
                     },
                     6 if packet.tdc_type() == tdc_kind => {
@@ -545,12 +544,9 @@ fn connect_and_loop(runmode: RunningMode) {
                     ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
                 },
                 true => {
-                    
                     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
                     let tdc_type = TdcType::TdcTwoFallingEdge.associate_value();
                     let ntdc = 2;
-                    let mut spim_data_array:Vec<u8> = vec![0; bytedepth*1024*xspim*yspim];
-                    spim_data_array.push(10);
 
                     loop {
                         if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -569,8 +565,6 @@ fn connect_and_loop(runmode: RunningMode) {
                         .map(|(time, tdct)| time)
                         .collect();
 
-                    println!("{:?}", time_array);
-
                     let interval:f64 = time_array[1] - time_array[0];
                     frame_time = tdc_vec[1].0;
 
@@ -579,29 +573,18 @@ fn connect_and_loop(runmode: RunningMode) {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    let result = build_spim_data(new_data, &mut spim_data_array, last_ci, bytedepth, counter, frame_time, xspim, yspim, interval, tdc_type);
+                                    let result = build_spim_data(new_data, last_ci, bytedepth, counter, frame_time, xspim, yspim, interval, tdc_type);
                                     last_ci = result.0;
                                     counter+=result.2;
                                     if let Err(_) = ns_sock.write(&result.3) {println!("Client disconnected on data."); break 'global_spim;}
-                                    
-                                    if result.2>0 {
-                                        frame_time = result.1;
-                                        
-                                        /*if counter%(xspim)==0 {
-                                            let msg = create_header(frame_time, counter, bytedepth*1024*xspim*yspim, bytedepth<<3, 1024, 1);
-                                            if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global_spim;}
-                                            if let Err(_) = ns_sock.write(&spim_data_array) {println!("Client disconnected on data."); break 'global_spim;}
-                                            break;
-                                        }
-                                        */
-                                    }
+                                    if result.2>0 {frame_time = result.1;}
                                 } else {println!("Received zero packages"); break 'global_spim;}
                             }
                         }
                         let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);
                     }
                     println!("Number of loops were: {}.", counter);
-                    //ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
+                    ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
                 },
             }
         }
