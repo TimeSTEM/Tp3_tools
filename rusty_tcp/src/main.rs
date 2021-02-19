@@ -310,8 +310,8 @@ fn build_data(data: &[u8], final_data: &mut [u8], bin: bool, last_ci: u8, bytede
                 match packet.id() {
                     11 => {
                         let array_pos = match bin {
-                            false => bytedepth*packet.x() + bytedepth*1024*packet.y(),
-                            true => bytedepth*packet.x()
+                            false => packet.x() + 1024*packet.y(),
+                            true => packet.x()
                         };
                         Packet::append_to_array(final_data, array_pos, bytedepth);
                     },
@@ -426,7 +426,7 @@ fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>) -> u8 {
     ci
 }
                     
-fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize, xspim: usize, yspim: usize) -> Vec<u8> {
+fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(time.to_string()));
     msg.push_str(",\"frameNumber\":");
@@ -439,10 +439,6 @@ fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, wid
     msg.push_str(&(width.to_string()));
     msg.push_str(",\"height\":");
     msg.push_str(&(height.to_string()));
-    msg.push_str(",\"xspim\":");
-    msg.push_str(&(xspim.to_string()));
-    msg.push_str(",\"yspim\":");
-    msg.push_str(&(yspim.to_string()));
     msg.push_str("}\n");
     let s: Vec<u8> = msg.into_bytes();
     s
@@ -532,15 +528,12 @@ fn connect_and_loop(runmode: RunningMode) {
                                     
                                     if result.2>0 {
                                         frame_time = result.1;
-                                        counter+=1;
                                         let msg = match bin {
-                                            true => create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1, 1, 1),
-                                            false => create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256, 1, 1),
+                                            true => create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1),
+                                            false => create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256),
                                         };
-
                                         if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global;}
                                         if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'global;}
-
                                         break;
                                     }
                                 } else {println!("Received zero packages"); break 'global;}
@@ -554,8 +547,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 true => {
                     
                     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
-                    //let tdc_type = TdcType::TdcTwoFallingEdge.associate_value();
-                    let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
+                    let tdc_type = TdcType::TdcTwoFallingEdge.associate_value();
                     let ntdc = 2;
                     let mut spim_data_array:Vec<u8> = vec![0; bytedepth*1024*xspim*yspim];
                     spim_data_array.push(10);
@@ -596,7 +588,7 @@ fn connect_and_loop(runmode: RunningMode) {
                                         frame_time = result.1;
                                         
                                         /*if counter%(xspim)==0 {
-                                            let msg = create_header(frame_time, counter, bytedepth*1024*xspim*yspim, bytedepth<<3, 1024, 1, xspim, yspim);
+                                            let msg = create_header(frame_time, counter, bytedepth*1024*xspim*yspim, bytedepth<<3, 1024, 1);
                                             if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global_spim;}
                                             if let Err(_) = ns_sock.write(&spim_data_array) {println!("Client disconnected on data."); break 'global_spim;}
                                             break;
@@ -618,8 +610,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::DebugStem7482;
-        //let myrun = RunningMode::Tp3;
+        //let myrun = RunningMode::DebugStem7482;
+        let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
