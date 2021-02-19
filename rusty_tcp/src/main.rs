@@ -101,13 +101,11 @@ impl Config {
     }
 
     fn xspim_size(&self) -> usize {
-        println!("X spim size is {}", self.data[4]);
-        self.data[4] as usize
+        (self.data[4] as usize)<<8 | (self.data[5] as usize)
     }
     
     fn yspim_size(&self) -> usize {
-        println!("Y spim size is {}", self.data[5]);
-        self.data[5] as usize
+        (self.data[6] as usize)<<8 | (self.data[7] as usize)
     }
 
 }
@@ -223,8 +221,8 @@ impl Packet {
     }
     
     fn elec_time(spidr: u16, toa: u16, ftoa: u8) -> f64 {
-        let ctoa = (toa<<4) | ((!ftoa as u16) & 15);
-        ((spidr as f64) * 25.0 * 16384.0 + (ctoa as f64) * 25.0 / 16.0)/1e9
+        let ctoa = (toa<<4) | (!(ftoa as u16) & 15);
+        ((spidr as f64) * 25.0 * 16384.0 + (ctoa as f64) * 25.0 / 16.0) / 1e9
     }
 
     fn tdc_time(coarse: u64, fine: u8) -> f64 {
@@ -360,19 +358,20 @@ fn build_spim_data(data: &[u8], last_ci: u8, bytedepth: usize, line_number: usiz
                 match packet.id() {
                     11 => {
                         ele_time = Packet::elec_time(packet.spidr(), packet.toa(), packet.ftoa());
-                        if ele_time > last_tdc {
-                            let xpos = (xspim as f64 * ((ele_time - last_tdc)/interval)) as usize;
-                            let mut array_pos = (packet.x() + 1024*xspim*line + 1024*xpos);
-                            while array_pos>=max_value {array_pos -= max_value;}
+                        let xpos = (xspim as f64 * ((ele_time - last_tdc)/interval)) as usize;
+                        let mut array_pos = (packet.x() + 1024*xspim*line + 1024*xpos);
+                        //while array_pos>=max_value {
+                        //    array_pos -= max_value;
+                        //}
+                        //Packet::append_to_index_array(&mut index_data, array_pos);
+                        if array_pos<max_value && ele_time>last_tdc && tdc_counter == 0 {
+                            //println!("{} and {} and {} and {}", ele_time, last_tdc, interval, xpos);
                             Packet::append_to_index_array(&mut index_data, array_pos);
                         }
                     },
                     6 if packet.tdc_type() == tdc_kind => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
                         time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
-                        //if ( (time-last_tdc) - interval ).abs() < 0.001 {
-                       //     println!("{} and {} and {} and {} and {}", last_tdc, time, packet.tdc_counter(), time-last_tdc, tdc_counter);
-                        //}
                         tdc_counter+=1;
                     },
                     7 => {continue;},
@@ -499,7 +498,7 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut last_ci = 0u8;
             let mut frame_time:f64;
             let mut has_tdc:bool;
-            let mut buffer_pack_data: [u8; 4000] = [0; 4000];
+            let mut buffer_pack_data: [u8; 2000] = [0; 2000];
            
             match is_spim {
                 false => {
@@ -545,8 +544,9 @@ fn connect_and_loop(runmode: RunningMode) {
                 },
                 true => {
                     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
-                    let tdc_type = TdcType::TdcTwoFallingEdge.associate_value();
-                    let ntdc = 2;
+                    let tdc_type = TdcType::TdcOneFallingEdge.associate_value();
+                    let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
+                    let ntdc = 3;
 
                     loop {
                         if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -564,8 +564,15 @@ fn connect_and_loop(runmode: RunningMode) {
                         .filter(|(time, tdct)| tdct.associate_value()==tdc_type)
                         .map(|(time, tdct)| time)
                         .collect();
+                    
+                    let dead_time_array: Vec<_> = tdc_vec.iter()
+                        .filter(|(time, tdct)| tdct.associate_value()==stop_tdc_type)
+                        .map(|(time, tdct)| time)
+                        .collect();
 
-                    let interval:f64 = time_array[1] - time_array[0];
+                    let dead_time:f64 = (dead_time_array[1] - time_array[1]).abs();
+                    let interval:f64 = (time_array[2] - time_array[1]) - dead_time;
+                    println!("Interval time (us) is {:?}. Measure dead time (us) is {:?}", interval*1.0e6, dead_time*1.0e6);
                     frame_time = tdc_vec[1].0;
 
                     'global_spim: loop {
@@ -584,7 +591,7 @@ fn connect_and_loop(runmode: RunningMode) {
                         let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);
                     }
                     println!("Number of loops were: {}.", counter);
-                    ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
+                    //ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
                 },
             }
         }
