@@ -154,8 +154,8 @@ impl Packet {
         self.i10 & 15
     }
 
-    fn tot(&self) -> u8 {
-        (self.i10 & 240)>>4 | (self.i11 & 63)<<4
+    fn tot(&self) -> u16 {
+        ((self.i10 & 240) as u16)>>4 | ((self.i11 & 63) as u16)<<4
     }
 
     fn toa(&self) -> u16 {
@@ -364,8 +364,8 @@ fn build_spim_data(data: &[u8], last_ci: u8, bytedepth: usize, line_number: usiz
                         //    array_pos -= max_value;
                         //}
                         //Packet::append_to_index_array(&mut index_data, array_pos);
-                        if array_pos<max_value && ele_time>last_tdc && tdc_counter == 0 {
-                            //println!("{} and {} and {} and {}", ele_time, last_tdc, interval, xpos);
+                        if array_pos<max_value{
+                            //println!("{} and {} and {} and {} and {} and {}", ele_time, last_tdc, xpos, line_number, line);
                             Packet::append_to_index_array(&mut index_data, array_pos);
                         }
                     },
@@ -498,7 +498,7 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut last_ci = 0u8;
             let mut frame_time:f64;
             let mut has_tdc:bool;
-            let mut buffer_pack_data: [u8; 2000] = [0; 2000];
+            let mut buffer_pack_data: [u8; 200] = [0; 200];
            
             match is_spim {
                 false => {
@@ -546,7 +546,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
                     let tdc_type = TdcType::TdcOneFallingEdge.associate_value();
                     let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
-                    let ntdc = 3;
+                    let ntdc = 10;
 
                     loop {
                         if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -573,6 +573,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     let dead_time:f64 = (dead_time_array[1] - time_array[1]).abs();
                     let interval:f64 = (time_array[2] - time_array[1]) - dead_time;
                     println!("Interval time (us) is {:?}. Measure dead time (us) is {:?}", interval*1.0e6, dead_time*1.0e6);
+                    println!("Interval time (us) is {:?}. Measure dead time (us) is {:?}", time_array, dead_time_array);
                     frame_time = tdc_vec[1].0;
 
                     'global_spim: loop {
