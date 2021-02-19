@@ -43,7 +43,7 @@ def create_tdc(Tdif, trigger='tdc1Ris'):
 Set Script Parameters Here
 """
 
-FOLDER = 'tdc_data_100ms'
+FOLDER = '128_4_spim'
 CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
 HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 PORT = 8098 #Pick a port to connect your socket
@@ -90,6 +90,7 @@ while isRunning:
             if os.path.isfile(now_file):
                 now_data += open_and_read(now_file, loop)
             else:
+                print('Resetting. Current loop is', loop)
                 loop = 0
 
             try:

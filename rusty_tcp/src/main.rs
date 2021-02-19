@@ -220,8 +220,12 @@ impl Packet {
         }
     }
     
+    fn ctoa(toa: u16, ftoa: u8) -> u32 {
+        ((toa as u32) << 4) | (!(ftoa as u32) & 15)
+    }
+
     fn elec_time(spidr: u16, toa: u16, ftoa: u8) -> f64 {
-        let ctoa = (toa<<4) | (!(ftoa as u16) & 15);
+        let ctoa = ((toa as u32 )<<4) | (!(ftoa as u32) & 15);
         ((spidr as f64) * 25.0 * 16384.0 + (ctoa as f64) * 25.0 / 16.0) / 1e9
     }
 
@@ -544,44 +548,47 @@ fn connect_and_loop(runmode: RunningMode) {
                 },
                 true => {
                     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
-                    let tdc_type = TdcType::TdcOneFallingEdge.associate_value();
+                    let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
                     let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
-                    let ntdc = 10;
+                    let ntdc = 3;
 
                     loop {
                         if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                             if size>0 {
                                 let new_data = &buffer_pack_data[0..size];
                                 last_ci = search_any_tdc(new_data, &mut tdc_vec);
-                                if tdc_vec.iter().filter(|(time, tdct)| tdct.associate_value()==tdc_type).count() >= ntdc {
+                                if tdc_vec.iter().filter(|(time, tdct)| tdct.associate_value()==start_tdc_type).count() >= ntdc {
                                     break;
                                 } 
                             }
                         }
                     };
 
-                    let time_array: Vec<_> = tdc_vec.iter()
-                        .filter(|(time, tdct)| tdct.associate_value()==tdc_type)
+                    let start_array: Vec<_> = tdc_vec.iter()
+                        .filter(|(time, tdct)| tdct.associate_value()==start_tdc_type)
                         .map(|(time, tdct)| time)
                         .collect();
                     
-                    let dead_time_array: Vec<_> = tdc_vec.iter()
+                    frame_time = *tdc_vec.iter()
+                        .filter(|(time, tdct)| tdct.associate_value()==start_tdc_type)
+                        .map(|(time, tdct)| time)
+                        .last().unwrap();
+                    
+                    let end_array: Vec<_> = tdc_vec.iter()
                         .filter(|(time, tdct)| tdct.associate_value()==stop_tdc_type)
                         .map(|(time, tdct)| time)
                         .collect();
 
-                    let dead_time:f64 = (dead_time_array[1] - time_array[1]).abs();
-                    let interval:f64 = (time_array[2] - time_array[1]) - dead_time;
-                    println!("Interval time (us) is {:?}. Measure dead time (us) is {:?}", interval*1.0e6, dead_time*1.0e6);
-                    println!("Interval time (us) is {:?}. Measure dead time (us) is {:?}", time_array, dead_time_array);
-                    frame_time = tdc_vec[1].0;
+                    let dead_time:f64 = if (start_array[0] - end_array[0])>0.0 {start_array[0] - end_array[0]} else {start_array[1] - end_array[0]};
+                    let interval:f64 = (start_array[2] - start_array[1]) - dead_time;
+                    println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}", interval*1.0e6, dead_time*1.0e6);
 
                     'global_spim: loop {
                         loop {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    let result = build_spim_data(new_data, last_ci, bytedepth, counter, frame_time, xspim, yspim, interval, tdc_type);
+                                    let result = build_spim_data(new_data, last_ci, bytedepth, counter, frame_time, xspim, yspim, interval, start_tdc_type);
                                     last_ci = result.0;
                                     counter+=result.2;
                                     if let Err(_) = ns_sock.write(&result.3) {println!("Client disconnected on data."); break 'global_spim;}
@@ -601,8 +608,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        //let myrun = RunningMode::DebugStem7482;
-        let myrun = RunningMode::Tp3;
+        let myrun = RunningMode::DebugStem7482;
+        //let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }

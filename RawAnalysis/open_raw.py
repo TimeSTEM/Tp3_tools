@@ -8,8 +8,8 @@ globalTL = list() #Global Time
 tdc1RL = list() #Rising Edge tdc1 Time
 tdc1RL_dif = list() #Difference in tdc1 Time
 
-datas = [r"FromTP3\tdc_check_000"+format(i, '.0f').zfill(3)+r".tpx3" for i in range(4)]
-#datas = ["temp.tpx3"]
+#datas = [r"FromTP3\tdc_check_000"+format(i, '.0f').zfill(3)+r".tpx3" for i in range(4)]
+datas = ["temp.tpx3"]
 
 i = [0, 0] #Counter. First index is electron event and second is tdc event.
 final_tdc = 0 #Last tdc time received
@@ -53,6 +53,8 @@ for data in datas:
                     spidr = ((byte[6] & 255)<<8) + ((byte[7] & 255))
                     ctoa = toa<<4 | ~ftoa & 15
                     
+
+
                     spidrT = spidr * 25.0 * 16384.0
                     toa_ns = toa * 25.0
                     tot_ns = tot * 25.0
@@ -74,6 +76,7 @@ for data in datas:
                     xL.append(x)
                     yL.append(y)
                     globalTL.append(global_time/1e9)
+
                 
                 elif id==6: #6 = 0xb. This is a tdc event.
                     i[1]+=1 #Increment tdc event.
@@ -91,7 +94,7 @@ for data in datas:
                     
                     triggerType = byte[0] & 15 #15 = 1111. Get trigger Type.
                     if triggerType==15: tdc1RL.append(tdcT)
-                    elif triggerType==10: print('tdc1Fal')
+                    elif triggerType==10: pass #print('tdc1Fal')
                     elif triggerType==14: print('tdc2Ris')
                     elif triggerType==11: print('tdc2Fal')
             index+=8 #Goes back to next header
