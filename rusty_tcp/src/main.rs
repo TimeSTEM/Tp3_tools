@@ -48,7 +48,7 @@ fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: 
     tdc_counter
 }
 
-fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc: &mut f64, bytedepth: usize, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> Vec<u8> {
+fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc: &mut f64, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> Vec<u8> {
     
     let line = *counter % yspim;
     let now_last_tdc:f64 = *last_tdc;
@@ -77,7 +77,7 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc:
                     11 => {
                         let ele_time = packet.electron_time();
                         let xpos = (xspim as f64 * ((ele_time - now_last_tdc)/interval)) as usize;
-                        let mut array_pos = (packet.x() + 1024*xspim*line + 1024*xpos);
+                        let mut array_pos = packet.x() + 1024*xspim*line + 1024*xpos;
                         while array_pos>=max_value {
                             array_pos -= max_value;
                         }
@@ -156,16 +156,6 @@ fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, wid
     s
 }
 
-fn create_spim_header(line: u8, column: u8) -> Vec<u8> {
-    let mut msg: String = String::from("{\"linePosition\":");
-    msg.push_str(&(line.to_string()));
-    msg.push_str(",\"colPosition\":");
-    msg.push_str(&(column.to_string()));
-    let s: Vec<u8> = msg.into_bytes();
-    s
-}
-
-
 fn connect_and_loop(runmode: RunningMode) {
 
     let bin: bool;
@@ -211,7 +201,6 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut counter = 0usize;
             let mut last_ci = 0u8;
             let mut frame_time = 0.0f64;
-            let mut has_tdc:bool;
             let mut buffer_pack_data: [u8; 200] = [0; 200];
            
             match is_spim {
@@ -263,7 +252,7 @@ fn connect_and_loop(runmode: RunningMode) {
                             if size>0 {
                                 let new_data = &buffer_pack_data[0..size];
                                 search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
-                                if tdc_vec.iter().filter(|(time, tdct)| tdct.associate_value()==start_tdc_type).count() >= ntdc {
+                                if tdc_vec.iter().filter(|(_time, tdct)| tdct.associate_value()==start_tdc_type).count() >= ntdc {
                                     break;
                                 } 
                             }
@@ -271,18 +260,18 @@ fn connect_and_loop(runmode: RunningMode) {
                     };
 
                     let start_array: Vec<_> = tdc_vec.iter()
-                        .filter(|(time, tdct)| tdct.associate_value()==start_tdc_type)
-                        .map(|(time, tdct)| time)
+                        .filter(|(_time, tdct)| tdct.associate_value()==start_tdc_type)
+                        .map(|(time, _tdct)| time)
                         .collect();
                     
                     frame_time = *tdc_vec.iter()
-                        .filter(|(time, tdct)| tdct.associate_value()==start_tdc_type)
-                        .map(|(time, tdct)| time)
+                        .filter(|(_time, tdct)| tdct.associate_value()==start_tdc_type)
+                        .map(|(time, _tdct)| time)
                         .last().unwrap();
                     
                     let end_array: Vec<_> = tdc_vec.iter()
-                        .filter(|(time, tdct)| tdct.associate_value()==stop_tdc_type)
-                        .map(|(time, tdct)| time)
+                        .filter(|(_time, tdct)| tdct.associate_value()==stop_tdc_type)
+                        .map(|(time, _tdct)| time)
                         .collect();
 
                     let dead_time:f64 = if (start_array[0] - end_array[0])>0.0 {start_array[0] - end_array[0]} else {start_array[1] - end_array[0]};
@@ -293,7 +282,7 @@ fn connect_and_loop(runmode: RunningMode) {
                         if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                             if size>0 {
                                 let new_data = &buffer_pack_data[0..size];
-                                let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, bytedepth, xspim, yspim, interval, start_tdc_type);
+                                let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, xspim, yspim, interval, start_tdc_type);
                                 if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
                             } else {println!("Received zero packages"); break 'global_spim;}
                         }
