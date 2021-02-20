@@ -283,22 +283,20 @@ impl Packet {
     }
 
 
-    fn build_data(data: &[u8], final_data: &mut [u8], bin: bool, last_ci: u8, bytedepth: usize, kind: u8) -> (u8, f64, usize) {
+    fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> usize {
 
     let bin = bin;
     let mut packet_chunks = data.chunks_exact(8);
     let mut has_tdc: bool = false;
-    let mut time = 0.0f64;
     let mut tdc_counter = 0;
 
-    let mut ci: u8 = last_ci;
     loop {
         match packet_chunks.next() {
             None => break,
-            Some(&[84, 80, 88, 51, nci, _, _, _]) => ci = nci,
+            Some(&[84, 80, 88, 51, nci, _, _, _]) => *last_ci = nci,
             Some(x) => {
                 let packet = Packet {
-                    chip_index: ci,
+                    chip_index: *last_ci,
                     i08: x[0],
                     i09: x[1],
                     i10: x[2],
@@ -318,7 +316,8 @@ impl Packet {
                         Packet::append_to_array(final_data, array_pos, bytedepth);
                     },
                     6 if packet.tdc_type() == kind => {
-                        time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
+                        let time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
+                        *frame_time = time;
                         tdc_counter+=1;
                     },
                     7 => {continue;},
@@ -328,7 +327,7 @@ impl Packet {
             },
         };
     };
-    (ci, time, tdc_counter)
+    tdc_counter
 }
 
 fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc: &mut f64, bytedepth: usize, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> Vec<u8> {
@@ -495,7 +494,7 @@ fn connect_and_loop(runmode: RunningMode) {
             let start = Instant::now();
             let mut counter = 0usize;
             let mut last_ci = 0u8;
-            let mut frame_time:f64;
+            let mut frame_time = 0.0f64;
             let mut has_tdc:bool;
             let mut buffer_pack_data: [u8; 200] = [0; 200];
            
@@ -519,12 +518,10 @@ fn connect_and_loop(runmode: RunningMode) {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    let result = build_data(new_data, &mut data_array, bin, last_ci, bytedepth, tdc_type);
-                                    last_ci = result.0;
-                                    counter += result.2;
+                                    let result = build_data(new_data, &mut data_array, &mut last_ci, &mut frame_time, bin, bytedepth, tdc_type);
+                                    counter += result;
                                     
-                                    if result.2>0 {
-                                        frame_time = result.1;
+                                    if result>0 {
                                         let msg = match bin {
                                             true => create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1),
                                             false => create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256),
@@ -538,8 +535,6 @@ fn connect_and_loop(runmode: RunningMode) {
                         }
                         if counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);}
                     }
-                    println!("Number of loops were: {}.", counter);
-                    ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
                 },
                 true => {
                     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
@@ -579,21 +574,18 @@ fn connect_and_loop(runmode: RunningMode) {
                     println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}", interval*1.0e6, dead_time*1.0e6);
 
                     'global_spim: loop {
-                        loop {
-                            if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                                if size>0 {
-                                    let new_data = &buffer_pack_data[0..size];
-                                    let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, bytedepth, xspim, yspim, interval, start_tdc_type);
-                                    if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
-                                } else {println!("Received zero packages"); break 'global_spim;}
-                            }
+                        if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                            if size>0 {
+                                let new_data = &buffer_pack_data[0..size];
+                                let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, bytedepth, xspim, yspim, interval, start_tdc_type);
+                                if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
+                            } else {println!("Received zero packages"); break 'global_spim;}
                         }
-                        let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);
                     }
-                    println!("Number of loops were: {}.", counter);
-                    //ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
                 },
             }
+            println!("Number of loops were: {}.", counter);
+            ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
         }
     }
 }
