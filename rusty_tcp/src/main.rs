@@ -1,11 +1,7 @@
 use std::io::prelude::*;
 use std::net::{Shutdown, TcpListener};
 use std::time::{Duration, Instant};
-
-enum RunningMode {
-    DebugStem7482,
-    Tp3,
-}
+use timepix3::RunningMode;
 
 enum TdcType {
     TdcOneRisingEdge,
