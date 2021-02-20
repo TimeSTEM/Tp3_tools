@@ -1,289 +1,11 @@
 use std::io::prelude::*;
 use std::net::{Shutdown, TcpListener};
 use std::time::{Duration, Instant};
-use timepix3::RunningMode;
+use timepix3::{RunningMode, Config, TdcType, Packet};
 
-enum TdcType {
-    TdcOneRisingEdge,
-    TdcOneFallingEdge,
-    TdcTwoRisingEdge,
-    TdcTwoFallingEdge,
-}
+fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> usize {
 
-impl TdcType {
-    fn associate_value(&self) -> u8 {
-        match *self {
-            TdcType::TdcOneRisingEdge => 15,
-            TdcType::TdcOneFallingEdge => 10,
-            TdcType::TdcTwoRisingEdge => 14,
-            TdcType::TdcTwoFallingEdge => 11,
-        }
-    }
-
-    fn associate_string(&self) -> &str {
-        match *self {
-            TdcType::TdcOneRisingEdge => "One_Rising",
-            TdcType::TdcOneFallingEdge => "One_Falling",
-            TdcType::TdcTwoRisingEdge => "Two_Rising",
-            TdcType::TdcTwoFallingEdge => "Two_Falling",
-        }
-    }
-
-}
-
-struct Config {
-    data: [u8; 16],
-}
-
-impl Config {
-    fn bin(&self) -> bool {
-        match self.data[0] {
-            0 => {
-                println!("Bin is False.");
-                false
-            },
-            1 => {
-                println!("Bin is True.");
-                true
-            },
-            _ => panic!("Binning choice must be 0 | 1."),
-        }
-    }
-
-    fn bytedepth(&self) -> usize {
-        match self.data[1] {
-            0 => {
-                println!("Bitdepth is 8.");
-                1
-            },
-            1 => {
-                println!("Bitdepth is 16.");
-                2
-            },
-            2 => {
-                println!("Bitdepth is 32.");
-                4
-            },
-            _ => panic!("Bytedepth must be  1 | 2 | 4."),
-        }
-    }
-
-    fn cumul(&self) -> bool {
-        match self.data[2] {
-            0 => {
-                println!("Cumulation mode is OFF.");
-                false
-            },
-            1 => {
-                println!("Cumulation mode is ON.");
-                true
-            },
-            _ => panic!("Cumulation must be 0 | 1."),
-        }
-    }
-
-    fn is_spim(&self) -> bool {
-        match self.data[3] {
-            0 => {
-                println!("Spim is OFF.");
-                false
-            },
-            1 => {
-                println!("Spim is ON.");
-                true
-                    },
-            _ => panic!("Spim config must be 0 | 1."),
-        }
-    }
-
-    fn xspim_size(&self) -> usize {
-        (self.data[4] as usize)<<8 | (self.data[5] as usize)
-    }
-    
-    fn yspim_size(&self) -> usize {
-        (self.data[6] as usize)<<8 | (self.data[7] as usize)
-    }
-
-}
-
-struct Packet {
-    chip_index: u8,
-    i08: u8,
-    i09: u8,
-    i10: u8,
-    i11: u8,
-    i12: u8,
-    i13: u8,
-    i14: u8,
-    i15: u8,
-}
-
-impl Packet {
-    fn x(&self) -> usize {
-        let temp = ((((self.i14 & 224))>>4 | ((self.i15 & 15))<<4) | (((self.i13 & 112)>>4)>>2)) as usize;
-        match self.chip_index {
-            0 => 255 - temp,
-            1 => 255 * 4 - temp,
-            2 => 255 * 3 - temp,
-            3 => 255 * 2 - temp,
-            _ => temp,
-        }
-    }
-    
-    fn x_unmod(&self) -> usize {
-        !((((self.i14 & 224))>>4 | ((self.i15 & 15))<<4) | (((self.i13 & 112)>>4)>>2)) as usize
-    }
-    
-    fn y(&self) -> usize {
-        (   ( ((self.i13 & 128))>>5 | ((self.i14 & 31))<<3 ) | ( (((self.i13 & 112)>>4)) & 3 )   ) as usize
-    }
-
-    fn id(&self) -> u8 {
-        (self.i15 & 240) >> 4
-    }
-
-    fn spidr(&self) -> u16 {
-        (self.i08 as u16) | (self.i09 as u16)<<8
-    }
-
-    fn ftoa(&self) -> u8 {
-        self.i10 & 15
-    }
-
-    fn tot(&self) -> u16 {
-        ((self.i10 & 240) as u16)>>4 | ((self.i11 & 63) as u16)<<4
-    }
-
-    fn toa(&self) -> u16 {
-        ((self.i11 & 192) as u16)>>6 | (self.i12 as u16)<<2 | ((self.i13 & 15) as u16)<<10
-    }
-
-    fn tdc_coarse(&self) -> u64 {
-        ((self.i09 & 254) as u64)>>1 | ((self.i10) as u64)<<7 | ((self.i11) as u64)<<15 | ((self.i12) as u64)<<23 | ((self.i13 & 15) as u64)<<31
-    }
-    
-    fn tdc_fine(&self) -> u8 {
-        (self.i08 & 224)>>5 | (self.i09 & 1)<<3
-    }
-
-    fn tdc_counter(&self) -> u16 {
-        ((self.i13 & 240) as u16) >> 4 | (self.i14 as u16) << 4
-    }
-
-    fn tdc_type(&self) -> u8 {
-        self.i15 & 15 
-    }
-    
-    fn tdc_type_as_enum(&self) -> Result<TdcType, &str> {
-        match self.i15 & 15 {
-            15 => Ok(TdcType::TdcOneRisingEdge),
-            10 => Ok(TdcType::TdcOneFallingEdge),
-            14 => Ok(TdcType::TdcTwoRisingEdge),
-            11 => Ok(TdcType::TdcTwoFallingEdge),
-            _ => Err("Bad TDC receival"),
-        }
-    }
-
-    fn is_tdc_type_oneris(&self) -> Result<bool, &str> {
-        match self.i15 & 15 {
-            15 => Ok(true),
-            10 | 14 | 11 => Ok(false),
-            _ => Err("Bad TDC receival"),
-        }
-    }
-    
-    fn is_tdc_type_onefal(&self) -> Result<bool, &str> {
-        match self.i15 & 15 {
-            10 => Ok(true),
-            15 | 14 | 11 => Ok(false),
-            _ => Err("Bad TDC receival"),
-        }
-    }
-    
-    fn is_tdc_type_tworis(&self) -> Result<bool, &str> {
-        match self.i15 & 15 {
-            14 => Ok(true),
-            10 | 15 | 11 => Ok(false),
-            _ => Err("Bad TDC receival"),
-        }
-    }
-
-    fn is_tdc_type_twofal(&self) -> Result<bool, &str> {
-        match self.i15 & 15 {
-            11 => Ok(true),
-            10 | 14 | 15 => Ok(false),
-            _ => Err("Bad TDC receival"),
-        }
-    }
-    
-    fn ctoa(toa: u16, ftoa: u8) -> u32 {
-        ((toa as u32) << 4) | (!(ftoa as u32) & 15)
-    }
-
-    fn elec_time(spidr: u16, toa: u16, ftoa: u8) -> f64 {
-        let ctoa = ((toa as u32 )<<4) | (!(ftoa as u32) & 15);
-        ((spidr as f64) * 25.0 * 16384.0 + (ctoa as f64) * 25.0 / 16.0) / 1e9
-    }
-
-    fn tdc_time(coarse: u64, fine: u8) -> f64 {
-        (coarse as f64) * (1.0/320e6) + (fine as f64) * 260e-12
-    }
-
-    fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) -> bool{
-        let index = index * bytedepth;
-        match bytedepth {
-            4 => {
-                data[index+3] = data[index+3].wrapping_add(1);
-                if data[index+3]==0 {
-                    data[index+2] = data[index+2].wrapping_add(1);
-                    if data[index+2]==0 {
-                        data[index+1] = data[index+1].wrapping_add(1);
-                        if data[index+1]==0 {
-                            data[index] = data[index].wrapping_add(1);
-                        };
-                    };
-                };
-                false
-            },
-            2 => {
-                data[index+1] = data[index+1].wrapping_add(1);
-                if data[index+1]==0 {
-                    data[index] = data[index].wrapping_add(1);
-                    true
-                } else {
-                    false
-                }
-            },
-            1 => {
-                data[index] = data[index].wrapping_add(1);
-                if data[index]==0 {
-                    true
-                } else {
-                    false
-                }
-            },
-            _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
-        }
-    }
-
-    fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
-        let val0 = ((index & 4_278_190_080)>>24) as u8;
-        let val1 = ((index & 16_711_680)>>16) as u8;
-        let val2 = ((index & 65_280)>>8) as u8;
-        let val3 = (index & 255) as u8;
-        data.push(val0);
-        data.push(val1);
-        data.push(val2);
-        data.push(val3);
-    }
-    }
-
-
-    fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> usize {
-
-    let bin = bin;
     let mut packet_chunks = data.chunks_exact(8);
-    let mut has_tdc: bool = false;
     let mut tdc_counter = 0;
 
     loop {
@@ -353,7 +75,7 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc:
                 
                 match packet.id() {
                     11 => {
-                        let ele_time = Packet::elec_time(packet.spidr(), packet.toa(), packet.ftoa());
+                        let ele_time = packet.electron_time();
                         let xpos = (xspim as f64 * ((ele_time - now_last_tdc)/interval)) as usize;
                         let mut array_pos = (packet.x() + 1024*xspim*line + 1024*xpos);
                         while array_pos>=max_value {
@@ -378,19 +100,18 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc:
     index_data
 }
 
-fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>) -> u8 {
+fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
     
     let file_data = data;
     let mut packet_chunks = file_data.chunks_exact(8);
-    let mut ci: u8 = 0;
 
     loop {
         match packet_chunks.next() {
             None => break,
-            Some(&[84, 80, 88, 51, nci, _, _, _]) => ci = nci,
+            Some(&[84, 80, 88, 51, nci, _, _, _]) => *last_ci = nci,
             Some(x) => {
                 let packet = Packet {
-                    chip_index: ci,
+                    chip_index: *last_ci,
                     i08: x[0],
                     i09: x[1],
                     i10: x[2],
@@ -415,7 +136,6 @@ fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>) -> u8 {
             },
         };
     };
-    ci
 }
                     
 fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize) -> Vec<u8> {
@@ -542,7 +262,7 @@ fn connect_and_loop(runmode: RunningMode) {
                         if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                             if size>0 {
                                 let new_data = &buffer_pack_data[0..size];
-                                last_ci = search_any_tdc(new_data, &mut tdc_vec);
+                                search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
                                 if tdc_vec.iter().filter(|(time, tdct)| tdct.associate_value()==start_tdc_type).count() >= ntdc {
                                     break;
                                 } 
