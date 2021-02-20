@@ -282,14 +282,10 @@ impl Packet {
     }
 
     pub fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
-        let val0 = ((index & 4_278_190_080)>>24) as u8;
-        let val1 = ((index & 16_711_680)>>16) as u8;
-        let val2 = ((index & 65_280)>>8) as u8;
-        let val3 = (index & 255) as u8;
-        data.push(val0);
-        data.push(val1);
-        data.push(val2);
-        data.push(val3);
+        data.push(((index & 4_278_190_080)>>24) as u8);
+        data.push(((index & 16_711_680)>>16) as u8);
+        data.push(((index & 65_280)>>8) as u8);
+        data.push((index & 255) as u8);
     }
 }
 
