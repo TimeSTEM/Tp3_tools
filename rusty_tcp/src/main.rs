@@ -364,23 +364,20 @@ fn build_spim_data(data: &[u8], last_ci: u8, bytedepth: usize, line_number: usiz
                         ele_time = Packet::elec_time(packet.spidr(), packet.toa(), packet.ftoa());
                         let xpos = (xspim as f64 * ((ele_time - last_tdc)/interval)) as usize;
                         let mut array_pos = (packet.x() + 1024*xspim*line + 1024*xpos);
-                        //while array_pos>=max_value {
-                        //    array_pos -= max_value;
-                        //}
-                        //Packet::append_to_index_array(&mut index_data, array_pos);
-                        if array_pos<max_value{
-                            //println!("{} and {} and {} and {} and {} and {}", ele_time, last_tdc, xpos, line_number, line);
-                            Packet::append_to_index_array(&mut index_data, array_pos);
+                        while array_pos>=max_value {
+                            array_pos -= max_value;
                         }
+                        Packet::append_to_index_array(&mut index_data, array_pos);
                     },
                     6 if packet.tdc_type() == tdc_kind => {
                         time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
                         time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
+                        if (time - last_tdc) > 1.1*interval {
+                            println!("{} and {} and {}", time, last_tdc, packet.tdc_counter());
+                        }
                         tdc_counter+=1;
                     },
-                    7 => {continue;},
-                    4 => {continue;},
-                    _ => {},
+                    _ => {continue;},
                 };
             },
         };
