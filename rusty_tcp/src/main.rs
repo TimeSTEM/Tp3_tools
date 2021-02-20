@@ -331,25 +331,21 @@ impl Packet {
     (ci, time, tdc_counter)
 }
 
-fn build_spim_data(data: &[u8], last_ci: u8, bytedepth: usize, line_number: usize, last_tdc: &mut f64, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> (u8, f64, usize, Vec<u8>) {
+fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc: &mut f64, bytedepth: usize, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> Vec<u8> {
     
-    let line = line_number % yspim;
+    let line = *counter % yspim;
     let now_last_tdc:f64 = *last_tdc;
     let max_value = xspim*yspim*1024;
     let mut packet_chunks = data.chunks_exact(8);
-    let mut time = 0.0f64;
-    let mut ele_time;
-    let mut tdc_counter = 0;
     let mut index_data:Vec<u8> = Vec::new();
 
-    let mut ci: u8 = last_ci;
     loop {
         match packet_chunks.next() {
             None => break,
-            Some(&[84, 80, 88, 51, nci, _, _, _]) => ci = nci,
+            Some(&[84, 80, 88, 51, nci, _, _, _]) => *last_ci = nci,
             Some(x) => {
                 let packet = Packet {
-                    chip_index: ci,
+                    chip_index: *last_ci,
                     i08: x[0],
                     i09: x[1],
                     i10: x[2],
@@ -362,7 +358,7 @@ fn build_spim_data(data: &[u8], last_ci: u8, bytedepth: usize, line_number: usiz
                 
                 match packet.id() {
                     11 => {
-                        ele_time = Packet::elec_time(packet.spidr(), packet.toa(), packet.ftoa());
+                        let ele_time = Packet::elec_time(packet.spidr(), packet.toa(), packet.ftoa());
                         let xpos = (xspim as f64 * ((ele_time - now_last_tdc)/interval)) as usize;
                         let mut array_pos = (packet.x() + 1024*xspim*line + 1024*xpos);
                         while array_pos>=max_value {
@@ -377,16 +373,14 @@ fn build_spim_data(data: &[u8], last_ci: u8, bytedepth: usize, line_number: usiz
                         if (time - now_last_tdc) > 1.1*interval {
                             println!("{} and {} and {}", time, last_tdc, packet.tdc_counter());
                         }
-                        tdc_counter+=1;
+                        *counter+=1;
                     },
                     _ => {continue;},
                 };
             },
         };
     };
-    //if tdc_counter > 0 {*last_tdc = time;
-    //println!("{} and {}", time, last_tdc);}
-    (ci, time, tdc_counter, index_data)
+    index_data
 }
 
 fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>) -> u8 {
@@ -589,11 +583,8 @@ fn connect_and_loop(runmode: RunningMode) {
                             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                                 if size>0 {
                                     let new_data = &buffer_pack_data[0..size];
-                                    let result = build_spim_data(new_data, last_ci, bytedepth, counter, &mut frame_time, xspim, yspim, interval, start_tdc_type);
-                                    last_ci = result.0;
-                                    counter+=result.2;
-                                    if let Err(_) = ns_sock.write(&result.3) {println!("Client disconnected on data."); break 'global_spim;}
-                                    //if result.2>0 {frame_time = result.1;}
+                                    let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, bytedepth, xspim, yspim, interval, start_tdc_type);
+                                    if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
                                 } else {println!("Received zero packages"); break 'global_spim;}
                             }
                         }
