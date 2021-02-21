@@ -13,17 +13,7 @@ fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: 
             None => break,
             Some(&[84, 80, 88, 51, nci, _, _, _]) => *last_ci = nci,
             Some(x) => {
-                let packet = Packet {
-                    chip_index: *last_ci,
-                    i08: x[0],
-                    i09: x[1],
-                    i10: x[2],
-                    i11: x[3],
-                    i12: x[4],
-                    i13: x[5],
-                    i14: x[6],
-                    i15: x[7],
-                };
+                let packet = Packet { chip_index: *last_ci, data: x};
                 
                 match packet.id() {
                     11 => {
@@ -61,17 +51,7 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc:
             None => break,
             Some(&[84, 80, 88, 51, nci, _, _, _]) => *last_ci = nci,
             Some(x) => {
-                let packet = Packet {
-                    chip_index: *last_ci,
-                    i08: x[0],
-                    i09: x[1],
-                    i10: x[2],
-                    i11: x[3],
-                    i12: x[4],
-                    i13: x[5],
-                    i14: x[6],
-                    i15: x[7],
-                };
+                let packet = Packet { chip_index: *last_ci, data: x};
                 
                 match packet.id() {
                     11 => {
@@ -110,17 +90,7 @@ fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut 
             None => break,
             Some(&[84, 80, 88, 51, nci, _, _, _]) => *last_ci = nci,
             Some(x) => {
-                let packet = Packet {
-                    chip_index: *last_ci,
-                    i08: x[0],
-                    i09: x[1],
-                    i10: x[2],
-                    i11: x[3],
-                    i12: x[4],
-                    i13: x[5],
-                    i14: x[6],
-                    i15: x[7],
-                };
+                let packet = Packet { chip_index: *last_ci, data: x};
                 
                 match packet.id() {
                     11 => {continue;},
