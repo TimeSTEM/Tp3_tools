@@ -115,7 +115,7 @@ pub struct Packet<'a> {
     pub data: &'a [u8],
 }
 
-impl Packet<'_> {
+impl<'a> Packet<'a> {
     
     pub fn x(&self) -> usize {
         let temp = ((((self.data[6] & 224))>>4 | ((self.data[7] & 15))<<4) | (((self.data[5] & 112)>>4)>>2)) as usize;
