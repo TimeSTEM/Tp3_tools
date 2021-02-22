@@ -168,7 +168,7 @@ fn connect_and_loop(runmode: RunningMode) {
     let mut counter = 0usize;
     let mut last_ci = 0u8;
     let mut frame_time = 0.0f64;
-    let mut buffer_pack_data: [u8; 8192] = [0; 8192];
+    let mut buffer_pack_data: [u8; 16384] = [0; 16384];
    
     match is_spim {
         false => {
@@ -216,7 +216,7 @@ fn connect_and_loop(runmode: RunningMode) {
             let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
             let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
-            let ntdc = 3;
+            let ntdc = 4;
 
             loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -245,7 +245,9 @@ fn connect_and_loop(runmode: RunningMode) {
                 .map(|(time, _tdct)| time)
                 .collect();
 
-            let dead_time:f64 = if (start_array[0] - end_array[0])>0.0 {start_array[0] - end_array[0]} else {start_array[1] - end_array[0]};
+            
+
+            let dead_time:f64 = if (start_array[1] - end_array[1])>0.0 {start_array[1] - end_array[1]} else {start_array[2] - end_array[1]};
             let interval:f64 = (start_array[2] - start_array[1]) - dead_time;
             println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}", interval*1.0e6, dead_time*1.0e6);
 
