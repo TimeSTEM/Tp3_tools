@@ -79,7 +79,7 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc:
     index_data
 }
 
-fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
+fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8, counter: &mut usize, last_tdc: &mut f64) {
     
     let file_data = data;
     let mut packet_chunks = file_data.chunks_exact(8);
@@ -95,8 +95,11 @@ fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut 
                     11 => {continue;},
                     6 => {
                         let time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
+                        let time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
                         let tdc = packet.tdc_type_as_enum().unwrap();
                         tdc_vec.push( (time, tdc) );
+                        *counter += 1;
+                        *last_tdc = time;
                     },
                     7 => {continue;},
                     4 => {continue;},
@@ -139,10 +142,6 @@ fn connect_and_loop(runmode: RunningMode) {
         RunningMode::DebugStem7482 => TcpListener::bind("127.0.0.1:8088").expect("Could not connect to NS in debug."),
         RunningMode::Tp3 => TcpListener::bind("192.168.199.11:8088").expect("Could not connect to NS using TP3."),
     };
-    //let ns_aux_listener = match runmode {
-    //    RunningMode::DebugStem7482 => TcpListener::bind("127.0.0.1:8089").expect("Could not connect to aux NS in debug."),
-    //    RunningMode::Tp3 => TcpListener::bind("192.168.199.11:8089").expect("Could not connect to aux NS using TP3."),
-    //};
 
     let (mut pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
     println!("Localhost TP3 detected at {:?}", packet_addr);
@@ -209,20 +208,16 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         },
         true => {
-            //println!("Connecting to auxiliar nionswift client.");
-            //let (mut aux_ns_sock, aux_ns_addr) = ns_aux_listener.accept().expect("Could not connect to auxiliar Nionswift.");
-            //println!("Auxiliar Nionswift connected at {:?}", aux_ns_addr);
-            
             let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
             let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
-            let ntdc = 4;
+            let ntdc = 3;
 
             loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
+                        search_any_tdc(new_data, &mut tdc_vec, &mut last_ci, &mut counter, &mut frame_time);
                         if tdc_vec.iter().filter(|(_time, tdct)| tdct.associate_value()==start_tdc_type).count() >= ntdc {
                             break;
                         } 
@@ -235,17 +230,16 @@ fn connect_and_loop(runmode: RunningMode) {
                 .map(|(time, _tdct)| time)
                 .collect();
             
-            frame_time = *tdc_vec.iter()
-                .filter(|(_time, tdct)| tdct.associate_value()==start_tdc_type)
-                .map(|(time, _tdct)| time)
-                .last().unwrap();
+            //frame_time = *tdc_vec.iter()
+            //    .filter(|(_time, tdct)| tdct.associate_value()==start_tdc_type)
+            //    .map(|(time, _tdct)| time)
+            //    .last().unwrap();
             
             let end_array: Vec<_> = tdc_vec.iter()
                 .filter(|(_time, tdct)| tdct.associate_value()==stop_tdc_type)
                 .map(|(time, _tdct)| time)
                 .collect();
 
-            
 
             let dead_time:f64 = if (start_array[1] - end_array[1])>0.0 {start_array[1] - end_array[1]} else {start_array[2] - end_array[1]};
             let interval:f64 = (start_array[2] - start_array[1]) - dead_time;
