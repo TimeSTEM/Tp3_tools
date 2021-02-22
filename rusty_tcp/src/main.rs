@@ -55,21 +55,20 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc:
                 
                 match packet.id() {
                     11 => {
-                        let ele_time = packet.electron_time();
+                        let ele_time = packet.electron_time()-0.000007;
                         let xpos = (xspim as f64 * ((ele_time - now_last_tdc)/interval)) as usize;
                         let mut array_pos = packet.x() + 1024*xspim*line + 1024*xpos;
-                        while array_pos>=max_value {
-                            array_pos -= max_value;
+                        if ele_time>now_last_tdc && ele_time<(now_last_tdc + interval){
+                            Packet::append_to_index_array(&mut index_data, array_pos);
                         }
-                        Packet::append_to_index_array(&mut index_data, array_pos);
                     },
                     6 if packet.tdc_type() == tdc_kind => {
                         let time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
                         let time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
                         *last_tdc = time;
-                        if (time - now_last_tdc) > 1.1*interval {
-                            println!("{} and {} and {}", time, last_tdc, packet.tdc_counter());
-                        }
+                        //if (time - now_last_tdc) > 2.0*interval {
+                        //    println!("{} and {} and {}", time, last_tdc, packet.tdc_counter());
+                        //}
                         *counter+=1;
                     },
                     _ => {continue;},
@@ -140,10 +139,10 @@ fn connect_and_loop(runmode: RunningMode) {
         RunningMode::DebugStem7482 => TcpListener::bind("127.0.0.1:8088").expect("Could not connect to NS in debug."),
         RunningMode::Tp3 => TcpListener::bind("192.168.199.11:8088").expect("Could not connect to NS using TP3."),
     };
-    let ns_aux_listener = match runmode {
-        RunningMode::DebugStem7482 => TcpListener::bind("127.0.0.1:8089").expect("Could not connect to aux NS in debug."),
-        RunningMode::Tp3 => TcpListener::bind("192.168.199.11:8089").expect("Could not connect to aux NS using TP3."),
-    };
+    //let ns_aux_listener = match runmode {
+    //    RunningMode::DebugStem7482 => TcpListener::bind("127.0.0.1:8089").expect("Could not connect to aux NS in debug."),
+    //    RunningMode::Tp3 => TcpListener::bind("192.168.199.11:8089").expect("Could not connect to aux NS using TP3."),
+    //};
 
     let (mut pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
     println!("Localhost TP3 detected at {:?}", packet_addr);
@@ -169,7 +168,7 @@ fn connect_and_loop(runmode: RunningMode) {
     let mut counter = 0usize;
     let mut last_ci = 0u8;
     let mut frame_time = 0.0f64;
-    let mut buffer_pack_data: [u8; 200] = [0; 200];
+    let mut buffer_pack_data: [u8; 8192] = [0; 8192];
    
     match is_spim {
         false => {
@@ -262,13 +261,13 @@ fn connect_and_loop(runmode: RunningMode) {
         },
     }
     println!("Number of loops were: {}.", counter);
-    ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
+    //ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
 }
 
 fn main() {
     loop {
-        let myrun = RunningMode::DebugStem7482;
-        //let myrun = RunningMode::Tp3;
+        //let myrun = RunningMode::DebugStem7482;
+        let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
