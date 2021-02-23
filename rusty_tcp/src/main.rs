@@ -40,8 +40,6 @@ fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: 
 
 fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc: &mut f64, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> Vec<u8> {
     
-    let line = *counter % yspim;
-    let now_last_tdc:f64 = *last_tdc;
     let mut packet_chunks = data.chunks_exact(8);
     let mut index_data:Vec<u8> = Vec::new();
 
@@ -54,6 +52,8 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc:
                 
                 match packet.id() {
                     11 => {
+                        let line = *counter % yspim;
+                        let now_last_tdc = *last_tdc;
                         let ele_time = packet.electron_time()-0.000007;
                         let xpos = (xspim as f64 * ((ele_time - now_last_tdc)/interval)) as usize;
                         let array_pos = packet.x() + 1024*xspim*line + 1024*xpos;
@@ -65,9 +65,6 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc:
                         let time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
                         let time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
                         *last_tdc = time;
-                        //if (time - now_last_tdc) > 2.0*interval {
-                        //    println!("{} and {} and {}", time, last_tdc, packet.tdc_counter());
-                        //}
                         *counter+=1;
                     },
                     _ => {continue;},
@@ -78,7 +75,7 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc:
     index_data
 }
 
-fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8, counter: &mut usize, last_tdc: &mut f64) {
+fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
     
     let file_data = data;
     let mut packet_chunks = file_data.chunks_exact(8);
@@ -97,8 +94,6 @@ fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut 
                         let time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
                         let tdc = packet.tdc_type_as_enum().unwrap();
                         tdc_vec.push( (time, tdc) );
-                        *counter += 1;
-                        *last_tdc = time;
                     },
                     7 => {continue;},
                     4 => {continue;},
@@ -216,7 +211,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        search_any_tdc(new_data, &mut tdc_vec, &mut last_ci, &mut counter, &mut frame_time);
+                        search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
                         if tdc_vec.iter().filter(|(_time, tdct)| tdct.associate_value()==start_tdc_type).count() >= ntdc {
                             break;
                         } 
@@ -229,15 +224,17 @@ fn connect_and_loop(runmode: RunningMode) {
                 .map(|(time, _tdct)| time)
                 .collect();
             
-            //frame_time = *tdc_vec.iter()
-            //    .filter(|(_time, tdct)| tdct.associate_value()==start_tdc_type)
-            //    .map(|(time, _tdct)| time)
-            //    .last().unwrap();
-            
             let end_array: Vec<_> = tdc_vec.iter()
                 .filter(|(_time, tdct)| tdct.associate_value()==stop_tdc_type)
                 .map(|(time, _tdct)| time)
                 .collect();
+            
+            frame_time = *tdc_vec.iter()
+                .filter(|(_time, tdct)| tdct.associate_value()==start_tdc_type)
+                .map(|(time, _tdct)| time)
+                .last().unwrap();
+
+            counter = ntdc;
 
 
             let dead_time:f64 = if (start_array[1] - end_array[1])>0.0 {start_array[1] - end_array[1]} else {start_array[2] - end_array[1]};
