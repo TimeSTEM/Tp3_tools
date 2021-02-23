@@ -24,8 +24,7 @@ fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: 
                         Packet::append_to_array(final_data, array_pos, bytedepth);
                     },
                     6 if packet.tdc_type() == kind => {
-                        let time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
-                        *frame_time = time;
+                        *frame_time = packet.tdc_time();
                         tdc_counter+=1;
                     },
                     7 => {continue;},
@@ -62,12 +61,7 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &m
                         }
                     },
                     6 if packet.tdc_type() == tdc_kind => {
-                        let time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
-                        let time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
-                        //if (time - now_last_tdc)>1.1*interval {
-                        //    println!("{} and {}", interval, time - now_last_tdc);
-                        //}
-                        *sltdc = time;
+                        *sltdc = packet.tdc_time_norm();
                         *counter+=1;
                     },
                     _ => {},
@@ -93,8 +87,7 @@ fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut 
                 match packet.id() {
                     11 => {continue;},
                     6 => {
-                        let time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
-                        let time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
+                        let time = packet.tdc_time_norm();
                         let tdc = packet.tdc_type_as_enum().unwrap();
                         tdc_vec.push( (time, tdc) );
                     },
