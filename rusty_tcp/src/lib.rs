@@ -54,18 +54,20 @@ impl Config {
         }
     }
 
-    pub fn is_spim(&self) -> bool {
+    pub fn mode(&self) -> u8 {
         match self.data[3] {
             0 => {
-                println!("Spim is OFF.");
-                false
+                println!("Mode is Focus/Cumul.");
             },
             1 => {
-                println!("Spim is ON.");
-                true
-                    },
+                println!("Mode is SpimTP.");
+            },
+            2 => {
+                println!("Time resolved mode");
+            },
             _ => panic!("Spim config must be 0 | 1."),
-        }
+        };
+        self.data[3]
     }
 
     pub fn xspim_size(&self) -> usize {
@@ -122,6 +124,16 @@ impl Config {
                 var
             },
         }
+    }
+
+    pub fn time_delay(&self) -> f32 {
+        let mut array: [u8; 4] = [0; 4];
+        for (i, val) in array.iter_mut().enumerate() {
+            *val = self.data[i+12]
+        }
+        let val = f32::from_be_bytes(array);
+        println!("{}", val);
+        val
     }
 }
 

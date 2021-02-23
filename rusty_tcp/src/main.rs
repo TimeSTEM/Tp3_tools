@@ -72,6 +72,42 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &m
     index_data
 }
 
+fn build_time_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, frame_tdc: u8, ref_tdc: u8) -> usize {
+
+    let mut packet_chunks = data.chunks_exact(8);
+    let mut tdc_counter = 0;
+
+    loop {
+        match packet_chunks.next() {
+            None => break,
+            Some(&[84, 80, 88, 51, nci, _, _, _]) => *last_ci = nci,
+            Some(x) => {
+                let packet = Packet { chip_index: *last_ci, data: x};
+                
+                match packet.id() {
+                    11 => {
+                        let array_pos = match bin {
+                            false => packet.x() + 1024*packet.y(),
+                            true => packet.x()
+                        };
+                        Packet::append_to_array(final_data, array_pos, bytedepth);
+                    },
+                    6 if packet.tdc_type() == frame_tdc => {
+                        *frame_time = packet.tdc_time();
+                        tdc_counter+=1;
+                    },
+                    6 if packet.tdc_type() == ref_tdc => {
+                    },
+                    7 => {continue;},
+                    4 => {continue;},
+                    _ => {},
+                };
+            },
+        };
+    };
+    tdc_counter
+}
+
 fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
     
     let file_data = data;
@@ -123,10 +159,10 @@ fn connect_and_loop(runmode: RunningMode) {
     let bin: bool;
     let bytedepth:usize;
     let cumul: bool;
-    let is_spim:bool;
+    let mode:u8;
     let spim_size:(usize, usize);
-    let xratio: usize;
     let yratio: usize;
+    let tdelay: f32;
 
     let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not connect to packets.");
     let ns_listener = match runmode {
@@ -141,14 +177,16 @@ fn connect_and_loop(runmode: RunningMode) {
 
     let mut cam_settings = [0 as u8; 16];
     match ns_sock.read(&mut cam_settings){
-        Ok(_) => {
+        Ok(size) => {
+            println!("Received {} bytes from NS.", size);
             let my_config = Config{data: cam_settings};
             bin = my_config.bin();
             bytedepth = my_config.bytedepth();
             cumul = my_config.cumul();
-            is_spim = my_config.is_spim();
+            mode = my_config.mode();
             spim_size = (my_config.xspim_size(), my_config.yspim_size());
             yratio = my_config.spimoverscany();
+            tdelay = my_config.time_delay();
         },
         Err(_) => panic!("Could not read cam initial settings."),
     }
@@ -160,9 +198,8 @@ fn connect_and_loop(runmode: RunningMode) {
     let mut frame_time = 0.0f64;
     let mut buffer_pack_data: [u8; 8192] = [0; 8192];
    
-    match is_spim {
-        false => {
-            assert_eq!(spim_size.0, 1); assert_eq!(spim_size.1, 1);
+    match mode {
+        0 => {
             let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
             let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
             data_array.push(10);
@@ -198,7 +235,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 if counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);}
             }
         },
-        true => {
+        1 => {
             let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
             let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
@@ -247,15 +284,53 @@ fn connect_and_loop(runmode: RunningMode) {
                 }
             }
         },
+        2 => {
+            let tdc_trig = TdcType::TdcOneRisingEdge.associate_value();
+            let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
+            let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
+            data_array.push(10);
+            
+            'TRglobal: loop {
+                match cumul {
+                    false => {
+                        data_array = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
+                        data_array.push(10);
+                    },
+                    true => {},
+                }
+
+                loop {
+                    if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                        if size>0 {
+                            let new_data = &buffer_pack_data[0..size];
+                            let result = build_time_data(new_data, &mut data_array, &mut last_ci, &mut frame_time, bin, bytedepth, tdc_trig, tdc_ref);
+                            counter += result;
+                            
+                            if result>0 {
+                                let msg = match bin {
+                                    true => create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1),
+                                    false => create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256),
+                                };
+                                if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'TRglobal;}
+                                if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'TRglobal;}
+                                break;
+                            }
+                        } else {println!("Received zero packages"); break 'TRglobal;}
+                    }
+                }
+                if counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);}
+            }
+        },
+        _ => println!("Unknown mode received."),
     }
     println!("Number of loops were: {}.", counter);
-    //ns_sock.shutdown(Shutdown::Both).expect("Shutdown call failed");
+    if let Err(_) = ns_sock.shutdown(Shutdown::Both) {println!("Served not succesfully shutdown.");}
 }
 
 fn main() {
     loop {
-        //let myrun = RunningMode::DebugStem7482;
-        let myrun = RunningMode::Tp3;
+        let myrun = RunningMode::DebugStem7482;
+        //let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
