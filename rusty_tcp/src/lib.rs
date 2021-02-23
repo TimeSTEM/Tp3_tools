@@ -79,7 +79,50 @@ impl Config {
         println!("Y Spim size is {}", y);
         y
     }
+    
+    pub fn xscan_size(&self) -> usize {
+        let x = (self.data[8] as usize)<<8 | (self.data[9] as usize);
+        println!("X Scan size is {}", x);
+        x
+    }
+    
+    pub fn yscan_size(&self) -> usize {
+        let y = (self.data[10] as usize)<<8 | (self.data[11] as usize);
+        println!("Y Scan size is {}", y);
+        y
+    }
 
+    pub fn spimoverscanx(&self) -> usize {
+        let xspim = (self.data[4] as usize)<<8 | (self.data[5] as usize);
+        let xscan = (self.data[8] as usize)<<8 | (self.data[9] as usize);
+        let var = xscan / xspim;
+        match var {
+            0 => {
+                println!("Xratio is 1.");
+                1
+            },
+            _ => {
+                println!("Xratio is {}.", var);
+                var
+            },
+        }
+    }
+    
+    pub fn spimoverscany(&self) -> usize {
+        let yspim = (self.data[6] as usize)<<8 | (self.data[7] as usize);
+        let yscan = (self.data[10] as usize)<<8 | (self.data[11] as usize);
+        let var = yscan / yspim;
+        match var {
+            0 => {
+                println!("Yratio is 1.");
+                1
+            },
+            _ => {
+                println!("Yratio is {}.", var);
+                var
+            },
+        }
+    }
 }
 
 pub enum TdcType {
@@ -185,7 +228,20 @@ impl<'a> Packet<'a> {
     pub fn tdc_type(&self) -> u8 {
         self.data[7] & 15 
     }
+
+    pub fn tdc_time(&self) -> f64 {
+        let coarse = ((self.data[1] & 254) as u64)>>1 | ((self.data[2]) as u64)<<7 | ((self.data[3]) as u64)<<15 | ((self.data[4]) as u64)<<23 | ((self.data[5] & 15) as u64)<<31;
+        let fine = (self.data[0] & 224)>>5 | (self.data[1] & 1)<<3;
+        (coarse as f64) * (1.0/320e6) + (fine as f64) * 260e-12
+    }
     
+    pub fn tdc_time_norm(&self) -> f64 {
+        let coarse = ((self.data[1] & 254) as u64)>>1 | ((self.data[2]) as u64)<<7 | ((self.data[3]) as u64)<<15 | ((self.data[4]) as u64)<<23 | ((self.data[5] & 15) as u64)<<31;
+        let fine = (self.data[0] & 224)>>5 | (self.data[1] & 1)<<3;
+        let time = (coarse as f64) * (1.0/320e6) + (fine as f64) * 260e-12;
+        time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9
+    }
+
     pub fn tdc_type_as_enum(&self) -> Result<TdcType, &str> {
         match self.data[7] & 15 {
             15 => Ok(TdcType::TdcOneRisingEdge),
@@ -233,7 +289,7 @@ impl<'a> Packet<'a> {
         ((spidr as f64) * 25.0 * 16384.0 + (ctoa as f64) * 25.0 / 16.0) / 1e9
     }
 
-    pub fn tdc_time(coarse: u64, fine: u8) -> f64 {
+    pub fn calc_tdc_time(coarse: u64, fine: u8) -> f64 {
         (coarse as f64) * (1.0/320e6) + (fine as f64) * 260e-12
     }
 

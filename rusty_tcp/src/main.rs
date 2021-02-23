@@ -37,7 +37,7 @@ fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: 
     tdc_counter
 }
 
-fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> Vec<u8> {
+fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, spim: (usize, usize), yratio: usize, interval: f64, tdc_kind: u8) -> Vec<u8> {
     
     let mut packet_chunks = data.chunks_exact(8);
     let mut index_data:Vec<u8> = Vec::new();
@@ -51,11 +51,11 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &m
                 
                 match packet.id() {
                     11 => {
-                        let line = *counter % yspim;
+                        let line = (*counter / yratio) % spim.1;
 
                         let ele_time = packet.electron_time() - 0.000007;
-                        let xpos = (xspim as f64 * ((ele_time - *sltdc)/interval)) as usize;
-                        let array_pos = packet.x() + 1024*xspim*line + 1024*xpos;
+                        let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
+                        let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
                         if ele_time>*sltdc && ele_time<(*sltdc + interval){
                             Packet::append_to_index_array(&mut index_data, array_pos);
                         }
@@ -124,8 +124,9 @@ fn connect_and_loop(runmode: RunningMode) {
     let bytedepth:usize;
     let cumul: bool;
     let is_spim:bool;
-    let xspim;
-    let yspim;
+    let spim_size:(usize, usize);
+    let xratio: usize;
+    let yratio: usize;
 
     let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not connect to packets.");
     let ns_listener = match runmode {
@@ -146,8 +147,8 @@ fn connect_and_loop(runmode: RunningMode) {
             bytedepth = my_config.bytedepth();
             cumul = my_config.cumul();
             is_spim = my_config.is_spim();
-            xspim = my_config.xspim_size();
-            yspim = my_config.yspim_size();
+            spim_size = (my_config.xspim_size(), my_config.yspim_size());
+            yratio = my_config.spimoverscany();
         },
         Err(_) => panic!("Could not read cam initial settings."),
     }
@@ -161,7 +162,7 @@ fn connect_and_loop(runmode: RunningMode) {
    
     match is_spim {
         false => {
-            assert_eq!(xspim, 1); assert_eq!(yspim, 1);
+            assert_eq!(spim_size.0, 1); assert_eq!(spim_size.1, 1);
             let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
             let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
             data_array.push(10);
@@ -240,7 +241,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, xspim, yspim, interval, start_tdc_type);
+                        let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, start_tdc_type);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
                     } else {println!("Received zero packages"); break 'global_spim;}
                 }
