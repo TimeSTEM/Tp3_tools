@@ -42,7 +42,6 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc:
     
     let line = *counter % yspim;
     let now_last_tdc:f64 = *last_tdc;
-    let max_value = xspim*yspim*1024;
     let mut packet_chunks = data.chunks_exact(8);
     let mut index_data:Vec<u8> = Vec::new();
 
@@ -57,7 +56,7 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc:
                     11 => {
                         let ele_time = packet.electron_time()-0.000007;
                         let xpos = (xspim as f64 * ((ele_time - now_last_tdc)/interval)) as usize;
-                        let mut array_pos = packet.x() + 1024*xspim*line + 1024*xpos;
+                        let array_pos = packet.x() + 1024*xspim*line + 1024*xpos;
                         if ele_time>now_last_tdc && ele_time<(now_last_tdc + interval){
                             Packet::append_to_index_array(&mut index_data, array_pos);
                         }
