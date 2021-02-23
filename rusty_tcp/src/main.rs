@@ -38,7 +38,7 @@ fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: 
     tdc_counter
 }
 
-fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc: &mut f64, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> Vec<u8> {
+fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, xspim: usize, yspim: usize, interval: f64, tdc_kind: u8) -> Vec<u8> {
     
     let mut packet_chunks = data.chunks_exact(8);
     let mut index_data:Vec<u8> = Vec::new();
@@ -53,21 +53,24 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, last_tdc:
                 match packet.id() {
                     11 => {
                         let line = *counter % yspim;
-                        let now_last_tdc = *last_tdc;
-                        let ele_time = packet.electron_time()-0.000007;
-                        let xpos = (xspim as f64 * ((ele_time - now_last_tdc)/interval)) as usize;
+
+                        let ele_time = packet.electron_time() - 0.000007;
+                        let xpos = (xspim as f64 * ((ele_time - *sltdc)/interval)) as usize;
                         let array_pos = packet.x() + 1024*xspim*line + 1024*xpos;
-                        if ele_time>now_last_tdc && ele_time<(now_last_tdc + interval){
+                        if ele_time>*sltdc && ele_time<(*sltdc + interval){
                             Packet::append_to_index_array(&mut index_data, array_pos);
                         }
                     },
                     6 if packet.tdc_type() == tdc_kind => {
                         let time = Packet::tdc_time(packet.tdc_coarse(), packet.tdc_fine());
                         let time = time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9;
-                        *last_tdc = time;
+                        //if (time - now_last_tdc)>1.1*interval {
+                        //    println!("{} and {}", interval, time - now_last_tdc);
+                        //}
+                        *sltdc = time;
                         *counter+=1;
                     },
-                    _ => {continue;},
+                    _ => {},
                 };
             },
         };
@@ -161,7 +164,7 @@ fn connect_and_loop(runmode: RunningMode) {
     let mut counter = 0usize;
     let mut last_ci = 0u8;
     let mut frame_time = 0.0f64;
-    let mut buffer_pack_data: [u8; 16384] = [0; 16384];
+    let mut buffer_pack_data: [u8; 8192] = [0; 8192];
    
     match is_spim {
         false => {
@@ -235,7 +238,6 @@ fn connect_and_loop(runmode: RunningMode) {
                 .last().unwrap();
 
             counter = ntdc;
-
 
             let dead_time:f64 = if (start_array[1] - end_array[1])>0.0 {start_array[1] - end_array[1]} else {start_array[2] - end_array[1]};
             let interval:f64 = (start_array[2] - start_array[1]) - dead_time;
