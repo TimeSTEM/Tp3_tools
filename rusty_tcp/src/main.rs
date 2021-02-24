@@ -162,7 +162,8 @@ fn connect_and_loop(runmode: RunningMode) {
     let mode:u8;
     let spim_size:(usize, usize);
     let yratio: usize;
-    let tdelay: f32;
+    let tdelay: f64;
+    let twidth: f64;
 
     let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not connect to packets.");
     let ns_listener = match runmode {
@@ -175,7 +176,7 @@ fn connect_and_loop(runmode: RunningMode) {
     let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
     println!("Nionswift connected at {:?}", ns_addr);
 
-    let mut cam_settings = [0 as u8; 16];
+    let mut cam_settings = [0 as u8; 28];
     match ns_sock.read(&mut cam_settings){
         Ok(size) => {
             println!("Received {} bytes from NS.", size);
@@ -187,6 +188,7 @@ fn connect_and_loop(runmode: RunningMode) {
             spim_size = (my_config.xspim_size(), my_config.yspim_size());
             yratio = my_config.spimoverscany();
             tdelay = my_config.time_delay();
+            twidth = my_config.time_width();
         },
         Err(_) => panic!("Could not read cam initial settings."),
     }

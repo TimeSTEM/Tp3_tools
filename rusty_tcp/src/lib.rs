@@ -4,7 +4,7 @@ pub enum RunningMode {
 }
 
 pub struct Config {
-    pub data: [u8; 16],
+    pub data: [u8; 28],
 }
 
 impl Config {
@@ -126,13 +126,23 @@ impl Config {
         }
     }
 
-    pub fn time_delay(&self) -> f32 {
-        let mut array: [u8; 4] = [0; 4];
+    pub fn time_delay(&self) -> f64 {
+        let mut array: [u8; 8] = [0; 8];
         for (i, val) in array.iter_mut().enumerate() {
             *val = self.data[i+12]
         }
-        let val = f32::from_be_bytes(array);
-        println!("{}", val);
+        let val = f64::from_be_bytes(array);
+        println!("Time delay is (ns) {}", val);
+        val
+    }
+    
+    pub fn time_width(&self) -> f64 {
+        let mut array: [u8; 8] = [0; 8];
+        for (i, val) in array.iter_mut().enumerate() {
+            *val = self.data[i+20]
+        }
+        let val = f64::from_be_bytes(array);
+        println!("Time width is (ns) {}", val);
         val
     }
 }
