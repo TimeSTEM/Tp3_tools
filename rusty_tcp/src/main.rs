@@ -196,9 +196,9 @@ fn connect_and_loop(runmode: RunningMode) {
     println!("Received settings is {:?}.", cam_settings);
     
     let start = Instant::now();
-    let mut counter = 0usize;
     let mut last_ci = 0u8;
-    let mut frame_time = 0.0f64;
+    let mut frame_time:f64;
+    let mut counter:usize;
     let mut buffer_pack_data: [u8; 8192] = [0; 8192];
     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
             
@@ -210,7 +210,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 match mode {
                     0 => {if TdcType::check_all_tdcs(&[1, 0, 0, 0], &tdc_vec)==true {break}},
                     1 => {if TdcType::check_all_tdcs(&[3, 3, 0, 0], &tdc_vec)==true {break}},
-                    2 => {if TdcType::check_all_tdcs(&[0, 0, 0, 0], &tdc_vec)==true {break}},
+                    2 => {if TdcType::check_all_tdcs(&[1, 0, 0, 1], &tdc_vec)==true {break}},
                     _ => panic!("Unknown mode."),
                 }
             }
@@ -284,27 +284,14 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         },
         2 => {
-            let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
             let tdc_frame = TdcType::TdcOneRisingEdge.associate_value();
             let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
             
-            loop {
-                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                    if size>0 {
-                        let new_data = &buffer_pack_data[0..size];
-                        search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
-                        if tdc_vec.iter().filter(|(_time, tdct)| tdct.associate_value()==tdc_ref).count() >= 1 {
-                            break;
-                        } 
-                    }
-                }
-            };
-            
-            let mut ref_time:f64 = *tdc_vec.iter()
-                .filter(|(_time, tdct)| tdct.associate_value()==tdc_ref)
-                .map(|(time, _tdct)| time)
-                .last().unwrap();
-
+            let mut ref_time = TdcType::last_time_from_tdc(&tdc_vec, tdc_ref);
+     
+            frame_time = TdcType::last_time_from_tdc(&tdc_vec, tdc_frame);
+            counter = TdcType::howmany_from_tdc(&tdc_vec, tdc_frame);
+    
             let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
             data_array.push(10);
             
@@ -341,7 +328,6 @@ fn connect_and_loop(runmode: RunningMode) {
         },
         _ => println!("Unknown mode received."),
     }
-    println!("Number of loops were: {}.", counter);
     if let Err(_) = ns_sock.shutdown(Shutdown::Both) {println!("Served not succesfully shutdown.");}
 }
 
