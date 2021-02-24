@@ -71,7 +71,7 @@ impl Config {
                 println!("Mode is SpimTP.");
             },
             2 => {
-                println!("Time resolved mode");
+                println!("Time width is not zero. Entering in time resolved mode.");
             },
             _ => panic!("Spim config must be 0 | 1."),
         };
@@ -80,25 +80,25 @@ impl Config {
 
     pub fn xspim_size(&self) -> usize {
         let x = (self.data[4] as usize)<<8 | (self.data[5] as usize);
-        println!("X Spim size is {}", x);
+        println!("X Spim size is: {}.", x);
         x
     }
     
     pub fn yspim_size(&self) -> usize {
         let y = (self.data[6] as usize)<<8 | (self.data[7] as usize);
-        println!("Y Spim size is {}", y);
+        println!("Y Spim size is: {}.", y);
         y
     }
     
     pub fn xscan_size(&self) -> usize {
         let x = (self.data[8] as usize)<<8 | (self.data[9] as usize);
-        println!("X Scan size is {}", x);
+        println!("X Scan size is: {}.", x);
         x
     }
     
     pub fn yscan_size(&self) -> usize {
         let y = (self.data[10] as usize)<<8 | (self.data[11] as usize);
-        println!("Y Scan size is {}", y);
+        println!("Y Scan size is: {}.", y);
         y
     }
 
@@ -108,11 +108,11 @@ impl Config {
         let var = xscan / xspim;
         match var {
             0 => {
-                println!("Xratio is 1.");
+                println!("Xratio is: 1.");
                 1
             },
             _ => {
-                println!("Xratio is {}.", var);
+                println!("Xratio is: {}.", var);
                 var
             },
         }
@@ -124,11 +124,11 @@ impl Config {
         let var = yscan / yspim;
         match var {
             0 => {
-                println!("Yratio is 1.");
+                println!("Yratio is: 1.");
                 1
             },
             _ => {
-                println!("Yratio is {}.", var);
+                println!("Yratio is: {}.", var);
                 var
             },
         }
@@ -140,8 +140,8 @@ impl Config {
             *val = self.data[i+12]
         }
         let val = f64::from_be_bytes(array);
-        println!("Time delay is (ns) {}", val);
-        val
+        println!("Time delay is (ns): {}.", val);
+        val / 1.0e9
     }
     
     pub fn time_width(&self) -> f64 {
@@ -150,8 +150,8 @@ impl Config {
             *val = self.data[i+20]
         }
         let val = f64::from_be_bytes(array);
-        println!("Time width is (ns) {}", val);
-        val
+        println!("Time width is (ns): {}.", val);
+        val / 1.0e9
     }
 }
 
@@ -224,7 +224,7 @@ impl TdcType {
             .last().unwrap();
         *last_time
     }
-                
+    
     pub fn howmany_from_tdc(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> usize {
         let counter = tdc_vec.iter()
             .filter(|(_time, tdct)| tdct.associate_value()==tdc_type)
@@ -421,16 +421,23 @@ impl<'a> Packet<'a> {
 
 
 pub mod spectral_image {
-    pub fn test() {
-        println!("test");
-    }
-
     pub fn find_deadtime(start_line: &[f64], end_line: &[f64]) -> f64 {
         if (start_line[1] - end_line[1])>0.0 {start_line[1] - end_line[1]} else {start_line[2] - end_line[1]}
     }
 
     pub fn find_interval(start_line: &[f64], deadtime: f64) -> f64 {
         (start_line[2] - start_line[1]) - deadtime
+    }
+}
+
+pub mod tr_spectra {
+    pub fn check_if_in(time_vec: &Vec<f64>, time: f64, delay: f64, width: f64) -> bool {
+        for val in time_vec {
+            if time>val+delay && time<val+delay+width {
+                return true
+            }
+        }
+        false
     }
 }
 
