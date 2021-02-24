@@ -173,9 +173,9 @@ impl TdcType {
         }
     }
     
-    pub fn count_tdcs(tdc_vec: &Vec<(f64, TdcType)>) -> [usize; 4] {
+    fn count_tdcs(tdc_vec: &Vec<(f64, TdcType)>) -> [usize; 4] {
         let mut result = [0usize; 4];
-        for (time, tdc_type) in tdc_vec {
+        for (_time, tdc_type) in tdc_vec {
             match tdc_type {
                 TdcType::TdcOneRisingEdge => result[0]+=1,
                 TdcType::TdcOneFallingEdge => result[1]+=1,
@@ -188,7 +188,7 @@ impl TdcType {
 
     pub fn check_all_tdcs(min: &[usize; 4], tdc_vec: &Vec<(f64, TdcType)>) -> bool {
         let val = TdcType::count_tdcs(tdc_vec);
-        let mut how_many = val.iter().zip(min.iter()).filter(|(min, val)| min>=val).count();
+        let how_many = val.iter().zip(min.iter()).filter(|(min, val)| min>=val).count();
         match how_many {
             4 => true,
             _ => false,
@@ -201,10 +201,10 @@ impl TdcType {
         seq
     }
     
-    pub fn vec_from_tdc(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> Vec<&f64> {
+    pub fn vec_from_tdc(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> Vec<f64> {
         let result: Vec<_> = tdc_vec.iter()
             .filter(|(_time, tdct)| tdct.associate_value()==tdc_type)
-            .map(|(time, _tdct)| time)
+            .map(|(time, _tdct)| *time)
             .collect();
         result
     }
@@ -411,11 +411,18 @@ impl<'a> Packet<'a> {
     }
 }
 
-/*
-pub mod StartOptions {
-    pub enum rRunningMode {
-        DebugStem7482,
-        Tp3,
+
+pub mod spectral_image {
+    pub fn test() {
+        println!("test");
+    }
+
+    pub fn find_deadtime(start_line: &[f64], end_line: &[f64]) -> f64 {
+        if (start_line[1] - end_line[1])>0.0 {start_line[1] - end_line[1]} else {start_line[2] - end_line[1]}
+    }
+
+    pub fn find_interval(start_line: &[f64], deadtime: f64) -> f64 {
+        (start_line[2] - start_line[1]) - deadtime
     }
 }
-*/
+

@@ -1,7 +1,7 @@
 use std::io::prelude::*;
 use std::net::{Shutdown, TcpListener};
 use std::time::Instant;
-use timepix3::{RunningMode, Config, TdcType, Packet};
+use timepix3::{RunningMode, Config, TdcType, Packet, spectral_image};
 
 fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> usize {
 
@@ -264,10 +264,10 @@ fn connect_and_loop(runmode: RunningMode) {
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
             let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
 
-            let start_array = TdcType::vec_from_tdc(&tdc_vec, start_tdc_type);
-            let end_array = TdcType::vec_from_tdc(&tdc_vec, stop_tdc_type);
-            let dead_time:f64 = if (start_array[1] - end_array[1])>0.0 {start_array[1] - end_array[1]} else {start_array[2] - end_array[1]};
-            let interval:f64 = (start_array[2] - start_array[1]) - dead_time;
+            let start_line = TdcType::vec_from_tdc(&tdc_vec, start_tdc_type);
+            let end_line = TdcType::vec_from_tdc(&tdc_vec, stop_tdc_type);
+            let dead_time:f64 = spectral_image::find_deadtime(&start_line, &end_line);
+            let interval:f64 = spectral_image::find_interval(&start_line, dead_time);
             println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}", interval*1.0e6, dead_time*1.0e6);
             
             frame_time = TdcType::last_time_from_tdc(&tdc_vec, start_tdc_type);
