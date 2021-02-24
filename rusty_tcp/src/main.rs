@@ -136,56 +136,6 @@ fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut 
     };
 }
 
-fn count_tdcs(tdc_vec: &Vec<(f64, TdcType)>) -> [usize; 4] {
-    let mut result = [0usize; 4];
-    for (time, tdc_type) in tdc_vec {
-        match tdc_type {
-            TdcType::TdcOneRisingEdge => result[0]+=1,
-            TdcType::TdcOneFallingEdge => result[1]+=1,
-            TdcType::TdcTwoRisingEdge => result[2]+=1,
-            TdcType::TdcTwoFallingEdge => result[3]+=1,
-        }
-    }
-    result
-}
-
-fn check_all_tdcs(min: &[usize; 4], tdc_vec: &Vec<(f64, TdcType)>) -> bool {
-    let val = count_tdcs(tdc_vec);
-    let mut how_many = val.iter().zip(min.iter()).filter(|(min, val)| min>=val).count();
-    match how_many {
-        4 => true,
-        _ => false,
-    }
-}
-
-fn check_each_tdcs(min: &[usize; 4], tdc_vec: &Vec<(f64, TdcType)>) -> Vec<bool> {
-    let val = count_tdcs(tdc_vec);
-    let seq = val.iter().zip(min.iter()).map(|(min, val)| min>=val).collect::<Vec<bool>>();
-    seq
-}
-
-fn vec_from_tdc(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> Vec<&f64> {
-    let result: Vec<_> = tdc_vec.iter()
-        .filter(|(_time, tdct)| tdct.associate_value()==tdc_type)
-        .map(|(time, _tdct)| time)
-        .collect();
-    result
-}
-
-fn last_time_from_tdc(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> f64 {
-    let last_time = tdc_vec.iter()
-        .filter(|(_time, tdct)| tdct.associate_value()==tdc_type)
-        .map(|(time, _tdct)| time)
-        .last().unwrap();
-    *last_time
-}
-            
-fn howmany_from_tdc(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> usize {
-    let counter = tdc_vec.iter()
-                .filter(|(_time, tdct)| tdct.associate_value()==tdc_type)
-                .count();
-    counter
-}
                     
 fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
@@ -258,9 +208,9 @@ fn connect_and_loop(runmode: RunningMode) {
                 let new_data = &buffer_pack_data[0..size];
                 search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
                 match mode {
-                    0 => {if check_all_tdcs(&[1, 0, 0, 0], &tdc_vec)==true {break}},
-                    1 => {if check_all_tdcs(&[3, 3, 0, 0], &tdc_vec)==true {break}},
-                    2 => {if check_all_tdcs(&[0, 0, 0, 0], &tdc_vec)==true {break}},
+                    0 => {if TdcType::check_all_tdcs(&[1, 0, 0, 0], &tdc_vec)==true {break}},
+                    1 => {if TdcType::check_all_tdcs(&[3, 3, 0, 0], &tdc_vec)==true {break}},
+                    2 => {if TdcType::check_all_tdcs(&[0, 0, 0, 0], &tdc_vec)==true {break}},
                     _ => panic!("Unknown mode."),
                 }
             }
@@ -273,8 +223,8 @@ fn connect_and_loop(runmode: RunningMode) {
         0 => {
             let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
             
-            frame_time = last_time_from_tdc(&tdc_vec, tdc_type);
-            counter = howmany_from_tdc(&tdc_vec, tdc_type);
+            frame_time = TdcType::last_time_from_tdc(&tdc_vec, tdc_type);
+            counter = TdcType::howmany_from_tdc(&tdc_vec, tdc_type);
             
             let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
             data_array.push(10);
@@ -314,14 +264,14 @@ fn connect_and_loop(runmode: RunningMode) {
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
             let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
 
-            let start_array = vec_from_tdc(&tdc_vec, start_tdc_type);
-            let end_array = vec_from_tdc(&tdc_vec, stop_tdc_type);
+            let start_array = TdcType::vec_from_tdc(&tdc_vec, start_tdc_type);
+            let end_array = TdcType::vec_from_tdc(&tdc_vec, stop_tdc_type);
             let dead_time:f64 = if (start_array[1] - end_array[1])>0.0 {start_array[1] - end_array[1]} else {start_array[2] - end_array[1]};
             let interval:f64 = (start_array[2] - start_array[1]) - dead_time;
             println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}", interval*1.0e6, dead_time*1.0e6);
             
-            frame_time = last_time_from_tdc(&tdc_vec, start_tdc_type);
-            counter = howmany_from_tdc(&tdc_vec, start_tdc_type);
+            frame_time = TdcType::last_time_from_tdc(&tdc_vec, start_tdc_type);
+            counter = TdcType::howmany_from_tdc(&tdc_vec, start_tdc_type);
 
             'global_spim: loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
