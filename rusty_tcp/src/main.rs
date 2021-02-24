@@ -72,7 +72,7 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &m
     index_data
 }
 
-fn build_time_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, frame_tdc: u8, ref_tdc: u8) -> usize {
+fn build_time_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, frame_tdc: u8, ref_tdc: u8, tdelay: f64, twidth: f64) -> usize {
 
     let mut packet_chunks = data.chunks_exact(8);
     let mut tdc_counter = 0;
@@ -270,7 +270,9 @@ fn connect_and_loop(runmode: RunningMode) {
                 .map(|(time, _tdct)| time)
                 .last().unwrap();
 
-            counter = ntdc;
+            counter = tdc_vec.iter()
+                .filter(|(_time, tdct)| tdct.associate_value()==start_tdc_type)
+                .count();
 
             let dead_time:f64 = if (start_array[1] - end_array[1])>0.0 {start_array[1] - end_array[1]} else {start_array[2] - end_array[1]};
             let interval:f64 = (start_array[2] - start_array[1]) - dead_time;
@@ -287,8 +289,27 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         },
         2 => {
-            let tdc_trig = TdcType::TdcOneRisingEdge.associate_value();
+            let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
+            let tdc_frame = TdcType::TdcOneRisingEdge.associate_value();
             let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
+            
+            loop {
+                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                    if size>0 {
+                        let new_data = &buffer_pack_data[0..size];
+                        search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
+                        if tdc_vec.iter().filter(|(_time, tdct)| tdct.associate_value()==tdc_ref).count() >= 1 {
+                            break;
+                        } 
+                    }
+                }
+            };
+            
+            let mut ref_time = *tdc_vec.iter()
+                .filter(|(_time, tdct)| tdct.associate_value()==tdc_ref)
+                .map(|(time, _tdct)| time)
+                .last().unwrap();
+
             let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
             data_array.push(10);
             
@@ -305,7 +326,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            let result = build_time_data(new_data, &mut data_array, &mut last_ci, &mut frame_time, bin, bytedepth, tdc_trig, tdc_ref);
+                            let result = build_time_data(new_data, &mut data_array, &mut last_ci, &mut frame_time, bin, bytedepth, tdc_frame, tdc_ref, tdelay, twidth);
                             counter += result;
                             
                             if result>0 {
