@@ -1,3 +1,11 @@
+//!`timepix3` is a collection of tools to run and analyze the detector TimePix3 in live conditions. This software is
+//!intented to be run in a different computer in which the data will be shown. Raw data is supossed to
+//!be collected via a socket in localhost and be sent to a client prefentiably using a 10 Gbit/s
+//!Ethernet.
+
+
+///Describes how to run the program. DebugStem7482 will collect and send data using lo, while
+///Tp3 collects in lo and sends to '192.168.199.11:8088'.
 pub enum RunningMode {
     DebugStem7482,
     Tp3,

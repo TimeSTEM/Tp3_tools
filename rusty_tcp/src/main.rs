@@ -97,6 +97,7 @@ fn build_time_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_t
                         tdc_counter+=1;
                     },
                     6 if packet.tdc_type() == ref_tdc => {
+                        *ref_time = packet.tdc_time();
                     },
                     7 => {continue;},
                     4 => {continue;},
