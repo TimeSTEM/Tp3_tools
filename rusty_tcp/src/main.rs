@@ -52,11 +52,10 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &m
                 match packet.id() {
                     11 => {
                         let line = (*counter / yratio) % spim.1;
-
                         let ele_time = packet.electron_time() - 0.000007;
-                        let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
-                        let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
-                        if ele_time>*sltdc && ele_time<(*sltdc + interval){
+                        if spectral_image::check_if_in(ele_time, sltdc, interval) {
+                            let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
+                            let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
                             Packet::append_to_index_array(&mut index_data, array_pos);
                         }
                     },
@@ -271,10 +270,14 @@ fn connect_and_loop(runmode: RunningMode) {
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
             let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
 
-            let start_line = TdcType::vec_from_tdc(&tdc_vec, start_tdc_type);
-            let end_line = TdcType::vec_from_tdc(&tdc_vec, stop_tdc_type);
-            let dead_time:f64 = spectral_image::find_deadtime(&start_line, &end_line);
-            let interval:f64 = spectral_image::find_interval(&start_line, dead_time);
+            let dead_time:f64;
+            let interval:f64;
+            {
+                let start_line = TdcType::vec_from_tdc(&tdc_vec, start_tdc_type);
+                let end_line = TdcType::vec_from_tdc(&tdc_vec, stop_tdc_type);
+                dead_time = spectral_image::find_deadtime(&start_line, &end_line);
+                interval = spectral_image::find_interval(&start_line, dead_time);
+            }
             println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}", interval*1.0e6, dead_time*1.0e6);
             
             frame_time = TdcType::last_time_from_tdc(&tdc_vec, start_tdc_type);
@@ -294,9 +297,8 @@ fn connect_and_loop(runmode: RunningMode) {
             let tdc_frame = TdcType::TdcOneRisingEdge.associate_value();
             let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
             
-            let mut at = TdcType::vec_from_tdc(&tdc_vec, tdc_ref);
-            let mut ref_time:Vec<f64> = [at.pop().unwrap(), at.pop().unwrap(), at.pop().unwrap()].to_vec();
-            let mut ref_counter = TdcType::howmany_from_tdc(&tdc_vec, tdc_ref);
+            let all_ref_time = TdcType::vec_from_tdc(&tdc_vec, tdc_ref);
+            let mut ref_time: Vec<f64> = tr_spectra::create_start_vectime(all_ref_time);
      
             frame_time = TdcType::last_time_from_tdc(&tdc_vec, tdc_frame);
             counter = TdcType::howmany_from_tdc(&tdc_vec, tdc_frame);
@@ -342,8 +344,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        //let myrun = RunningMode::DebugStem7482;
-        let myrun = RunningMode::Tp3;
+        let myrun = RunningMode::DebugStem7482;
+        //let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }

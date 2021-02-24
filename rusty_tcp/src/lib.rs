@@ -220,9 +220,9 @@ impl TdcType {
     pub fn last_time_from_tdc(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> f64 {
         let last_time = tdc_vec.iter()
             .filter(|(_time, tdct)| tdct.associate_value()==tdc_type)
-            .map(|(time, _tdct)| time)
+            .map(|(time, _tdct)| *time)
             .last().unwrap();
-        *last_time
+        last_time
     }
     
     pub fn howmany_from_tdc(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> usize {
@@ -421,6 +421,7 @@ impl<'a> Packet<'a> {
 
 
 pub mod spectral_image {
+    
     pub fn find_deadtime(start_line: &[f64], end_line: &[f64]) -> f64 {
         if (start_line[1] - end_line[1])>0.0 {start_line[1] - end_line[1]} else {start_line[2] - end_line[1]}
     }
@@ -428,9 +429,16 @@ pub mod spectral_image {
     pub fn find_interval(start_line: &[f64], deadtime: f64) -> f64 {
         (start_line[2] - start_line[1]) - deadtime
     }
+
+    pub fn check_if_in(ele_time: f64, start_line: &f64, interval: f64) -> bool {
+        if ele_time>*start_line && ele_time<(*start_line + interval) {
+        true
+        } else {false}
+    }
 }
 
 pub mod tr_spectra {
+    
     pub fn check_if_in(time_vec: &Vec<f64>, time: f64, delay: f64, width: f64) -> bool {
         for val in time_vec {
             if time>val+delay && time<val+delay+width {
@@ -438,6 +446,11 @@ pub mod tr_spectra {
             }
         }
         false
+    }
+
+    pub fn create_start_vectime(mut at: Vec<f64>) -> Vec<f64> {
+        let ref_time:Vec<f64> = [at.pop().unwrap(), at.pop().unwrap(), at.pop().unwrap()].to_vec();
+        ref_time
     }
 }
 
