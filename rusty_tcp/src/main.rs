@@ -251,22 +251,31 @@ fn connect_and_loop(runmode: RunningMode) {
     let mut frame_time = 0.0f64;
     let mut buffer_pack_data: [u8; 8192] = [0; 8192];
     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
+            
+    loop {
+        if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+            if size>0 {
+                let new_data = &buffer_pack_data[0..size];
+                search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
+                match mode {
+                    0 => {if check_all_tdcs(&[1, 0, 0, 0], &tdc_vec)==true {break}},
+                    1 => {if check_all_tdcs(&[3, 3, 0, 0], &tdc_vec)==true {break}},
+                    2 => {if check_all_tdcs(&[0, 0, 0, 0], &tdc_vec)==true {break}},
+                    _ => panic!("Unknown mode."),
+                }
+            }
+        }
+    }
+
+    println!("Related TDC have been found. Entering acquisition.");
    
     match mode {
         0 => {
             let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
             
-            while check_all_tdcs(&[1, 0, 0, 0], &tdc_vec)==false {
-                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                    if size>0 {
-                        let new_data = &buffer_pack_data[0..size];
-                        search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
-                    }
-                }
-            };
+            frame_time = last_time_from_tdc(&tdc_vec, tdc_type);
+            counter = howmany_from_tdc(&tdc_vec, tdc_type);
             
-
-
             let mut data_array:Vec<u8> = if bin {vec![0; bytedepth*1024]} else {vec![0; 256*bytedepth*1024]};
             data_array.push(10);
             
@@ -304,15 +313,6 @@ fn connect_and_loop(runmode: RunningMode) {
         1 => {
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
             let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
-
-            while check_all_tdcs(&[3, 3, 0, 0], &tdc_vec)==false {
-                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                    if size>0 {
-                        let new_data = &buffer_pack_data[0..size];
-                        search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
-                    }
-                }
-            };
 
             let start_array = vec_from_tdc(&tdc_vec, start_tdc_type);
             let end_array = vec_from_tdc(&tdc_vec, stop_tdc_type);
