@@ -181,6 +181,8 @@ fn connect_and_loop(runmode: RunningMode) {
     println!("Localhost TP3 detected at {:?}", packet_addr);
     let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
     println!("Nionswift connected at {:?}", ns_addr);
+    let (mut nsaux_sock, nsaux_addr) = ns_listener.accept().expect("Could not connect to Nionswift aux.");
+    println!("Nionswift [aux] connected at {:?}", nsaux_addr);
 
     let mut cam_settings = [0 as u8; 28];
     match ns_sock.read(&mut cam_settings){
@@ -288,6 +290,7 @@ fn connect_and_loop(runmode: RunningMode) {
                         let new_data = &buffer_pack_data[0..size];
                         let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, start_tdc_type);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
+                        //if let Err(_) = nsaux_sock.write(&[1, 2, 3, 4, 5]) {println!("Client disconnected on data."); break 'global_spim;}
                     } else {println!("Received zero packages"); break 'global_spim;}
                 }
             }
