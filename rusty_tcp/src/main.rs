@@ -93,7 +93,7 @@ fn build_time_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_t
                                 true => packet.x()
                             };
                             Packet::append_to_array(final_data, array_pos, bytedepth);
-                        } //else {println!("{:?} and {:?}", ref_time, ele_time);}
+                        }
                     },
                     6 if packet.tdc_type() == frame_tdc => {
                         *frame_time = packet.tdc_time();
@@ -102,7 +102,6 @@ fn build_time_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_t
                     6 if packet.tdc_type() == ref_tdc => {
                         ref_time.remove(0);
                         ref_time.push(packet.tdc_time_norm());
-                        //println!("{}", packet.tdc_time_norm());
                     },
                     7 => {continue;},
                     4 => {continue;},

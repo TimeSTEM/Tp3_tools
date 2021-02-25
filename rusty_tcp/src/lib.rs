@@ -449,7 +449,7 @@ pub mod tr_spectra {
     }
 
     pub fn create_start_vectime(mut at: Vec<f64>) -> Vec<f64> {
-        let ref_time:Vec<f64> = [at.pop().unwrap(), at.pop().unwrap(), at.pop().unwrap()].to_vec();
+        let ref_time:Vec<f64> = [at.pop().unwrap(), at.pop().unwrap()].to_vec();
         ref_time
     }
 }
