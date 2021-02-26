@@ -206,7 +206,8 @@ fn connect_and_loop(runmode: RunningMode) {
     let mut last_ci = 0u8;
     let mut frame_time:f64;
     let mut counter:usize;
-    let mut buffer_pack_data: [u8; 8192] = [0; 8192];
+    
+    let mut buffer_pack_data: [u8; 16384] = [0; 16384];
     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
             
     loop {
@@ -346,8 +347,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::DebugStem7482;
-        //let myrun = RunningMode::Tp3;
+        //let myrun = RunningMode::DebugStem7482;
+        let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
