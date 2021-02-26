@@ -437,7 +437,7 @@ pub mod spectral_image {
     }
 }
 
-pub mod tr_spectra {
+pub mod tr_spectrum {
     
     pub fn check_if_in(time_vec: &Vec<f64>, time: f64, delay: f64, width: f64) -> bool {
         for val in time_vec {

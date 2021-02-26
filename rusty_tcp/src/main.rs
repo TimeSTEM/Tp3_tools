@@ -1,18 +1,17 @@
 use std::io::prelude::*;
 use std::net::{Shutdown, TcpListener};
 use std::time::Instant;
-use timepix3::{RunningMode, Config, TdcType, Packet, spectral_image, tr_spectra};
+use timepix3::{RunningMode, Config, TdcType, Packet, spectral_image, tr_spectrum};
 
 fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> usize {
 
     let mut packet_chunks = data.chunks_exact(8);
     let mut tdc_counter = 0;
 
-    loop {
-        match packet_chunks.next() {
-            None => break,
-            Some(&[84, 80, 88, 51, nci, _, _, _]) => *last_ci = nci,
-            Some(x) => {
+    while let Some(x) = packet_chunks.next() {
+        match x {
+            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
+            _ => {
                 let packet = Packet { chip_index: *last_ci, data: x};
                 
                 match packet.id() {
@@ -42,11 +41,10 @@ fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &m
     let mut packet_chunks = data.chunks_exact(8);
     let mut index_data:Vec<u8> = Vec::new();
 
-    loop {
-        match packet_chunks.next() {
-            None => break,
-            Some(&[84, 80, 88, 51, nci, _, _, _]) => *last_ci = nci,
-            Some(x) => {
+    while let Some(x) = packet_chunks.next() {
+        match x {
+            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
+            _ => {
                 let packet = Packet { chip_index: *last_ci, data: x};
                 
                 match packet.id() {
@@ -76,18 +74,17 @@ fn build_time_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_t
     let mut packet_chunks = data.chunks_exact(8);
     let mut tdc_counter = 0;
 
-    loop {
-        match packet_chunks.next() {
-            None => break,
-            Some(&[84, 80, 88, 51, nci, _, _, _]) => *last_ci = nci,
-            Some(x) => {
+    while let Some(x) = packet_chunks.next() {
+        match x {
+            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
+            _ => {
                 let packet = Packet { chip_index: *last_ci, data: x};
                 
                 match packet.id() {
                     11 => {
                         let ele_time = packet.electron_time();
                         
-                        if tr_spectra::check_if_in(ref_time, ele_time, tdelay, twidth) {
+                        if tr_spectrum::check_if_in(ref_time, ele_time, tdelay, twidth) {
                             let array_pos = match bin {
                                 false => packet.x() + 1024*packet.y(),
                                 true => packet.x()
@@ -118,11 +115,10 @@ fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut 
     let file_data = data;
     let mut packet_chunks = file_data.chunks_exact(8);
 
-    loop {
-        match packet_chunks.next() {
-            None => break,
-            Some(&[84, 80, 88, 51, nci, _, _, _]) => *last_ci = nci,
-            Some(x) => {
+    while let Some(x) = packet_chunks.next() {
+        match x {
+            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
+            _ => {
                 let packet = Packet { chip_index: *last_ci, data: x};
                 
                 match packet.id() {
@@ -301,7 +297,7 @@ fn connect_and_loop(runmode: RunningMode) {
             let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
             
             let all_ref_time = TdcType::vec_from_tdc(&tdc_vec, tdc_ref);
-            let mut ref_time: Vec<f64> = tr_spectra::create_start_vectime(all_ref_time);
+            let mut ref_time: Vec<f64> = tr_spectrum::create_start_vectime(all_ref_time);
      
             frame_time = TdcType::last_time_from_tdc(&tdc_vec, tdc_frame);
             counter = TdcType::howmany_from_tdc(&tdc_vec, tdc_frame);
@@ -347,8 +343,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        //let myrun = RunningMode::DebugStem7482;
-        let myrun = RunningMode::Tp3;
+        let myrun = RunningMode::DebugStem7482;
+        //let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
