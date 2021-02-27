@@ -1,6 +1,6 @@
 use std::io::prelude::*;
 use std::net::{Shutdown, TcpListener};
-use std::time::Instant;
+use std::time::{Instant, Duration};
 use timepix3::{RunningMode, Config, TdcType, Packet, spectral_image, tr_spectrum};
 
 fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> usize {
@@ -180,6 +180,19 @@ fn connect_and_loop(runmode: RunningMode) {
     let (mut nsaux_sock, nsaux_addr) = ns_listener.accept().expect("Could not connect to Nionswift aux.");
     println!("Nionswift [aux] connected at {:?}", nsaux_addr);
 
+    println!("Waiting for config bytes. Instructions:
+    28 bytes in total, structured as:
+    [0, 1] => Bin (\\x00 for image and \\x01 for software binning);
+    [1, 2] => Bytedepth (\\x00 for 8 bit, \\x01 for 16 bit and \\x02 for 32 bit);
+    [2, 3] => Cumulation (\\x00 for Focus Mode and \\x01 for Cumul Mode);
+    [3, 4] => Mode (\\x00 for Focus/Cumul, \\x01 for SPIM and \\x02 for TR);
+    [4, 6] => X spim size. 16 bit depth, big endian mode;
+    [6, 8] => Y spim size. 16 bit depth, big endian mode;
+    [8, 10] => X scan size. 16 bit depth, big endian mode;
+    [10, 12] => Y scan size. 16 bit depth, big endian mode;
+    [12, 20] => Time delay (in ns). f64, double endian (>double in C);
+    [20, 28] => Time width (in ns). f64, double endian (>double in C);
+    ");
     let mut cam_settings = [0 as u8; 28];
     match ns_sock.read(&mut cam_settings){
         Ok(size) => {
@@ -197,6 +210,7 @@ fn connect_and_loop(runmode: RunningMode) {
         Err(_) => panic!("Could not read cam initial settings."),
     }
     println!("Received settings is {:?}.", cam_settings);
+    ns_sock.set_write_timeout(Some(Duration::from_millis(10000))).expect("Failed to set write timeout to SPIM.");
     
     let start = Instant::now();
     let mut last_ci = 0u8;
@@ -265,6 +279,7 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         },
         1 => {
+            let mut byte_counter = 0;
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
             let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
 
@@ -286,7 +301,16 @@ fn connect_and_loop(runmode: RunningMode) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
                         let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, start_tdc_type);
-                        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
+                        //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
+                        println!("oi");
+                        match ns_sock.write(&result) {
+                            Ok(size) => {
+                                byte_counter+=size;
+                                println!("{} and {}", size, byte_counter);
+                            },
+                            Err(e) => {
+                                println!("Client disconnected on data. {}", e); break 'global_spim;},
+                        }
                         //if let Err(_) = nsaux_sock.write(&[1, 2, 3, 4, 5]) {println!("Client disconnected on data."); break 'global_spim;}
                     } else {println!("Received zero packages"); break 'global_spim;}
                 }
