@@ -210,7 +210,6 @@ fn connect_and_loop(runmode: RunningMode) {
         Err(_) => panic!("Could not read cam initial settings."),
     }
     println!("Received settings is {:?}.", cam_settings);
-    ns_sock.set_write_timeout(Some(Duration::from_millis(10000))).expect("Failed to set write timeout to SPIM.");
     
     let start = Instant::now();
     let mut last_ci = 0u8;
@@ -279,6 +278,7 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         },
         1 => {
+            ns_sock.set_write_timeout(Some(Duration::from_millis(10000))).expect("Failed to set write timeout to SPIM.");
             let mut byte_counter = 0;
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
             let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
@@ -302,11 +302,10 @@ fn connect_and_loop(runmode: RunningMode) {
                         let new_data = &buffer_pack_data[0..size];
                         let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, start_tdc_type);
                         //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
-                        println!("oi");
                         match ns_sock.write(&result) {
                             Ok(size) => {
                                 byte_counter+=size;
-                                println!("{} and {}", size, byte_counter);
+                                println!("{} and {} and {}", size, byte_counter, result.len());
                             },
                             Err(e) => {
                                 println!("Client disconnected on data. {}", e); break 'global_spim;},
