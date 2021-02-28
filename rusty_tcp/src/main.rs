@@ -117,13 +117,9 @@ fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut 
 
     while let Some(x) = packet_chunks.next() {
         match x {
-            &[84, 80, 88, 51, nci, _, _, _] => {
-                *last_ci = nci;
-                println!("header here {:?}", x);
-            },
+            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
                 let packet = Packet { chip_index: *last_ci, data: x};
-                println!("{:?} and {} and {}", x, packet.id(), packet.tdc_type());
                 
                 match packet.id() {
                     11 => {continue;},

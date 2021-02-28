@@ -43,7 +43,7 @@ def create_tdc(Tdif, trigger='tdc1Ris'):
 Set Script Parameters Here
 """
 
-FOLDER = 'laser_tdc'
+FOLDER = '128_2_spim'
 CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
 HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 PORT = 8098 #Pick a port to connect your socket
@@ -94,8 +94,8 @@ while isRunning:
                 loop = 0
 
             try:
-                print(len(now_data), loop)
-                serv.send(now_data)
+                size = serv.send(now_data)
+                print(size, loop)
                 now_data = b''
             except ConnectionResetError:
                 break
