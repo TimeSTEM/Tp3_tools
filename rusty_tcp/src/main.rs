@@ -222,7 +222,6 @@ fn connect_and_loop(runmode: RunningMode) {
     loop {
         if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size>0 {
-                println!("{}", size);
                 let new_data = &buffer_pack_data[0..size];
                 search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
                 match mode {
@@ -305,8 +304,8 @@ fn connect_and_loop(runmode: RunningMode) {
                         //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
                         match ns_sock.write(&result) {
                             Ok(size) => {
-                                byte_counter+=size;
-                                println!("{} and {} and {}", size, byte_counter, result.len());
+                                //byte_counter+=size;
+                                //println!("{} and {} and {}", size, byte_counter, result.len());
                             },
                             Err(e) => {
                                 println!("Client disconnected on data. {}", e); break 'global_spim;},
