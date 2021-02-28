@@ -94,6 +94,7 @@ while isRunning:
                 loop = 0
 
             try:
+                print(len(now_data), loop)
                 serv.send(now_data)
                 now_data = b''
             except ConnectionResetError:

@@ -10,7 +10,7 @@ c2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 c1.connect((HOST, PORT))
 c2.connect((HOST, PORT))
 
-msg = b'\x00\x02\x00\x01'
+msg = b'\x00\x02\x00\x00'
 msg+= struct.pack('>H', 256)
 msg+= struct.pack('>H', 256)
 msg+= struct.pack('>H', 256)
