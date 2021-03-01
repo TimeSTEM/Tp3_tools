@@ -303,7 +303,7 @@ fn connect_and_loop(runmode: RunningMode) {
                         let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, start_tdc_type);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
                         //if let Err(_) = nsaux_sock.write(&[1, 2, 3, 4, 5]) {println!("Client disconnected on data."); break 'global_spim;}
-                    } else {println!("Received zero packages"); break 'global_spim;}
+                    } else {println!("Received zero packages from TP3."); break 'global_spim;}
                 }
             }
         },
