@@ -88,15 +88,19 @@ while isRunning:
         while True:
             now_file = os.path.join(FOLDER, "raw000"+format(loop, '.0f').zfill(3)+".tpx3")
             if os.path.isfile(now_file):
-                now_data += open_and_read(now_file, loop)
+                np_data = numpy.fromfile(now_file, dtype='uint8')
             else:
                 print('Resetting. Current loop is', loop)
                 loop = 0
+                now_file = os.path.join(FOLDER, "raw000"+format(loop, '.0f').zfill(3)+".tpx3")
+                np_data = numpy.fromfile(now_file, dtype='uint8')
+
+            #split_data = numpy.array_split(np_data, len(np_data)/32000)
+            split_data = numpy.array_split(np_data, 64)
 
             try:
-                size = serv.send(now_data)
-                print(size, loop)
-                now_data = b''
+                for val in split_data:
+                    size = serv.send(val)
             except ConnectionResetError:
                 break
             except ConnectionAbortedError:

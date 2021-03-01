@@ -304,7 +304,7 @@ fn connect_and_loop(runmode: RunningMode) {
                         //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
                         match ns_sock.write(&result) {
                             Ok(size) => {
-                                //byte_counter+=size;
+                                byte_counter+=size;
                                 //println!("{} and {} and {}", size, byte_counter, result.len());
                             },
                             Err(e) => {
