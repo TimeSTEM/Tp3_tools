@@ -280,7 +280,6 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         },
         1 => {
-            ns_sock.set_write_timeout(Some(Duration::from_millis(10))).expect("Failed to set write timeout to SPIM.");
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
             let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
 
@@ -302,14 +301,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
                         let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, start_tdc_type);
-                        //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
-                        match ns_sock.write(&result) {
-                            Ok(_size) => {},
-                            Err(error) => match error.kind() {
-                                ErrorKind::TimedOut | ErrorKind::WouldBlock => {},
-                                _ => {println!("Client disconnected on data. {:?}", error.kind()); break 'global_spim;},
-                            }
-                        }
+                        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
                         //if let Err(_) = nsaux_sock.write(&[1, 2, 3, 4, 5]) {println!("Client disconnected on data."); break 'global_spim;}
                     } else {println!("Received zero packages"); break 'global_spim;}
                 }
@@ -366,8 +358,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::DebugStem7482;
-        //let myrun = RunningMode::Tp3;
+        //let myrun = RunningMode::DebugStem7482;
+        let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
