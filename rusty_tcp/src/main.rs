@@ -26,8 +26,6 @@ fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: 
                         *frame_time = packet.tdc_time();
                         tdc_counter+=1;
                     },
-                    7 => {continue;},
-                    4 => {continue;},
                     _ => {},
                 };
             },
@@ -100,8 +98,6 @@ fn build_time_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_t
                         ref_time.remove(0);
                         ref_time.push(packet.tdc_time_norm());
                     },
-                    7 => {continue;},
-                    4 => {continue;},
                     _ => {},
                 };
             },
@@ -122,14 +118,11 @@ fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut 
                 let packet = Packet { chip_index: *last_ci, data: x};
                 
                 match packet.id() {
-                    11 => {continue;},
                     6 => {
                         let time = packet.tdc_time_norm();
                         let tdc = packet.tdc_type_as_enum().unwrap();
                         tdc_vec.push( (time, tdc) );
                     },
-                    7 => {continue;},
-                    4 => {continue;},
                     _ => {},
                 };
             },
@@ -357,8 +350,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        //let myrun = RunningMode::DebugStem7482;
-        let myrun = RunningMode::Tp3;
+        let myrun = RunningMode::DebugStem7482;
+        //let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
