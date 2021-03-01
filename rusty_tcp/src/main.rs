@@ -2,6 +2,7 @@ use std::io::prelude::*;
 use std::net::{Shutdown, TcpListener};
 use std::time::{Instant, Duration};
 use timepix3::{RunningMode, Config, TdcType, Packet, spectral_image, tr_spectrum};
+use std::io::ErrorKind;
 
 fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> usize {
 
@@ -179,6 +180,7 @@ fn connect_and_loop(runmode: RunningMode) {
     println!("Nionswift connected at {:?}", ns_addr);
     let (mut nsaux_sock, nsaux_addr) = ns_listener.accept().expect("Could not connect to Nionswift aux.");
     println!("Nionswift [aux] connected at {:?}", nsaux_addr);
+    
 
     println!("Waiting for config bytes. Instructions:
     28 bytes in total, structured as:
@@ -278,8 +280,7 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         },
         1 => {
-            ns_sock.set_write_timeout(Some(Duration::from_millis(10000))).expect("Failed to set write timeout to SPIM.");
-            let mut byte_counter = 0;
+            ns_sock.set_write_timeout(Some(Duration::from_millis(10))).expect("Failed to set write timeout to SPIM.");
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
             let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
 
@@ -303,12 +304,11 @@ fn connect_and_loop(runmode: RunningMode) {
                         let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, start_tdc_type);
                         //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
                         match ns_sock.write(&result) {
-                            Ok(size) => {
-                                byte_counter+=size;
-                                //println!("{} and {} and {}", size, byte_counter, result.len());
-                            },
-                            Err(e) => {
-                                println!("Client disconnected on data. {}", e); break 'global_spim;},
+                            Ok(_size) => {},
+                            Err(error) => match error.kind() {
+                                ErrorKind::TimedOut | ErrorKind::WouldBlock => {},
+                                _ => {println!("Client disconnected on data. {:?}", error.kind()); break 'global_spim;},
+                            }
                         }
                         //if let Err(_) = nsaux_sock.write(&[1, 2, 3, 4, 5]) {println!("Client disconnected on data."); break 'global_spim;}
                     } else {println!("Received zero packages"); break 'global_spim;}
