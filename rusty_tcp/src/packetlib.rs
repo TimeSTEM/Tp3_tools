@@ -1,3 +1,6 @@
+//!`packetlib` is a collection of tools to facilitate manipulation of individual TP3 packets. Module is built
+//!in around `Packet` struct.
+
 pub struct Packet<'a> {
     pub chip_index: u8,
     pub data: &'a [u8],

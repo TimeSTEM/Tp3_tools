@@ -1,3 +1,6 @@
+//!`tdclib` is a collection of tools to facilitate manipulation and choice of tdcs. Module is built
+//!in around `TdcType` enum.
+
 pub enum TdcType {
     TdcOneRisingEdge,
     TdcOneFallingEdge,

@@ -1,12 +1,14 @@
-///Describes how to run the program. DebugStem7482 will collect and send data using lo @port 8088, while
-///Tp3 collects in lo and sends to '192.168.199.11:8088'.
+//!`auxiliar` is a collection of tools to set acquisition conditions.
+
+///Describes how to run the program. This is a very general enumeration and can be used for setting
+///your program in debug mode.
 pub enum RunningMode {
     DebugStem7482,
     Tp3,
 }
 
-///Define the start configuration of the detector. Each new measurement must send 28 bytes
-///containing acquisition instructions. See below for byte order and instructions.
+///Configures the detector for acquisition. Each new measurement must send 28 bytes
+///containing instructions.
 pub struct Config {
     pub data: [u8; 28],
 }

@@ -7,9 +7,14 @@ pub mod auxiliar;
 pub mod tdclib;
 pub mod packetlib;
 
+
+
+
+///`spectral_image` is a module containing tools to live acquire spectral images.
 pub mod spectral_image {
     use crate::packetlib::Packet;
     
+    ///Returns a vector containing a list of indexes in which events happened.
     pub fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, spim: (usize, usize), yratio: usize, interval: f64, tdc_kind: u8) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
@@ -42,21 +47,30 @@ pub mod spectral_image {
         index_data
     }
 
+    ///Returns the deadtime between consecutive scan lines.
     pub fn find_deadtime(start_line: &[f64], end_line: &[f64]) -> f64 {
         if (start_line[1] - end_line[1])>0.0 {start_line[1] - end_line[1]} else {start_line[2] - end_line[1]}
     }
 
+    ///Returns the effective time interval between lines.
     pub fn find_interval(start_line: &[f64], deadtime: f64) -> f64 {
         (start_line[2] - start_line[1]) - deadtime
     }
 
-    pub fn check_if_in(ele_time: f64, start_line: &f64, interval: f64) -> bool {
+    ///Checks if event is in the appropriate time interval to be counted.
+    fn check_if_in(ele_time: f64, start_line: &f64, interval: f64) -> bool {
         if ele_time>*start_line && ele_time<(*start_line + interval) {
         true
         } else {false}
     }
 }
 
+
+
+
+
+///`tr_spectrum` is a module containing tools to live acquire frame-based time-resolved spectra.
+///Uses one tdc for defining frame and other tdc to correlate time.
 pub mod tr_spectrum {
     use crate::packetlib::Packet;
 
@@ -113,6 +127,12 @@ pub mod tr_spectrum {
     }
 }
 
+
+
+
+
+///`spectrum` is a module containing tools to live acquire frame-based spectra. Uses one tdc to
+///define frame.
 pub mod spectrum {
     use crate::packetlib::Packet;
     
@@ -148,6 +168,10 @@ pub mod spectrum {
     }
 }
 
+
+
+
+///`misc` or `miscelaneous` is a module containing shared tools between modes.
 pub mod misc {
     use crate::tdclib::TdcType;
     use crate::packetlib::Packet;
