@@ -3,136 +3,8 @@ use std::net::{Shutdown, TcpListener};
 use std::time::Instant;
 use timepix3::auxiliar::{RunningMode, Config};
 use timepix3::tdclib::TdcType;
-use timepix3::{Packet, spectral_image, tr_spectrum};
+use timepix3::{spectrum, spectral_image, tr_spectrum, misc};
 
-fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> usize {
-
-    let mut packet_chunks = data.chunks_exact(8);
-    let mut tdc_counter = 0;
-
-    while let Some(x) = packet_chunks.next() {
-        match x {
-            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
-            _ => {
-                let packet = Packet { chip_index: *last_ci, data: x};
-                
-                match packet.id() {
-                    11 => {
-                        let array_pos = match bin {
-                            false => packet.x() + 1024*packet.y(),
-                            true => packet.x()
-                        };
-                        Packet::append_to_array(final_data, array_pos, bytedepth);
-                    },
-                    6 if packet.tdc_type() == kind => {
-                        *frame_time = packet.tdc_time();
-                        tdc_counter+=1;
-                    },
-                    _ => {},
-                };
-            },
-        };
-    };
-    tdc_counter
-}
-
-fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, spim: (usize, usize), yratio: usize, interval: f64, tdc_kind: u8) -> Vec<u8> {
-    
-    let mut packet_chunks = data.chunks_exact(8);
-    let mut index_data:Vec<u8> = Vec::new();
-
-    while let Some(x) = packet_chunks.next() {
-        match x {
-            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
-            _ => {
-                let packet = Packet { chip_index: *last_ci, data: x};
-                
-                match packet.id() {
-                    11 => {
-                        let line = (*counter / yratio) % spim.1;
-                        let ele_time = packet.electron_time() - 0.000007;
-                        if spectral_image::check_if_in(ele_time, sltdc, interval) {
-                            let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
-                            let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
-                            Packet::append_to_index_array(&mut index_data, array_pos);
-                        }
-                    },
-                    6 if packet.tdc_type() == tdc_kind => {
-                        *sltdc = packet.tdc_time_norm();
-                        *counter+=1;
-                    },
-                    _ => {},
-                };
-            },
-        };
-    };
-    index_data
-}
-
-fn build_time_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, ref_time: &mut Vec<f64>, bin: bool, bytedepth: usize, frame_tdc: u8, ref_tdc: u8, tdelay: f64, twidth: f64) -> usize {
-
-    let mut packet_chunks = data.chunks_exact(8);
-    let mut tdc_counter = 0;
-
-    while let Some(x) = packet_chunks.next() {
-        match x {
-            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
-            _ => {
-                let packet = Packet { chip_index: *last_ci, data: x};
-                
-                match packet.id() {
-                    11 => {
-                        let ele_time = packet.electron_time();
-                        
-                        if tr_spectrum::check_if_in(ref_time, ele_time, tdelay, twidth) {
-                            let array_pos = match bin {
-                                false => packet.x() + 1024*packet.y(),
-                                true => packet.x()
-                            };
-                            Packet::append_to_array(final_data, array_pos, bytedepth);
-                        }
-                    },
-                    6 if packet.tdc_type() == frame_tdc => {
-                        *frame_time = packet.tdc_time();
-                        tdc_counter+=1;
-                    },
-                    6 if packet.tdc_type() == ref_tdc => {
-                        ref_time.remove(0);
-                        ref_time.push(packet.tdc_time_norm());
-                    },
-                    _ => {},
-                };
-            },
-        };
-    };
-    tdc_counter
-}
-
-fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
-    
-    let file_data = data;
-    let mut packet_chunks = file_data.chunks_exact(8);
-
-    while let Some(x) = packet_chunks.next() {
-        match x {
-            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
-            _ => {
-                let packet = Packet { chip_index: *last_ci, data: x};
-                
-                match packet.id() {
-                    6 => {
-                        let time = packet.tdc_time_norm();
-                        let tdc = TdcType::associate_value_to_enum(packet.tdc_type()).unwrap();
-                        tdc_vec.push( (time, tdc) );
-                    },
-                    _ => {},
-                };
-            },
-        };
-    };
-}
-
-                    
 fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(time.to_string()));
@@ -219,7 +91,7 @@ fn connect_and_loop(runmode: RunningMode) {
         if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size>0 {
                 let new_data = &buffer_pack_data[0..size];
-                search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
+                misc::search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
                 match mode {
                     0 => {if TdcType::check_all_tdcs(&[1, 0, 0, 0], &tdc_vec)==true {break}},
                     1 => {if TdcType::check_all_tdcs(&[3, 3, 0, 0], &tdc_vec)==true {break}},
@@ -229,7 +101,6 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         }
     }
-
     println!("Related TDC have been found. Entering acquisition.");
    
     match mode {
@@ -255,7 +126,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            let result = build_data(new_data, &mut data_array, &mut last_ci, &mut frame_time, bin, bytedepth, tdc_type);
+                            let result = spectrum::build_data(new_data, &mut data_array, &mut last_ci, &mut frame_time, bin, bytedepth, tdc_type);
                             counter += result;
                             
                             if result>0 {
@@ -294,7 +165,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        let result = build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, start_tdc_type);
+                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, start_tdc_type);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
                         //if let Err(_) = nsaux_sock.write(&[1, 2, 3, 4, 5]) {println!("Client disconnected on data."); break 'global_spim;}
                     } else {println!("Received zero packages from TP3."); break 'global_spim;}
@@ -327,7 +198,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            let result = build_time_data(new_data, &mut data_array, &mut last_ci, &mut frame_time, &mut ref_time, bin, bytedepth, tdc_frame, tdc_ref, tdelay, twidth);
+                            let result = tr_spectrum::build_time_data(new_data, &mut data_array, &mut last_ci, &mut frame_time, &mut ref_time, bin, bytedepth, tdc_frame, tdc_ref, tdelay, twidth);
                             counter += result;
                             
                             if result>0 {
