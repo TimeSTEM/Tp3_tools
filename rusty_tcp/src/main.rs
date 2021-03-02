@@ -5,24 +5,6 @@ use timepix3::auxiliar::{RunningMode, Config};
 use timepix3::tdclib::TdcType;
 use timepix3::{spectrum, spectral_image, tr_spectrum, misc};
 
-fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize) -> Vec<u8> {
-    let mut msg: String = String::from("{\"timeAtFrame\":");
-    msg.push_str(&(time.to_string()));
-    msg.push_str(",\"frameNumber\":");
-    msg.push_str(&(frame.to_string()));
-    msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
-    msg.push_str(&(data_size.to_string()));
-    msg.push_str(",\"bitDepth\":");
-    msg.push_str(&(bitdepth.to_string()));
-    msg.push_str(",\"width\":");
-    msg.push_str(&(width.to_string()));
-    msg.push_str(",\"height\":");
-    msg.push_str(&(height.to_string()));
-    msg.push_str("}\n");
-    let s: Vec<u8> = msg.into_bytes();
-    s
-}
-
 fn connect_and_loop(runmode: RunningMode) {
 
     let bin: bool;
@@ -131,8 +113,8 @@ fn connect_and_loop(runmode: RunningMode) {
                             
                             if result>0 {
                                 let msg = match bin {
-                                    true => create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1),
-                                    false => create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256),
+                                    true => misc::create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1),
+                                    false => misc::create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256),
                                 };
                                 if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global;}
                                 if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'global;}
@@ -203,8 +185,8 @@ fn connect_and_loop(runmode: RunningMode) {
                             
                             if result>0 {
                                 let msg = match bin {
-                                    true => create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1),
-                                    false => create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256),
+                                    true => misc::create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1),
+                                    false => misc::create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256),
                                 };
                                 if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'TRglobal;}
                                 if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'TRglobal;}

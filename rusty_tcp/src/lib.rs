@@ -175,4 +175,23 @@ pub mod misc {
             };
         };
     }
+
+    pub fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize) -> Vec<u8> {
+        let mut msg: String = String::from("{\"timeAtFrame\":");
+        msg.push_str(&(time.to_string()));
+        msg.push_str(",\"frameNumber\":");
+        msg.push_str(&(frame.to_string()));
+        msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
+        msg.push_str(&(data_size.to_string()));
+        msg.push_str(",\"bitDepth\":");
+        msg.push_str(&(bitdepth.to_string()));
+        msg.push_str(",\"width\":");
+        msg.push_str(&(width.to_string()));
+        msg.push_str(",\"height\":");
+        msg.push_str(&(height.to_string()));
+        msg.push_str("}\n");
+        let s: Vec<u8> = msg.into_bytes();
+        s
+    }
+
 }
