@@ -142,12 +142,14 @@ fn connect_and_loop(runmode: RunningMode) {
             
             frame_time = TdcType::last_time_from_tdc(&tdc_vec, start_tdc_type);
             counter = TdcType::howmany_from_tdc(&tdc_vec, start_tdc_type);
+            
+            let mut data_array:Vec<u8> = vec![0; bytedepth*1024*spim_size.0*spim_size.1];
 
             'global_spim: loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, start_tdc_type);
+                        let result = spectral_image::build_save_spim_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, bytedepth, start_tdc_type);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
                         //if let Err(_) = nsaux_sock.write(&[1, 2, 3, 4, 5]) {println!("Client disconnected on data."); break 'global_spim;}
                     } else {println!("Received zero packages from TP3."); break 'global_spim;}
@@ -198,7 +200,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 if counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);}
             }
         },
-        _ => println!("Unknown mode received."),
+        _ => panic!("Unknown mode received."),
     }
     if let Err(_) = ns_sock.shutdown(Shutdown::Both) {println!("Served not succesfully shutdown.");}
 }

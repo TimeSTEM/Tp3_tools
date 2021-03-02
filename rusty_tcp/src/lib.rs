@@ -10,6 +10,8 @@ pub mod packetlib;
 ///`spectral_image` is a module containing tools to live acquire spectral images.
 pub mod spectral_image {
     use crate::packetlib::Packet;
+    use crate::misc;
+    use std::fs;
     
     ///Returns a vector containing a list of indexes in which events happened.
     pub fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, spim: (usize, usize), yratio: usize, interval: f64, tdc_kind: u8) -> Vec<u8> {
@@ -29,12 +31,50 @@ pub mod spectral_image {
                             if check_if_in(ele_time, sltdc, interval) {
                                 let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
                                 let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
-                                append_to_index_array(&mut index_data, array_pos);
+                                misc::append_to_index_array(&mut index_data, array_pos);
                             }
                         },
                         6 if packet.tdc_type() == tdc_kind => {
                             *sltdc = packet.tdc_time_norm();
                             *counter+=1;
+                        },
+                        _ => {},
+                    };
+                },
+            };
+        };
+        index_data
+    }
+    
+    pub fn build_save_spim_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, spim: (usize, usize), yratio: usize, interval: f64, bytedepth: usize, tdc_kind: u8) -> Vec<u8> {
+        let mut packet_chunks = data.chunks_exact(8);
+        let mut index_data:Vec<u8> = Vec::new();
+
+        while let Some(x) = packet_chunks.next() {
+            match x {
+                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
+                _ => {
+                    let packet = Packet { chip_index: *last_ci, data: x};
+                    
+                    match packet.id() {
+                        11 => {
+                            let line = (*counter / yratio) % spim.1;
+                            let ele_time = packet.electron_time() - 0.000007;
+                            if check_if_in(ele_time, sltdc, interval) {
+                                let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
+                                let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
+                                misc::append_to_index_array(&mut index_data, array_pos);
+                                misc::append_to_array(final_data, array_pos, bytedepth);
+                            }
+                        },
+                        6 if packet.tdc_type() == tdc_kind => {
+                            *sltdc = packet.tdc_time_norm();
+                            *counter+=1;
+                            if *counter % (spim.1 * 10) == 0 {
+                                let image = *counter / (spim.1 * 10);
+                                //misc::put_all_to_zero(final_data);
+                            }
+
                         },
                         _ => {},
                     };
@@ -60,13 +100,6 @@ pub mod spectral_image {
         true
         } else {false}
     }
-    
-    fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
-        data.push(((index & 4_278_190_080)>>24) as u8);
-        data.push(((index & 16_711_680)>>16) as u8);
-        data.push(((index & 65_280)>>8) as u8);
-        data.push((index & 255) as u8);
-    }
 }
 
 
@@ -75,6 +108,7 @@ pub mod spectral_image {
 ///define frame.
 pub mod spectrum {
     use crate::packetlib::Packet;
+    use crate::misc;
     
     pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> usize {
 
@@ -93,7 +127,7 @@ pub mod spectrum {
                                 false => packet.x() + 1024*packet.y(),
                                 true => packet.x()
                             };
-                            append_to_array(final_data, array_pos, bytedepth);
+                            misc::append_to_array(final_data, array_pos, bytedepth);
                         },
                         6 if packet.tdc_type() == kind => {
                             *frame_time = packet.tdc_time();
@@ -126,7 +160,7 @@ pub mod spectrum {
                                     false => packet.x() + 1024*packet.y(),
                                     true => packet.x()
                                 };
-                                append_to_array(final_data, array_pos, bytedepth);
+                                misc::append_to_array(final_data, array_pos, bytedepth);
                             }
                         },
                         6 if packet.tdc_type() == frame_tdc => {
@@ -157,43 +191,6 @@ pub mod spectrum {
     pub fn tr_create_start_vectime(mut at: Vec<f64>) -> Vec<f64> {
         let ref_time:Vec<f64> = [at.pop().unwrap(), at.pop().unwrap()].to_vec();
         ref_time
-    }
-    
-    fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) -> bool{
-        let index = index * bytedepth;
-        match bytedepth {
-            4 => {
-                data[index+3] = data[index+3].wrapping_add(1);
-                if data[index+3]==0 {
-                    data[index+2] = data[index+2].wrapping_add(1);
-                    if data[index+2]==0 {
-                        data[index+1] = data[index+1].wrapping_add(1);
-                        if data[index+1]==0 {
-                            data[index] = data[index].wrapping_add(1);
-                        };
-                    };
-                };
-                false
-            },
-            2 => {
-                data[index+1] = data[index+1].wrapping_add(1);
-                if data[index+1]==0 {
-                    data[index] = data[index].wrapping_add(1);
-                    true
-                } else {
-                    false
-                }
-            },
-            1 => {
-                data[index] = data[index].wrapping_add(1);
-                if data[index]==0 {
-                    true
-                } else {
-                    false
-                }
-            },
-            _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
-        }
     }
 }
 
@@ -247,4 +244,53 @@ pub mod misc {
         s
     }
 
+    pub fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) -> bool{
+        let index = index * bytedepth;
+        match bytedepth {
+            4 => {
+                data[index+3] = data[index+3].wrapping_add(1);
+                if data[index+3]==0 {
+                    data[index+2] = data[index+2].wrapping_add(1);
+                    if data[index+2]==0 {
+                        data[index+1] = data[index+1].wrapping_add(1);
+                        if data[index+1]==0 {
+                            data[index] = data[index].wrapping_add(1);
+                        };
+                    };
+                };
+                false
+            },
+            2 => {
+                data[index+1] = data[index+1].wrapping_add(1);
+                if data[index+1]==0 {
+                    data[index] = data[index].wrapping_add(1);
+                    true
+                } else {
+                    false
+                }
+            },
+            1 => {
+                data[index] = data[index].wrapping_add(1);
+                if data[index]==0 {
+                    true
+                } else {
+                    false
+                }
+            },
+            _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
+        }
+    }
+
+    pub fn put_all_to_zero(data: &mut [u8]) {
+        for val in data {
+            *val = 0;
+        }
+    }
+    
+    pub fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
+        data.push(((index & 4_278_190_080)>>24) as u8);
+        data.push(((index & 16_711_680)>>16) as u8);
+        data.push(((index & 65_280)>>8) as u8);
+        data.push((index & 255) as u8);
+    }
 }
