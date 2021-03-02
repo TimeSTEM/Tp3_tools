@@ -1,7 +1,8 @@
 use std::io::prelude::*;
 use std::net::{Shutdown, TcpListener};
 use std::time::Instant;
-use timepix3::{RunningMode, Config, TdcType, Packet, spectral_image, tr_spectrum};
+use timepix3::auxiliar::{RunningMode, Config};
+use timepix3::{TdcType, Packet, spectral_image, tr_spectrum};
 
 fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> usize {
 
