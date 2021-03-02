@@ -72,7 +72,11 @@ pub mod spectral_image {
                             *counter+=1;
                             if *counter % (spim.1 * 10) == 0 {
                                 let image = *counter / (spim.1 * 10);
-                                //misc::put_all_to_zero(final_data);
+                                let mut filename = String::from("slice");
+                                filename.push_str(&(image.to_string()));
+                                filename.push_str(".dat");
+                                fs::write(filename, &*final_data);
+                                misc::put_all_to_zero(final_data);
                             }
 
                         },
