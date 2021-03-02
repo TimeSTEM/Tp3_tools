@@ -1,15 +1,18 @@
-///Describes how to run the program. DebugStem7482 will collect and send data using lo, while
+///Describes how to run the program. DebugStem7482 will collect and send data using lo @port 8088, while
 ///Tp3 collects in lo and sends to '192.168.199.11:8088'.
 pub enum RunningMode {
     DebugStem7482,
     Tp3,
 }
 
+///Define the start configuration of the detector. Each new measurement must send 28 bytes
+///containing acquisition instructions. See below for byte order and instructions.
 pub struct Config {
     pub data: [u8; 28],
 }
 
 impl Config {
+    ///Set binning mode for 1x4 detector. `\x00` for unbinned and `\x01` for binned. Panics otherwise. Byte[0].
     pub fn bin(&self) -> bool {
         match self.data[0] {
             0 => {
@@ -24,6 +27,7 @@ impl Config {
         }
     }
 
+    ///Set bytedepth. `\x00` for 1, `\x01` for 2 and `\x02` for 4. Panics otherwise. Byte[1].
     pub fn bytedepth(&self) -> usize {
         match self.data[1] {
             0 => {
@@ -42,6 +46,7 @@ impl Config {
         }
     }
 
+    ///Sums all arriving data. `\x00` for False, `\x01` for True. Panics otherwise. Byte[2].
     pub fn cumul(&self) -> bool {
         match self.data[2] {
             0 => {
@@ -56,6 +61,7 @@ impl Config {
         }
     }
 
+    ///Acquisition Mode. `\x00` for normal, `\x01` for spectral image and `\x02` for time-resolved. Panics otherwise. Byte[2..4].
     pub fn mode(&self) -> u8 {
         match self.data[3] {
             0 => {
@@ -72,31 +78,58 @@ impl Config {
         self.data[3]
     }
 
+    ///X spim size. Must be sent with 2 bytes in big-endian mode. Byte[4..6]
     pub fn xspim_size(&self) -> usize {
         let x = (self.data[4] as usize)<<8 | (self.data[5] as usize);
         println!("X Spim size is: {}.", x);
         x
     }
     
+    ///Y spim size. Must be sent with 2 bytes in big-endian mode. Byte[6..8]
     pub fn yspim_size(&self) -> usize {
         let y = (self.data[6] as usize)<<8 | (self.data[7] as usize);
         println!("Y Spim size is: {}.", y);
         y
     }
     
+    ///X scan size. Must be sent with 2 bytes in big-endian mode. Byte[8..10]
     pub fn xscan_size(&self) -> usize {
         let x = (self.data[8] as usize)<<8 | (self.data[9] as usize);
         println!("X Scan size is: {}.", x);
         x
     }
     
+    ///Y scan size. Must be sent with 2 bytes in big-endian mode. Byte[10..12]
     pub fn yscan_size(&self) -> usize {
         let y = (self.data[10] as usize)<<8 | (self.data[11] as usize);
         println!("Y Scan size is: {}.", y);
         y
     }
-
     
+    ///Time delay. Must be sent with 8 bytes in big-endian mode. Similar to double in C.
+    ///Byte[12..20]
+    pub fn time_delay(&self) -> f64 {
+        let mut array: [u8; 8] = [0; 8];
+        for (i, val) in array.iter_mut().enumerate() {
+            *val = self.data[i+12]
+        }
+        let val = f64::from_be_bytes(array);
+        println!("Time delay is (ns): {}.", val);
+        val / 1.0e9
+    }
+    
+    ///Time width. Must be sent with 8 bytes in big-endian mode. Similar to double in C. Byte[20..28].
+    pub fn time_width(&self) -> f64 {
+        let mut array: [u8; 8] = [0; 8];
+        for (i, val) in array.iter_mut().enumerate() {
+            *val = self.data[i+20]
+        }
+        let val = f64::from_be_bytes(array);
+        println!("Time width is (ns): {}.", val);
+        val / 1.0e9
+    }
+    
+    ///Convenience method. Returns the ratio between scan and spim size in X.
     pub fn spimoverscanx(&self) -> usize {
         let xspim = (self.data[4] as usize)<<8 | (self.data[5] as usize);
         let xscan = (self.data[8] as usize)<<8 | (self.data[9] as usize);
@@ -113,6 +146,7 @@ impl Config {
         }
     }
     
+    ///Convenience method. Returns the ratio between scan and spim size in Y.
     pub fn spimoverscany(&self) -> usize {
         let yspim = (self.data[6] as usize)<<8 | (self.data[7] as usize);
         let yscan = (self.data[10] as usize)<<8 | (self.data[11] as usize);
@@ -129,23 +163,4 @@ impl Config {
         }
     }
 
-    pub fn time_delay(&self) -> f64 {
-        let mut array: [u8; 8] = [0; 8];
-        for (i, val) in array.iter_mut().enumerate() {
-            *val = self.data[i+12]
-        }
-        let val = f64::from_be_bytes(array);
-        println!("Time delay is (ns): {}.", val);
-        val / 1.0e9
-    }
-    
-    pub fn time_width(&self) -> f64 {
-        let mut array: [u8; 8] = [0; 8];
-        for (i, val) in array.iter_mut().enumerate() {
-            *val = self.data[i+20]
-        }
-        let val = f64::from_be_bytes(array);
-        println!("Time width is (ns): {}.", val);
-        val / 1.0e9
-    }
 }

@@ -2,7 +2,8 @@ use std::io::prelude::*;
 use std::net::{Shutdown, TcpListener};
 use std::time::Instant;
 use timepix3::auxiliar::{RunningMode, Config};
-use timepix3::{TdcType, Packet, spectral_image, tr_spectrum};
+use timepix3::tdclib::TdcType;
+use timepix3::{Packet, spectral_image, tr_spectrum};
 
 fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> usize {
 
@@ -121,7 +122,7 @@ fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut 
                 match packet.id() {
                     6 => {
                         let time = packet.tdc_time_norm();
-                        let tdc = packet.tdc_type_as_enum().unwrap();
+                        let tdc = TdcType::associate_value_to_enum(packet.tdc_type()).unwrap();
                         tdc_vec.push( (time, tdc) );
                     },
                     _ => {},
