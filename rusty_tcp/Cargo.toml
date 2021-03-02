@@ -2,7 +2,7 @@
 name = "timepix3"
 version = "0.7.0"
 authors = ["yvesauad <yvesauad@gmail.com>"]
-edition = "2021"
+edition = "2018"
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
