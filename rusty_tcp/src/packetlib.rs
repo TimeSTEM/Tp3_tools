@@ -130,48 +130,4 @@ impl<'a> Packet<'a> {
     pub fn calc_tdc_time(coarse: u64, fine: u8) -> f64 {
         (coarse as f64) * (1.0/320e6) + (fine as f64) * 260e-12
     }
-
-    pub fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) -> bool{
-        let index = index * bytedepth;
-        match bytedepth {
-            4 => {
-                data[index+3] = data[index+3].wrapping_add(1);
-                if data[index+3]==0 {
-                    data[index+2] = data[index+2].wrapping_add(1);
-                    if data[index+2]==0 {
-                        data[index+1] = data[index+1].wrapping_add(1);
-                        if data[index+1]==0 {
-                            data[index] = data[index].wrapping_add(1);
-                        };
-                    };
-                };
-                false
-            },
-            2 => {
-                data[index+1] = data[index+1].wrapping_add(1);
-                if data[index+1]==0 {
-                    data[index] = data[index].wrapping_add(1);
-                    true
-                } else {
-                    false
-                }
-            },
-            1 => {
-                data[index] = data[index].wrapping_add(1);
-                if data[index]==0 {
-                    true
-                } else {
-                    false
-                }
-            },
-            _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
-        }
-    }
-
-    pub fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
-        data.push(((index & 4_278_190_080)>>24) as u8);
-        data.push(((index & 16_711_680)>>16) as u8);
-        data.push(((index & 65_280)>>8) as u8);
-        data.push((index & 255) as u8);
-    }
 }

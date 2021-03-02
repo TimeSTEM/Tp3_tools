@@ -3,7 +3,7 @@ use std::net::{Shutdown, TcpListener};
 use std::time::Instant;
 use timepix3::auxiliar::{RunningMode, Config};
 use timepix3::tdclib::TdcType;
-use timepix3::{spectrum, spectral_image, tr_spectrum, misc};
+use timepix3::{spectrum, spectral_image, misc};
 
 fn connect_and_loop(runmode: RunningMode) {
 
@@ -159,7 +159,7 @@ fn connect_and_loop(runmode: RunningMode) {
             let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
             
             let all_ref_time = TdcType::vec_from_tdc(&tdc_vec, tdc_ref);
-            let mut ref_time: Vec<f64> = tr_spectrum::create_start_vectime(all_ref_time);
+            let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime(all_ref_time);
      
             frame_time = TdcType::last_time_from_tdc(&tdc_vec, tdc_frame);
             counter = TdcType::howmany_from_tdc(&tdc_vec, tdc_frame);
@@ -180,7 +180,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            let result = tr_spectrum::build_time_data(new_data, &mut data_array, &mut last_ci, &mut frame_time, &mut ref_time, bin, bytedepth, tdc_frame, tdc_ref, tdelay, twidth);
+                            let result = spectrum::tr_build_data(new_data, &mut data_array, &mut last_ci, &mut frame_time, &mut ref_time, bin, bytedepth, tdc_frame, tdc_ref, tdelay, twidth);
                             counter += result;
                             
                             if result>0 {

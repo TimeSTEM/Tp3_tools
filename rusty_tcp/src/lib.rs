@@ -7,9 +7,6 @@ pub mod auxiliar;
 pub mod tdclib;
 pub mod packetlib;
 
-
-
-
 ///`spectral_image` is a module containing tools to live acquire spectral images.
 pub mod spectral_image {
     use crate::packetlib::Packet;
@@ -32,7 +29,7 @@ pub mod spectral_image {
                             if check_if_in(ele_time, sltdc, interval) {
                                 let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
                                 let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
-                                Packet::append_to_index_array(&mut index_data, array_pos);
+                                append_to_index_array(&mut index_data, array_pos);
                             }
                         },
                         6 if packet.tdc_type() == tdc_kind => {
@@ -63,71 +60,14 @@ pub mod spectral_image {
         true
         } else {false}
     }
-}
-
-
-
-
-
-///`tr_spectrum` is a module containing tools to live acquire frame-based time-resolved spectra.
-///Uses one tdc for defining frame and other tdc to correlate time.
-pub mod tr_spectrum {
-    use crate::packetlib::Packet;
-
-    pub fn build_time_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, ref_time: &mut Vec<f64>, bin: bool, bytedepth: usize, frame_tdc: u8, ref_tdc: u8, tdelay: f64, twidth: f64) -> usize {
-        let mut packet_chunks = data.chunks_exact(8);
-        let mut tdc_counter = 0;
-
-        while let Some(x) = packet_chunks.next() {
-            match x {
-                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
-                _ => {
-                    let packet = Packet { chip_index: *last_ci, data: x};
-                    
-                    match packet.id() {
-                        11 => {
-                            let ele_time = packet.electron_time();
-                            
-                            if check_if_in(ref_time, ele_time, tdelay, twidth) {
-                                let array_pos = match bin {
-                                    false => packet.x() + 1024*packet.y(),
-                                    true => packet.x()
-                                };
-                                Packet::append_to_array(final_data, array_pos, bytedepth);
-                            }
-                        },
-                        6 if packet.tdc_type() == frame_tdc => {
-                            *frame_time = packet.tdc_time();
-                            tdc_counter+=1;
-                        },
-                        6 if packet.tdc_type() == ref_tdc => {
-                            ref_time.remove(0);
-                            ref_time.push(packet.tdc_time_norm());
-                        },
-                        _ => {},
-                    };
-                },
-            };
-        };
-        tdc_counter
-    }
-
-    pub fn check_if_in(time_vec: &Vec<f64>, time: f64, delay: f64, width: f64) -> bool {
-        for val in time_vec {
-            if time>val+delay && time<val+delay+width {
-                return true
-            }
-        }
-        false
-    }
-
-    pub fn create_start_vectime(mut at: Vec<f64>) -> Vec<f64> {
-        let ref_time:Vec<f64> = [at.pop().unwrap(), at.pop().unwrap()].to_vec();
-        ref_time
+    
+    fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
+        data.push(((index & 4_278_190_080)>>24) as u8);
+        data.push(((index & 16_711_680)>>16) as u8);
+        data.push(((index & 65_280)>>8) as u8);
+        data.push((index & 255) as u8);
     }
 }
-
-
 
 
 
@@ -153,7 +93,7 @@ pub mod spectrum {
                                 false => packet.x() + 1024*packet.y(),
                                 true => packet.x()
                             };
-                            Packet::append_to_array(final_data, array_pos, bytedepth);
+                            append_to_array(final_data, array_pos, bytedepth);
                         },
                         6 if packet.tdc_type() == kind => {
                             *frame_time = packet.tdc_time();
@@ -165,6 +105,95 @@ pub mod spectrum {
             };
         };
         tdc_counter
+    }
+
+    pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, ref_time: &mut Vec<f64>, bin: bool, bytedepth: usize, frame_tdc: u8, ref_tdc: u8, tdelay: f64, twidth: f64) -> usize {
+        let mut packet_chunks = data.chunks_exact(8);
+        let mut tdc_counter = 0;
+
+        while let Some(x) = packet_chunks.next() {
+            match x {
+                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
+                _ => {
+                    let packet = Packet { chip_index: *last_ci, data: x};
+                    
+                    match packet.id() {
+                        11 => {
+                            let ele_time = packet.electron_time();
+                            
+                            if tr_check_if_in(ref_time, ele_time, tdelay, twidth) {
+                                let array_pos = match bin {
+                                    false => packet.x() + 1024*packet.y(),
+                                    true => packet.x()
+                                };
+                                append_to_array(final_data, array_pos, bytedepth);
+                            }
+                        },
+                        6 if packet.tdc_type() == frame_tdc => {
+                            *frame_time = packet.tdc_time();
+                            tdc_counter+=1;
+                        },
+                        6 if packet.tdc_type() == ref_tdc => {
+                            ref_time.remove(0);
+                            ref_time.push(packet.tdc_time_norm());
+                        },
+                        _ => {},
+                    };
+                },
+            };
+        };
+        tdc_counter
+    }
+    
+    fn tr_check_if_in(time_vec: &Vec<f64>, time: f64, delay: f64, width: f64) -> bool {
+        for val in time_vec {
+            if time>val+delay && time<val+delay+width {
+                return true
+            }
+        }
+        false
+    }
+
+    pub fn tr_create_start_vectime(mut at: Vec<f64>) -> Vec<f64> {
+        let ref_time:Vec<f64> = [at.pop().unwrap(), at.pop().unwrap()].to_vec();
+        ref_time
+    }
+    
+    fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) -> bool{
+        let index = index * bytedepth;
+        match bytedepth {
+            4 => {
+                data[index+3] = data[index+3].wrapping_add(1);
+                if data[index+3]==0 {
+                    data[index+2] = data[index+2].wrapping_add(1);
+                    if data[index+2]==0 {
+                        data[index+1] = data[index+1].wrapping_add(1);
+                        if data[index+1]==0 {
+                            data[index] = data[index].wrapping_add(1);
+                        };
+                    };
+                };
+                false
+            },
+            2 => {
+                data[index+1] = data[index+1].wrapping_add(1);
+                if data[index+1]==0 {
+                    data[index] = data[index].wrapping_add(1);
+                    true
+                } else {
+                    false
+                }
+            },
+            1 => {
+                data[index] = data[index].wrapping_add(1);
+                if data[index]==0 {
+                    true
+                } else {
+                    false
+                }
+            },
+            _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
+        }
     }
 }
 
