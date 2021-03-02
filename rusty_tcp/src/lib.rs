@@ -49,6 +49,7 @@ pub mod spectral_image {
     pub fn build_save_spim_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, spim: (usize, usize), yratio: usize, interval: f64, bytedepth: usize, tdc_kind: u8) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
+        let per = spim.1 * 10;
 
         while let Some(x) = packet_chunks.next() {
             match x {
@@ -70,15 +71,14 @@ pub mod spectral_image {
                         6 if packet.tdc_type() == tdc_kind => {
                             *sltdc = packet.tdc_time_norm();
                             *counter+=1;
-                            if *counter % (spim.1 * 10) == 0 {
-                                let image = *counter / (spim.1 * 10);
+                            if *counter % per == 0 {
+                                let image = *counter / per;
                                 let mut filename = String::from("slice");
                                 filename.push_str(&(image.to_string()));
                                 filename.push_str(".dat");
                                 fs::write(filename, &*final_data);
                                 misc::put_all_to_zero(final_data);
                             }
-
                         },
                         _ => {},
                     };
