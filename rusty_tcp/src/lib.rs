@@ -59,9 +59,9 @@ pub mod spectral_image {
                     
                     match packet.id() {
                         11 => {
-                            let line = (*counter / yratio) % spim.1;
                             let ele_time = packet.electron_time() - 0.000007;
                             if check_if_in(ele_time, sltdc, interval) {
+                                let line = (*counter / yratio) % spim.1;
                                 let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
                                 let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
                                 misc::append_to_index_array(&mut index_data, array_pos);
@@ -114,10 +114,10 @@ pub mod spectrum {
     use crate::packetlib::Packet;
     use crate::misc;
     
-    pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> usize {
+    pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, counter: &mut usize, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> bool {
 
         let mut packet_chunks = data.chunks_exact(8);
-        let mut tdc_counter = 0;
+        let mut has = false;
 
         while let Some(x) = packet_chunks.next() {
             match x {
@@ -135,19 +135,20 @@ pub mod spectrum {
                         },
                         6 if packet.tdc_type() == kind => {
                             *frame_time = packet.tdc_time();
-                            tdc_counter+=1;
+                            *counter+=1;
+                            has = true;
                         },
                         _ => {},
                     };
                 },
             };
         };
-        tdc_counter
+        has
     }
 
-    pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, frame_time: &mut f64, ref_time: &mut Vec<f64>, bin: bool, bytedepth: usize, frame_tdc: u8, ref_tdc: u8, tdelay: f64, twidth: f64) -> usize {
+    pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, counter: &mut usize, frame_time: &mut f64, ref_time: &mut Vec<f64>, bin: bool, bytedepth: usize, frame_tdc: u8, ref_tdc: u8, tdelay: f64, twidth: f64) -> bool {
         let mut packet_chunks = data.chunks_exact(8);
-        let mut tdc_counter = 0;
+        let mut has = false;
 
         while let Some(x) = packet_chunks.next() {
             match x {
@@ -158,7 +159,6 @@ pub mod spectrum {
                     match packet.id() {
                         11 => {
                             let ele_time = packet.electron_time();
-                            
                             if tr_check_if_in(ref_time, ele_time, tdelay, twidth) {
                                 let array_pos = match bin {
                                     false => packet.x() + 1024*packet.y(),
@@ -169,7 +169,8 @@ pub mod spectrum {
                         },
                         6 if packet.tdc_type() == frame_tdc => {
                             *frame_time = packet.tdc_time();
-                            tdc_counter+=1;
+                            *counter+=1;
+                            has = true;
                         },
                         6 if packet.tdc_type() == ref_tdc => {
                             ref_time.remove(0);
@@ -180,7 +181,7 @@ pub mod spectrum {
                 },
             };
         };
-        tdc_counter
+        has
     }
     
     fn tr_check_if_in(time_vec: &Vec<f64>, time: f64, delay: f64, width: f64) -> bool {

@@ -108,10 +108,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            let result = spectrum::build_data(new_data, &mut data_array, &mut last_ci, &mut frame_time, bin, bytedepth, tdc_type);
-                            counter += result;
-                            
-                            if result>0 {
+                            if spectrum::build_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, bin, bytedepth, tdc_type) {
                                 let msg = match bin {
                                     true => misc::create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1),
                                     false => misc::create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256),
@@ -183,10 +180,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            let result = spectrum::tr_build_data(new_data, &mut data_array, &mut last_ci, &mut frame_time, &mut ref_time, bin, bytedepth, tdc_frame, tdc_ref, tdelay, twidth);
-                            counter += result;
-                            
-                            if result>0 {
+                            if spectrum::tr_build_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, &mut ref_time, bin, bytedepth, tdc_frame, tdc_ref, tdelay, twidth) {
                                 let msg = match bin {
                                     true => misc::create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1),
                                     false => misc::create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256),
