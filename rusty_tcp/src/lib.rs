@@ -10,11 +10,12 @@ pub mod packetlib;
 ///`spectral_image` is a module containing tools to live acquire spectral images.
 pub mod spectral_image {
     use crate::packetlib::Packet;
+    use crate::auxiliar::Settings;
     use crate::misc;
     use std::fs;
     
     ///Returns a vector containing a list of indexes in which events happened.
-    pub fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, spim: (usize, usize), yratio: usize, interval: f64, period: f64, tdc_kind: u8) -> Vec<u8> {
+    pub fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, settings: &Settings, interval: f64, period: f64, tdc_kind: u8) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
 
@@ -28,9 +29,9 @@ pub mod spectral_image {
                         11 => {
                             let ele_time = packet.electron_time() - 0.000007;
                             if let Some(backline) = place_pixel(ele_time, sltdc, interval, period) {
-                                let line = ((*counter - backline) / yratio) % spim.1;
-                                let xpos = (spim.0 as f64 * ((ele_time - (*sltdc - (backline as f64)*period))/interval)) as usize;
-                                let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
+                                let line = ((*counter - backline) / settings.spimoverscany) % settings.yspim_size;
+                                let xpos = (settings.xspim_size as f64 * ((ele_time - (*sltdc - (backline as f64)*period))/interval)) as usize;
+                                let array_pos = packet.x() + 1024*settings.xspim_size*line + 1024*xpos;
                                 misc::append_to_index_array(&mut index_data, array_pos);
                             }
                             
