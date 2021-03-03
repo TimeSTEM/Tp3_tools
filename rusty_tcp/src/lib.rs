@@ -32,15 +32,8 @@ pub mod spectral_image {
                                 let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
                                 let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
                                 misc::append_to_index_array(&mut index_data, array_pos);
-                            } //else if *sltdc < 5.0 {println!("{} and {}", ele_time, *sltdc-ele_time)}
+                            }
                             
-
-                            //if check_if_in(ele_time, sltdc, interval) {
-                            //    let line = (*counter / yratio) % spim.1;
-                            //    let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
-                            //    let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
-                            //    misc::append_to_index_array(&mut index_data, array_pos);
-                            //}
                         },
                         6 if packet.tdc_type() == tdc_kind => {
                             *sltdc = packet.tdc_time_norm();
