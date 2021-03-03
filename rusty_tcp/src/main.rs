@@ -161,7 +161,10 @@ fn connect_and_loop(runmode: RunningMode) {
             let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
             
             let all_ref_time = TdcType::vec_from_tdc(&tdc_vec, tdc_ref);
+            let period = spectrum::tr_find_period(&all_ref_time);
             let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime(all_ref_time);
+            
+            println!("Laser periodicity is: {}. First time vectors found were {:?}.", period, ref_time);
      
             frame_time = TdcType::last_time_from_tdc(&tdc_vec, tdc_frame);
             counter = TdcType::howmany_from_tdc(&tdc_vec, tdc_frame);
@@ -182,7 +185,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            if spectrum::tr_build_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, &mut ref_time, bin, bytedepth, tdc_frame, tdc_ref, tdelay, twidth) {
+                            if spectrum::tr_build_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, &mut ref_time, bin, bytedepth, tdc_frame, tdc_ref, tdelay, twidth, period) {
                                 let msg = match bin {
                                     true => misc::create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1),
                                     false => misc::create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256),

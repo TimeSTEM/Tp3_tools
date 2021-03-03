@@ -118,7 +118,7 @@ pub mod spectral_image {
             new_start_line = new_start_line - period;
         }
         
-        if counter>2 {return None}
+        if counter>3 {return None}
         
         if ele_time > new_start_line && ele_time < new_start_line + interval {
             Some(counter)
@@ -169,7 +169,7 @@ pub mod spectrum {
         has
     }
 
-    pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, counter: &mut usize, frame_time: &mut f64, ref_time: &mut Vec<f64>, bin: bool, bytedepth: usize, frame_tdc: u8, ref_tdc: u8, tdelay: f64, twidth: f64) -> bool {
+    pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, counter: &mut usize, frame_time: &mut f64, ref_time: &mut Vec<f64>, bin: bool, bytedepth: usize, frame_tdc: u8, ref_tdc: u8, tdelay: f64, twidth: f64, period: f64) -> bool {
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
 
@@ -196,8 +196,11 @@ pub mod spectrum {
                             has = true;
                         },
                         6 if packet.tdc_type() == ref_tdc => {
-                            ref_time.remove(0);
-                            ref_time.push(packet.tdc_time_norm());
+                            let time = packet.tdc_time_norm();
+                            let last = ref_time.remove(0);
+                            
+                            let dif = ref_time[0] - last;
+                            ref_time.push(time+period);
                         },
                         _ => {},
                     };
@@ -217,9 +220,20 @@ pub mod spectrum {
     }
 
     pub fn tr_create_start_vectime(mut at: Vec<f64>) -> Vec<f64> {
-        let ref_time:Vec<f64> = [at.pop().unwrap(), at.pop().unwrap()].to_vec();
+        let rec = at.pop().unwrap();
+        let br = at.pop().unwrap();
+        let bbr = at.pop().unwrap();
+        let bbbr = at.pop().unwrap();
+        let interval = rec - br;
+        let ref_time:Vec<f64> = [bbbr, bbr, br, rec, rec+interval].to_vec();
+        //let ref_time:Vec<f64> = [bef_bef_recent, bef_recent, recent, recent+interval].to_vec();
         ref_time
     }
+    
+    pub fn tr_find_period(at: &[f64]) -> f64 {
+        at[1] - at[0]
+    }
+
 }
 
 
