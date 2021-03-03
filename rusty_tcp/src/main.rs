@@ -41,6 +41,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 println!("Received {} bytes from NS.", size);
                 let my_config = BytesConfig{data: cam_settings};
                 mode = my_config.mode();
+                my_config.create_settings();
                 my_settings = Settings{bin: my_config.bin(), bytedepth: my_config.bytedepth(), cumul: my_config.cumul(), xspim_size: my_config.xspim_size(), yspim_size: my_config.yspim_size(), xscan_size: my_config.xscan_size(), yscan_size: my_config.yscan_size(), time_delay: my_config.time_delay(), time_width: my_config.time_width(), spimoverscanx: my_config.spimoverscanx(), spimoverscany: my_config.spimoverscany()}
             },
             Err(_) => panic!("Could not read cam initial settings."),

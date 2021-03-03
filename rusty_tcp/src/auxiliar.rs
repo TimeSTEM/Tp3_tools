@@ -164,6 +164,11 @@ impl BytesConfig {
             },
         }
     }
+
+    pub fn create_settings(&self) {
+        let a = BytesConfig::bin(&self);
+        println!("hi guys {}", a);
+    }
 }
 
 pub struct Settings {
