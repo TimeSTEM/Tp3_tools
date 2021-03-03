@@ -135,9 +135,10 @@ pub mod spectral_image {
 ///define frame.
 pub mod spectrum {
     use crate::packetlib::Packet;
+    use crate::auxiliar::Settings;
     use crate::misc;
     
-    pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, counter: &mut usize, frame_time: &mut f64, bin: bool, bytedepth: usize, kind: u8) -> bool {
+    pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, counter: &mut usize, frame_time: &mut f64, settings: &Settings, kind: u8) -> bool {
 
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
@@ -150,11 +151,11 @@ pub mod spectrum {
                     
                     match packet.id() {
                         11 => {
-                            let array_pos = match bin {
+                            let array_pos = match settings.bin {
                                 false => packet.x() + 1024*packet.y(),
                                 true => packet.x()
                             };
-                            misc::append_to_array(final_data, array_pos, bytedepth);
+                            misc::append_to_array(final_data, array_pos, settings.bytedepth);
                         },
                         6 if packet.tdc_type() == kind => {
                             *frame_time = packet.tdc_time();
@@ -169,7 +170,7 @@ pub mod spectrum {
         has
     }
 
-    pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, counter: &mut usize, frame_time: &mut f64, ref_time: &mut Vec<f64>, bin: bool, bytedepth: usize, frame_tdc: u8, ref_tdc: u8, tdelay: f64, twidth: f64, period: f64) -> bool {
+    pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, counter: &mut usize, frame_time: &mut f64, ref_time: &mut Vec<f64>, settings: &Settings, frame_tdc: u8, ref_tdc: u8, period: f64) -> bool {
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
 
@@ -182,12 +183,12 @@ pub mod spectrum {
                     match packet.id() {
                         11 => {
                             let ele_time = packet.electron_time();
-                            if tr_check_if_in(ref_time, ele_time, tdelay, twidth) {
-                                let array_pos = match bin {
+                            if tr_check_if_in(ref_time, ele_time, settings.time_delay, settings.time_width) {
+                                let array_pos = match settings.bin {
                                     false => packet.x() + 1024*packet.y(),
                                     true => packet.x()
                                 };
-                                misc::append_to_array(final_data, array_pos, bytedepth);
+                                misc::append_to_array(final_data, array_pos, settings.bytedepth);
                             }
                         },
                         6 if packet.tdc_type() == frame_tdc => {

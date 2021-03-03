@@ -1,7 +1,7 @@
 use std::io::prelude::*;
 use std::net::{Shutdown, TcpListener};
 use std::time::Instant;
-use timepix3::auxiliar::{RunningMode, Config};
+use timepix3::auxiliar::{RunningMode, BytesConfig, Settings};
 use timepix3::tdclib::TdcType;
 use timepix3::{spectrum, spectral_image, misc};
 
@@ -13,8 +13,6 @@ fn connect_and_loop(runmode: RunningMode) {
     let mode:u8;
     let spim_size:(usize, usize);
     let yratio: usize;
-    let tdelay: f64;
-    let twidth: f64;
 
     let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not connect to packets.");
     let ns_listener = match runmode {
@@ -26,9 +24,6 @@ fn connect_and_loop(runmode: RunningMode) {
     println!("Localhost TP3 detected at {:?}", packet_addr);
     let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
     println!("Nionswift connected at {:?}", ns_addr);
-    let (mut nsaux_sock, nsaux_addr) = ns_listener.accept().expect("Could not connect to Nionswift aux.");
-    println!("Nionswift [aux] connected at {:?}", nsaux_addr);
-    
 
     println!("Waiting for config bytes. Instructions:
     28 bytes in total, structured as:
@@ -43,19 +38,19 @@ fn connect_and_loop(runmode: RunningMode) {
     [12, 20] => Time delay (in ns). f64, double endian (>double in C);
     [20, 28] => Time width (in ns). f64, double endian (>double in C);
     ");
+    let my_settings: Settings;
     let mut cam_settings = [0 as u8; 28];
     match ns_sock.read(&mut cam_settings){
         Ok(size) => {
             println!("Received {} bytes from NS.", size);
-            let my_config = Config{data: cam_settings};
+            let my_config = BytesConfig{data: cam_settings};
             bin = my_config.bin();
             bytedepth = my_config.bytedepth();
             cumul = my_config.cumul();
             mode = my_config.mode();
             spim_size = (my_config.xspim_size(), my_config.yspim_size());
             yratio = my_config.spimoverscany();
-            tdelay = my_config.time_delay();
-            twidth = my_config.time_width();
+            my_settings = Settings{bin: my_config.bin(), bytedepth: my_config.bytedepth(), cumul: my_config.cumul(), xspim_size: my_config.xspim_size(), yspim_size: my_config.yspim_size(), xscan_size: my_config.xscan_size(), yscan_size: my_config.yscan_size(), time_delay: my_config.time_delay(), time_width: my_config.time_width(), spimoverscanx: my_config.spimoverscanx(), spimoverscany: my_config.spimoverscany()}
         },
         Err(_) => panic!("Could not read cam initial settings."),
     }
@@ -108,7 +103,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            if spectrum::build_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, bin, bytedepth, tdc_type) {
+                            if spectrum::build_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, &my_settings, tdc_type) {
                                 let msg = match bin {
                                     true => misc::create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1),
                                     false => misc::create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256),
@@ -185,7 +180,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            if spectrum::tr_build_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, &mut ref_time, bin, bytedepth, tdc_frame, tdc_ref, tdelay, twidth, period) {
+                            if spectrum::tr_build_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, &mut ref_time, &my_settings, tdc_frame, tdc_ref, period) {
                                 let msg = match bin {
                                     true => misc::create_header(frame_time, counter, bytedepth*1024, bytedepth<<3, 1024, 1),
                                     false => misc::create_header(frame_time, counter, bytedepth*256*1024, bytedepth<<3, 1024, 256),

@@ -9,11 +9,11 @@ pub enum RunningMode {
 
 ///Configures the detector for acquisition. Each new measurement must send 28 bytes
 ///containing instructions.
-pub struct Config {
+pub struct BytesConfig {
     pub data: [u8; 28],
 }
 
-impl Config {
+impl BytesConfig {
     ///Set binning mode for 1x4 detector. `\x00` for unbinned and `\x01` for binned. Panics otherwise. Byte[0].
     pub fn bin(&self) -> bool {
         match self.data[0] {
@@ -164,5 +164,18 @@ impl Config {
             },
         }
     }
+}
 
+pub struct Settings {
+    pub bin: bool,
+    pub bytedepth: usize,
+    pub cumul: bool,
+    pub xspim_size: usize,
+    pub yspim_size: usize,
+    pub xscan_size: usize,
+    pub yscan_size: usize,
+    pub time_delay: f64,
+    pub time_width: f64,
+    pub spimoverscanx: usize,
+    pub spimoverscany: usize,
 }
