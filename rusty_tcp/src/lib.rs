@@ -197,9 +197,9 @@ pub mod spectrum {
                         },
                         6 if packet.tdc_type() == ref_tdc => {
                             let time = packet.tdc_time_norm();
-                            let last = ref_time.remove(0);
-                            
-                            let dif = ref_time[0] - last;
+                            ref_time.remove(0);
+                            ref_time.pop().unwrap();
+                            ref_time.push(time);
                             ref_time.push(time+period);
                         },
                         _ => {},
@@ -226,7 +226,6 @@ pub mod spectrum {
         let bbbr = at.pop().unwrap();
         let interval = rec - br;
         let ref_time:Vec<f64> = [bbbr, bbr, br, rec, rec+interval].to_vec();
-        //let ref_time:Vec<f64> = [bef_bef_recent, bef_recent, recent, recent+interval].to_vec();
         ref_time
     }
     
