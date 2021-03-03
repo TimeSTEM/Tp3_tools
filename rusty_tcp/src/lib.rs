@@ -29,7 +29,7 @@ pub mod spectral_image {
                             let ele_time = packet.electron_time() - 0.000007;
                             if let Some(backline) = place_pixel(ele_time, sltdc, interval, period) {
                                 let line = ((*counter - backline) / yratio) % spim.1;
-                                let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
+                                let xpos = (spim.0 as f64 * ((ele_time - (*sltdc - (backline as f64)*period))/interval)) as usize;
                                 let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
                                 misc::append_to_index_array(&mut index_data, array_pos);
                             }
@@ -115,10 +115,10 @@ pub mod spectral_image {
         let mut counter = 0;
         while ele_time < new_start_line {
             counter+=1;
-            new_start_line-=period;
+            new_start_line = new_start_line - period;
         }
         
-        if counter>5 {return None}
+        if counter>2 {return None}
         
         if ele_time > new_start_line && ele_time < new_start_line + interval {
             Some(counter)
