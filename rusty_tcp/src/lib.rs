@@ -14,7 +14,7 @@ pub mod spectral_image {
     use std::fs;
     
     ///Returns a vector containing a list of indexes in which events happened.
-    pub fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, spim: (usize, usize), yratio: usize, interval: f64, tdc_kind: u8) -> Vec<u8> {
+    pub fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, spim: (usize, usize), yratio: usize, interval: f64, period: f64, tdc_kind: u8) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
 
@@ -26,13 +26,21 @@ pub mod spectral_image {
                     
                     match packet.id() {
                         11 => {
-                            let line = (*counter / yratio) % spim.1;
                             let ele_time = packet.electron_time() - 0.000007;
-                            if check_if_in(ele_time, sltdc, interval) {
+                            if let Some(backline) = place_pixel(ele_time, sltdc, interval, period) {
+                                let line = ((*counter - backline) / yratio) % spim.1;
                                 let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
                                 let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
                                 misc::append_to_index_array(&mut index_data, array_pos);
-                            }
+                            } //else if *sltdc < 5.0 {println!("{} and {}", ele_time, *sltdc-ele_time)}
+                            
+
+                            //if check_if_in(ele_time, sltdc, interval) {
+                            //    let line = (*counter / yratio) % spim.1;
+                            //    let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
+                            //    let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
+                            //    misc::append_to_index_array(&mut index_data, array_pos);
+                            //}
                         },
                         6 if packet.tdc_type() == tdc_kind => {
                             *sltdc = packet.tdc_time_norm();
@@ -98,11 +106,33 @@ pub mod spectral_image {
         (start_line[2] - start_line[1]) - deadtime
     }
 
+    pub fn find_period(start_line: &[f64]) -> f64 {
+        start_line[2] - start_line[1]
+    }
+
     ///Checks if event is in the appropriate time interval to be counted.
     fn check_if_in(ele_time: f64, start_line: &f64, interval: f64) -> bool {
         if ele_time>*start_line && ele_time<(*start_line + interval) {
         true
         } else {false}
+    }
+
+    fn place_pixel(ele_time: f64, start_line: &f64, interval: f64, period: f64) -> Option<usize> {
+        let mut new_start_line = *start_line;
+        let mut counter = 0;
+        while ele_time < new_start_line {
+            counter+=1;
+            new_start_line-=period;
+        }
+        
+        if counter>5 {return None}
+        
+        if ele_time > new_start_line && ele_time < new_start_line + interval {
+            Some(counter)
+        } else {
+            None
+        }
+
     }
 }
 

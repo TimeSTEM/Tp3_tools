@@ -129,11 +129,13 @@ fn connect_and_loop(runmode: RunningMode) {
 
             let dead_time:f64;
             let interval:f64;
+            let period:f64;
             {
                 let start_line = TdcType::vec_from_tdc(&tdc_vec, start_tdc_type);
                 let end_line = TdcType::vec_from_tdc(&tdc_vec, stop_tdc_type);
                 dead_time = spectral_image::find_deadtime(&start_line, &end_line);
                 interval = spectral_image::find_interval(&start_line, dead_time);
+                period = spectral_image::find_period(&start_line);
             }
             println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}", interval*1.0e6, dead_time*1.0e6);
             
@@ -146,7 +148,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, start_tdc_type);
+                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, period, start_tdc_type);
                         //let result = spectral_image::build_save_spim_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, bytedepth, start_tdc_type);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
                         //if let Err(_) = nsaux_sock.write(&[1, 2, 3, 4, 5]) {println!("Client disconnected on data."); break 'global_spim;}
