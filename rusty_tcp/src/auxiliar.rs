@@ -165,9 +165,28 @@ impl BytesConfig {
         }
     }
 
-    pub fn create_settings(&self) {
-        let a = BytesConfig::bin(&self);
-        println!("hi guys {}", a);
+    pub fn create_settings(&self) -> Settings {
+        //let a = BytesConfig::bin(&self);
+        //println!("hi guys {}", a);
+        Settings {
+            bin: self.bin(),
+            bytedepth: self.bytedepth(),
+            cumul: self.cumul(),
+            xspim_size: self.xspim_size(),
+            yspim_size: self.yspim_size(),
+            xscan_size: self.xscan_size(),
+            yscan_size: self.yscan_size(),
+            time_delay: self.time_delay(),
+            time_width: self.time_width(),
+            spimoverscanx: self.spimoverscanx(),
+            spimoverscany: self.spimoverscany(),
+            tdc1: false,
+            tdc2: false,
+            per1: None,
+            wid1: None,
+            per2: None,
+            wid2: None,
+        }
     }
 }
 
@@ -183,4 +202,16 @@ pub struct Settings {
     pub time_width: f64,
     pub spimoverscanx: usize,
     pub spimoverscany: usize,
+    pub tdc1: bool,
+    pub tdc2: bool,
+    pub per1: Option<f64>,
+    pub wid1: Option<f64>,
+    pub per2: Option<f64>,
+    pub wid2: Option<f64>,
+}
+
+impl Settings {
+    pub fn set_per1(&mut self, value: f64) {
+        self.per1 = Some(value);
+    }
 }

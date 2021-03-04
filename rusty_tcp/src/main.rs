@@ -20,20 +20,7 @@ fn connect_and_loop(runmode: RunningMode) {
     let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
     println!("Nionswift connected at {:?}", ns_addr);
 
-    println!("Waiting for config bytes. Instructions:
-    28 bytes in total, structured as:
-    [0, 1] => Bin (\\x00 for image and \\x01 for software binning);
-    [1, 2] => Bytedepth (\\x00 for 8 bit, \\x01 for 16 bit and \\x02 for 32 bit);
-    [2, 3] => Cumulation (\\x00 for Focus Mode and \\x01 for Cumul Mode);
-    [3, 4] => Mode (\\x00 for Focus/Cumul, \\x01 for SPIM and \\x02 for TR);
-    [4, 6] => X spim size. 16 bit depth, big endian mode;
-    [6, 8] => Y spim size. 16 bit depth, big endian mode;
-    [8, 10] => X scan size. 16 bit depth, big endian mode;
-    [10, 12] => Y scan size. 16 bit depth, big endian mode;
-    [12, 20] => Time delay (in ns). f64, double endian (>double in C);
-    [20, 28] => Time width (in ns). f64, double endian (>double in C);
-    ");
-    let my_settings: Settings;
+    let mut my_settings: Settings;
     {
         let mut cam_settings = [0 as u8; 28];
         match ns_sock.read(&mut cam_settings){
@@ -41,14 +28,13 @@ fn connect_and_loop(runmode: RunningMode) {
                 println!("Received {} bytes from NS.", size);
                 let my_config = BytesConfig{data: cam_settings};
                 mode = my_config.mode();
-                my_config.create_settings();
-                my_settings = Settings{bin: my_config.bin(), bytedepth: my_config.bytedepth(), cumul: my_config.cumul(), xspim_size: my_config.xspim_size(), yspim_size: my_config.yspim_size(), xscan_size: my_config.xscan_size(), yscan_size: my_config.yscan_size(), time_delay: my_config.time_delay(), time_width: my_config.time_width(), spimoverscanx: my_config.spimoverscanx(), spimoverscany: my_config.spimoverscany()}
+                my_settings = my_config.create_settings();
             },
             Err(_) => panic!("Could not read cam initial settings."),
         }
         println!("Received settings is {:?}.", cam_settings);
     }
-    
+
     let start = Instant::now();
     let mut last_ci = 0u8;
     let mut frame_time:f64;
@@ -63,9 +49,8 @@ fn connect_and_loop(runmode: RunningMode) {
                 let new_data = &buffer_pack_data[0..size];
                 misc::search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
                 match mode {
-                    0 => {if TdcType::check_all_tdcs(&[1, 0, 0, 0], &tdc_vec)==true {break}},
-                    1 => {if TdcType::check_all_tdcs(&[3, 3, 0, 0], &tdc_vec)==true {break}},
-                    2 => {if TdcType::check_all_tdcs(&[5, 0, 0, 5], &tdc_vec)==true {break}},
+                    0 | 1 => {if TdcType::check_all_tdcs(&[3, 3, 0, 0], &tdc_vec)==true {break}},
+                    2 => {if TdcType::check_all_tdcs(&[5, 5, 5, 5], &tdc_vec)==true {break}},
                     _ => panic!("Unknown mode."),
                 }
             }
