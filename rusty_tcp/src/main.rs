@@ -57,7 +57,7 @@ fn connect_and_loop(runmode: RunningMode) {
         }
     }
     println!("Related TDC have been found. Entering acquisition.");
-   
+            
     match mode {
         0 => {
             let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
@@ -102,6 +102,7 @@ fn connect_and_loop(runmode: RunningMode) {
             let period = TdcType::find_period(&tdc_vec, start_tdc_type);
             let dead_time = TdcType::find_width(&tdc_vec, start_tdc_type);
             let interval = period - dead_time;
+            my_settings.set_tdc(start_tdc_type, period, dead_time);
             println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", interval*1.0e6, dead_time*1.0e6, period*1.0e6);
             
             frame_time = TdcType::last_time_from_tdc(&tdc_vec, start_tdc_type);
@@ -113,10 +114,9 @@ fn connect_and_loop(runmode: RunningMode) {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, &my_settings, interval, period, start_tdc_type);
+                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, &my_settings, start_tdc_type);
                         //let result = spectral_image::build_save_spim_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, bytedepth, start_tdc_type);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
-                        //if let Err(_) = nsaux_sock.write(&[1, 2, 3, 4, 5]) {println!("Client disconnected on data."); break 'global_spim;}
                     } else {println!("Received zero packages from TP3."); break 'global_spim;}
                 }
             }
@@ -126,7 +126,7 @@ fn connect_and_loop(runmode: RunningMode) {
             let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
             
             let all_ref_time = TdcType::vec_from_tdc(&tdc_vec, tdc_ref);
-            let period = spectrum::tr_find_period(&all_ref_time);
+            let period = TdcType::find_period(&tdc_vec, tdc_ref);
             let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime(all_ref_time);
             
             println!("Laser periodicity is: {}. First time vectors found were {:?}.", period, ref_time);

@@ -102,12 +102,19 @@ impl TdcType {
     }
 
     ///Returns the deadtime between consecutive scan lines.
-    pub fn find_width(tdc_vec: &Vec<(f64, TdcType)>, fal_tdc_type: u8) -> f64 {
-        let ris_tdc_type = match fal_tdc_type {
-            10 => 15,
-            11 => 14,
-            _ => panic!("Bad TDC receival in `find_width`. It must be a falling edge type."),
+    pub fn find_width(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> f64 {
+        let fal_tdc_type = match tdc_type {
+            10 | 15 => 10,
+            11 | 14 => 11,
+            _ => panic!("Bad TDC receival in `find_width`"),
         };
+        
+        let ris_tdc_type = match tdc_type {
+            10 | 15 => 15,
+            11 | 14 => 14,
+            _ => panic!("Bad TDC receival in `find_width`"),
+        };
+
         let fal = TdcType::vec_from_tdc(tdc_vec, fal_tdc_type);
         let ris = TdcType::vec_from_tdc(tdc_vec, ris_tdc_type);
         if (fal[0] - ris[0])>0.0 {fal[0] - ris[0]} else {fal[1] - ris[0]}
@@ -116,6 +123,6 @@ impl TdcType {
     ///Returns the effective time interval between lines.
     pub fn find_period(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> f64 {
         let tdc_time = TdcType::vec_from_tdc(tdc_vec, tdc_type);
-        (tdc_time[1] - tdc_time[0])
+        tdc_time[1] - tdc_time[0]
     }
 }

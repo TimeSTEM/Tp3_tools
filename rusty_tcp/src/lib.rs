@@ -15,9 +15,11 @@ pub mod spectral_image {
     use std::fs;
     
     ///Returns a vector containing a list of indexes in which events happened.
-    pub fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, settings: &Settings, interval: f64, period: f64, tdc_kind: u8) -> Vec<u8> {
+    pub fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, settings: &Settings, tdc_type: u8) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
+        let interval = settings.int1.unwrap();
+        let period = settings.per1.unwrap();
 
         while let Some(x) = packet_chunks.next() {
             match x {
@@ -36,7 +38,7 @@ pub mod spectral_image {
                             }
                             
                         },
-                        6 if packet.tdc_type() == tdc_kind => {
+                        6 if packet.tdc_type() == tdc_type => {
                             *sltdc = packet.tdc_time_norm();
                             *counter+=1;
                         },
@@ -88,20 +90,6 @@ pub mod spectral_image {
             };
         };
         index_data
-    }
-
-    ///Returns the deadtime between consecutive scan lines.
-    pub fn find_deadtime(start_line: &[f64], end_line: &[f64]) -> f64 {
-        if (start_line[0] - end_line[0])>0.0 {start_line[0] - end_line[0]} else {start_line[1] - end_line[0]}
-    }
-
-    ///Returns the effective time interval between lines.
-    pub fn find_interval(start_line: &[f64], deadtime: f64) -> f64 {
-        (start_line[1] - start_line[0]) - deadtime
-    }
-
-    pub fn find_period(start_line: &[f64]) -> f64 {
-        start_line[1] - start_line[0]
     }
 
     ///Checks if event is in the appropriate time interval to be counted.
@@ -231,10 +219,6 @@ pub mod spectrum {
         ref_time
     }
     
-    pub fn tr_find_period(at: &[f64]) -> f64 {
-        at[1] - at[0]
-    }
-
 }
 
 
