@@ -92,16 +92,16 @@ pub mod spectral_image {
 
     ///Returns the deadtime between consecutive scan lines.
     pub fn find_deadtime(start_line: &[f64], end_line: &[f64]) -> f64 {
-        if (start_line[1] - end_line[1])>0.0 {start_line[1] - end_line[1]} else {start_line[2] - end_line[1]}
+        if (start_line[0] - end_line[0])>0.0 {start_line[0] - end_line[0]} else {start_line[1] - end_line[0]}
     }
 
     ///Returns the effective time interval between lines.
     pub fn find_interval(start_line: &[f64], deadtime: f64) -> f64 {
-        (start_line[2] - start_line[1]) - deadtime
+        (start_line[1] - start_line[0]) - deadtime
     }
 
     pub fn find_period(start_line: &[f64]) -> f64 {
-        start_line[2] - start_line[1]
+        start_line[1] - start_line[0]
     }
 
     ///Checks if event is in the appropriate time interval to be counted.

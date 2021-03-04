@@ -98,19 +98,11 @@ fn connect_and_loop(runmode: RunningMode) {
         },
         1 => {
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
-            let stop_tdc_type = TdcType::TdcOneRisingEdge.associate_value();
 
-            let dead_time:f64;
-            let interval:f64;
-            let period:f64;
-            {
-                let start_line = TdcType::vec_from_tdc(&tdc_vec, start_tdc_type);
-                let end_line = TdcType::vec_from_tdc(&tdc_vec, stop_tdc_type);
-                dead_time = spectral_image::find_deadtime(&start_line, &end_line);
-                interval = spectral_image::find_interval(&start_line, dead_time);
-                period = spectral_image::find_period(&start_line);
-            }
-            println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}", interval*1.0e6, dead_time*1.0e6);
+            let period = TdcType::find_period(&tdc_vec, start_tdc_type);
+            let dead_time = TdcType::find_width(&tdc_vec, start_tdc_type);
+            let interval = period - dead_time;
+            println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", interval*1.0e6, dead_time*1.0e6, period*1.0e6);
             
             frame_time = TdcType::last_time_from_tdc(&tdc_vec, start_tdc_type);
             counter = TdcType::howmany_from_tdc(&tdc_vec, start_tdc_type);
