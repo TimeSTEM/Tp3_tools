@@ -133,8 +133,8 @@ impl BytesConfig {
     
     ///Convenience method. Returns the ratio between scan and spim size in X.
     pub fn spimoverscanx(&self) -> usize {
-        let xspim = (self.data[4] as usize)<<8 | (self.data[5] as usize);
-        let xscan = (self.data[8] as usize)<<8 | (self.data[9] as usize);
+        let xspim = self.xspim_size();
+        let xscan = self.xscan_size();
         let var = xscan / xspim;
         match var {
             0 => {
@@ -150,8 +150,8 @@ impl BytesConfig {
     
     ///Convenience method. Returns the ratio between scan and spim size in Y.
     pub fn spimoverscany(&self) -> usize {
-        let yspim = (self.data[6] as usize)<<8 | (self.data[7] as usize);
-        let yscan = (self.data[10] as usize)<<8 | (self.data[11] as usize);
+        let yspim = self.yspim_size();
+        let yscan = self.yscan_size();
         let var = yscan / yspim;
         match var {
             0 => {
@@ -166,8 +166,6 @@ impl BytesConfig {
     }
 
     pub fn create_settings(&self) -> Settings {
-        //let a = BytesConfig::bin(&self);
-        //println!("hi guys {}", a);
         Settings {
             bin: self.bin(),
             bytedepth: self.bytedepth(),
@@ -180,8 +178,8 @@ impl BytesConfig {
             time_width: self.time_width(),
             spimoverscanx: self.spimoverscanx(),
             spimoverscany: self.spimoverscany(),
-            tdc1: false,
-            tdc2: false,
+            tdc1: true,
+            tdc2: if self.mode()==2 {true} else {false},
             per1: None,
             wid1: None,
             per2: None,
