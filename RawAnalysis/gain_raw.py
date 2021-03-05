@@ -13,11 +13,11 @@ i = [0, 0] #Counter. First index is electron event and second is tdc event.
 final_tdc = 0 #Last tdc time received
 start = time.time() 
 
-FOLDER = '../TCPFiletoStream/GainRawTP3/25-53-25262(132)'
+FOLDER = '../TCPFiletoStream/GainRawTP3/22-83-1694(95)'
 #FOLDER = '../TCPFiletoStream/gain_data'
 WIDTH = 300e-9
 DELAY = 1700e-9
-HOR = 130
+HOR = 95
 
 def check_if_in(ele_time, tdc_time_list):
     for val in tdc_time_list:
@@ -28,7 +28,7 @@ def check_if_in(ele_time, tdc_time_list):
 
 for data in os.listdir(FOLDER):# in datas:
     print(f'Looping over file {data}.')
-    if i[0] != 0: break
+    #if i[0] != 0: break
     with open(os.path.join(FOLDER, data), "rb") as f:
         all_data = f.read()
         index = 0 #Reading index.
@@ -115,9 +115,9 @@ print(f'Total time is {finish-start} with {i} events. Last laser is at {last_las
 
 fig, ax = plt.subplots(3, 1, dpi=160)
 ax[0].hist2d(xL, yL, bins=100, range=([0, 250], [0, 256]), norm=mcolors.PowerNorm(0.3))
-ax[0].axvline(x=130, color='white')
+ax[0].axvline(x=HOR, color='white')
 ax[1].hist2d(xL, yL, bins=49, range=([0, HOR], [0, 256]), norm=mcolors.PowerNorm(0.3))
-ax[2].hist(Tafter, bins=200, density=True)
+ax[2].hist(Tafter, bins=200, density=True, range=(DELAY*1e6, (DELAY+WIDTH)*1e6))
                 
 ax[0].set_ylabel('Y')
 ax[0].set_xlabel('X')
@@ -128,8 +128,8 @@ ax[1].set_xlabel('X')
 ax[2].set_ylabel('Event counts')
 ax[2].set_xlabel('Time Elapsed from TDC (us)')
 
-plt.savefig(FOLDER + '2.png')
-numpy.save(FOLDER + '2.npy', Tafter)
+plt.savefig(FOLDER + '.png')
+numpy.save(FOLDER + '.npy', Tafter)
 plt.show()
 
 
