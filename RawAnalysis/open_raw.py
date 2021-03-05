@@ -1,6 +1,7 @@
 import numpy
 import matplotlib.pyplot as plt
 import time
+import os
 
 xL = list() #x position
 yL = list() #Y position
@@ -8,15 +9,16 @@ globalTL = list() #Global Time
 tdc1RL = list() #Rising Edge tdc1 Time
 tdc1RL_dif = list() #Difference in tdc1 Time
 
-#datas = [r"FromTP3\tdc_check_000"+format(i, '.0f').zfill(3)+r".tpx3" for i in range(4)]
-datas = ["temp.tpx3"]
-
 i = [0, 0] #Counter. First index is electron event and second is tdc event.
 final_tdc = 0 #Last tdc time received
 start = time.time() 
 
-for data in datas:
-    with open(data, "rb") as f:
+FOLDER = 'FromTP3'
+#FOLDER = '../TCPFiletoStream/laser_tdc'
+
+for data in os.listdir(FOLDER):# in datas:
+    print(f'Looping over file {data}.')
+    with open(os.path.join(FOLDER, data), "rb") as f:
         all_data = f.read()
         index = 0 #Reading index.
         while True:
@@ -95,8 +97,8 @@ for data in datas:
                     triggerType = byte[0] & 15 #15 = 1111. Get trigger Type.
                     if triggerType==15: tdc1RL.append(tdcT)
                     elif triggerType==10: pass #print('tdc1Fal')
-                    elif triggerType==14: print('tdc2Ris')
-                    elif triggerType==11: print('tdc2Fal')
+                    elif triggerType==14: pass #print('tdc2Ris')
+                    elif triggerType==11: pass #print('tdc2Fal')
             index+=8 #Goes back to next header
                 
 finish = time.time()
