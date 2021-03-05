@@ -7,20 +7,28 @@ import os
 xL = list() #x position
 yL = list() #Y position
 Tafter = list() #Global Time
-last_laser = 0.0 #Rising Edge tdc1 Time
+last_laser = [0.0, 0.0, 0.0, 0.0] #Rising Edge tdc1 Time
 
 i = [0, 0] #Counter. First index is electron event and second is tdc event.
 final_tdc = 0 #Last tdc time received
 start = time.time() 
 
-FOLDER = '../TCPFiletoStream/GainRawTP3/22-83-1694(100)'
+FOLDER = '../TCPFiletoStream/GainRawTP3/25-53-25262(132)'
 #FOLDER = '../TCPFiletoStream/gain_data'
 WIDTH = 300e-9
 DELAY = 1700e-9
+HOR = 130
+
+def check_if_in(ele_time, tdc_time_list):
+    for val in tdc_time_list:
+        if ele_time > val + DELAY and ele_time < val + DELAY + WIDTH:
+            return (True, val)
+    return (False, 0)
+
 
 for data in os.listdir(FOLDER):# in datas:
     print(f'Looping over file {data}.')
-    if i[0]!=0: break
+    if i[0] != 0: break
     with open(os.path.join(FOLDER, data), "rb") as f:
         all_data = f.read()
         index = 0 #Reading index.
@@ -55,10 +63,13 @@ for data in os.listdir(FOLDER):# in datas:
                     #tot_ns = tot * 25.0
                     global_time = (spidrT + ctoa * 25.0/16.0)/1e9
 
-
-                    if global_time > last_laser + DELAY and global_time < last_laser + DELAY + WIDTH:
-
                     
+
+                    #if global_time > last_laser + DELAY and global_time < last_laser + DELAY + WIDTH:
+                    res = check_if_in(global_time, last_laser)
+                    if res[0]:
+                        tdc_ref = res[1]
+
                         dcol = ((byte[0] & 15)<<4) | ((byte[1] & 224)>>4)
                         spix = ((byte[1] & 31)<<3) | ((byte[2] & 128)>>5)
                         pix = (byte[2] & 112)>>4
@@ -79,11 +90,11 @@ for data in os.listdir(FOLDER):# in datas:
                         elif chip_index==3:
                             x = 255*2 - x
                             y = y
-                    
-                        if x<255:
-                            xL.append(x)
-                            yL.append(y)
-                            Tafter.append(global_time - last_laser)
+                        
+                        xL.append(x)
+                        yL.append(y)
+                        if x<HOR:
+                            Tafter.append((global_time - tdc_ref)*1e6)
 
                 
                 elif id==6: #6 = 0xb. This is a tdc event.
@@ -93,7 +104,8 @@ for data in os.listdir(FOLDER):# in datas:
                         coarseT = ((byte[2] & 15)<<31) + ((byte[3] & 255)<<23) + ((byte[4] & 255)<<15) + ((byte[5] & 255)<<7) + ((byte[6] & 254)>>1)
                         fineT = ((byte[6] & 1)<<3) + ((byte[7] & 224)>>5)
                         tdcT = coarseT * (1/320e6) + fineT*260e-12
-                        last_laser = tdcT
+                        last_laser.pop(0)
+                        last_laser.append(tdcT)
                 else: 
                     pass
             index+=8 #Goes back to next header
@@ -101,17 +113,23 @@ for data in os.listdir(FOLDER):# in datas:
 finish = time.time()
 print(f'Total time is {finish-start} with {i} events. Last laser is at {last_laser}')
 
-fig, ax = plt.subplots(2, 1, dpi=160)
-ax[0].hist2d(xL, yL, bins=128, range=([0, 256], [0, 256]), norm=mcolors.PowerNorm(0.1))
-ax[1].hist(Tafter, bins=100)
+fig, ax = plt.subplots(3, 1, dpi=160)
+ax[0].hist2d(xL, yL, bins=100, range=([0, 250], [0, 256]), norm=mcolors.PowerNorm(0.3))
+ax[0].axvline(x=130, color='white')
+ax[1].hist2d(xL, yL, bins=49, range=([0, HOR], [0, 256]), norm=mcolors.PowerNorm(0.3))
+ax[2].hist(Tafter, bins=200, density=True)
                 
 ax[0].set_ylabel('Y')
 ax[0].set_xlabel('X')
 
-ax[1].set_ylabel('Time Elapsed from TDC (s)')
-ax[1].set_xlabel('Counts')
+ax[1].set_ylabel('Y')
+ax[1].set_xlabel('X')
 
-#plt.savefig(FOLDER + '.png')
+ax[2].set_ylabel('Event counts')
+ax[2].set_xlabel('Time Elapsed from TDC (us)')
+
+plt.savefig(FOLDER + '2.png')
+numpy.save(FOLDER + '2.npy', Tafter)
 plt.show()
 
 
