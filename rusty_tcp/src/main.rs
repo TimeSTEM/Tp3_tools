@@ -128,7 +128,6 @@ fn connect_and_loop(runmode: RunningMode) {
             let all_ref_time = TdcType::vec_from_tdc(&tdc_vec, tdc_ref);
             let period = TdcType::find_period(&tdc_vec, tdc_ref);
             let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime(all_ref_time);
-            
             println!("Laser periodicity is: {}. First time vectors found were {:?}.", period, ref_time);
      
             frame_time = TdcType::last_time_from_tdc(&tdc_vec, tdc_frame);
@@ -172,8 +171,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::DebugStem7482;
-        //let myrun = RunningMode::Tp3;
+        //let myrun = RunningMode::DebugStem7482;
+        let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }

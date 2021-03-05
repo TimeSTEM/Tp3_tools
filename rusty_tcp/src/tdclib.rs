@@ -123,6 +123,6 @@ impl TdcType {
     ///Returns the effective time interval between lines.
     pub fn find_period(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> f64 {
         let tdc_time = TdcType::vec_from_tdc(tdc_vec, tdc_type);
-        tdc_time[1] - tdc_time[0]
+        tdc_time[2] - tdc_time[1]
     }
 }
