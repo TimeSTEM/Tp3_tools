@@ -7,17 +7,18 @@ import os
 xL = list() #x position
 yL = list() #Y position
 Tafter = list() #Global Time
-last_laser = [0.0, 0.0, 0.0, 0.0] #Rising Edge tdc1 Time
+last_laser = [0.0, 0.0, 0.0, 0.0, 0.0] #Rising Edge tdc1 Time
 
 i = [0, 0] #Counter. First index is electron event and second is tdc event.
 final_tdc = 0 #Last tdc time received
 start = time.time() 
 
-FOLDER = '../TCPFiletoStream/GainRawTP3/22-83-1694(95)'
+FOLDER = '../TCPFiletoStream/GainRawTP3/25-53-25262(132)'
 #FOLDER = '../TCPFiletoStream/gain_data'
-WIDTH = 300e-9
-DELAY = 1700e-9
-HOR = 95
+WIDTH = 100000e-9
+DELAY = 0e-9
+HOR = 250
+MIN_HOR = 0
 
 def check_if_in(ele_time, tdc_time_list):
     for val in tdc_time_list:
@@ -28,7 +29,7 @@ def check_if_in(ele_time, tdc_time_list):
 
 for data in os.listdir(FOLDER):# in datas:
     print(f'Looping over file {data}.')
-    #if i[0] != 0: break
+    if i[0] != 0: break
     with open(os.path.join(FOLDER, data), "rb") as f:
         all_data = f.read()
         index = 0 #Reading index.
@@ -93,7 +94,7 @@ for data in os.listdir(FOLDER):# in datas:
                         
                         xL.append(x)
                         yL.append(y)
-                        if x<HOR:
+                        if x<HOR and x>=MIN_HOR:
                             Tafter.append((global_time - tdc_ref)*1e6)
 
                 
@@ -116,6 +117,7 @@ print(f'Total time is {finish-start} with {i} events. Last laser is at {last_las
 fig, ax = plt.subplots(3, 1, dpi=160)
 ax[0].hist2d(xL, yL, bins=100, range=([0, 250], [0, 256]), norm=mcolors.PowerNorm(0.3))
 ax[0].axvline(x=HOR, color='white')
+if MIN_HOR>0: ax[0].axvline(x=MIN_HOR, color='red')
 ax[1].hist2d(xL, yL, bins=49, range=([0, HOR], [0, 256]), norm=mcolors.PowerNorm(0.3))
 ax[2].hist(Tafter, bins=200, density=True, range=(DELAY*1e6, (DELAY+WIDTH)*1e6))
                 
