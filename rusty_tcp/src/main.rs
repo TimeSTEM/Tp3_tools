@@ -2,7 +2,7 @@ use std::io::prelude::*;
 use std::net::{Shutdown, TcpListener};
 use std::time::Instant;
 use timepix3::auxiliar::{RunningMode, BytesConfig, Settings};
-use timepix3::tdclib::TdcType;
+use timepix3::tdclib::{TdcType, PeriodicTdcRef};
 use timepix3::{spectrum, spectral_image, misc};
 
 fn connect_and_loop(runmode: RunningMode) {
@@ -20,7 +20,7 @@ fn connect_and_loop(runmode: RunningMode) {
     let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
     println!("Nionswift connected at {:?}", ns_addr);
 
-    let mut my_settings: Settings;
+    let my_settings: Settings;
     {
         let mut cam_settings = [0 as u8; 28];
         match ns_sock.read(&mut cam_settings){
@@ -99,11 +99,8 @@ fn connect_and_loop(runmode: RunningMode) {
         1 => {
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
 
-            let period = TdcType::find_period(&tdc_vec, start_tdc_type);
-            let dead_time = TdcType::find_width(&tdc_vec, start_tdc_type);
-            let interval = period - dead_time;
-            my_settings.set_tdc(start_tdc_type, period, dead_time);
-            println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", interval*1.0e6, dead_time*1.0e6, period*1.0e6);
+            let spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, start_tdc_type);
+            println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", spim_tdc.low_time*1.0e6, spim_tdc.high_time*1.0e6, spim_tdc.period*1.0e6);
             
             frame_time = TdcType::last_time_from_tdc(&tdc_vec, start_tdc_type);
             counter = TdcType::howmany_from_tdc(&tdc_vec, start_tdc_type);
@@ -114,7 +111,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, &my_settings, start_tdc_type);
+                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, &my_settings, &spim_tdc);
                         //let result = spectral_image::build_save_spim_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, bytedepth, start_tdc_type);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
                     } else {println!("Received zero packages from TP3."); break 'global_spim;}
@@ -125,6 +122,7 @@ fn connect_and_loop(runmode: RunningMode) {
             let tdc_frame = TdcType::TdcOneRisingEdge.associate_value();
             let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
             
+            //let laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
             let all_ref_time = TdcType::vec_from_tdc(&tdc_vec, tdc_ref);
             let period = TdcType::find_period(&tdc_vec, tdc_ref);
             let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime(all_ref_time);

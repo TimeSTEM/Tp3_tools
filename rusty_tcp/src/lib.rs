@@ -11,15 +11,16 @@ pub mod packetlib;
 pub mod spectral_image {
     use crate::packetlib::Packet;
     use crate::auxiliar::Settings;
+    use crate::tdclib::PeriodicTdcRef;
     use crate::misc;
     use std::fs;
     
     ///Returns a vector containing a list of indexes in which events happened.
-    pub fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, settings: &Settings, tdc_type: u8) -> Vec<u8> {
+    pub fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, settings: &Settings, tdc_ref: &PeriodicTdcRef) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
-        let interval = settings.int1.unwrap();
-        let period = settings.per1.unwrap();
+        let interval = tdc_ref.low_time;
+        let period = tdc_ref.period;
 
         while let Some(x) = packet_chunks.next() {
             match x {
@@ -38,7 +39,7 @@ pub mod spectral_image {
                             }
                             
                         },
-                        6 if packet.tdc_type() == tdc_type => {
+                        6 if packet.tdc_type() == tdc_ref.tdctype => {
                             *sltdc = packet.tdc_time_norm();
                             *counter+=1;
                         },

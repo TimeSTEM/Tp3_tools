@@ -178,14 +178,6 @@ impl BytesConfig {
             time_width: self.time_width(),
             spimoverscanx: self.spimoverscanx(),
             spimoverscany: self.spimoverscany(),
-            tdc1: false,
-            tdc2: false,
-            per1: None,
-            wid1: None,
-            int1: None,
-            per2: None,
-            wid2: None,
-            int2: None,
         }
     }
 }
@@ -202,33 +194,4 @@ pub struct Settings {
     pub time_width: f64,
     pub spimoverscanx: usize,
     pub spimoverscany: usize,
-    pub tdc1: bool,
-    pub tdc2: bool,
-    pub per1: Option<f64>,
-    pub wid1: Option<f64>,
-    pub int1: Option<f64>,
-    pub per2: Option<f64>,
-    pub wid2: Option<f64>,
-    pub int2: Option<f64>,
-}
-
-impl Settings {
-    pub fn set_tdc(&mut self, which: u8, period: f64, width: f64) {
-        match which {
-            15 | 10 => {
-                self.tdc1 = true;
-                self.per1 = Some(period);
-                self.wid1 = Some(width);
-                self.int1 = Some(period - width);
-            },
-            14 | 11 => {
-                self.tdc2 = true;
-                self.per2 = Some(period);
-                self.wid2 = Some(width);
-                self.int2 = Some(period - width);
-            },
-            _ => panic!("No valid TDC to set."),
-        }
-    }
-    
 }
