@@ -60,10 +60,14 @@ fn connect_and_loop(runmode: RunningMode) {
             
     match mode {
         0 => {
-            let tdc_type = TdcType::TdcOneRisingEdge.associate_value();
+            let tdc_frame = TdcType::TdcOneRisingEdge.associate_value();
             
-            frame_time = TdcType::last_time_from_tdc(&tdc_vec, tdc_type);
-            counter = TdcType::howmany_from_tdc(&tdc_vec, tdc_type);
+            let frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_frame);
+            
+            //frame_time = TdcType::last_time_from_tdc(&tdc_vec, tdc_type);
+            frame_time = frame_tdc.frame_time;
+            //counter = TdcType::howmany_from_tdc(&tdc_vec, tdc_type);
+            counter = frame_tdc.counter;
             
             let mut data_array:Vec<u8> = if my_settings.bin {vec![0; my_settings.bytedepth*1024]} else {vec![0; 256*my_settings.bytedepth*1024]};
             data_array.push(10);
@@ -81,7 +85,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            if spectrum::build_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, &my_settings, tdc_type) {
+                            if spectrum::build_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, &my_settings, tdc_frame) {
                                 let msg = match my_settings.bin {
                                     true => misc::create_header(frame_time, counter, my_settings.bytedepth*1024, my_settings.bytedepth<<3, 1024, 1),
                                     false => misc::create_header(frame_time, counter, my_settings.bytedepth*256*1024, my_settings.bytedepth<<3, 1024, 256),
@@ -102,8 +106,8 @@ fn connect_and_loop(runmode: RunningMode) {
             let spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, start_tdc_type);
             println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", spim_tdc.low_time*1.0e6, spim_tdc.high_time*1.0e6, spim_tdc.period*1.0e6);
             
-            frame_time = TdcType::last_time_from_tdc(&tdc_vec, start_tdc_type);
-            counter = TdcType::howmany_from_tdc(&tdc_vec, start_tdc_type);
+            frame_time = spim_tdc.frame_time;
+            counter = spim_tdc.counter;
             
             let mut data_array:Vec<u8> = vec![0; my_settings.bytedepth*1024*my_settings.xspim_size*my_settings.yspim_size];
 
@@ -122,14 +126,15 @@ fn connect_and_loop(runmode: RunningMode) {
             let tdc_frame = TdcType::TdcOneRisingEdge.associate_value();
             let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
             
+            let frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_frame);
             let laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
             let all_ref_time = TdcType::get_timelist(&tdc_vec, tdc_ref);
             let period = laser_tdc.period;
             let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime(all_ref_time);
             println!("Laser periodicity is: {}. First time vectors found were {:?}.", period, ref_time);
      
-            frame_time = TdcType::last_time_from_tdc(&tdc_vec, tdc_frame);
-            counter = TdcType::howmany_from_tdc(&tdc_vec, tdc_frame);
+            frame_time = frame_tdc.frame_time;
+            counter = frame_tdc.counter;
     
             let mut data_array:Vec<u8> = if my_settings.bin {vec![0; my_settings.bytedepth*1024]} else {vec![0; 256*my_settings.bytedepth*1024]};
             data_array.push(10);

@@ -20,16 +20,6 @@ impl TdcType {
         }
     }
 
-    ///Convenient method from enumerator to a standard print.
-    pub fn associate_string(&self) -> &str {
-        match *self {
-            TdcType::TdcOneRisingEdge => "One_Rising",
-            TdcType::TdcOneFallingEdge => "One_Falling",
-            TdcType::TdcTwoRisingEdge => "Two_Rising",
-            TdcType::TdcTwoFallingEdge => "Two_Falling",
-        }
-    }
-    
     ///From associate value to enum TdcType.
     pub fn associate_value_to_enum(value: u8) -> Result<TdcType, &'static str> {
         match value {
@@ -83,30 +73,15 @@ impl TdcType {
             .collect();
         result
     }
-
-    ///Outputs the last encountered time for a specific TDC.
-    pub fn last_time_from_tdc(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> f64 {
-        let last_time = tdc_vec.iter()
-            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type)
-            .map(|(time, _tdct)| *time)
-            .last().unwrap();
-        last_time
-    }
-    
-    ///Outputs the number of encountered TDC for a specific TDC.
-    pub fn howmany_from_tdc(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> usize {
-        let counter = tdc_vec.iter()
-            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type)
-            .count();
-        counter
-    }
 }
 
 pub struct PeriodicTdcRef {
     pub tdctype: u8,
+    pub counter: usize,
     pub period: f64,
     pub high_time: f64,
     pub low_time: f64,
+    pub frame_time: f64,
 }
 
 impl PeriodicTdcRef {
@@ -144,16 +119,35 @@ impl PeriodicTdcRef {
         let tdc_time = PeriodicTdcRef::get_timelist(tdc_vec, tdc_type);
         tdc_time[2] - tdc_time[1]
     }
+    
+    fn get_counter(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> usize {
+        let counter = tdc_vec.iter()
+            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type)
+            .count();
+        counter
+    }
+    
+    fn get_lasttime(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> f64 {
+        let last_time = tdc_vec.iter()
+            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type)
+            .map(|(time, _tdct)| *time)
+            .last().unwrap();
+        last_time
+    }
 
     pub fn new_ref(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> PeriodicTdcRef {
+        let counter = PeriodicTdcRef::get_counter(tdc_vec, tdc_type);
+        let last_time = PeriodicTdcRef::get_lasttime(tdc_vec, tdc_type);
         let high_time = PeriodicTdcRef::find_high_time(tdc_vec, tdc_type);
         let period = PeriodicTdcRef::find_period(tdc_vec, tdc_type);
         let low_time = period - high_time;
         PeriodicTdcRef {
             tdctype: tdc_type,
+            counter: counter,
             period: period,
             high_time: high_time,
             low_time: low_time,
+            frame_time: last_time,
         }
     }
 }
