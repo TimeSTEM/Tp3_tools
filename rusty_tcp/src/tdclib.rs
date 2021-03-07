@@ -119,10 +119,67 @@ impl TdcType {
         let ris = TdcType::vec_from_tdc(tdc_vec, ris_tdc_type);
         if (fal[0] - ris[0])>0.0 {fal[0] - ris[0]} else {fal[1] - ris[0]}
     }
+    
 
-    ///Returns the effective time interval between lines.
+    ///Returns the period time interval between lines.
     pub fn find_period(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> f64 {
         let tdc_time = TdcType::vec_from_tdc(tdc_vec, tdc_type);
         tdc_time[2] - tdc_time[1]
+    }
+}
+
+pub struct PeriodicTdcRef {
+    pub tdctype: u8,
+    pub period: f64,
+    pub high_time: f64,
+    pub low_time: f64,
+}
+
+impl PeriodicTdcRef {
+    
+    ///Outputs the time list for a specific TDC.
+    fn get_timelist(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> Vec<f64> {
+        let result: Vec<_> = tdc_vec.iter()
+            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type)
+            .map(|(time, _tdct)| *time)
+            .collect();
+        result
+    }
+    
+    ///Returns the + time of a periodic TDC.
+    fn find_high_time(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> f64 {
+        let fal_tdc_type = match tdc_type {
+            10 | 15 => 10,
+            11 | 14 => 11,
+            _ => panic!("Bad TDC receival in `find_width`"),
+        };
+        
+        let ris_tdc_type = match tdc_type {
+            10 | 15 => 15,
+            11 | 14 => 14,
+            _ => panic!("Bad TDC receival in `find_width`"),
+        };
+
+        let fal = PeriodicTdcRef::get_timelist(tdc_vec, fal_tdc_type);
+        let ris = PeriodicTdcRef::get_timelist(tdc_vec, ris_tdc_type);
+        if (fal[1] - ris[1])>0.0 {fal[1] - ris[1]} else {fal[2] - ris[1]}
+    }
+    
+    ///Returns the period time interval between lines.
+    fn find_period(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> f64 {
+        let tdc_time = PeriodicTdcRef::get_timelist(tdc_vec, tdc_type);
+        tdc_time[2] - tdc_time[1]
+    }
+
+    pub fn new_ref(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> PeriodicTdcRef {
+        let high_time = PeriodicTdcRef::find_high_time(tdc_vec, tdc_type);
+        let period = PeriodicTdcRef::find_period(tdc_vec, tdc_type);
+        let low_time = period - high_time;
+        PeriodicTdcRef {
+            tdctype: tdc_type,
+            period: period,
+            high_time: high_time,
+            low_time: low_time,
+        }
     }
 }
