@@ -64,9 +64,7 @@ fn connect_and_loop(runmode: RunningMode) {
             
             let frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_frame);
             
-            //frame_time = TdcType::last_time_from_tdc(&tdc_vec, tdc_type);
             frame_time = frame_tdc.frame_time;
-            //counter = TdcType::howmany_from_tdc(&tdc_vec, tdc_type);
             counter = frame_tdc.counter;
             
             let mut data_array:Vec<u8> = if my_settings.bin {vec![0; my_settings.bytedepth*1024]} else {vec![0; 256*my_settings.bytedepth*1024]};
@@ -128,9 +126,8 @@ fn connect_and_loop(runmode: RunningMode) {
             
             let frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_frame);
             let laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
-            let all_ref_time = TdcType::get_timelist(&tdc_vec, tdc_ref);
             let period = laser_tdc.period;
-            let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime(all_ref_time);
+            let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime2(5, period, laser_tdc.frame_time);
             println!("Laser periodicity is: {}. First time vectors found were {:?}.", period, ref_time);
      
             frame_time = frame_tdc.frame_time;

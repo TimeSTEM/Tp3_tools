@@ -210,14 +210,13 @@ pub mod spectrum {
         false
     }
 
-    pub fn tr_create_start_vectime(mut at: Vec<f64>) -> Vec<f64> {
-        let rec = at.pop().unwrap();
-        let br = at.pop().unwrap();
-        let bbr = at.pop().unwrap();
-        let bbbr = at.pop().unwrap();
-        let interval = rec - br;
-        let ref_time:Vec<f64> = [bbbr, bbr, br, rec, rec+interval].to_vec();
-        ref_time
+    pub fn tr_create_start_vectime2(size: usize, period: f64, last_value: f64) -> Vec<f64> {
+        let mut vtime:Vec<f64> = vec![0.0; size];
+        for (i, val) in vtime.iter_mut().enumerate() {
+            *val = last_value - period * (size - i - 1) as f64 + period;
+            println!("{} and {}", i, val);
+        }
+        vtime
     }
     
 }

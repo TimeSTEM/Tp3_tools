@@ -65,14 +65,6 @@ impl TdcType {
         seq
     }
     
-    ///Outputs the time list for a specific TDC.
-    pub fn get_timelist(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> Vec<f64> {
-        let result: Vec<_> = tdc_vec.iter()
-            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type)
-            .map(|(time, _tdct)| *time)
-            .collect();
-        result
-    }
 }
 
 pub struct PeriodicTdcRef {
