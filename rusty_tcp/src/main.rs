@@ -122,9 +122,9 @@ fn connect_and_loop(runmode: RunningMode) {
             let tdc_frame = TdcType::TdcOneRisingEdge.associate_value();
             let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
             
-            //let laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
-            let all_ref_time = TdcType::vec_from_tdc(&tdc_vec, tdc_ref);
-            let period = TdcType::find_period(&tdc_vec, tdc_ref);
+            let laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
+            let all_ref_time = TdcType::get_timelist(&tdc_vec, tdc_ref);
+            let period = laser_tdc.period;
             let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime(all_ref_time);
             println!("Laser periodicity is: {}. First time vectors found were {:?}.", period, ref_time);
      
