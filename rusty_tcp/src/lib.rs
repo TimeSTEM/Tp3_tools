@@ -160,7 +160,7 @@ pub mod spectrum {
         has
     }
 
-    pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, counter: &mut usize, frame_time: &mut f64, ref_time: &mut Vec<f64>, settings: &Settings, frame_tdc: u8, ref_tdc: u8, period: f64) -> bool {
+    pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, ref_time: &mut Vec<f64>, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &PeriodicTdcRef) -> bool {
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
 
@@ -181,17 +181,16 @@ pub mod spectrum {
                                 misc::append_to_array(final_data, array_pos, settings.bytedepth);
                             }
                         },
-                        6 if packet.tdc_type() == frame_tdc => {
-                            *frame_time = packet.tdc_time();
-                            *counter+=1;
+                        6 if packet.tdc_type() == frame_tdc.tdctype => {
+                            frame_tdc.upt(packet.tdc_time());
                             has = true;
                         },
-                        6 if packet.tdc_type() == ref_tdc => {
+                        6 if packet.tdc_type() == ref_tdc.tdctype => {
                             let time = packet.tdc_time_norm();
                             ref_time.remove(0);
                             ref_time.pop().unwrap();
                             ref_time.push(time);
-                            ref_time.push(time+period);
+                            ref_time.push(time+ref_tdc.period);
                         },
                         _ => {},
                     };
