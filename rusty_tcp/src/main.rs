@@ -37,8 +37,6 @@ fn connect_and_loop(runmode: RunningMode) {
 
     let start = Instant::now();
     let mut last_ci = 0u8;
-    let mut frame_time:f64;
-    let mut counter:usize;
     
     let mut buffer_pack_data: [u8; 16384] = [0; 16384];
     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
@@ -94,11 +92,9 @@ fn connect_and_loop(runmode: RunningMode) {
         1 => {
             let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
 
-            let spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, start_tdc_type);
+            let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, start_tdc_type);
             println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", spim_tdc.low_time*1.0e6, spim_tdc.high_time*1.0e6, spim_tdc.period*1.0e6);
             
-            frame_time = spim_tdc.frame_time;
-            counter = spim_tdc.counter;
             
             let mut data_array:Vec<u8> = vec![0; my_settings.bytedepth*1024*my_settings.xspim_size*my_settings.yspim_size];
 
@@ -106,8 +102,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &mut counter, &mut frame_time, &my_settings, &spim_tdc);
-                        //let result = spectral_image::build_save_spim_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, spim_size, yratio, interval, bytedepth, start_tdc_type);
+                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
                     } else {println!("Received zero packages from TP3."); break 'global_spim;}
                 }
@@ -119,7 +114,7 @@ fn connect_and_loop(runmode: RunningMode) {
             
             let mut frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_frame);
             let laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
-            let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime2(5, laser_tdc.period, laser_tdc.frame_time);
+            let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime2(5, laser_tdc.period, laser_tdc.time);
             println!("Laser periodicity is: {}. First time vectors found were {:?}.", laser_tdc.period, ref_time);
      
             let mut data_array:Vec<u8> = if my_settings.bin {vec![0; my_settings.bytedepth*1024]} else {vec![0; 256*my_settings.bytedepth*1024]};

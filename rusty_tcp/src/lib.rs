@@ -16,7 +16,7 @@ pub mod spectral_image {
     use std::fs;
     
     ///Returns a vector containing a list of indexes in which events happened.
-    pub fn build_spim_data(data: &[u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, settings: &Settings, tdc_ref: &PeriodicTdcRef) -> Vec<u8> {
+    pub fn build_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, tdc_ref: &mut PeriodicTdcRef) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
         let interval = tdc_ref.low_time;
@@ -31,17 +31,16 @@ pub mod spectral_image {
                     match packet.id() {
                         11 => {
                             let ele_time = packet.electron_time() - 0.000007;
-                            if let Some(backline) = place_pixel(ele_time, sltdc, interval, period) {
-                                let line = ((*counter - backline) / settings.spimoverscany) % settings.yspim_size;
-                                let xpos = (settings.xspim_size as f64 * ((ele_time - (*sltdc - (backline as f64)*period))/interval)) as usize;
+                            if let Some(backline) = place_pixel(ele_time, tdc_ref.time, interval, period) {
+                                let line = ((tdc_ref.counter - backline) / settings.spimoverscany) % settings.yspim_size;
+                                let xpos = (settings.xspim_size as f64 * ((ele_time - (tdc_ref.time - (backline as f64)*period))/interval)) as usize;
                                 let array_pos = packet.x() + 1024*settings.xspim_size*line + 1024*xpos;
                                 misc::append_to_index_array(&mut index_data, array_pos);
                             }
                             
                         },
                         6 if packet.tdc_type() == tdc_ref.tdctype => {
-                            *sltdc = packet.tdc_time_norm();
-                            *counter+=1;
+                            tdc_ref.upt(packet.tdc_time_norm());
                         },
                         _ => {},
                     };
@@ -100,8 +99,8 @@ pub mod spectral_image {
         } else {false}
     }
 
-    fn place_pixel(ele_time: f64, start_line: &f64, interval: f64, period: f64) -> Option<usize> {
-        let mut new_start_line = *start_line;
+    fn place_pixel(ele_time: f64, start_line: f64, interval: f64, period: f64) -> Option<usize> {
+        let mut new_start_line = start_line;
         let mut counter = 0;
         while ele_time < new_start_line {
             counter+=1;
@@ -252,7 +251,7 @@ pub mod misc {
 
     pub fn create_header(set: &Settings, tdc: &PeriodicTdcRef) -> Vec<u8> {
         let mut msg: String = String::from("{\"timeAtFrame\":");
-        msg.push_str(&(tdc.frame_time.to_string()));
+        msg.push_str(&(tdc.time.to_string()));
         msg.push_str(",\"frameNumber\":");
         msg.push_str(&(tdc.counter.to_string()));
         msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");

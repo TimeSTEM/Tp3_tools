@@ -73,7 +73,7 @@ pub struct PeriodicTdcRef {
     pub period: f64,
     pub high_time: f64,
     pub low_time: f64,
-    pub frame_time: f64,
+    pub time: f64,
 }
 
 impl PeriodicTdcRef {
@@ -128,7 +128,7 @@ impl PeriodicTdcRef {
     }
 
     pub fn upt(&mut self, time: f64) {
-        self.frame_time = time;
+        self.time = time;
         self.counter+=1;
     }
 
@@ -144,7 +144,7 @@ impl PeriodicTdcRef {
             period: period,
             high_time: high_time,
             low_time: low_time,
-            frame_time: last_time,
+            time: last_time,
         }
     }
 
