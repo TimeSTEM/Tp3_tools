@@ -80,10 +80,7 @@ fn connect_and_loop(runmode: RunningMode) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
                             if spectrum::build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc) {
-                                let msg = match my_settings.bin {
-                                    true => misc::create_header(frame_tdc.frame_time, frame_tdc.counter, my_settings.bytedepth*1024, my_settings.bytedepth<<3, 1024, 1),
-                                    false => misc::create_header(frame_tdc.frame_time, frame_tdc.counter, my_settings.bytedepth*256*1024, my_settings.bytedepth<<3, 1024, 256),
-                                };
+                                let msg = misc::create_header(&my_settings, &frame_tdc);
                                 if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global;}
                                 if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'global;}
                                 break;
@@ -142,10 +139,7 @@ fn connect_and_loop(runmode: RunningMode) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
                             if spectrum::tr_build_data(new_data, &mut data_array, &mut last_ci, &mut ref_time, &my_settings, &mut frame_tdc, &laser_tdc) {
-                                let msg = match my_settings.bin {
-                                    true => misc::create_header(frame_tdc.frame_time, frame_tdc.counter, my_settings.bytedepth*1024, my_settings.bytedepth<<3, 1024, 1),
-                                    false => misc::create_header(frame_tdc.frame_time, frame_tdc.counter, my_settings.bytedepth*256*1024, my_settings.bytedepth<<3, 1024, 256),
-                                };
+                                let msg = misc::create_header(&my_settings, &frame_tdc);
                                 if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'TRglobal;}
                                 if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'TRglobal;}
                                 break;

@@ -213,20 +213,18 @@ pub mod spectrum {
         let mut vtime:Vec<f64> = vec![0.0; size];
         for (i, val) in vtime.iter_mut().enumerate() {
             *val = last_value - period * (size - i - 1) as f64 + period;
-            println!("{} and {}", i, val);
         }
         vtime
     }
     
 }
 
-
-
-
 ///`misc` or `miscelaneous` is a module containing shared tools between modes.
 pub mod misc {
     use crate::tdclib::TdcType;
     use crate::packetlib::Packet;
+    use crate::auxiliar::Settings;
+    use crate::tdclib::PeriodicTdcRef;
     
     pub fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
         
@@ -252,20 +250,27 @@ pub mod misc {
         };
     }
 
-    pub fn create_header(time: f64, frame: usize, data_size: usize, bitdepth: usize, width: usize, height: usize) -> Vec<u8> {
+    pub fn create_header(set: &Settings, tdc: &PeriodicTdcRef) -> Vec<u8> {
         let mut msg: String = String::from("{\"timeAtFrame\":");
-        msg.push_str(&(time.to_string()));
+        msg.push_str(&(tdc.frame_time.to_string()));
         msg.push_str(",\"frameNumber\":");
-        msg.push_str(&(frame.to_string()));
+        msg.push_str(&(tdc.counter.to_string()));
         msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
-        msg.push_str(&(data_size.to_string()));
+        match set.bin {
+            true => { msg.push_str(&((set.bytedepth*1024).to_string()))},
+            false => { msg.push_str(&((set.bytedepth*1024*256).to_string()))},
+        }
         msg.push_str(",\"bitDepth\":");
-        msg.push_str(&(bitdepth.to_string()));
+        msg.push_str(&((set.bytedepth<<3).to_string()));
         msg.push_str(",\"width\":");
-        msg.push_str(&(width.to_string()));
+        msg.push_str(&(1024.to_string()));
         msg.push_str(",\"height\":");
-        msg.push_str(&(height.to_string()));
+        match set.bin {
+            true=>{msg.push_str(&(1.to_string()))},
+            false=>{msg.push_str(&(256.to_string()))},
+        }
         msg.push_str("}\n");
+
         let s: Vec<u8> = msg.into_bytes();
         s
     }

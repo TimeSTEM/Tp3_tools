@@ -43,7 +43,7 @@ def create_tdc(Tdif, trigger='tdc1Ris'):
 Set Script Parameters Here
 """
 
-FOLDER = 'GainRawTP3/25-53-25262'
+FOLDER = 'laser_tdc'
 CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
 HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 PORT = 8098 #Pick a port to connect your socket
