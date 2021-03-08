@@ -127,6 +127,11 @@ impl PeriodicTdcRef {
         last_time
     }
 
+    pub fn upt(&mut self, time: f64) {
+        self.frame_time = time;
+        self.counter+=1;
+    }
+
     pub fn new_ref(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> PeriodicTdcRef {
         let counter = PeriodicTdcRef::get_counter(tdc_vec, tdc_type);
         let last_time = PeriodicTdcRef::get_lasttime(tdc_vec, tdc_type);
@@ -142,4 +147,5 @@ impl PeriodicTdcRef {
             frame_time: last_time,
         }
     }
+
 }

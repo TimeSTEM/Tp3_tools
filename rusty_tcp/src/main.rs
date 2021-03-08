@@ -60,12 +60,8 @@ fn connect_and_loop(runmode: RunningMode) {
             
     match mode {
         0 => {
-            let tdc_frame = TdcType::TdcOneRisingEdge.associate_value();
-            
-            let frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_frame);
-            
-            frame_time = frame_tdc.frame_time;
-            counter = frame_tdc.counter;
+            let tdc = TdcType::TdcOneRisingEdge.associate_value();
+            let mut frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc);
             
             let mut data_array:Vec<u8> = if my_settings.bin {vec![0; my_settings.bytedepth*1024]} else {vec![0; 256*my_settings.bytedepth*1024]};
             data_array.push(10);
@@ -83,10 +79,10 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            if spectrum::build_data(new_data, &mut data_array, &mut last_ci, &mut counter, &mut frame_time, &my_settings, tdc_frame) {
+                            if spectrum::build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc) {
                                 let msg = match my_settings.bin {
-                                    true => misc::create_header(frame_time, counter, my_settings.bytedepth*1024, my_settings.bytedepth<<3, 1024, 1),
-                                    false => misc::create_header(frame_time, counter, my_settings.bytedepth*256*1024, my_settings.bytedepth<<3, 1024, 256),
+                                    true => misc::create_header(frame_tdc.frame_time, frame_tdc.counter, my_settings.bytedepth*1024, my_settings.bytedepth<<3, 1024, 1),
+                                    false => misc::create_header(frame_tdc.frame_time, frame_tdc.counter, my_settings.bytedepth*256*1024, my_settings.bytedepth<<3, 1024, 256),
                                 };
                                 if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global;}
                                 if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'global;}
@@ -95,7 +91,7 @@ fn connect_and_loop(runmode: RunningMode) {
                         } else {println!("Received zero packages"); break 'global;}
                     }
                 }
-                if counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter);}
+                if frame_tdc.counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter);}
             }
         },
         1 => {

@@ -126,9 +126,10 @@ pub mod spectral_image {
 pub mod spectrum {
     use crate::packetlib::Packet;
     use crate::auxiliar::Settings;
+    use crate::tdclib::PeriodicTdcRef;
     use crate::misc;
     
-    pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, counter: &mut usize, frame_time: &mut f64, settings: &Settings, kind: u8) -> bool {
+    pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut PeriodicTdcRef) -> bool {
 
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
@@ -147,9 +148,8 @@ pub mod spectrum {
                             };
                             misc::append_to_array(final_data, array_pos, settings.bytedepth);
                         },
-                        6 if packet.tdc_type() == kind => {
-                            *frame_time = packet.tdc_time();
-                            *counter+=1;
+                        6 if packet.tdc_type() == tdc.tdctype => {
+                            tdc.upt(packet.tdc_time());
                             has = true;
                         },
                         _ => {},
