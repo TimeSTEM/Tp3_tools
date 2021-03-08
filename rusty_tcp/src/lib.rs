@@ -80,7 +80,7 @@ pub mod spectral_image {
                                 let mut filename = String::from("slice");
                                 filename.push_str(&(image.to_string()));
                                 filename.push_str(".dat");
-                                fs::write(filename, &*final_data);
+                                fs::write(filename, &*final_data).expect("Problem writing to file.");
                                 misc::put_all_to_zero(final_data);
                             }
                         },
@@ -117,8 +117,6 @@ pub mod spectral_image {
 
     }
 }
-
-
 
 ///`spectrum` is a module containing tools to live acquire frame-based spectra. Uses one tdc to
 ///define frame.
@@ -274,7 +272,7 @@ pub mod misc {
         s
     }
 
-    pub fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) -> bool{
+    pub fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
         let index = index * bytedepth;
         match bytedepth {
             4 => {
@@ -288,24 +286,15 @@ pub mod misc {
                         };
                     };
                 };
-                false
             },
             2 => {
                 data[index+1] = data[index+1].wrapping_add(1);
                 if data[index+1]==0 {
                     data[index] = data[index].wrapping_add(1);
-                    true
-                } else {
-                    false
                 }
             },
             1 => {
                 data[index] = data[index].wrapping_add(1);
-                if data[index]==0 {
-                    true
-                } else {
-                    false
-                }
             },
             _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
         }

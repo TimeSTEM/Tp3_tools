@@ -94,9 +94,6 @@ fn connect_and_loop(runmode: RunningMode) {
 
             let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, start_tdc_type);
             println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", spim_tdc.low_time*1.0e6, spim_tdc.high_time*1.0e6, spim_tdc.period*1.0e6);
-            
-            
-            let mut data_array:Vec<u8> = vec![0; my_settings.bytedepth*1024*my_settings.xspim_size*my_settings.yspim_size];
 
             'global_spim: loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
