@@ -13,7 +13,6 @@ pub mod spectral_image {
     use crate::auxiliar::Settings;
     use crate::tdclib::PeriodicTdcRef;
     use crate::misc;
-    use std::fs;
     
     ///Returns a vector containing a list of indexes in which events happened.
     pub fn build_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Vec<u8> {
@@ -92,55 +91,6 @@ pub mod spectral_image {
         index_data
     }
     
-    pub fn build_save_spim_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, counter: &mut usize, sltdc: &mut f64, spim: (usize, usize), yratio: usize, interval: f64, bytedepth: usize, tdc_kind: u8) -> Vec<u8> {
-        let mut packet_chunks = data.chunks_exact(8);
-        let mut index_data:Vec<u8> = Vec::new();
-        let per = spim.1 * 10;
-
-        while let Some(x) = packet_chunks.next() {
-            match x {
-                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
-                _ => {
-                    let packet = Packet { chip_index: *last_ci, data: x};
-                    
-                    match packet.id() {
-                        11 => {
-                            let ele_time = packet.electron_time() - 0.000007;
-                            if check_if_in(ele_time, sltdc, interval) {
-                                let line = (*counter / yratio) % spim.1;
-                                let xpos = (spim.0 as f64 * ((ele_time - *sltdc)/interval)) as usize;
-                                let array_pos = packet.x() + 1024*spim.0*line + 1024*xpos;
-                                misc::append_to_index_array(&mut index_data, array_pos);
-                                misc::append_to_array(final_data, array_pos, bytedepth);
-                            }
-                        },
-                        6 if packet.tdc_type() == tdc_kind => {
-                            *sltdc = packet.tdc_time_norm();
-                            *counter+=1;
-                            if *counter % per == 0 {
-                                let image = *counter / per;
-                                let mut filename = String::from("slice");
-                                filename.push_str(&(image.to_string()));
-                                filename.push_str(".dat");
-                                fs::write(filename, &*final_data).expect("Problem writing to file.");
-                                misc::put_all_to_zero(final_data);
-                            }
-                        },
-                        _ => {},
-                    };
-                },
-            };
-        };
-        index_data
-    }
-
-    ///Checks if event is in the appropriate time interval to be counted.
-    fn check_if_in(ele_time: f64, start_line: &f64, interval: f64) -> bool {
-        if ele_time>*start_line && ele_time<(*start_line + interval) {
-        true
-        } else {false}
-    }
-
     fn place_pixel(ele_time: f64, start_line: f64, interval: f64, period: f64) -> Option<usize> {
         let mut new_start_line = start_line;
         let mut counter = 0;
@@ -248,7 +198,7 @@ pub mod spectrum {
         false
     }
 
-    pub fn tr_create_start_vectime2(size: usize, period: f64, last_value: f64) -> Vec<f64> {
+    pub fn tr_create_start_vectime(size: usize, period: f64, last_value: f64) -> Vec<f64> {
         let mut vtime:Vec<f64> = vec![0.0; size];
         for (i, val) in vtime.iter_mut().enumerate() {
             *val = last_value - period * (size - i - 1) as f64 + period;

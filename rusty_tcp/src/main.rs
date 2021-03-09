@@ -44,8 +44,8 @@ fn connect_and_loop(runmode: RunningMode) {
                 let new_data = &buffer_pack_data[0..size];
                 misc::search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
                 match my_settings.mode {
-                    0 | 1 => {if TdcType::check_all_tdcs(&[3, 3, 0, 0], &tdc_vec)==true {break}},
-                    2 => {if TdcType::check_all_tdcs(&[5, 5, 5, 5], &tdc_vec)==true {break}},
+                    0 | 2 => {if TdcType::check_all_tdcs(&[3, 3, 0, 0], &tdc_vec)==true {break}},
+                    1 | 3 => {if TdcType::check_all_tdcs(&[5, 5, 5, 5], &tdc_vec)==true {break}},
                     _ => panic!("Unknown mode."),
                 }
             }
@@ -92,7 +92,7 @@ fn connect_and_loop(runmode: RunningMode) {
             
             let mut frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_frame);
             let laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
-            let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime2(5, laser_tdc.period, laser_tdc.time);
+            let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime(5, laser_tdc.period, laser_tdc.time);
             println!("Laser periodicity is: {}. First time vectors found were {:?}.", laser_tdc.period, ref_time);
      
             let mut data_array:Vec<u8> = if my_settings.bin {vec![0; my_settings.bytedepth*1024]} else {vec![0; 256*my_settings.bytedepth*1024]};
@@ -145,7 +145,7 @@ fn connect_and_loop(runmode: RunningMode) {
 
             let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, start_tdc_type);
             let laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
-            let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime2(5, laser_tdc.period, laser_tdc.time);
+            let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime(5, laser_tdc.period, laser_tdc.time);
             println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", spim_tdc.low_time*1.0e6, spim_tdc.high_time*1.0e6, spim_tdc.period*1.0e6);
             println!("Laser periodicity is: {}. First time vectors found were {:?}.", laser_tdc.period, ref_time);
 
