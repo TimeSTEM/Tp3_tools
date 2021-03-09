@@ -7,8 +7,6 @@ use timepix3::{spectrum, spectral_image, misc};
 
 fn connect_and_loop(runmode: RunningMode) {
 
-    let mode:u8;
-
     let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not connect to packets.");
     let ns_listener = match runmode {
         RunningMode::DebugStem7482 => TcpListener::bind("127.0.0.1:8088").expect("Could not connect to NS in debug."),
@@ -27,7 +25,6 @@ fn connect_and_loop(runmode: RunningMode) {
             Ok(size) => {
                 println!("Received {} bytes from NS.", size);
                 let my_config = BytesConfig{data: cam_settings};
-                mode = my_config.mode();
                 my_settings = my_config.create_settings();
             },
             Err(_) => panic!("Could not read cam initial settings."),
@@ -46,7 +43,7 @@ fn connect_and_loop(runmode: RunningMode) {
             if size>0 {
                 let new_data = &buffer_pack_data[0..size];
                 misc::search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
-                match mode {
+                match my_settings.mode {
                     0 | 1 => {if TdcType::check_all_tdcs(&[3, 3, 0, 0], &tdc_vec)==true {break}},
                     2 => {if TdcType::check_all_tdcs(&[5, 5, 5, 5], &tdc_vec)==true {break}},
                     _ => panic!("Unknown mode."),
@@ -56,7 +53,7 @@ fn connect_and_loop(runmode: RunningMode) {
     }
     println!("Related TDC have been found. Entering acquisition.");
             
-    match mode {
+    match my_settings.mode {
         0 => {
             let tdc = TdcType::TdcOneRisingEdge.associate_value();
             let mut frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc);
@@ -156,7 +153,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
+                        let result = spectral_image::build_tr_spim_data(new_data, &mut last_ci, &mut ref_time, &my_settings, &mut spim_tdc, &laser_tdc);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
                     } else {println!("Received zero packages from TP3."); break;}
                 }
