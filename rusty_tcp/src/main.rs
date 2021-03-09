@@ -90,22 +90,6 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         },
         1 => {
-            let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
-
-            let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, start_tdc_type);
-            println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", spim_tdc.low_time*1.0e6, spim_tdc.high_time*1.0e6, spim_tdc.period*1.0e6);
-
-            'global_spim: loop {
-                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                    if size>0 {
-                        let new_data = &buffer_pack_data[0..size];
-                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
-                        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break 'global_spim;}
-                    } else {println!("Received zero packages from TP3."); break 'global_spim;}
-                }
-            }
-        },
-        2 => {
             let tdc_frame = TdcType::TdcOneRisingEdge.associate_value();
             let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
             
@@ -140,6 +124,42 @@ fn connect_and_loop(runmode: RunningMode) {
                     }
                 }
                 if frame_tdc.counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter);}
+            }
+        },
+        2 => {
+            let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
+
+            let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, start_tdc_type);
+            println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", spim_tdc.low_time*1.0e6, spim_tdc.high_time*1.0e6, spim_tdc.period*1.0e6);
+
+            loop {
+                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                    if size>0 {
+                        let new_data = &buffer_pack_data[0..size];
+                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
+                        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+                    } else {println!("Received zero packages from TP3."); break;}
+                }
+            }
+        }
+        3 => {
+            let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
+            let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
+
+            let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, start_tdc_type);
+            let laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
+            let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime2(5, laser_tdc.period, laser_tdc.time);
+            println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", spim_tdc.low_time*1.0e6, spim_tdc.high_time*1.0e6, spim_tdc.period*1.0e6);
+            println!("Laser periodicity is: {}. First time vectors found were {:?}.", laser_tdc.period, ref_time);
+
+            loop {
+                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                    if size>0 {
+                        let new_data = &buffer_pack_data[0..size];
+                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
+                        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+                    } else {println!("Received zero packages from TP3."); break;}
+                }
             }
         },
         _ => panic!("Unknown mode received."),

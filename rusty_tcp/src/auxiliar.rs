@@ -70,12 +70,15 @@ impl BytesConfig {
                 println!("Mode is Focus/Cumul.");
             },
             1 => {
-                println!("Mode is SpimTP.");
+                println!("Entering in time resolved mode (Focus/Cumul).");
             },
             2 => {
-                println!("Time width is not zero. Entering in time resolved mode.");
+                println!("Mode is SpimTP.");
             },
-            _ => panic!("Spim config must be 0 | 1."),
+            3 => {
+                println!("Entering in time resolved mode (SpimTP).");
+            },
+            _ => panic!("Spim config must be 0 | 1 | 2 | 3."),
         };
         self.data[3]
     }
