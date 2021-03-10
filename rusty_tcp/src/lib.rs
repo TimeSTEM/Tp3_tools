@@ -166,7 +166,7 @@ pub mod modes {
             eff_tdc = eff_tdc - period;
         }
         
-        if counter>4 {return None}
+        if counter>5 {return None}
         
         if ele_time > eff_tdc + settings.time_delay && ele_time < eff_tdc + settings.time_delay + settings.time_width {
             Some(counter)
@@ -184,7 +184,7 @@ pub mod modes {
             new_start_line = new_start_line - period;
         }
         
-        if counter>3 {return None}
+        if counter>5 {return None}
         
         if ele_time > new_start_line && ele_time < new_start_line + interval {
             Some(counter)
