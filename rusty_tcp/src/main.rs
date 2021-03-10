@@ -3,7 +3,7 @@ use std::net::{Shutdown, TcpListener};
 use std::time::Instant;
 use timepix3::auxiliar::{RunningMode, BytesConfig, Settings};
 use timepix3::tdclib::{TdcType, PeriodicTdcRef};
-use timepix3::{spectrum, spectral_image, misc};
+use timepix3::{modes, misc};
 
 fn connect_and_loop(runmode: RunningMode) {
 
@@ -74,7 +74,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            if spectrum::build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc) {
+                            if modes::build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc) {
                                 let msg = misc::create_header(&my_settings, &frame_tdc);
                                 if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global;}
                                 if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'global;}
@@ -110,7 +110,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            if spectrum::tr_build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut laser_tdc) {
+                            if modes::tr_build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut laser_tdc) {
                                 let msg = misc::create_header(&my_settings, &frame_tdc);
                                 if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'TRglobal;}
                                 if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'TRglobal;}
@@ -132,7 +132,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        let result = spectral_image::build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
+                        let result = modes::build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
                     } else {println!("Received zero packages from TP3."); break;}
                 }
@@ -143,7 +143,7 @@ fn connect_and_loop(runmode: RunningMode) {
             let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
 
             let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, start_tdc_type);
-            let laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
+            let mut laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
             println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", spim_tdc.low_time*1.0e6, spim_tdc.high_time*1.0e6, spim_tdc.period*1.0e6);
             println!("Laser periodicity is: {}.", laser_tdc.period);
 
@@ -151,7 +151,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        let result = spectral_image::build_tr_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &laser_tdc);
+                        let result = modes::build_tr_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut laser_tdc);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
                     } else {println!("Received zero packages from TP3."); break;}
                 }

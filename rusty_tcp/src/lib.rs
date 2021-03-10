@@ -8,7 +8,7 @@ pub mod tdclib;
 pub mod packetlib;
 
 ///`spectral_image` is a module containing tools to live acquire spectral images.
-pub mod spectral_image {
+pub mod modes {
     use crate::packetlib::Packet;
     use crate::auxiliar::Settings;
     use crate::tdclib::PeriodicTdcRef;
@@ -30,7 +30,7 @@ pub mod spectral_image {
                     match packet.id() {
                         11 => {
                             let ele_time = packet.electron_time() - 0.000007;
-                            if let Some(backline) = place_pixel(ele_time, line_tdc.time, interval, period) {
+                            if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
                                 let array_pos = packet.x() + 1024*settings.xspim_size*line + 1024*xpos;
@@ -50,7 +50,7 @@ pub mod spectral_image {
     }
     
     ///Returns a vector containing a list of indexes in which events happened for a TR measurement..
-    pub fn build_tr_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &PeriodicTdcRef) -> Vec<u8> {
+    pub fn build_tr_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut PeriodicTdcRef) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
         let interval = line_tdc.low_time;
@@ -65,7 +65,7 @@ pub mod spectral_image {
                     match packet.id() {
                         11 => {
                             let ele_time = packet.electron_time() - 0.000007;
-                            if let Some(backline) = place_pixel(ele_time, line_tdc.time, interval, period) {
+                            if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
                                 let array_pos = packet.x() + 1024*settings.xspim_size*line + 1024*xpos;
@@ -77,7 +77,7 @@ pub mod spectral_image {
                             line_tdc.upt(packet.tdc_time_norm());
                         },
                         6 if packet.tdc_type() == ref_tdc.tdctype => {
-                            let time = packet.tdc_time_norm();
+                            ref_tdc.upt(packet.tdc_time_norm());
                         },
                         _ => {},
                     };
@@ -87,7 +87,7 @@ pub mod spectral_image {
         index_data
     }
     
-    fn place_pixel(ele_time: f64, start_line: f64, interval: f64, period: f64) -> Option<usize> {
+    fn spim_check_if_in(ele_time: f64, start_line: f64, interval: f64, period: f64) -> Option<usize> {
         let mut new_start_line = start_line;
         let mut counter = 0;
         while ele_time < new_start_line {
@@ -104,16 +104,7 @@ pub mod spectral_image {
         }
 
     }
-}
 
-///`spectrum` is a module containing tools to live acquire frame-based spectra. Uses one tdc to
-///define frame.
-pub mod spectrum {
-    use crate::packetlib::Packet;
-    use crate::auxiliar::Settings;
-    use crate::tdclib::PeriodicTdcRef;
-    use crate::misc;
-    
     pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut PeriodicTdcRef) -> bool {
 
         let mut packet_chunks = data.chunks_exact(8);
@@ -197,14 +188,6 @@ pub mod spectrum {
             None
         }
 
-    }
-    
-    fn tr_create_start_vectime(size: usize, period: f64, last_value: f64) -> Vec<f64> {
-        let mut vtime:Vec<f64> = vec![0.0; size];
-        for (i, val) in vtime.iter_mut().enumerate() {
-            *val = last_value - period * (size - i - 1) as f64 + period;
-        }
-        vtime
     }
     
 }
