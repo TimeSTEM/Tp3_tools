@@ -64,12 +64,15 @@ pub mod modes {
                     
                     match packet.id() {
                         11 => {
-                            let ele_time = packet.electron_time() - 0.000007;
-                            if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
-                                let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
-                                let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                let array_pos = packet.x() + 1024*settings.xspim_size*line + 1024*xpos;
-                                misc::append_to_index_array(&mut index_data, array_pos);
+                            let mut ele_time = packet.electron_time();
+                            if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time, ref_tdc.period, settings) {
+                                ele_time -= 0.000007;
+                                if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
+                                    let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
+                                    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
+                                    let array_pos = packet.x() + 1024*settings.xspim_size*line + 1024*xpos;
+                                    misc::append_to_index_array(&mut index_data, array_pos);
+                                }
                             }
                             
                         },
@@ -87,23 +90,6 @@ pub mod modes {
         index_data
     }
     
-    fn spim_check_if_in(ele_time: f64, start_line: f64, interval: f64, period: f64) -> Option<usize> {
-        let mut new_start_line = start_line;
-        let mut counter = 0;
-        while ele_time < new_start_line {
-            counter+=1;
-            new_start_line = new_start_line - period;
-        }
-        
-        if counter>3 {return None}
-        
-        if ele_time > new_start_line && ele_time < new_start_line + interval {
-            Some(counter)
-        } else {
-            None
-        }
-
-    }
 
     pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut PeriodicTdcRef) -> bool {
 
@@ -149,7 +135,7 @@ pub mod modes {
                     match packet.id() {
                         11 => {
                             let ele_time = packet.electron_time();
-                            if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time, ref_tdc.period, settings.time_delay, settings.time_width) {
+                            if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time, ref_tdc.period, settings) {
                                 let array_pos = match settings.bin {
                                     false => packet.x() + 1024*packet.y(),
                                     true => packet.x()
@@ -172,7 +158,7 @@ pub mod modes {
         has
     }
     
-    fn tr_check_if_in(ele_time: f64, tdc: f64, period: f64, delay: f64, width: f64) -> Option<usize> {
+    fn tr_check_if_in(ele_time: f64, tdc: f64, period: f64, settings: &Settings) -> Option<usize> {
         let mut eff_tdc = tdc;
         let mut counter = 0;
         while ele_time < eff_tdc {
@@ -182,7 +168,25 @@ pub mod modes {
         
         if counter>4 {return None}
         
-        if ele_time > eff_tdc + delay && ele_time < eff_tdc + delay + width {
+        if ele_time > eff_tdc + settings.time_delay && ele_time < eff_tdc + settings.time_delay + settings.time_width {
+            Some(counter)
+        } else {
+            None
+        }
+
+    }
+    
+    fn spim_check_if_in(ele_time: f64, start_line: f64, interval: f64, period: f64) -> Option<usize> {
+        let mut new_start_line = start_line;
+        let mut counter = 0;
+        while ele_time < new_start_line {
+            counter+=1;
+            new_start_line = new_start_line - period;
+        }
+        
+        if counter>3 {return None}
+        
+        if ele_time > new_start_line && ele_time < new_start_line + interval {
             Some(counter)
         } else {
             None
