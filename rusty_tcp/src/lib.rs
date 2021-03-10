@@ -180,6 +180,9 @@ pub mod spectrum {
                             ref_time.pop().unwrap();
                             ref_time.push(time);
                             ref_time.push(time+ref_tdc.period);
+                            if (ref_time[1]-ref_time[0]-ref_tdc.period)*1.0e9>1.0 {
+                                println!("{:?} and {}", ref_time[1]-ref_time[0], ((ref_time[1]-ref_time[0]) - ref_tdc.period)*1.0e9);
+                            }
                         },
                         _ => {},
                     };
@@ -187,6 +190,24 @@ pub mod spectrum {
             };
         };
         has
+    }
+    
+    fn tr_check_if_in02(ele_time: f64, tdc: f64, period: f64, delay: f64, width: f64) -> Option<usize> {
+        let mut eff_tdc = tdc;
+        let mut counter = 0;
+        while ele_time < eff_tdc {
+            counter+=1;
+            eff_tdc = eff_tdc - period;
+        }
+        
+        if counter>4 {return None}
+        
+        if ele_time > eff_tdc + delay && ele_time < eff_tdc + delay + width {
+            Some(counter)
+        } else {
+            None
+        }
+
     }
     
     fn tr_check_if_in(time_vec: &Vec<f64>, time: f64, delay: f64, width: f64) -> bool {
