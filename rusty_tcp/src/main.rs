@@ -29,7 +29,7 @@ fn connect_and_loop(runmode: RunningMode) {
             },
             Err(_) => panic!("Could not read cam initial settings."),
         }
-        println!("Received settings is {:?}.", cam_settings);
+        println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
     }
 
     let start = Instant::now();
