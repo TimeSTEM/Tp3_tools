@@ -91,9 +91,8 @@ fn connect_and_loop(runmode: RunningMode) {
             let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
             
             let mut frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_frame);
-            let laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
-            let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime(5, laser_tdc.period, laser_tdc.time);
-            println!("Laser periodicity is: {}. First time vectors found were {:?}.", laser_tdc.period, ref_time);
+            let mut laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
+            println!("Laser periodicity is: {}.", laser_tdc.period);
      
             let mut data_array:Vec<u8> = if my_settings.bin {vec![0; my_settings.bytedepth*1024]} else {vec![0; 256*my_settings.bytedepth*1024]};
             data_array.push(10);
@@ -111,7 +110,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
-                            if spectrum::tr_build_data(new_data, &mut data_array, &mut last_ci, &mut ref_time, &my_settings, &mut frame_tdc, &laser_tdc) {
+                            if spectrum::tr_build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut laser_tdc) {
                                 let msg = misc::create_header(&my_settings, &frame_tdc);
                                 if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'TRglobal;}
                                 if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'TRglobal;}
@@ -145,15 +144,14 @@ fn connect_and_loop(runmode: RunningMode) {
 
             let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, start_tdc_type);
             let laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
-            let mut ref_time: Vec<f64> = spectrum::tr_create_start_vectime(5, laser_tdc.period, laser_tdc.time);
             println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", spim_tdc.low_time*1.0e6, spim_tdc.high_time*1.0e6, spim_tdc.period*1.0e6);
-            println!("Laser periodicity is: {}. First time vectors found were {:?}.", laser_tdc.period, ref_time);
+            println!("Laser periodicity is: {}.", laser_tdc.period);
 
             loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        let result = spectral_image::build_tr_spim_data(new_data, &mut last_ci, &mut ref_time, &my_settings, &mut spim_tdc, &laser_tdc);
+                        let result = spectral_image::build_tr_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &laser_tdc);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
                     } else {println!("Received zero packages from TP3."); break;}
                 }

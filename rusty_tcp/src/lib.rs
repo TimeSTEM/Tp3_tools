@@ -50,7 +50,7 @@ pub mod spectral_image {
     }
     
     ///Returns a vector containing a list of indexes in which events happened for a TR measurement..
-    pub fn build_tr_spim_data(data: &[u8], last_ci: &mut u8, ref_time: &mut Vec<f64>, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &PeriodicTdcRef) -> Vec<u8> {
+    pub fn build_tr_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &PeriodicTdcRef) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
         let interval = line_tdc.low_time;
@@ -78,10 +78,6 @@ pub mod spectral_image {
                         },
                         6 if packet.tdc_type() == ref_tdc.tdctype => {
                             let time = packet.tdc_time_norm();
-                            ref_time.remove(0);
-                            ref_time.pop().unwrap();
-                            ref_time.push(time);
-                            ref_time.push(time+ref_tdc.period);
                         },
                         _ => {},
                     };
@@ -149,7 +145,7 @@ pub mod spectrum {
         has
     }
 
-    pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, ref_time: &mut Vec<f64>, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &PeriodicTdcRef) -> bool {
+    pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut PeriodicTdcRef) -> bool {
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
 
@@ -162,7 +158,7 @@ pub mod spectrum {
                     match packet.id() {
                         11 => {
                             let ele_time = packet.electron_time();
-                            if tr_check_if_in(ref_time, ele_time, settings.time_delay, settings.time_width) {
+                            if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time, ref_tdc.period, settings.time_delay, settings.time_width) {
                                 let array_pos = match settings.bin {
                                     false => packet.x() + 1024*packet.y(),
                                     true => packet.x()
@@ -175,14 +171,7 @@ pub mod spectrum {
                             has = true;
                         },
                         6 if packet.tdc_type() == ref_tdc.tdctype => {
-                            let time = packet.tdc_time_norm();
-                            ref_time.remove(0);
-                            ref_time.pop().unwrap();
-                            ref_time.push(time);
-                            ref_time.push(time+ref_tdc.period);
-                            if (ref_time[1]-ref_time[0]-ref_tdc.period)*1.0e9>1.0 {
-                                println!("{:?} and {}", ref_time[1]-ref_time[0], ((ref_time[1]-ref_time[0]) - ref_tdc.period)*1.0e9);
-                            }
+                            ref_tdc.upt(packet.tdc_time_norm());
                         },
                         _ => {},
                     };
@@ -192,7 +181,7 @@ pub mod spectrum {
         has
     }
     
-    fn tr_check_if_in02(ele_time: f64, tdc: f64, period: f64, delay: f64, width: f64) -> Option<usize> {
+    fn tr_check_if_in(ele_time: f64, tdc: f64, period: f64, delay: f64, width: f64) -> Option<usize> {
         let mut eff_tdc = tdc;
         let mut counter = 0;
         while ele_time < eff_tdc {
@@ -210,16 +199,7 @@ pub mod spectrum {
 
     }
     
-    fn tr_check_if_in(time_vec: &Vec<f64>, time: f64, delay: f64, width: f64) -> bool {
-        for val in time_vec {
-            if time>val+delay && time<val+delay+width {
-                return true
-            }
-        }
-        false
-    }
-
-    pub fn tr_create_start_vectime(size: usize, period: f64, last_value: f64) -> Vec<f64> {
+    fn tr_create_start_vectime(size: usize, period: f64, last_value: f64) -> Vec<f64> {
         let mut vtime:Vec<f64> = vec![0.0; size];
         for (i, val) in vtime.iter_mut().enumerate() {
             *val = last_value - period * (size - i - 1) as f64 + period;
