@@ -7,6 +7,7 @@ import os
 xL = list() #x position
 yL = list() #Y position
 Tafter = list() #Global Time
+ToT = list() #Global Time
 last_laser = [0.0, 0.0, 0.0, 0.0, 0.0] #Rising Edge tdc1 Time
 
 i = [0, 0] #Counter. First index is electron event and second is tdc event.
@@ -15,10 +16,11 @@ start = time.time()
 
 FOLDER = '../TCPFiletoStream/GainRawTP3/25-53-25262(132)'
 #FOLDER = '../TCPFiletoStream/gain_data'
-WIDTH = 100000e-9
-DELAY = 0e-9
-HOR = 250
+WIDTH = 200e-9
+DELAY = 1800e-9
+HOR = 132
 MIN_HOR = 0
+OR_HOR = 165
 
 def check_if_in(ele_time, tdc_time_list):
     for val in tdc_time_list:
@@ -29,7 +31,7 @@ def check_if_in(ele_time, tdc_time_list):
 
 for data in os.listdir(FOLDER):# in datas:
     print(f'Looping over file {data}.')
-    if i[0] != 0: break
+    #if i[0] != 0: break
     with open(os.path.join(FOLDER, data), "rb") as f:
         all_data = f.read()
         index = 0 #Reading index.
@@ -50,18 +52,18 @@ for data in os.listdir(FOLDER):# in datas:
                 byte = all_data[index:index+8]
                 byte=byte[::-1]
                 id = (byte[0] & 240)>>4 #240 = 1111 0000. 240 >> 4 = 0000 11111.
-                if id==11: #11 = 0xb (Electron Event)
+                if id==11 and chip_index==0: #11 = 0xb (Electron Event)
                     i[0]+=1 #Increment Electron Event
                     
                     toa = ((byte[2] & 15)<<10) | ((byte[3] & 255)<<2) | ((byte[4] & 192)>>6)
-                    #tot = ((byte[4] & 63)<<4) | ((byte[5] & 240)>>4)
+                    tot = ((byte[4] & 63)<<4) | ((byte[5] & 240)>>4)
                     ftoa = (byte[5] & 15)
                     spidr = ((byte[6] & 255)<<8) + ((byte[7] & 255))
                     ctoa = toa<<4 | ~ftoa & 15
                     
                     spidrT = spidr * 25.0 * 16384.0
                     #toa_ns = toa * 25.0
-                    #tot_ns = tot * 25.0
+                    tot_time= tot * 25.0 / 1e9
                     global_time = (spidrT + ctoa * 25.0/16.0)/1e9
 
                     
@@ -92,10 +94,13 @@ for data in os.listdir(FOLDER):# in datas:
                             x = 255*2 - x
                             y = y
                         
-                        xL.append(x)
-                        yL.append(y)
-                        if x<HOR and x>=MIN_HOR:
-                            Tafter.append((global_time - tdc_ref)*1e6)
+                        if tot_time * 1e6 > 6.0:
+                            if (x<HOR and x>=MIN_HOR) or x>OR_HOR:
+                                xL.append(x)
+                                yL.append(y)
+                                #print(x, y, global_time, tot_time, x<HOR)
+                                Tafter.append((global_time - tdc_ref + tot_time * 0.0)*1e6)
+                                ToT.append((tot_time)*1e6)
 
                 
                 elif id==6: #6 = 0xb. This is a tdc event.
@@ -112,23 +117,22 @@ for data in os.listdir(FOLDER):# in datas:
             index+=8 #Goes back to next header
                 
 finish = time.time()
-print(f'Total time is {finish-start} with {i} events. Last laser is at {last_laser}')
+print(f'Total time is {finish-start} with {i} events. Last laser is at {last_laser}. Number of positional electrons are {len(xL)}. Number of temporal electrons are {len(Tafter)}.')
 
 fig, ax = plt.subplots(3, 1, dpi=160)
 ax[0].hist2d(xL, yL, bins=100, range=([0, 250], [0, 256]), norm=mcolors.PowerNorm(0.3))
 ax[0].axvline(x=HOR, color='white')
 if MIN_HOR>0: ax[0].axvline(x=MIN_HOR, color='red')
-ax[1].hist2d(xL, yL, bins=49, range=([0, HOR], [0, 256]), norm=mcolors.PowerNorm(0.3))
-ax[2].hist(Tafter, bins=200, density=True, range=(DELAY*1e6, (DELAY+WIDTH)*1e6))
+if OR_HOR<255: ax[0].axvline(x=OR_HOR, color='blue')
+#ax[1].hist2d(xL, yL, bins=49, range=([0, HOR], [0, 256]), norm=mcolors.PowerNorm(0.3))
+ax[1].hist(Tafter, bins=200, density = True, range=(DELAY*1e6, (DELAY+WIDTH)*1e6))
+ax[2].hist(ToT, bins=100, density = True)
                 
 ax[0].set_ylabel('Y')
 ax[0].set_xlabel('X')
 
-ax[1].set_ylabel('Y')
-ax[1].set_xlabel('X')
-
-ax[2].set_ylabel('Event counts')
-ax[2].set_xlabel('Time Elapsed from TDC (us)')
+ax[1].set_ylabel('Event counts')
+ax[1].set_xlabel('Time Elapsed from TDC (us)')
 
 plt.savefig(FOLDER + '.png')
 numpy.save(FOLDER + '.npy', Tafter)
