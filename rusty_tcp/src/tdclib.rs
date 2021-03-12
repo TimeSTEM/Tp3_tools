@@ -144,6 +144,7 @@ impl PeriodicTdcRef {
         let high_time = PeriodicTdcRef::find_high_time(tdc_vec, tdc_type);
         let period = PeriodicTdcRef::find_period(tdc_vec, tdc_type);
         let low_time = period - high_time;
+        println!("Creating a new Tdc reference. Number of detected triggers is {}. Last trigger time (us) is {}. ON interval (us) is {}. Period (us) is {}.", counter, last_time*1.0e6, high_time*1.0e6, period*1.0e6);
         PeriodicTdcRef {
             tdctype: tdc_type,
             counter: counter,
