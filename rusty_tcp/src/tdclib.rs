@@ -101,15 +101,21 @@ impl PeriodicTdcRef {
             _ => panic!("Bad TDC receival in `find_width`"),
         };
 
-        let fal = PeriodicTdcRef::get_timelist(tdc_vec, fal_tdc_type);
-        let ris = PeriodicTdcRef::get_timelist(tdc_vec, ris_tdc_type);
-        if (fal[1] - ris[1])>0.0 {fal[1] - ris[1]} else {fal[2] - ris[1]}
+        let mut fal = PeriodicTdcRef::get_timelist(tdc_vec, fal_tdc_type);
+        let mut ris = PeriodicTdcRef::get_timelist(tdc_vec, ris_tdc_type);
+        let last_fal = fal.pop().expect("Please get at least 01 falling Tdc");
+        let last_ris = ris.pop().expect("Please get at least 01 rising Tdc");
+        if last_fal - last_ris > 0.0 {
+            last_fal - last_ris 
+        } else {
+            last_fal - ris.pop().expect("Please get at least 02 rising Tdc's.")
+        }
     }
     
     ///Returns the period time interval between lines.
     fn find_period(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> f64 {
-        let tdc_time = PeriodicTdcRef::get_timelist(tdc_vec, tdc_type);
-        tdc_time[2] - tdc_time[1]
+        let mut tdc_time = PeriodicTdcRef::get_timelist(tdc_vec, tdc_type);
+        tdc_time.pop().expect("Please get at least 02 Tdc's") - tdc_time.pop().expect("Please get at least 02 Tdc's")
     }
     
     fn get_counter(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> usize {

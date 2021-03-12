@@ -44,7 +44,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 let new_data = &buffer_pack_data[0..size];
                 misc::search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
                 match my_settings.mode {
-                    0 | 2 => {if TdcType::check_all_tdcs(&[3, 3, 0, 0], &tdc_vec)==true {break}},
+                    0 | 2 => {if TdcType::check_all_tdcs(&[5, 5, 0, 0], &tdc_vec)==true {break}},
                     1 | 3 => {if TdcType::check_all_tdcs(&[5, 5, 5, 5], &tdc_vec)==true {break}},
                     _ => panic!("Unknown mode."),
                 }
