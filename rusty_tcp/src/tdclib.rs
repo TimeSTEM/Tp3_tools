@@ -11,12 +11,21 @@ pub enum TdcType {
 
 impl TdcType {
     ///Convenient method. Return value is the 4 bits associated to each TDC.
-    pub fn associate_value(&self) -> u8 {
+    fn associate_value(&self) -> u8 {
         match *self {
             TdcType::TdcOneRisingEdge => 15,
             TdcType::TdcOneFallingEdge => 10,
             TdcType::TdcTwoRisingEdge => 14,
             TdcType::TdcTwoFallingEdge => 11,
+        }
+    }
+
+    fn associate_str(&self) -> String {
+        match *self {
+            TdcType::TdcOneRisingEdge => String::from("Tdc 01 Rising Edge"),
+            TdcType::TdcOneFallingEdge => String::from("Tdc 01 Falling Edge"),
+            TdcType::TdcTwoRisingEdge => String::from("Tdc 02 Rising Edge"),
+            TdcType::TdcTwoFallingEdge => String::from("Tdc 02 Falling Edge"),
         }
     }
 
@@ -58,13 +67,6 @@ impl TdcType {
         }
     }
     
-    ///Similar to `check_all_tdcs` but return a 4-dimensional vector with booleans for each TDC.
-    pub fn check_each_tdc(min: &[usize; 4], tdc_vec: &Vec<(f64, TdcType)>) -> Vec<bool> {
-        let val = TdcType::count_tdcs(tdc_vec);
-        let seq = val.iter().zip(min.iter()).map(|(min, val)| min>=val).collect::<Vec<bool>>();
-        seq
-    }
-    
 }
 
 pub struct PeriodicTdcRef {
@@ -101,15 +103,21 @@ impl PeriodicTdcRef {
             _ => panic!("Bad TDC receival in `find_width`"),
         };
 
-        let fal = PeriodicTdcRef::get_timelist(tdc_vec, fal_tdc_type);
-        let ris = PeriodicTdcRef::get_timelist(tdc_vec, ris_tdc_type);
-        if (fal[1] - ris[1])>0.0 {fal[1] - ris[1]} else {fal[2] - ris[1]}
+        let mut fal = PeriodicTdcRef::get_timelist(tdc_vec, fal_tdc_type);
+        let mut ris = PeriodicTdcRef::get_timelist(tdc_vec, ris_tdc_type);
+        let last_fal = fal.pop().expect("Please get at least 01 falling Tdc");
+        let last_ris = ris.pop().expect("Please get at least 01 rising Tdc");
+        if last_fal - last_ris > 0.0 {
+            last_fal - last_ris 
+        } else {
+            last_fal - ris.pop().expect("Please get at least 02 rising Tdc's.")
+        }
     }
     
     ///Returns the period time interval between lines.
     fn find_period(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> f64 {
-        let tdc_time = PeriodicTdcRef::get_timelist(tdc_vec, tdc_type);
-        tdc_time[2] - tdc_time[1]
+        let mut tdc_time = PeriodicTdcRef::get_timelist(tdc_vec, tdc_type);
+        tdc_time.pop().expect("Please get at least 02 Tdc's") - tdc_time.pop().expect("Please get at least 02 Tdc's")
     }
     
     fn get_counter(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> usize {
@@ -132,14 +140,15 @@ impl PeriodicTdcRef {
         self.counter+=1;
     }
 
-    pub fn new_ref(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> PeriodicTdcRef {
-        let counter = PeriodicTdcRef::get_counter(tdc_vec, tdc_type);
-        let last_time = PeriodicTdcRef::get_lasttime(tdc_vec, tdc_type);
-        let high_time = PeriodicTdcRef::find_high_time(tdc_vec, tdc_type);
-        let period = PeriodicTdcRef::find_period(tdc_vec, tdc_type);
+    pub fn new_ref(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: TdcType) -> PeriodicTdcRef {
+        let counter = PeriodicTdcRef::get_counter(tdc_vec, tdc_type.associate_value());
+        let last_time = PeriodicTdcRef::get_lasttime(tdc_vec, tdc_type.associate_value());
+        let high_time = PeriodicTdcRef::find_high_time(tdc_vec, tdc_type.associate_value());
+        let period = PeriodicTdcRef::find_period(tdc_vec, tdc_type.associate_value());
         let low_time = period - high_time;
+        println!("Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ms) is {}. ON interval (ms) is {}. Period (ms) is {}.", tdc_type.associate_str(), counter, last_time*1.0e3, high_time*1.0e3, period*1.0e3);
         PeriodicTdcRef {
-            tdctype: tdc_type,
+            tdctype: tdc_type.associate_value(),
             counter: counter,
             period: period,
             high_time: high_time,

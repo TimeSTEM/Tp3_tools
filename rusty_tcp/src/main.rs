@@ -29,7 +29,7 @@ fn connect_and_loop(runmode: RunningMode) {
             },
             Err(_) => panic!("Could not read cam initial settings."),
         }
-        println!("Received settings is {:?}.", cam_settings);
+        println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
     }
 
     let start = Instant::now();
@@ -44,7 +44,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 let new_data = &buffer_pack_data[0..size];
                 misc::search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
                 match my_settings.mode {
-                    0 | 2 => {if TdcType::check_all_tdcs(&[3, 3, 0, 0], &tdc_vec)==true {break}},
+                    0 | 2 => {if TdcType::check_all_tdcs(&[5, 5, 0, 0], &tdc_vec)==true {break}},
                     1 | 3 => {if TdcType::check_all_tdcs(&[5, 5, 5, 5], &tdc_vec)==true {break}},
                     _ => panic!("Unknown mode."),
                 }
@@ -55,8 +55,7 @@ fn connect_and_loop(runmode: RunningMode) {
             
     match my_settings.mode {
         0 => {
-            let tdc = TdcType::TdcOneRisingEdge.associate_value();
-            let mut frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc);
+            let mut frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneRisingEdge);
             
             let mut data_array:Vec<u8> = if my_settings.bin {vec![0; my_settings.bytedepth*1024]} else {vec![0; 256*my_settings.bytedepth*1024]};
             data_array.push(10);
@@ -87,12 +86,8 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         },
         1 => {
-            let tdc_frame = TdcType::TdcOneRisingEdge.associate_value();
-            let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
-            
-            let mut frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_frame);
-            let mut laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
-            println!("Laser periodicity is: {}.", laser_tdc.period);
+            let mut frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneRisingEdge);
+            let mut laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcTwoFallingEdge);
      
             let mut data_array:Vec<u8> = if my_settings.bin {vec![0; my_settings.bytedepth*1024]} else {vec![0; 256*my_settings.bytedepth*1024]};
             data_array.push(10);
@@ -123,10 +118,7 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         },
         2 => {
-            let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
-
-            let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, start_tdc_type);
-            println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", spim_tdc.low_time*1.0e6, spim_tdc.high_time*1.0e6, spim_tdc.period*1.0e6);
+            let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
 
             loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -139,13 +131,8 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         }
         3 => {
-            let start_tdc_type = TdcType::TdcOneFallingEdge.associate_value();
-            let tdc_ref = TdcType::TdcTwoFallingEdge.associate_value();
-
-            let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, start_tdc_type);
-            let mut laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, tdc_ref);
-            println!("Interval time (us) is {:?}. Measured dead time (us) is {:?}. Period (us) is {:?}", spim_tdc.low_time*1.0e6, spim_tdc.high_time*1.0e6, spim_tdc.period*1.0e6);
-            println!("Laser periodicity is: {}.", laser_tdc.period);
+            let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
+            let mut laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcTwoFallingEdge);
 
             loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
