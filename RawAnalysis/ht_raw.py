@@ -128,22 +128,38 @@ print(f'Total time is {finish-start} with {i} events. Last tdc is at {last_tdc}.
 
 x = list()
 y = list()
+disp = 80.7 #meV / pixel
 
 for i, val in enumerate(tL):
     x.append(i*tL_int)
     y.append(numpy.mean(val))
 
-fig, ax = plt.subplots(1, 1, dpi=160)
+y_mean = numpy.mean(y)
+y_std = numpy.std(y)
+
+y = numpy.multiply(numpy.subtract(y, y_mean), disp)
+y_std = numpy.multiply(y_std, disp)
+
+print(y_mean, y_std)
+
+fig, ax = plt.subplots(1, 1, dpi=200, figsize=(8, 5))
 ax.plot(x, y, linewidth=2.0, color='red', label='X average')
 ax.scatter(x, y)
+#ax.axhline(y=+y_std, linestyle='--', color='green')
+#ax.axhline(y=-y_std, linestyle='--', color='green')
+ax.fill_between(x, +y_std, -y_std, alpha=0.2)
+ax.text(1.0, y_std-7, 'σ = 26.1 meV', fontweight = 'bold')
+ax.fill_between(x, 2*y_std, -2*y_std, alpha=0.2)
+ax.text(1.0, 2*y_std-7, '2σ = 52.2 meV', fontweight = 'bold')
 
-ax.set_ylabel('Avg[X] pixel')
+ax.set_ylabel('Zero loss position (meV)')
 ax.set_xlabel('Time delay (us)')
 ax.legend()
 
-plt.show()
+#plt.show()
+plt.savefig('myFig')
 
-
+"""
 fig, ax = plt.subplots(3, 1, dpi=160)
 ax[0].hist2d(xL, yL, bins=100, range=([0, 1024], [0, 256]), norm=mcolors.PowerNorm(0.3))
 ax[0].axvline(x=MIN_HOR, color='red')
@@ -160,5 +176,5 @@ ax[1].set_xlabel('Time Elapsed from TDC (us)')
 ax[2].set_ylabel('Event counts')
 ax[2].set_xlabel('TDC time distribution (us)')
 
-plt.show()
-
+#plt.show()
+"""
