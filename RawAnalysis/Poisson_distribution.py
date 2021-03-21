@@ -2,6 +2,7 @@ import numpy
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from scipy.special import factorial
+from scipy.optimize import curve_fit
 import time
 import os
 
@@ -10,18 +11,23 @@ yL = list() #Y position
 T = list() #Global Time
 
 A = 6.242*10**(18) #C/s
-cur = 0.5*10**(-12) #C/s
+cur = 0.26*10**(-12) #C/s
 ele = cur*A
 events = 10**-6 * ele
+
 
 t = numpy.arange(0.0, 10.0, 0.1)
 d = numpy.exp(-events) * numpy.power(events, t)/factorial(t)
 
-plt.plot(t, d, label="l = "+str(events) )
-plt.legend()
-plt.ylabel('Probability')
-plt.xlabel('K (us)')
-plt.show()
+#plt.plot(t, d, label="l = "+str(events) )
+#plt.legend()
+#plt.ylabel('Probability')
+#plt.xlabel('K (us)')
+#plt.show()
+
+def exp_decay(x, a, l):
+    return a*numpy.exp(-x*l)
+
 
 i = [0, 0] #Counter. First index is electron event and second is tdc event.
 final_tdc = 0 #Last tdc time received
@@ -29,8 +35,8 @@ start = time.time()
 
 FOLDER = '../TCPFiletoStream/18-03-2021'
 
-MIN_HOR = 0 #100
-MAX_HOR = 1024 #190
+MIN_HOR = 100 #100
+MAX_HOR = 190 #190
 
 for data in os.listdir(FOLDER):# in datas:
     print(f'Looping over file {data}.')
@@ -110,13 +116,20 @@ print(f'Total time is {finish-start} with {i} events. Number of positional elect
 T.sort()
 T = [T[x+1]-T[x] for x in range(len(T)-1)]
 
-fig, ax = plt.subplots(1, 1, dpi=200)
-n, bins, patches = ax.hist(T, bins=10, range=(0, 10), density=True)
-print(n, bins)
-ax.plot(bins[:-1], n, 'bs')
+uni, cts = numpy.unique(T, return_counts = True)
+uni = uni[0:10]
+cts = cts[0:10]
 
-ax.set_ylabel('Events')
-ax.set_xlabel('Time interval (ns)')
+fig, ax = plt.subplots(1, 1, dpi=200)
+popt, pcov = curve_fit(exp_decay, uni, cts)
+print(popt, pcov)
+ax.scatter(uni, cts, label='Data', color='red')
+ax.plot(uni, exp_decay(uni, *popt), label='Exponential Decay Fitting', linewidth=2.0, linestyle='--')
+
+ax.set_ylabel('Events', fontsize=8)
+ax.set_xlabel('Time interval (us)', fontsize=8)
+ax.set_yscale('log')
+ax.legend(fontsize=10)
 
 plt.show()
 

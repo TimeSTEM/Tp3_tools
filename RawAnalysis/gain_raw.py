@@ -14,13 +14,12 @@ i = [0, 0] #Counter. First index is electron event and second is tdc event.
 final_tdc = 0 #Last tdc time received
 start = time.time() 
 
-FOLDER = '../TCPFiletoStream/GainRawTP3/25-53-25262(132)'
-#FOLDER = '../TCPFiletoStream/gain_data'
-WIDTH = 200e-9
-DELAY = 1800e-9
-HOR = 132
+#FOLDER = '../TCPFiletoStream/GainRawTP3/25-53-25262(132)'
+FOLDER = '../TCPFiletoStream/gain_data'
+WIDTH = 60000e-9
+DELAY = 0e-9
+MAX_HOR = 1024
 MIN_HOR = 0
-OR_HOR = 165
 
 def check_if_in(ele_time, tdc_time_list):
     for val in tdc_time_list:
@@ -52,7 +51,7 @@ for data in os.listdir(FOLDER):# in datas:
                 byte = all_data[index:index+8]
                 byte=byte[::-1]
                 id = (byte[0] & 240)>>4 #240 = 1111 0000. 240 >> 4 = 0000 11111.
-                if id==11 and chip_index==0: #11 = 0xb (Electron Event)
+                if id==11: #11 = 0xb (Electron Event)
                     i[0]+=1 #Increment Electron Event
                     
                     toa = ((byte[2] & 15)<<10) | ((byte[3] & 255)<<2) | ((byte[4] & 192)>>6)
@@ -94,13 +93,12 @@ for data in os.listdir(FOLDER):# in datas:
                             x = 255*2 - x
                             y = y
                         
-                        if tot_time * 1e6 > 6.0:
-                            if (x<HOR and x>=MIN_HOR) or x>OR_HOR:
-                                xL.append(x)
-                                yL.append(y)
-                                #print(x, y, global_time, tot_time, x<HOR)
-                                Tafter.append((global_time - tdc_ref + tot_time * 0.0)*1e6)
-                                ToT.append((tot_time)*1e6)
+                        if (x<MAX_HOR and x>=MIN_HOR):
+                            xL.append(x)
+                            yL.append(y)
+                            #print(x, y, global_time, tot_time, x<HOR)
+                            Tafter.append((global_time - tdc_ref + tot_time * 0.0)*1e6)
+                            ToT.append((tot_time)*1e6)
 
                 
                 elif id==6: #6 = 0xb. This is a tdc event.
@@ -120,10 +118,9 @@ finish = time.time()
 print(f'Total time is {finish-start} with {i} events. Last laser is at {last_laser}. Number of positional electrons are {len(xL)}. Number of temporal electrons are {len(Tafter)}.')
 
 fig, ax = plt.subplots(3, 1, dpi=160)
-ax[0].hist2d(xL, yL, bins=100, range=([0, 250], [0, 256]), norm=mcolors.PowerNorm(0.3))
-ax[0].axvline(x=HOR, color='white')
-if MIN_HOR>0: ax[0].axvline(x=MIN_HOR, color='red')
-if OR_HOR<255: ax[0].axvline(x=OR_HOR, color='blue')
+ax[0].hist2d(xL, yL, bins=100, range=([0, 1024], [0, 256]), norm=mcolors.PowerNorm(0.1))
+ax[0].axvline(x=MIN_HOR, color='red')
+ax[0].axvline(x=MAX_HOR, color='white')
 #ax[1].hist2d(xL, yL, bins=49, range=([0, HOR], [0, 256]), norm=mcolors.PowerNorm(0.3))
 ax[1].hist(Tafter, bins=200, density = True, range=(DELAY*1e6, (DELAY+WIDTH)*1e6))
 ax[2].hist(ToT, bins=100, density = True)
