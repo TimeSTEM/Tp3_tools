@@ -44,6 +44,7 @@ Set Script Parameters Here
 """
 
 FOLDER = 'laser_tdc'
+#FOLDER = 'gain_data'
 CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
 HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 PORT = 8098 #Pick a port to connect your socket
@@ -95,12 +96,14 @@ while isRunning:
                 now_file = os.path.join(FOLDER, "raw000"+format(loop, '.0f').zfill(3)+".tpx3")
                 np_data = numpy.fromfile(now_file, dtype='uint8')
 
-            #split_data = numpy.array_split(np_data, len(np_data)/32000)
-            split_data = numpy.array_split(np_data, 64)
+            split_data = numpy.array_split(np_data, 32)
 
             try:
+                #send = serv.send(np_data)
+                #print(send)
                 for val in split_data:
                     size = serv.send(val)
+                #    print(size)
             except ConnectionResetError:
                 break
             except ConnectionAbortedError:

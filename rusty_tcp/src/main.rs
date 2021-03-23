@@ -35,7 +35,13 @@ fn connect_and_loop(runmode: RunningMode) {
     let start = Instant::now();
     let mut last_ci = 0u8;
     
-    let mut buffer_pack_data: [u8; 16384] = [0; 16384];
+    let mut buffer_pack_data = match runmode {
+        RunningMode::DebugStem7482 => vec![0; 256],
+        RunningMode::Tp3 => vec![0; 16384],
+    };
+
+    //let mut buffer_pack_data: [u8; 16384] = [0; 16384];
+    
     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
             
     loop {
@@ -77,6 +83,9 @@ fn connect_and_loop(runmode: RunningMode) {
                                 let msg = misc::create_header(&my_settings, &frame_tdc);
                                 if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global;}
                                 if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'global;}
+                                //let sum = data_array.iter();
+                                //let sum:usize = data_array.iter().map(|x| *x as usize).sum();
+                                //println!("{}", sum);
                                 break;
                             }
                         } else {println!("Received zero packages"); break 'global;}
@@ -151,8 +160,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        //let myrun = RunningMode::DebugStem7482;
-        let myrun = RunningMode::Tp3;
+        let myrun = RunningMode::DebugStem7482;
+        //let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
