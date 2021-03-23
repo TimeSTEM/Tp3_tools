@@ -11,7 +11,7 @@ pub mod packetlib;
 pub mod modes {
     use crate::packetlib::Packet;
     use crate::auxiliar::Settings;
-    use crate::tdclib::PeriodicTdcRef;
+    use crate::tdclib::{PeriodicTdcRef, NonPeriodicTdcRef};
     use crate::misc;
     
     ///Returns a vector containing a list of indexes in which events happened.
@@ -91,7 +91,7 @@ pub mod modes {
     }
     
     ///Returns a vector containing a list of indexes in which TDC events happened.
-    pub fn build_tdc_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Vec<u8> {
+    pub fn build_tdc_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut NonPeriodicTdcRef) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
         let interval = line_tdc.low_time;
@@ -104,18 +104,19 @@ pub mod modes {
                     let packet = Packet { chip_index: *last_ci, data: x};
                     
                     match packet.id() {
-                        11 => {
-                            let ele_time = packet.electron_time() - 0.000007;
-                            if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
+                        6 if packet.tdc_type() == line_tdc.tdctype => {
+                            line_tdc.upt(packet.tdc_time_norm());
+                        },
+                        6 if packet.tdc_type() == ref_tdc.tdctype => {
+                            let tdc_time = packet.tdc_time();
+                            ref_tdc.upt(tdc_time);
+                            let tdc_time = tdc_time - 0.000007;
+                            if let Some(backline) = spim_check_if_in(tdc_time, line_tdc.time, interval, period) {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
-                                let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
+                                let xpos = (settings.xspim_size as f64 * ((tdc_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
                                 let array_pos = packet.x() + 1024*settings.xspim_size*line + 1024*xpos;
                                 misc::append_to_index_array(&mut index_data, array_pos);
                             }
-                            
-                        },
-                        6 if packet.tdc_type() == line_tdc.tdctype => {
-                            line_tdc.upt(packet.tdc_time_norm());
                         },
                         _ => {},
                     };
