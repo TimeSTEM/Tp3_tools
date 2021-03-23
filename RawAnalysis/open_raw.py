@@ -84,7 +84,7 @@ for data in os.listdir(FOLDER):# in datas:
                     i[1]+=1 #Increment tdc event.
                     coarseT = ((byte[2] & 15)<<31) + ((byte[3] & 255)<<23) + ((byte[4] & 255)<<15) + ((byte[5] & 255)<<7) + ((byte[6] & 254)>>1)
                     fineT = ((byte[6] & 1)<<3) + ((byte[7] & 224)>>5)
-                    tdcT = coarseT * (1/320e6) + fineT*260e-12
+                    tdcT = coarseT * (1/320.0e6) + fineT*260.0e-12
                     final_tdc = tdcT
 
                     #Syntax to grab time difference between consecutive tdc's
@@ -95,6 +95,7 @@ for data in os.listdir(FOLDER):# in datas:
                     new = tdcT
                     
                     triggerType = byte[0] & 15 #15 = 1111. Get trigger Type.
+                    print(final_tdc, triggerType)
                     if triggerType==15: tdc1RL.append(tdcT)
                     elif triggerType==10: pass #print('tdc1Fal')
                     elif triggerType==14: pass #print('tdc2Ris')

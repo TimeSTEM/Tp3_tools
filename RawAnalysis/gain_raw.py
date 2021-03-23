@@ -18,8 +18,8 @@ start = time.time()
 FOLDER = '../TCPFiletoStream/gain_data'
 WIDTH = 60000e-9
 DELAY = 0e-9
-MAX_HOR = 1024
-MIN_HOR = 0
+MAX_HOR = 200
+MIN_HOR = 70
 
 def check_if_in(ele_time, tdc_time_list):
     for val in tdc_time_list:
@@ -93,7 +93,7 @@ for data in os.listdir(FOLDER):# in datas:
                             x = 255*2 - x
                             y = y
                         
-                        if (x<MAX_HOR and x>=MIN_HOR):
+                        if (x<MAX_HOR and x>=MIN_HOR) and tot_time*1e6<2.0:
                             xL.append(x)
                             yL.append(y)
                             #print(x, y, global_time, tot_time, x<HOR)
