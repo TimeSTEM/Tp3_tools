@@ -158,3 +158,29 @@ impl PeriodicTdcRef {
     }
 
 }
+
+pub struct NonPeriodicTdcRef {
+    pub tdctype: u8,
+    pub counter: usize,
+    pub time: f64,
+    pub cps: f64,
+}
+
+impl NonPeriodicTdcRef {
+    
+    pub fn upt(&mut self, time: f64) {
+        self.time = time;
+        self.counter+=1;
+        self.cps = time / self.counter as f64;
+    }
+
+    pub fn new_ref(tdc_type: TdcType) -> NonPeriodicTdcRef {
+        NonPeriodicTdcRef {
+            tdctype: tdc_type.associate_value(),
+            counter: 0,
+            time: 0.0,
+            cps: 0.0,
+        }
+    }
+}
+

@@ -36,7 +36,8 @@ fn connect_and_loop(runmode: RunningMode) {
     let mut last_ci = 0u8;
     
     let mut buffer_pack_data = match runmode {
-        RunningMode::DebugStem7482 => vec![0; 256],
+        //RunningMode::DebugStem7482 => vec![0; 256],
+        RunningMode::DebugStem7482 => vec![0; 16384],
         RunningMode::Tp3 => vec![0; 16384],
     };
 
