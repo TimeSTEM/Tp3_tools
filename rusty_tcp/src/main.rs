@@ -2,7 +2,7 @@ use std::io::prelude::*;
 use std::net::{Shutdown, TcpListener};
 use std::time::Instant;
 use timepix3::auxiliar::{RunningMode, BytesConfig, Settings};
-use timepix3::tdclib::{TdcType, PeriodicTdcRef};
+use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
 use timepix3::{modes, misc};
 
 fn connect_and_loop(runmode: RunningMode) {
@@ -51,7 +51,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 let new_data = &buffer_pack_data[0..size];
                 misc::search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
                 match my_settings.mode {
-                    0 | 2 => {if TdcType::check_all_tdcs(&[5, 5, 0, 0], &tdc_vec)==true {break}},
+                    0 | 2 | 4 => {if TdcType::check_all_tdcs(&[5, 5, 0, 0], &tdc_vec)==true {break}},
                     1 | 3 => {if TdcType::check_all_tdcs(&[5, 5, 5, 5], &tdc_vec)==true {break}},
                     _ => panic!("Unknown mode."),
                 }
@@ -139,7 +139,7 @@ fn connect_and_loop(runmode: RunningMode) {
                     } else {println!("Received zero packages from TP3."); break;}
                 }
             }
-        }
+        },
         3 => {
             let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
             let mut laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcTwoFallingEdge);
@@ -149,6 +149,20 @@ fn connect_and_loop(runmode: RunningMode) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
                         let result = modes::build_tr_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut laser_tdc);
+                        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+                    } else {println!("Received zero packages from TP3."); break;}
+                }
+            }
+        },
+        4 => {
+            let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
+            let mut pmt_tdc = NonPeriodicTdcRef::new_ref(TdcType::TdcTwoFallingEdge);
+
+            loop {
+                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                    if size>0 {
+                        let new_data = &buffer_pack_data[0..size];
+                        let result = modes::build_tdc_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut pmt_tdc);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
                     } else {println!("Received zero packages from TP3."); break;}
                 }

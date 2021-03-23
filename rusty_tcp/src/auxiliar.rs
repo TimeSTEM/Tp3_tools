@@ -73,12 +73,15 @@ impl BytesConfig {
                 println!("Entering in time resolved mode (Focus/Cumul).");
             },
             2 => {
-                println!("Mode is SpimTP.");
+                println!("Entering in Spectral Image (SpimTP).");
             },
             3 => {
                 println!("Entering in time resolved mode (SpimTP).");
             },
-            _ => panic!("Spim config must be 0 | 1 | 2 | 3."),
+            4 => {
+                println!("Entering in Spectral Image [TDC Mode] (SpimTP).");
+            },
+            _ => panic!("Spim config must be 0 | 1 | 2 | 3 | 4."),
         };
         self.data[3]
     }
