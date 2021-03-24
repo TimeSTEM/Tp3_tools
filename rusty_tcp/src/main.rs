@@ -164,6 +164,7 @@ fn connect_and_loop(runmode: RunningMode) {
                         let new_data = &buffer_pack_data[0..size];
                         let result = modes::build_tdc_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut pmt_tdc);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+                        //println!("{}", pmt_tdc.cps);
                     } else {println!("Received zero packages from TP3."); break;}
                 }
             }

@@ -171,7 +171,7 @@ impl NonPeriodicTdcRef {
     pub fn upt(&mut self, time: f64) {
         self.time = time;
         self.counter+=1;
-        self.cps = time / self.counter as f64;
+        self.cps = self.counter as f64 / time;
     }
 
     pub fn new_ref(tdc_type: TdcType) -> NonPeriodicTdcRef {
