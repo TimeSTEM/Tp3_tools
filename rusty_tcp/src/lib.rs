@@ -117,7 +117,7 @@ pub mod modes {
                             if let Some(backline) = spim_check_if_in(tdc_time, line_tdc.time, interval, period) {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((tdc_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                let array_pos = packet.x() + 1024*settings.xspim_size*line + 1024*xpos;
+                                let array_pos = 256 + 1024*settings.xspim_size*line + 1024*xpos;
                                 append_to_index_array(&mut index_data, array_pos);
                             }
                         },
