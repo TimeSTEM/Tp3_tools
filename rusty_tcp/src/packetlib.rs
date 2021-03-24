@@ -12,9 +12,9 @@ impl<'a> Packet<'a> {
         let temp = ((((self.data[6] & 224))>>4 | ((self.data[7] & 15))<<4) | (((self.data[5] & 112)>>4)>>2)) as usize;
         match self.chip_index {
             0 => 255 - temp,
-            1 => 255 * 4 - temp,
-            2 => 255 * 3 - temp,
-            3 => 255 * 2 - temp,
+            1 => 256 * 4 - 1 - temp,
+            2 => 256 * 3 - 1 - temp,
+            3 => 256 * 2 - 1 - temp,
             _ => temp,
         }
     }
