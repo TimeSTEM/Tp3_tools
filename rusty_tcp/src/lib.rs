@@ -120,7 +120,7 @@ pub mod modes {
                             line_tdc.upt(packet.tdc_time_norm());
                         },
                         6 if packet.tdc_type() == ref_tdc.tdctype => {
-                            let tdc_time = packet.tdc_time();
+                            let tdc_time = packet.tdc_time_norm();
                             ref_tdc.upt(tdc_time);
                             let tdc_time = tdc_time - 0.000007;
                             if let Some(backline) = spim_check_if_in(tdc_time, line_tdc.time, interval, period) {
