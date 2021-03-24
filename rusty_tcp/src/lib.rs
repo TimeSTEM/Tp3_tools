@@ -7,14 +7,14 @@ pub mod auxiliar;
 pub mod tdclib;
 pub mod packetlib;
 
-///`spectral_image` is a module containing tools to live acquire spectral images.
+///`modes` is a module containing tools to live acquire frames and spectral images..
 pub mod modes {
     use crate::packetlib::Packet;
     use crate::auxiliar::Settings;
     use crate::tdclib::{PeriodicTdcRef, NonPeriodicTdcRef};
-    use crate::misc;
     
-    ///Returns a vector containing a list of indexes in which events happened.
+    ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
+    ///the beggining of each scan line.
     pub fn build_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
@@ -34,7 +34,7 @@ pub mod modes {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
                                 let array_pos = packet.x() + 1024*settings.xspim_size*line + 1024*xpos;
-                                misc::append_to_index_array(&mut index_data, array_pos);
+                                append_to_index_array(&mut index_data, array_pos);
                             }
                             
                         },
@@ -49,7 +49,8 @@ pub mod modes {
         index_data
     }
     
-    ///Returns a vector containing a list of indexes in which events happened for a TR measurement.
+    ///Returns a vector containing a list of indexes in which events happened for a time-resolved (TR) measurement.
+    ///Uses one TDC for the beginning of a scan line and another one for the TR.
     pub fn build_tr_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut PeriodicTdcRef) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
@@ -71,7 +72,7 @@ pub mod modes {
                                     let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                     let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
                                     let array_pos = packet.x() + 1024*settings.xspim_size*line + 1024*xpos;
-                                    misc::append_to_index_array(&mut index_data, array_pos);
+                                    append_to_index_array(&mut index_data, array_pos);
                                 }
                             }
                             
@@ -90,7 +91,9 @@ pub mod modes {
         index_data
     }
     
-    ///Returns a vector containing a list of indexes in which TDC events happened.
+    ///Returns a vector containing a list of indexes in which TDC events happened. Uses one TDC
+    ///referred to the beginning of a new scan line and a second Non Periodic TDC to use as pixel
+    ///counter.
     pub fn build_tdc_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut NonPeriodicTdcRef) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
@@ -115,7 +118,7 @@ pub mod modes {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((tdc_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
                                 let array_pos = packet.x() + 1024*settings.xspim_size*line + 1024*xpos;
-                                misc::append_to_index_array(&mut index_data, array_pos);
+                                append_to_index_array(&mut index_data, array_pos);
                             }
                         },
                         _ => {},
@@ -127,6 +130,7 @@ pub mod modes {
     }
     
 
+    ///Returns a frame using a periodic TDC as reference.
     pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut PeriodicTdcRef) -> bool {
 
         let mut packet_chunks = data.chunks_exact(8);
@@ -144,7 +148,7 @@ pub mod modes {
                                 false => packet.x() + 1024*packet.y(),
                                 true => packet.x()
                             };
-                            misc::append_to_array(final_data, array_pos, settings.bytedepth);
+                            append_to_array(final_data, array_pos, settings.bytedepth);
                         },
                         6 if packet.tdc_type() == tdc.tdctype => {
                             tdc.upt(packet.tdc_time());
@@ -158,6 +162,7 @@ pub mod modes {
         has
     }
 
+    ///Returns a frame using a periodic TDC as reference and a second TDC to discriminate in time.
     pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut PeriodicTdcRef) -> bool {
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
@@ -176,7 +181,7 @@ pub mod modes {
                                     false => packet.x() + 1024*packet.y(),
                                     true => packet.x()
                                 };
-                                misc::append_to_array(final_data, array_pos, settings.bytedepth);
+                                append_to_array(final_data, array_pos, settings.bytedepth);
                             }
                         },
                         6 if packet.tdc_type() == frame_tdc.tdctype => {
@@ -230,65 +235,8 @@ pub mod modes {
 
     }
     
-}
-
-///`misc` or `miscelaneous` is a module containing shared tools between modes.
-pub mod misc {
-    use crate::tdclib::TdcType;
-    use crate::packetlib::Packet;
-    use crate::auxiliar::Settings;
-    use crate::tdclib::PeriodicTdcRef;
-    
-    pub fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
-        
-        let file_data = data;
-        let mut packet_chunks = file_data.chunks_exact(8);
-
-        while let Some(x) = packet_chunks.next() {
-            match x {
-                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
-                _ => {
-                    let packet = Packet { chip_index: *last_ci, data: x};
-                    
-                    match packet.id() {
-                        6 => {
-                            let time = packet.tdc_time_norm();
-                            let tdc = TdcType::associate_value_to_enum(packet.tdc_type()).unwrap();
-                            tdc_vec.push( (time, tdc) );
-                        },
-                        _ => {},
-                    };
-                },
-            };
-        };
-    }
-
-    pub fn create_header(set: &Settings, tdc: &PeriodicTdcRef) -> Vec<u8> {
-        let mut msg: String = String::from("{\"timeAtFrame\":");
-        msg.push_str(&(tdc.time.to_string()));
-        msg.push_str(",\"frameNumber\":");
-        msg.push_str(&(tdc.counter.to_string()));
-        msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
-        match set.bin {
-            true => { msg.push_str(&((set.bytedepth*1024).to_string()))},
-            false => { msg.push_str(&((set.bytedepth*1024*256).to_string()))},
-        }
-        msg.push_str(",\"bitDepth\":");
-        msg.push_str(&((set.bytedepth<<3).to_string()));
-        msg.push_str(",\"width\":");
-        msg.push_str(&(1024.to_string()));
-        msg.push_str(",\"height\":");
-        match set.bin {
-            true=>{msg.push_str(&(1.to_string()))},
-            false=>{msg.push_str(&(256.to_string()))},
-        }
-        msg.push_str("}\n");
-
-        let s: Vec<u8> = msg.into_bytes();
-        s
-    }
-
-    pub fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
+    ///Append a single electron to a given size array. Used mainly for frame based.
+    fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
         let index = index * bytedepth;
         match bytedepth {
             4 => {
@@ -315,17 +263,73 @@ pub mod misc {
             _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
         }
     }
-
-    pub fn put_all_to_zero(data: &mut [u8]) {
-        for val in data {
-            *val = 0;
-        }
-    }
     
-    pub fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
+    ///Append a single electron to a index list. Used mainly for spectral image, where a list of
+    ///indexes is passed to client computer. Always push indexes using 32 bits.
+    fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
         data.push(((index & 4_278_190_080)>>24) as u8);
         data.push(((index & 16_711_680)>>16) as u8);
         data.push(((index & 65_280)>>8) as u8);
         data.push((index & 255) as u8);
+    }
+    
+}
+
+///`misc` or `miscelaneous` is a module containing shared tools between modes.
+pub mod misc {
+    use crate::tdclib::TdcType;
+    use crate::packetlib::Packet;
+    use crate::auxiliar::Settings;
+    use crate::tdclib::PeriodicTdcRef;
+    
+    ///Search and index all encountered TDC's. Mutable vector contains the TDC time and its TdcType.
+    pub fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
+        
+        let file_data = data;
+        let mut packet_chunks = file_data.chunks_exact(8);
+
+        while let Some(x) = packet_chunks.next() {
+            match x {
+                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
+                _ => {
+                    let packet = Packet { chip_index: *last_ci, data: x};
+                    
+                    match packet.id() {
+                        6 => {
+                            let time = packet.tdc_time_norm();
+                            let tdc = TdcType::associate_value_to_enum(packet.tdc_type()).unwrap();
+                            tdc_vec.push( (time, tdc) );
+                        },
+                        _ => {},
+                    };
+                },
+            };
+        };
+    }
+
+    ///Create header, used mainly for frame based spectroscopy.
+    pub fn create_header(set: &Settings, tdc: &PeriodicTdcRef) -> Vec<u8> {
+        let mut msg: String = String::from("{\"timeAtFrame\":");
+        msg.push_str(&(tdc.time.to_string()));
+        msg.push_str(",\"frameNumber\":");
+        msg.push_str(&(tdc.counter.to_string()));
+        msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
+        match set.bin {
+            true => { msg.push_str(&((set.bytedepth*1024).to_string()))},
+            false => { msg.push_str(&((set.bytedepth*1024*256).to_string()))},
+        }
+        msg.push_str(",\"bitDepth\":");
+        msg.push_str(&((set.bytedepth<<3).to_string()));
+        msg.push_str(",\"width\":");
+        msg.push_str(&(1024.to_string()));
+        msg.push_str(",\"height\":");
+        match set.bin {
+            true=>{msg.push_str(&(1.to_string()))},
+            false=>{msg.push_str(&(256.to_string()))},
+        }
+        msg.push_str("}\n");
+
+        let s: Vec<u8> = msg.into_bytes();
+        s
     }
 }
