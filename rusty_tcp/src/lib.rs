@@ -17,7 +17,7 @@ pub mod modes {
 
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
-    const COIC_TIME: f64 = 1e-9;
+    const COIC_TIME: f64 = 0.0e-9;
     
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
@@ -115,12 +115,14 @@ pub mod modes {
                     match packet.id() {
                         11 => {
                             let mut ele_time = packet.electron_time();
-                            ele_time -= VIDEO_TIME;
-                            if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
-                                let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
-                                let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                let array_pos = packet.x() + 1025*settings.xspim_size*line + 1025*xpos;
-                                append_to_index_array(&mut index_data, array_pos);
+                            if let Some(_cor) = veclist_check_if_in(ele_time, &ref_tdc.time) {
+                                ele_time -= VIDEO_TIME;
+                                if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
+                                    let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
+                                    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
+                                    let array_pos = packet.x() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
+                                    append_to_index_array(&mut index_data, array_pos);
+                                }
                             }
                         },  
                         6 if packet.tdc_type() == line_tdc.tdctype => {
@@ -133,7 +135,7 @@ pub mod modes {
                             if let Some(backline) = spim_check_if_in(tdc_time, line_tdc.time, interval, period) {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((tdc_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                let array_pos = 1024 + 1025*settings.xspim_size*line + 1025*xpos;
+                                let array_pos = (SPIM_PIXELS-1) + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
                                 append_to_index_array(&mut index_data, array_pos);
                             }
                         },
@@ -250,8 +252,8 @@ pub mod modes {
     }
 
     fn veclist_check_if_in(ele_time: f64, timelist: &[f64]) -> Option<usize> {
-        let titer = timelist.iter().filter(|x| (ele_time - **x) > 0.0).count();
-        Some(titer)
+        let titer = timelist.iter().filter(|x| (ele_time - **x) > COIC_TIME).count();
+        if titer==0 {None} else {Some(titer)}
     }
 
     
