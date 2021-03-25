@@ -15,7 +15,7 @@ pub mod modes {
 
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
-    const COIC_TIME: f64 = 200.0e-9;
+    const COIC_TIME: f64 = 25.0e-9;
     
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
@@ -250,7 +250,7 @@ pub mod modes {
     }
 
     fn veclist_check_if_in(ele_time: f64, timelist: &[f64]) -> Option<usize> {
-        let titer = timelist.iter().filter(|x| (ele_time - **x) > COIC_TIME).count();
+        let titer = timelist.iter().filter(|x| (**x - ele_time) >= 0.0 && (**x - ele_time) < COIC_TIME).count();
         if titer==0 {None} else {Some(titer)}
     }
 

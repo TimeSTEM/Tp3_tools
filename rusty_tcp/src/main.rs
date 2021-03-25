@@ -32,7 +32,6 @@ fn connect_and_loop(runmode: RunningMode) {
         println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
     }
 
-    let start = Instant::now();
     let mut last_ci = 0u8;
     
     let mut buffer_pack_data = match runmode {
@@ -59,6 +58,7 @@ fn connect_and_loop(runmode: RunningMode) {
         }
     }
     println!("Related TDC have been found. Entering acquisition.");
+    let start = Instant::now();
             
     match my_settings.mode {
         0 => {
@@ -164,10 +164,10 @@ fn connect_and_loop(runmode: RunningMode) {
                         let new_data = &buffer_pack_data[0..size];
                         let result = modes::build_tdc_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut pmt_tdc);
                         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-                        //println!("{}", pmt_tdc.cps);
                     } else {println!("Received zero packages from TP3."); break;}
                 }
             }
+            println!("Number of counts in PMT was: {}. Total elapsed time is {:?}.", pmt_tdc.counter, start.elapsed());
         },
         _ => panic!("Unknown mode received."),
     }
@@ -176,8 +176,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::DebugStem7482;
-        //let myrun = RunningMode::Tp3;
+        //let myrun = RunningMode::DebugStem7482;
+        let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
