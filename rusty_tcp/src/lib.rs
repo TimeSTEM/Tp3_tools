@@ -7,8 +7,6 @@ pub mod auxiliar;
 pub mod tdclib;
 pub mod packetlib;
 
-
-
 ///`modes` is a module containing tools to live acquire frames and spectral images..
 pub mod modes {
     use crate::packetlib::Packet;
@@ -17,7 +15,7 @@ pub mod modes {
 
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
-    const COIC_TIME: f64 = 0.0e-9;
+    const COIC_TIME: f64 = 200.0e-9;
     
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.

@@ -177,7 +177,7 @@ impl NonPeriodicTdcRef {
         NonPeriodicTdcRef {
             tdctype: tdc_type.associate_value(),
             counter: 0,
-            time: vec![0.0; 5],
+            time: vec![0.0; 3],
         }
     }
 }
