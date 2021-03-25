@@ -7,11 +7,17 @@ pub mod auxiliar;
 pub mod tdclib;
 pub mod packetlib;
 
+
+
 ///`modes` is a module containing tools to live acquire frames and spectral images..
 pub mod modes {
     use crate::packetlib::Packet;
     use crate::auxiliar::Settings;
     use crate::tdclib::{PeriodicTdcRef, NonPeriodicTdcRef};
+
+    const SPIM_PIXELS: usize = 1025;
+    const VIDEO_TIME: f64 = 0.000007;
+    const COIC_TIME: f64 = 1e-9;
     
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
@@ -29,11 +35,11 @@ pub mod modes {
                     
                     match packet.id() {
                         11 => {
-                            let ele_time = packet.electron_time() - 0.000007;
+                            let ele_time = packet.electron_time() - VIDEO_TIME;
                             if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                let array_pos = packet.x() + 1025*settings.xspim_size*line + 1025*xpos;
+                                let array_pos = packet.x() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
                                 append_to_index_array(&mut index_data, array_pos);
                             }
                             
@@ -67,11 +73,11 @@ pub mod modes {
                         11 => {
                             let mut ele_time = packet.electron_time();
                             if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time, ref_tdc.period, settings) {
-                                ele_time -= 0.000007;
+                                ele_time -= VIDEO_TIME;
                                 if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
                                     let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                     let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                    let array_pos = packet.x() + 1025*settings.xspim_size*line + 1025*xpos;
+                                    let array_pos = packet.x() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
                                     append_to_index_array(&mut index_data, array_pos);
                                 }
                             }
@@ -108,7 +114,8 @@ pub mod modes {
                     
                     match packet.id() {
                         11 => {
-                            let ele_time = packet.electron_time() - 0.000007;
+                            let mut ele_time = packet.electron_time();
+                            ele_time -= VIDEO_TIME;
                             if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
@@ -122,7 +129,7 @@ pub mod modes {
                         6 if packet.tdc_type() == ref_tdc.tdctype => {
                             let tdc_time = packet.tdc_time_norm();
                             ref_tdc.upt(tdc_time);
-                            let tdc_time = tdc_time - 0.000007;
+                            let tdc_time = tdc_time - VIDEO_TIME;
                             if let Some(backline) = spim_check_if_in(tdc_time, line_tdc.time, interval, period) {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((tdc_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
@@ -223,7 +230,6 @@ pub mod modes {
         } else {
             None
         }
-
     }
     
     fn spim_check_if_in(ele_time: f64, start_line: f64, interval: f64, period: f64) -> Option<usize> {
@@ -241,8 +247,13 @@ pub mod modes {
         } else {
             None
         }
-
     }
+
+    fn veclist_check_if_in(ele_time: f64, timelist: &[f64]) -> Option<usize> {
+        let titer = timelist.iter().filter(|x| (ele_time - **x) > 0.0).count();
+        Some(titer)
+    }
+
     
     ///Append a single electron to a given size array. Used mainly for frame based.
     fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
