@@ -16,10 +16,10 @@ start = time.time()
 
 #FOLDER = '../TCPFiletoStream/GainRawTP3/25-53-25262(132)'
 FOLDER = '../TCPFiletoStream/gain_data'
-WIDTH = 60000e-9
-DELAY = 0e-9
-MAX_HOR = 200
-MIN_HOR = 70
+WIDTH = 300e-9
+DELAY = 1800e-9
+MAX_HOR = 120
+MIN_HOR = 0
 
 def check_if_in(ele_time, tdc_time_list):
     for val in tdc_time_list:
@@ -93,10 +93,9 @@ for data in os.listdir(FOLDER):# in datas:
                             x = 255*2 - x
                             y = y
                         
-                        if (x<MAX_HOR and x>=MIN_HOR) and tot_time*1e6<2.0:
+                        if (x<MAX_HOR and x>=MIN_HOR):
                             xL.append(x)
                             yL.append(y)
-                            #print(x, y, global_time, tot_time, x<HOR)
                             Tafter.append((global_time - tdc_ref + tot_time * 0.0)*1e6)
                             ToT.append((tot_time)*1e6)
 
