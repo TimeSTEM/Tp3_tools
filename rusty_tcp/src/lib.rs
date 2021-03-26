@@ -113,14 +113,13 @@ pub mod modes {
                     match packet.id() {
                         11 => {
                             let mut ele_time = packet.electron_time();
-                            if let Some(_cor) = veclist_check_if_in(ele_time, &ref_tdc.time) {
-                                ele_time -= VIDEO_TIME;
-                                if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
-                                    let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
-                                    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                    let array_pos = packet.x() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
-                                    append_to_index_array(&mut index_data, array_pos);
-                                }
+                            //if let Some(_cor) = veclist_check_if_in(ele_time, &ref_tdc.time) {
+                            ele_time -= VIDEO_TIME;
+                            if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
+                                let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
+                                let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
+                                let array_pos = packet.x() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
+                                append_to_index_array(&mut index_data, array_pos);
                             }
                         },  
                         6 if packet.tdc_type() == line_tdc.tdctype => {
@@ -248,7 +247,7 @@ pub mod modes {
             None
         }
     }
-
+    
     fn veclist_check_if_in(ele_time: f64, timelist: &[f64]) -> Option<usize> {
         let titer = timelist.iter().filter(|x| (**x - ele_time) >= 0.0 && (**x - ele_time) < COIC_TIME).count();
         if titer==0 {None} else {Some(titer)}
