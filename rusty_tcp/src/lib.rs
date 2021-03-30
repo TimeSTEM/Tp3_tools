@@ -119,7 +119,7 @@ pub mod modes {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
                                 let array_pos = packet.x() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
-                                append_to_index_array(&mut index_data, array_pos);
+                                //append_to_index_array(&mut index_data, array_pos);
                             }
                         },  
                         6 if packet.tdc_type() == line_tdc.tdctype => {
