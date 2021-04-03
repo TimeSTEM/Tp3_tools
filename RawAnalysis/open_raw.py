@@ -13,8 +13,8 @@ i = [0, 0] #Counter. First index is electron event and second is tdc event.
 final_tdc = 0 #Last tdc time received
 start = time.time() 
 
-FOLDER = 'FromTP3'
-#FOLDER = '../TCPFiletoStream/laser_tdc'
+#FOLDER = '22-03-2021'
+FOLDER = '../TCPFiletoStream/laser_tdc'
 
 for data in os.listdir(FOLDER):# in datas:
     print(f'Looping over file {data}.')
@@ -95,7 +95,6 @@ for data in os.listdir(FOLDER):# in datas:
                     new = tdcT
                     
                     triggerType = byte[0] & 15 #15 = 1111. Get trigger Type.
-                    print(final_tdc, triggerType)
                     if triggerType==15: tdc1RL.append(tdcT)
                     elif triggerType==10: pass #print('tdc1Fal')
                     elif triggerType==14: pass #print('tdc2Ris')

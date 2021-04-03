@@ -8,9 +8,9 @@ xL = list() #x position
 yL = list() #Y position
 Tafter = list() #Global Time
 ToT = list() #Global Time
-last_laser = [0.0, 0.0, 0.0, 0.0, 0.0] #Rising Edge tdc1 Time
+last_laser = [0.0] * 20 #Rising Edge tdc1 Time
 
-i = [0, 0] #Counter. First index is electron event and second is tdc event.
+i = [0, 0, 0] #Counter. First index is electron event and second is tdc event.
 final_tdc = 0 #Last tdc time received
 start = time.time() 
 
@@ -68,7 +68,7 @@ for data in os.listdir(FOLDER):# in datas:
                     
 
                     #if global_time > last_laser + DELAY and global_time < last_laser + DELAY + WIDTH:
-                    res = check_if_in(global_time, last_laser)
+                    res = check_if_in(global_time, last_laser[::-1])
                     if res[0]:
                         tdc_ref = res[1]
 
@@ -98,6 +98,8 @@ for data in os.listdir(FOLDER):# in datas:
                             yL.append(y)
                             Tafter.append((global_time - tdc_ref + tot_time * 0.0)*1e6)
                             ToT.append((tot_time)*1e6)
+                    else:
+                        i[2]+=1
 
                 
                 elif id==6: #6 = 0xb. This is a tdc event.
@@ -114,14 +116,19 @@ for data in os.listdir(FOLDER):# in datas:
             index+=8 #Goes back to next header
                 
 finish = time.time()
-print(f'Total time is {finish-start} with {i} events. Last laser is at {last_laser}. Number of positional electrons are {len(xL)}. Number of temporal electrons are {len(Tafter)}.')
+print(f'Total time is {finish-start} with {i} events (events, tdcs, rejected events). Last laser is at {last_laser}. Number of positional electrons are {len(xL)}. Number of temporal electrons are {len(Tafter)}.')
+print(last_laser[5]-last_laser[4])
+print(last_laser[4]-last_laser[3])
+print(last_laser[3]-last_laser[2])
+print(last_laser[2]-last_laser[1])
+print(last_laser[1]-last_laser[0])
 
 fig, ax = plt.subplots(3, 1, dpi=160)
 ax[0].hist2d(xL, yL, bins=100, range=([0, 1024], [0, 256]), norm=mcolors.PowerNorm(0.1))
 ax[0].axvline(x=MIN_HOR, color='red')
 ax[0].axvline(x=MAX_HOR, color='white')
 #ax[1].hist2d(xL, yL, bins=49, range=([0, HOR], [0, 256]), norm=mcolors.PowerNorm(0.3))
-ax[1].hist(Tafter, bins=200, density = True, range=(DELAY*1e6, (DELAY+WIDTH)*1e6))
+ax[1].hist(Tafter, bins=200, density = False, range=(DELAY*1e6, (DELAY+WIDTH)*1e6))
 ax[2].hist(ToT, bins=100, density = True)
                 
 ax[0].set_ylabel('Y')
