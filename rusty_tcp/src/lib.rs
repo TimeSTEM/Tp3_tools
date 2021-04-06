@@ -58,11 +58,11 @@ pub mod modes {
     
     ///Returns None and saves locally the spectral image every 10 complete scan lines. Slice time
     ///is thus pick by total image scan time. Uses a single TDC at the beggining of each scan line.
-    pub fn build_save_spim_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> std::io::Result<()> {
+    pub fn build_save_spim_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> std::io::Result<bool> {
         let mut packet_chunks = data.chunks_exact(8);
-        let mut index_data:Vec<u8> = Vec::new();
         let interval = line_tdc.low_time;
         let period = line_tdc.period;
+        let mut has = false;
 
         while let Some(x) = packet_chunks.next() {
             match x {
@@ -77,23 +77,22 @@ pub mod modes {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
                                 let array_pos = packet.x() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
-                                //append_to_index_array(&mut index_data, array_pos);
                                 append_to_array(final_data, array_pos, settings.bytedepth);
                             }
                             
                         },
                         6 if packet.tdc_type() == line_tdc.tdctype => {
                             line_tdc.upt(packet.tdc_time_norm());
-                            let slice = (line_tdc.counter / settings.spimoverscany);
-                            if slice % (settings.yspim_size * 100) == 0 {
+                            let eff_counter = line_tdc.counter / settings.spimoverscany;
+                            if eff_counter % (settings.yspim_size * 100) == 0 {
                                 let mut filename: String = String::from("Slice");
-                                filename.push_str(&(slice.to_string()));
+                                filename.push_str(&(eff_counter.to_string()));
                                 filename.push_str(".txt");
 
-                                let mut my_file = File::create(filename).expect("Could not create spectral image slice.");
-                                my_file.write_all(final_data);
-                                println!("{:?}", line_tdc.counter/ (settings.yspim_size*100) );
-                                //final_data = vec![0; settings.bytedepth*1024*settings.xspim_size*settings.yspim_size];
+                                let mut my_file = File::create(filename)?;
+                                my_file.write_all(final_data)?;
+                                println!("Saved spectral image slice at effective counter {:?}", eff_counter);
+                                has = true;
                             }
                         },
                         _ => {},
@@ -101,7 +100,7 @@ pub mod modes {
                 },
             };
         };
-        Ok(())
+        Ok(has)
     }
     
     ///Returns a vector containing a list of indexes in which events happened for a time-resolved (TR) measurement.
