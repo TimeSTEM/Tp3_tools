@@ -81,7 +81,10 @@ impl BytesConfig {
             4 => {
                 println!("Entering in Spectral Image [TDC Mode] (SpimTP).");
             },
-            _ => panic!("Spim config must be 0 | 1 | 2 | 3 | 4."),
+            5 => {
+                println!("Entering in Spectral Image [Save Locally] (SpimTP).");
+            },
+            _ => panic!("Spim config must be 0 | 1 | 2 | 3 | 4 | 5."),
         };
         self.data[3]
     }

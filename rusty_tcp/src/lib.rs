@@ -9,6 +9,9 @@ pub mod packetlib;
 
 ///`modes` is a module containing tools to live acquire frames and spectral images..
 pub mod modes {
+    use std::fs::File;
+    use std::io::prelude::*;
+
     use crate::packetlib::Packet;
     use crate::auxiliar::Settings;
     use crate::tdclib::{PeriodicTdcRef, NonPeriodicTdcRef};
@@ -51,6 +54,54 @@ pub mod modes {
             };
         };
         index_data
+    }
+    
+    ///Returns None and saves locally the spectral image every 10 complete scan lines. Slice time
+    ///is thus pick by total image scan time. Uses a single TDC at the beggining of each scan line.
+    pub fn build_save_spim_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> std::io::Result<()> {
+        let mut packet_chunks = data.chunks_exact(8);
+        let mut index_data:Vec<u8> = Vec::new();
+        let interval = line_tdc.low_time;
+        let period = line_tdc.period;
+
+        while let Some(x) = packet_chunks.next() {
+            match x {
+                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
+                _ => {
+                    let packet = Packet { chip_index: *last_ci, data: x};
+                    
+                    match packet.id() {
+                        11 => {
+                            let ele_time = packet.electron_time() - VIDEO_TIME;
+                            if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
+                                let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
+                                let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
+                                let array_pos = packet.x() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
+                                //append_to_index_array(&mut index_data, array_pos);
+                                append_to_array(final_data, array_pos, settings.bytedepth);
+                            }
+                            
+                        },
+                        6 if packet.tdc_type() == line_tdc.tdctype => {
+                            line_tdc.upt(packet.tdc_time_norm());
+                            let slice = (line_tdc.counter / settings.spimoverscany);
+                            if slice % (settings.yspim_size * 100) == 0 {
+                                let mut filename: String = String::from("Slice");
+                                filename.push_str(&(slice.to_string()));
+                                filename.push_str(".txt");
+
+                                let mut my_file = File::create(filename).expect("Could not create spectral image slice.");
+                                my_file.write_all(final_data);
+                                println!("{:?}", line_tdc.counter/ (settings.yspim_size*100) );
+                                //final_data = vec![0; settings.bytedepth*1024*settings.xspim_size*settings.yspim_size];
+                            }
+                        },
+                        _ => {},
+                    };
+                },
+            };
+        };
+        Ok(())
     }
     
     ///Returns a vector containing a list of indexes in which events happened for a time-resolved (TR) measurement.
@@ -119,7 +170,7 @@ pub mod modes {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
                                 let array_pos = packet.x() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
-                                //append_to_index_array(&mut index_data, array_pos);
+                                append_to_index_array(&mut index_data, array_pos);
                             }
                         },  
                         6 if packet.tdc_type() == line_tdc.tdctype => {

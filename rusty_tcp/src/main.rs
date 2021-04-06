@@ -50,7 +50,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 let new_data = &buffer_pack_data[0..size];
                 misc::search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
                 match my_settings.mode {
-                    0 | 2 | 4 => {if TdcType::check_all_tdcs(&[5, 5, 0, 0], &tdc_vec)==true {break}},
+                    0 | 2 | 4 | 5 => {if TdcType::check_all_tdcs(&[5, 5, 0, 0], &tdc_vec)==true {break}},
                     1 | 3 => {if TdcType::check_all_tdcs(&[5, 5, 5, 5], &tdc_vec)==true {break}},
                     _ => panic!("Unknown mode."),
                 }
@@ -169,6 +169,20 @@ fn connect_and_loop(runmode: RunningMode) {
             }
             println!("Number of counts in PMT was: {}. Total elapsed time is {:?}.", pmt_tdc.counter, start.elapsed());
         },
+        5 => {
+            let mut data_array:Vec<u8> = vec![0; my_settings.bytedepth*1025*my_settings.xspim_size*my_settings.yspim_size];
+            
+            let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
+
+            loop {
+                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                    if size>0 {
+                        let new_data = &buffer_pack_data[0..size];
+                        let result = modes::build_save_spim_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut spim_tdc);
+                    } else {println!("Received zero packages from TP3."); break;}
+                }
+            }
+        },
         _ => panic!("Unknown mode received."),
     }
     if let Err(_) = ns_sock.shutdown(Shutdown::Both) {println!("Served not succesfully shutdown.");}
@@ -176,8 +190,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        //let myrun = RunningMode::DebugStem7482;
-        let myrun = RunningMode::Tp3;
+        let myrun = RunningMode::DebugStem7482;
+        //let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
