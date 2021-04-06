@@ -172,6 +172,7 @@ fn connect_and_loop(runmode: RunningMode) {
         5 => {
             let mut data_array:Vec<u8> = vec![0; my_settings.bytedepth*1025*my_settings.xspim_size*my_settings.yspim_size];
             let ping_data: Vec<u8> = vec![0; my_settings.bytedepth];
+            let filepath: String = String::from("C:\\Users\\AUAD\\Desktop\\TimePix3\\Slice");
             
             let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
 
@@ -179,7 +180,7 @@ fn connect_and_loop(runmode: RunningMode) {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        if let Ok(true) = modes::build_save_spim_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut spim_tdc) {
+                        if let Ok(true) = modes::build_save_spim_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut spim_tdc, &filepath) {
                             data_array = vec![0; my_settings.bytedepth*1025*my_settings.xspim_size*my_settings.yspim_size];
                         };
                         if let Err(_) = ns_sock.write(&ping_data) {println!("Client disconnected on data."); break;}

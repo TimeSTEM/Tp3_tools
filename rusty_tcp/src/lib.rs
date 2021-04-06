@@ -19,6 +19,7 @@ pub mod modes {
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
     const COIC_TIME: f64 = 25.0e-9;
+    const SPIM_SAVE: usize = 100;
     
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
@@ -58,7 +59,7 @@ pub mod modes {
     
     ///Returns None and saves locally the spectral image every 10 complete scan lines. Slice time
     ///is thus pick by total image scan time. Uses a single TDC at the beggining of each scan line.
-    pub fn build_save_spim_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> std::io::Result<bool> {
+    pub fn build_save_spim_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, filename: &str) -> std::io::Result<bool> {
         let mut packet_chunks = data.chunks_exact(8);
         let interval = line_tdc.low_time;
         let period = line_tdc.period;
@@ -84,14 +85,14 @@ pub mod modes {
                         6 if packet.tdc_type() == line_tdc.tdctype => {
                             line_tdc.upt(packet.tdc_time_norm());
                             let eff_counter = line_tdc.counter / settings.spimoverscany;
-                            if eff_counter % (settings.yspim_size * 100) == 0 {
-                                let mut filename: String = String::from("Slice");
-                                filename.push_str(&(eff_counter.to_string()));
-                                filename.push_str(".txt");
+                            if eff_counter % (settings.yspim_size * SPIM_SAVE) == 0 {
+                                let mut temp_filename: String = String::from(filename);
+                                temp_filename.push_str(&(eff_counter.to_string()));
+                                temp_filename.push_str(".txt");
 
-                                let mut my_file = File::create(filename)?;
+                                let mut my_file = File::create(temp_filename)?;
                                 my_file.write_all(final_data)?;
-                                println!("Saved spectral image slice at effective counter {:?}", eff_counter);
+                                println!("Saved spectral image slice at effective counter {:?} and time at {}.", eff_counter, packet.tdc_time());
                                 has = true;
                             }
                         },
