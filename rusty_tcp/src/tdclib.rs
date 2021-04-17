@@ -11,7 +11,7 @@ pub enum TdcType {
 
 impl TdcType {
     ///Convenient method. Return value is the 4 bits associated to each TDC.
-    fn associate_value(&self) -> u8 {
+    pub fn associate_value(&self) -> u8 {
         match *self {
             TdcType::TdcOneRisingEdge => 15,
             TdcType::TdcOneFallingEdge => 10,

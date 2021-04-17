@@ -4,6 +4,7 @@
 
 
 use timepix3::packetlib::Packet;
+use timepix3::tdclib::TdcType;
 use std::io;
 use std::io::prelude::*;
 use std::fs::File;
@@ -16,6 +17,7 @@ fn main() -> io::Result<()> {
     
     let mut ci = 0;
     let mut counter = 0;
+    let mytdc = TdcType::TdcTwoRisingEdge;
 
     let mut packet_chunks = buffer.chunks_exact(8);
     while let Some(x) = packet_chunks.next() {
@@ -24,8 +26,8 @@ fn main() -> io::Result<()> {
             _ => {
                 let packet = Packet { chip_index: ci, data: x };
                 match packet.id() {
-                    6 => {
-                        println!("{:?}", packet.tdc_type());
+                    6 if packet.tdc_type() == mytdc.associate_value() => {
+                    
                     },
                     _ => {},
                 };
@@ -36,7 +38,7 @@ fn main() -> io::Result<()> {
         
     }
 
-    println!("{}", counter);
+    println!("{}", buffer.len());
 
     Ok(())
 }
