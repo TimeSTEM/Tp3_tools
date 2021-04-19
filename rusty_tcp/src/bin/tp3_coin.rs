@@ -61,19 +61,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
     }
 
-    println!("{:?} and {} and {}", tdc_vec.len(), ele_vec.len(), cele_vec.len());
-    println!("{:?}", cele_vec);
 
+    let mut max = ele_vec.iter().fold(0, |acc, &x|
+                                       if acc>x {acc} else {x}
+                                       );
 
-
-    let root = BitMapBackend::new("out.png", (640, 480)).into_drawing_area();
+    let root = BitMapBackend::new("out.png", (2000, 1200)).into_drawing_area();
     root.fill(&WHITE)?;
     let root = root.margin(10, 10, 10, 10);
     let mut chart = ChartBuilder::on(&root)
-        .caption("TP3 Coincidence", ("sans_serif", 40).into_font())
-        .x_label_area_size(20)
+        .caption("TP3 Coincidence", ("sans_serif", 20).into_font())
+        .x_label_area_size(40)
         .y_label_area_size(40)
-        .build_cartesian_2d(0f32..1024f32, 0f32..10f32)?;
+        .build_cartesian_2d(0f32..1024f32, 0f32..max as f32)?;
 
     chart
         .configure_mesh()
@@ -82,11 +82,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .y_label_formatter(&|x| format!("{:.3}", x))
         .draw()?;
 
-    chart.draw_series(LineSeries::new(
-            (-50..=50).map(|x| x as f32/50.0).map(|x| (x, x * x)),
-            //cele_vec.iter().zip(xarray.iter(),
+    chart
+        .draw_series(LineSeries::new(
+            xarray.iter().zip(cele_vec.iter()).map(|(a, b)| (*a as f32, *b as f32)),
             &RED,
-    ))?;
+        ))?
+        .label("Coincidence Electrons")
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x +20, y)], &RED));
+    
+    chart
+        .draw_series(LineSeries::new(
+            xarray.iter().zip(ele_vec.iter()).map(|(a, b)| (*a as f32, *b as f32)),
+            &BLUE,
+        ))?
+        .label("All Electrons")
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x +20, y)], &BLUE));
+
+    chart
+        .configure_series_labels()
+        .background_style(&WHITE.mix(0.8))
+        .border_style(&BLACK)
+        .draw()?;
 
     Ok(())
 }
