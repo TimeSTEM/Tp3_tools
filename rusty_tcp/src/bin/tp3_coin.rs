@@ -60,7 +60,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize])
 }
 
 fn testfunc(tdcrefvec: &mut Vec<f64>, value: f64) -> Option<()> {
-    let mut n = tdcrefvec.into_iter().enumerate().filter(|(_, x)| (**x-value).abs()<25.0e-9);
+    let mut n = tdcrefvec.into_iter().enumerate().filter(|(_, x)| (**x-value).abs()<25.0e-7);
     let val = n.next();
     if val.is_some() {
         let val = val.unwrap(); let index = val.0; if index>5 {tdcrefvec.remove(0);}
@@ -88,7 +88,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Looping over file {:?}", dir);
         search_coincidence(dir, &mut ele_vec, &mut cele_vec)?;
     }
-
 
 
     println!("Time elapsed is {:?}", start.elapsed());
@@ -119,7 +118,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .disable_x_mesh()
         .disable_y_mesh()
         .y_desc("EELS")
-        //.y_label_formatter(&|x| format!("{:.5}", x))
+        .y_label_formatter(&|x| format!("{:e}", x))
         .draw()?;
 
     chart
