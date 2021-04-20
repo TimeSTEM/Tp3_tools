@@ -7,11 +7,12 @@ use timepix3::packetlib::Packet;
 use timepix3::tdclib::TdcType;
 use std::io;
 use std::io::prelude::*;
-use std::fs::File;
+use std::fs;
+use std::time::Instant;
 
 fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize]) -> io::Result<()> {
     
-    let mut file = File::open(file)?;
+    let mut file = fs::File::open(file)?;
     let mut buffer:Vec<u8> = Vec::new();
     file.read_to_end(&mut buffer)?;
     
@@ -27,7 +28,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize])
                 let packet = Packet { chip_index: ci, data: x };
                 match packet.id() {
                     6 if packet.tdc_type() == mytdc.associate_value() => {
-                        tdc_vec.push(packet.tdc_time());
+                        tdc_vec.push(packet.tdc_time_norm());
                     },
                     _ => {},
                 };
@@ -45,7 +46,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize])
                 match packet.id() {
                     11 => {
                         ele_vec[packet.x()]+=1;
-                        if let Some(()) = testfunc(&tdc_vec, packet.electron_time()) {
+                        if let Some(()) = testfunc(&mut tdc_vec, packet.electron_time()) {
                             cele_vec[packet.x()]+=1;
                         }
                     },
@@ -58,14 +59,17 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize])
     Ok(())
 }
 
+fn testfunc(tdcrefvec: &mut Vec<f64>, value: f64) -> Option<()> {
+    let mut n = tdcrefvec.into_iter().enumerate().filter(|(_, x)| (**x-value).abs()<25.0e-9);
+    let val = n.next();
+    if val.is_some() {
+        let val = val.unwrap(); let index = val.0; if index>5 {tdcrefvec.remove(0);}
+        Some(())
+    } else {None}
+}
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    //let mut file = File::open("C:\\Users\\AUAD\\Documents\\Tp3_tools\\TCPFiletoStream\\laser_tdc\\raw000000.tpx3")?;
-    
-    let mut file = File::open("Data\\raw000000.tpx3")?;
-    let mut buffer:Vec<u8> = Vec::new();
-    file.read_to_end(&mut buffer)?;
     
     let mut ele_vec:Vec<usize> = vec![0; 1024];
     let mut cele_vec:Vec<usize> = vec![0; 1024];
@@ -75,18 +79,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         *val = i;
     }
 
-    search_coincidence("Data\\raw000000.tpx3", &mut ele_vec, &mut cele_vec)?;
-    search_coincidence("Data\\raw000001.tpx3", &mut ele_vec, &mut cele_vec)?;
-    search_coincidence("Data\\raw000002.tpx3", &mut ele_vec, &mut cele_vec)?;
-    search_coincidence("Data\\raw000003.tpx3", &mut ele_vec, &mut cele_vec)?;
-    search_coincidence("Data\\raw000004.tpx3", &mut ele_vec, &mut cele_vec)?;
-    search_coincidence("Data\\raw000005.tpx3", &mut ele_vec, &mut cele_vec)?;
-    search_coincidence("Data\\raw000006.tpx3", &mut ele_vec, &mut cele_vec)?;
-    search_coincidence("Data\\raw000007.tpx3", &mut ele_vec, &mut cele_vec)?;
-    search_coincidence("Data\\raw000008.tpx3", &mut ele_vec, &mut cele_vec)?;
-    search_coincidence("Data\\raw000009.tpx3", &mut ele_vec, &mut cele_vec)?;
-    search_coincidence("Data\\raw000010.tpx3", &mut ele_vec, &mut cele_vec)?;
+    let start = Instant::now();
 
+    let mut entries = fs::read_dir("Data")?;
+    while let Some(x) = entries.next() {
+        let path = x?.path();
+        let dir = path.to_str().unwrap();
+        println!("Looping over file {:?}", dir);
+        search_coincidence(dir, &mut ele_vec, &mut cele_vec)?;
+    }
+
+
+
+    println!("Time elapsed is {:?}", start.elapsed());
 
     let max = ele_vec.iter().fold(0, |acc, &x|
                                        if acc>x {acc} else {x}
@@ -96,8 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                        if acc>x {acc} else {x}
                                        );
 
-    println!("{} and {}", max, cmax);
-    println!("{:?}", cele_vec);
+    println!("{}", cmax);
 
     let root = BitMapBackend::new("out.png", (2000, 1200)).into_drawing_area();
     root.fill(&WHITE)?;
@@ -149,7 +153,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 
-fn testfunc(tdcrefvec: &[f64], value: f64) -> Option<()> {
-    let n = tdcrefvec.into_iter().filter(|x| (**x-value).abs()<25.0e-9).count();
-    if n>0 {Some(())} else {None}
-}
