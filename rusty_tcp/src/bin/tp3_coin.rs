@@ -10,7 +10,10 @@ use std::io::prelude::*;
 use std::fs;
 use std::time::Instant;
 
-fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize]) -> io::Result<()> {
+const TIME_WIDTH: f64 = 50.0e-9;
+const TIME_DELAY: f64 = 150.0e-9;
+
+fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], timelist: &mut Vec<f64>) -> io::Result<()> {
     
     let mut file = fs::File::open(file)?;
     let mut buffer:Vec<u8> = Vec::new();
@@ -28,7 +31,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize])
                 let packet = Packet { chip_index: ci, data: x };
                 match packet.id() {
                     6 if packet.tdc_type() == mytdc.associate_value() => {
-                        tdc_vec.push(packet.tdc_time_norm());
+                        tdc_vec.push(packet.tdc_time_norm()-TIME_DELAY);
                     },
                     _ => {},
                 };
@@ -46,8 +49,10 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize])
                 match packet.id() {
                     11 => {
                         ele_vec[packet.x()]+=1;
-                        if let Some(()) = testfunc(&mut tdc_vec, packet.electron_time()) {
+                        let ele_time = packet.electron_time();
+                        if let Some(pht) = testfunc(&mut tdc_vec, ele_time) {
                             cele_vec[packet.x()]+=1;
+                            timelist.push(ele_time - pht);
                         }
                     },
                     _ => {},
@@ -59,12 +64,12 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize])
     Ok(())
 }
 
-fn testfunc(tdcrefvec: &mut Vec<f64>, value: f64) -> Option<()> {
-    let mut n = tdcrefvec.into_iter().enumerate().filter(|(_, x)| (**x-value).abs()<25.0e-7);
+fn testfunc(tdcrefvec: &mut Vec<f64>, value: f64) -> Option<f64> {
+    let mut n = tdcrefvec.into_iter().enumerate().filter(|(_, x)| (**x-value).abs()<TIME_WIDTH);
     let val = n.next();
     if val.is_some() {
-        let val = val.unwrap(); let index = val.0; if index>5 {tdcrefvec.remove(0);}
-        Some(())
+        let (index, &mut t) = val.unwrap(); if index>5 {tdcrefvec.remove(0);}
+        Some(t)
     } else {None}
 }
 
@@ -73,6 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut ele_vec:Vec<usize> = vec![0; 1024];
     let mut cele_vec:Vec<usize> = vec![0; 1024];
+    let mut time_list:Vec<f64> = Vec::new();
     let mut xarray:Vec<usize> = vec![0; 1024];
             
     for (i, val) in xarray.iter_mut().enumerate() {
@@ -86,9 +92,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let path = x?.path();
         let dir = path.to_str().unwrap();
         println!("Looping over file {:?}", dir);
-        search_coincidence(dir, &mut ele_vec, &mut cele_vec)?;
+        search_coincidence(dir, &mut ele_vec, &mut cele_vec, &mut time_list)?;
     }
 
+    let output_vec: Vec<String> = time_list.iter().map(|x| x.to_string()).collect();
+    let output_string = output_vec.join(", ");
+    fs::write("Histogram.txt", output_string);
 
     println!("Time elapsed is {:?}", start.elapsed());
 
