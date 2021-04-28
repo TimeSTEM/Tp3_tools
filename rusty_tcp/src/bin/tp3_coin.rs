@@ -10,8 +10,8 @@ use std::io::prelude::*;
 use std::fs;
 use std::time::Instant;
 
-const TIME_WIDTH: f64 = 50.0e-9;
-const TIME_DELAY: f64 = 150.0e-9;
+const TIME_WIDTH: f64 = 1000.0e-9;
+const TIME_DELAY: f64 = 00.0e-9;
 const TDC_LEN: usize = 200;
 
 fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], timelist: &mut Vec<f64>) -> io::Result<()> {
@@ -56,8 +56,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
                             cele_vec[packet.x()]+=1;
                             timelist.push(ele_time - pht);
                             if index>5 && tdc_vec.len()>index+100{
-                                //{ tdc_vec.remove(0); }
-                                tdc_vec = tdc_vec.into_iter().skip(index-2).collect();
+                                tdc_vec = tdc_vec.into_iter().skip(index-3).collect();
                             }
                         }
                     },
@@ -73,7 +72,6 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
 fn testfunc(tdcrefvec: &[f64], value: f64) -> Option<(usize, f64)> {
     let mut n = tdcrefvec.into_iter().enumerate().filter(|(_, x)| (**x-value).abs()<TIME_WIDTH);
     let val = n.next();
-    //n.next()
     if val.is_some() {let (index, &t) = val.unwrap(); Some((index, t))
     } else {None}
 }
