@@ -12,7 +12,8 @@ use std::time::Instant;
 
 const TIME_WIDTH: f64 = 1000.0e-9;
 const TIME_DELAY: f64 = 00.0e-9;
-const TDC_LEN: usize = 200;
+const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
+const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
 
 fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], timelist: &mut Vec<f64>) -> io::Result<()> {
     
@@ -51,12 +52,12 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
                     11 => {
                         ele_vec[packet.x()]+=1;
                         let ele_time = packet.electron_time();
-                        let veclen = tdc_vec.len().min(200);
+                        let veclen = tdc_vec.len().min(2*MIN_LEN);
                         if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], ele_time) {
                             cele_vec[packet.x()]+=1;
                             timelist.push(ele_time - pht);
-                            if index>5 && tdc_vec.len()>index+100{
-                                tdc_vec = tdc_vec.into_iter().skip(index-3).collect();
+                            if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
+                                tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
                             }
                         }
                     },
@@ -97,7 +98,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let output_vec: Vec<String> = time_list.iter().map(|x| x.to_string()).collect();
     let output_string = output_vec.join(", ");
-    fs::write("Histogram.txt", output_string);
+    fs::write("Histogram.txt", output_string)?;
 
     println!("Time elapsed is {:?}", start.elapsed());
 
@@ -109,7 +110,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                        if acc>x {acc} else {x}
                                        );
 
-    println!("{}", cmax);
+    let vecsum:usize = cele_vec.iter().sum();
+
+    println!("Maximum value is: {} and sum is: {}", cmax, vecsum);
 
     let root = BitMapBackend::new("out.png", (2000, 1200)).into_drawing_area();
     root.fill(&WHITE)?;
