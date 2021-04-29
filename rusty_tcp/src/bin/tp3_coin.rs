@@ -10,12 +10,12 @@ use std::io::prelude::*;
 use std::fs;
 use std::time::Instant;
 
-const TIME_WIDTH: f64 = 1000.0e-9;
-const TIME_DELAY: f64 = 00.0e-9;
+const TIME_WIDTH: f64 = 50.0e-9;
+const TIME_DELAY: f64 = 150.0e-9;
 const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
 const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
 
-fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], timelist: &mut Vec<f64>) -> io::Result<()> {
+fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], timelist: &mut Vec<(usize, f64)>) -> io::Result<()> {
     
     let mut file = fs::File::open(file)?;
     let mut buffer:Vec<u8> = Vec::new();
@@ -54,8 +54,9 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
                         let ele_time = packet.electron_time();
                         let veclen = tdc_vec.len().min(2*MIN_LEN);
                         if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], ele_time) {
-                            cele_vec[packet.x()]+=1;
-                            timelist.push(ele_time - pht);
+                            let x = packet.x();
+                            cele_vec[x]+=1;
+                            timelist.push((x, ele_time - pht));
                             if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
                                 tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
                             }
@@ -71,15 +72,14 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
 }
 
 fn testfunc(tdcrefvec: &[f64], value: f64) -> Option<(usize, f64)> {
-    let mut n = tdcrefvec.iter().cloned().enumerate().filter(|(_, x)| (x-value).abs()<TIME_WIDTH);
-    n.next()
+    tdcrefvec.iter().cloned().enumerate().filter(|(_, x)| (x-value).abs()<TIME_WIDTH).next()
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut ele_vec:Vec<usize> = vec![0; 1024];
     let mut cele_vec:Vec<usize> = vec![0; 1024];
-    let mut time_list:Vec<f64> = Vec::new();
+    let mut time_list:Vec<(usize, f64)> = Vec::new();
     let mut xarray:Vec<usize> = vec![0; 1024];
             
     for (i, val) in xarray.iter_mut().enumerate() {
@@ -96,7 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         search_coincidence(dir, &mut ele_vec, &mut cele_vec, &mut time_list)?;
     }
 
-    let output_vec: Vec<String> = time_list.iter().map(|x| x.to_string()).collect();
+    let output_vec: Vec<String> = time_list.iter().map(|(_, t)| t.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("Histogram.txt", output_string)?;
 
