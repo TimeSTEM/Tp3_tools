@@ -70,12 +70,9 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
 }
 
 fn testfunc(tdcrefvec: &[f64], value: f64) -> Option<(usize, f64)> {
-    let mut n = tdcrefvec.into_iter().enumerate().filter(|(_, x)| (**x-value).abs()<TIME_WIDTH);
-    let val = n.next();
-    if val.is_some() {let (index, &t) = val.unwrap(); Some((index, t))
-    } else {None}
+    let mut n = tdcrefvec.iter().cloned().enumerate().filter(|(_, x)| (x-value).abs()<TIME_WIDTH);
+    n.next()
 }
-
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     
