@@ -10,8 +10,8 @@ use std::io::prelude::*;
 use std::fs;
 use std::time::Instant;
 
-const TIME_WIDTH: f64 = 50.0e-9;
-const TIME_DELAY: f64 = 150.0e-9;
+const TIME_WIDTH: f64 = 500.0e-9;
+const TIME_DELAY: f64 = 000.0e-9;
 const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
 const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
 
@@ -98,7 +98,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let output_vec: Vec<String> = time_list.iter().map(|(_, t)| t.to_string()).collect();
     let output_string = output_vec.join(", ");
-    fs::write("Histogram.txt", output_string)?;
+    fs::write("tH.txt", output_string)?;
+    
+    let output_vec: Vec<String> = time_list.iter().map(|(x, _)| x.to_string()).collect();
+    let output_string = output_vec.join(", ");
+    fs::write("xH.txt", output_string)?;
+
+
 
     println!("Time elapsed is {:?}", start.elapsed());
 
