@@ -4,12 +4,14 @@ from matplotlib.widgets import Slider
 
 t = numpy.loadtxt("tH.txt", delimiter=',')
 x = numpy.loadtxt("xH.txt", delimiter=',')
+#y = numpy.loadtxt("yH.txt", delimiter=',')
 indexes = (x>=0) & (x<=1024)
 
 fig, ax = plt.subplots(1, 2)
 plt.subplots_adjust(left=0.25, bottom=0.25)
 ax[0].hist(t[indexes], bins=25)
 ax[1].hist(x[indexes], bins=1024, range=(0, 1024))
+#ax[1].hist2d(x[indexes], y[indexes], bins=[101, 51], range=[[0, 1024], [50, 225]])
 l = ax[1].axvspan(10, 12, color='red', alpha=0.25)
 
 axcolor = 'lightgoldenrodyellow'

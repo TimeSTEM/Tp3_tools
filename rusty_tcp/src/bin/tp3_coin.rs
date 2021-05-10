@@ -15,7 +15,7 @@ const TIME_DELAY: f64 = 000.0e-9;
 const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
 const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
 
-fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], timelist: &mut Vec<(usize, f64)>) -> io::Result<()> {
+fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], timelist: &mut Vec<(usize, usize, f64)>) -> io::Result<()> {
     
     let mut file = fs::File::open(file)?;
     let mut buffer:Vec<u8> = Vec::new();
@@ -26,11 +26,11 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
     let mut tdc_vec:Vec<f64> = Vec::new();
     
     let mut packet_chunks = buffer.chunks_exact(8);
-    while let Some(x) = packet_chunks.next() {
-        match x {
+    while let Some(pack_oct) = packet_chunks.next() {
+        match pack_oct {
             &[84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
             _ => {
-                let packet = Packet { chip_index: ci, data: x };
+                let packet = Packet { chip_index: ci, data: pack_oct };
                 match packet.id() {
                     6 if packet.tdc_type() == mytdc.associate_value() => {
                         tdc_vec.push(packet.tdc_time_norm()-TIME_DELAY);
@@ -55,8 +55,9 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
                         let veclen = tdc_vec.len().min(2*MIN_LEN);
                         if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], ele_time) {
                             let x = packet.x();
+                            let y = packet.y();
                             cele_vec[x]+=1;
-                            timelist.push((x, ele_time - pht));
+                            timelist.push((x, y, ele_time - pht));
                             if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
                                 tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
                             }
@@ -79,7 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut ele_vec:Vec<usize> = vec![0; 1024];
     let mut cele_vec:Vec<usize> = vec![0; 1024];
-    let mut time_list:Vec<(usize, f64)> = Vec::new();
+    let mut time_list:Vec<(usize, usize, f64)> = Vec::new();
     let mut xarray:Vec<usize> = vec![0; 1024];
             
     for (i, val) in xarray.iter_mut().enumerate() {
@@ -96,13 +97,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         search_coincidence(dir, &mut ele_vec, &mut cele_vec, &mut time_list)?;
     }
 
-    let output_vec: Vec<String> = time_list.iter().map(|(_, t)| t.to_string()).collect();
+    let output_vec: Vec<String> = time_list.iter().map(|(_, _, t)| t.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("tH.txt", output_string)?;
     
-    let output_vec: Vec<String> = time_list.iter().map(|(x, _)| x.to_string()).collect();
+    let output_vec: Vec<String> = time_list.iter().map(|(x, _, _)| x.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("xH.txt", output_string)?;
+    
+    let output_vec: Vec<String> = time_list.iter().map(|(_, y, _)| y.to_string()).collect();
+    let output_string = output_vec.join(", ");
+    fs::write("yH.txt", output_string)?;
 
 
 
