@@ -19,7 +19,7 @@ pub mod modes {
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
     const COIC_TIME: f64 = 25.0e-9;
-    const SPIM_SAVE: usize = 100;
+    const SPIM_SAVE: usize = 1000;
     
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
@@ -218,8 +218,13 @@ pub mod modes {
                         },
                         6 if packet.tdc_type() == tdc.tdctype => {
                             tdc.upt(packet.tdc_time());
+                            println!("type is {}. Time is {}. counter is {}", packet.tdc_type(), packet.tdc_time_norm()*1.0e9, packet.tdc_counter());
                             has = true;
                         },
+                        6  if packet.tdc_type() != 10 => {
+                            //println!("type is {}. Time is {}", packet.tdc_type(), packet.tdc_time()*1.0e9);
+                        },
+
                         _ => {},
                     };
                 },
