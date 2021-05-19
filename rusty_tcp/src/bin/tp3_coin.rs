@@ -10,7 +10,7 @@ use std::io::prelude::*;
 use std::fs;
 use std::time::Instant;
 
-const TIME_WIDTH: f64 = 500.0e-9;
+const TIME_WIDTH: f64 = 1.0e-3;
 const TIME_DELAY: f64 = 000.0e-9;
 const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
 const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
@@ -96,6 +96,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Looping over file {:?}", dir);
         search_coincidence(dir, &mut ele_vec, &mut cele_vec, &mut time_list)?;
     }
+
+    println!("{}", time_list.len());
+    let mut sort_time_list: Vec<isize> = time_list.iter().map(|(_, _, t)| (*t*1.0e9) as isize).collect();
+    sort_time_list.sort();
+
+    //println!("{:?}", sort_time_list.get(0..500));
+
+
 
     let output_vec: Vec<String> = time_list.iter().map(|(_, _, t)| t.to_string()).collect();
     let output_string = output_vec.join(", ");
