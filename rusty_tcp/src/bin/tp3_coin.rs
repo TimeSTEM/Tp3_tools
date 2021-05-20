@@ -50,17 +50,19 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
                 let packet = Packet { chip_index: ci, data: x };
                 match packet.id() {
                     11 => {
-                        ele_vec[packet.x()]+=1;
-                        let ele_time = packet.electron_time();
-                        let veclen = tdc_vec.len().min(2*MIN_LEN);
-                        if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], ele_time) {
-                            let x = packet.x();
-                            let y = packet.y();
-                            cele_vec[x]+=1;
-                            //timelist.push((ele_time - pht, x, y));
-                            timelist.push((ele_time*1.0e9, x, y, packet.tot()));
-                            if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
-                                tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
+                        if let Some(x) = packet.x() {
+                            ele_vec[x]+=1;
+                            let ele_time = packet.electron_time();
+                            let veclen = tdc_vec.len().min(2*MIN_LEN);
+                            if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], ele_time) {
+                                //let x = packet.x().unwrap();
+                                let y = packet.y();
+                                cele_vec[x]+=1;
+                                //timelist.push((ele_time - pht, x, y));
+                                timelist.push((ele_time*1.0e9, x, y, packet.tot()));
+                                if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
+                                    tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
+                                }
                             }
                         }
                     },
@@ -116,7 +118,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         cluster_vec.push(*x);
         last_time = x.0;
-        
     }
     println!("Number of clusters is: {}", sizetot.len());
 
@@ -139,8 +140,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_vec: Vec<String> = sizetot.iter().map(|(_, stot)| stot.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("stot.txt", output_string)?;
-
-
 
     println!("Time elapsed is {:?}", start.elapsed());
 

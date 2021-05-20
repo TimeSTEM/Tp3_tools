@@ -8,14 +8,17 @@ pub struct Packet<'a> {
 
 impl<'a> Packet<'a> {
     
-    pub fn x(&self) -> usize {
+    pub fn x(&self) -> Option<usize> {
         let temp = ((((self.data[6] & 224))>>4 | ((self.data[7] & 15))<<4) | (((self.data[5] & 112)>>4)>>2)) as usize;
+        if temp<5 || temp>250 {
+            return None
+        }
         match self.chip_index {
-            0 => 255 - temp,
-            1 => 256 * 4 - 1 - temp,
-            2 => 256 * 3 - 1 - temp,
-            3 => 256 * 2 - 1 - temp,
-            _ => temp,
+            0 => Some(255 - temp),
+            1 => Some(256 * 4 - 1 - temp),
+            2 => Some(256 * 3 - 1 - temp),
+            3 => Some(256 * 2 - 1 - temp),
+            _ => None,
         }
     }
     

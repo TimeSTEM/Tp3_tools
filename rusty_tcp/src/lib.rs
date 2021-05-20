@@ -41,7 +41,7 @@ pub mod modes {
                             if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                let array_pos = packet.x() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
+                                let array_pos = packet.x().unwrap() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
                                 append_to_index_array(&mut index_data, array_pos);
                             }
                             
@@ -77,7 +77,7 @@ pub mod modes {
                             if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                let array_pos = packet.x() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
+                                let array_pos = packet.x().unwrap() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
                                 append_to_array(final_data, array_pos, settings.bytedepth);
                             }
                             
@@ -126,7 +126,7 @@ pub mod modes {
                                 if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
                                     let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                     let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                    let array_pos = packet.x() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
+                                    let array_pos = packet.x().unwrap() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
                                     append_to_index_array(&mut index_data, array_pos);
                                 }
                             }
@@ -169,7 +169,7 @@ pub mod modes {
                             if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
                                 let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                let array_pos = packet.x() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
+                                let array_pos = packet.x().unwrap() + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
                                 append_to_index_array(&mut index_data, array_pos);
                             }
                         },  
@@ -211,8 +211,8 @@ pub mod modes {
                     match packet.id() {
                         11 => {
                             let array_pos = match settings.bin {
-                                false => packet.x() + 1024*packet.y(),
-                                true => packet.x()
+                                false => packet.x().unwrap() + 1024*packet.y(),
+                                true => packet.x().unwrap()
                             };
                             append_to_array(final_data, array_pos, settings.bytedepth);
                         },
@@ -244,8 +244,8 @@ pub mod modes {
                             let ele_time = packet.electron_time();
                             if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time, ref_tdc.period, settings) {
                                 let array_pos = match settings.bin {
-                                    false => packet.x() + 1024*packet.y(),
-                                    true => packet.x()
+                                    false => packet.x().unwrap() + 1024*packet.y(),
+                                    true => packet.x().unwrap()
                                 };
                                 append_to_array(final_data, array_pos, settings.bytedepth);
                             }
