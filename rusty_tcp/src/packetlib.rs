@@ -85,7 +85,7 @@ impl<'a> Packet<'a> {
     pub fn tdc_time(&self) -> f64 {
         let coarse = ((self.data[1] & 254) as u64)>>1 | ((self.data[2]) as u64)<<7 | ((self.data[3]) as u64)<<15 | ((self.data[4]) as u64)<<23 | ((self.data[5] & 15) as u64)<<31;
         let fine = (self.data[0] & 224)>>5 | (self.data[1] & 1)<<3;
-        (coarse as f64) * (1.0/320e6) + (fine as f64) * 260e-12
+        (coarse as f64) * (1.0/320.0e6) + (fine as f64) * 260.0e-12
     }
     
     pub fn tdc_time_norm(&self) -> f64 {

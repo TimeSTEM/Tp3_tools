@@ -171,8 +171,11 @@ fn connect_and_loop(runmode: RunningMode) {
         },
         5 => {
             let mut data_array:Vec<u8> = vec![0; my_settings.bytedepth*1025*my_settings.xspim_size*my_settings.yspim_size];
-            let ping_data: Vec<u8> = vec![0; my_settings.bytedepth];
-            let filepath: String = String::from("C:\\Users\\AUAD\\Desktop\\TimePix3\\Slice");
+            let ping_data: Vec<u8> = vec![0; 4];
+            let filepath = match runmode {
+                RunningMode::DebugStem7482 => String::from("C:\\Users\\AUAD\\Desktop\\TimePix3\\Slice"),
+                RunningMode::Tp3 => String::from("/home/asi/VGs/VG Lumière/TP3/SpimData/Slice"),
+            };
             
             let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
 
@@ -195,8 +198,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::DebugStem7482;
-        //let myrun = RunningMode::Tp3;
+        //let myrun = RunningMode::DebugStem7482;
+        let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
