@@ -1,19 +1,25 @@
 import numpy
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 from matplotlib.widgets import Slider
 
-t = numpy.loadtxt("tH.txt", delimiter=',')
-x = numpy.loadtxt("xH.txt", delimiter=',')
+#t = numpy.loadtxt("tH.txt", delimiter=',')
+#x = numpy.loadtxt("xH.txt", delimiter=',')
 #y = numpy.loadtxt("yH.txt", delimiter=',')
-indexes = (x>=0) & (x<=1024)
+cs = numpy.loadtxt("cs.txt", delimiter=',')
+stot = numpy.loadtxt("stot.txt", delimiter=',')
+#indexes = (x>=0) & (x<=1024)
 
 fig, ax = plt.subplots(1, 2)
 plt.subplots_adjust(left=0.25, bottom=0.25)
-ax[0].hist(t[indexes], bins=25)
-ax[1].hist(x[indexes], bins=1024, range=(0, 1024))
+ax[0].hist2d(stot, cs, range=[[0, 500], [1, 10]], bins=[10, 9], norm=mcolors.PowerNorm(0.8))
+ax[1].hist(stot, bins=50)
+#ax[0].hist(t[indexes], bins=25)
+#ax[1].hist(x[indexes], bins=1024, range=(0, 1024))
 #ax[1].hist2d(x[indexes], y[indexes], bins=[101, 51], range=[[0, 1024], [50, 225]])
-l = ax[1].axvspan(10, 12, color='red', alpha=0.25)
+#l = ax[1].axvspan(10, 12, color='red', alpha=0.25)
 
+""""
 axcolor = 'lightgoldenrodyellow'
 axc = plt.axes([0.25, 0.1, 0.6, 0.03], facecolor = axcolor)
 axint = plt.axes([0.25, 0.15, 0.6, 0.03], facecolor = axcolor)
@@ -33,5 +39,7 @@ def update(val):
 
 sc.on_changed(update)
 sint.on_changed(update)
+"""
+
 
 plt.show()

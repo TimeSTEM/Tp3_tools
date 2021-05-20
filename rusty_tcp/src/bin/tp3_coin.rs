@@ -10,12 +10,12 @@ use std::io::prelude::*;
 use std::fs;
 use std::time::Instant;
 
-const TIME_WIDTH: f64 = 1.0e-0;
+const TIME_WIDTH: f64 = 10.0e-0;
 const TIME_DELAY: f64 = 000.0e-9;
 const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
 const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
 
-fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], timelist: &mut Vec<(f64, usize, usize)>) -> io::Result<()> {
+fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], timelist: &mut Vec<(f64, usize, usize, u16)>) -> io::Result<()> {
     
     let mut file = fs::File::open(file)?;
     let mut buffer:Vec<u8> = Vec::new();
@@ -58,7 +58,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
                             let y = packet.y();
                             cele_vec[x]+=1;
                             //timelist.push((ele_time - pht, x, y));
-                            timelist.push((ele_time*1.0e9, x, y));
+                            timelist.push((ele_time*1.0e9, x, y, packet.tot()));
                             if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
                                 tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
                             }
@@ -82,7 +82,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut ele_vec:Vec<usize> = vec![0; 1024];
     let mut cele_vec:Vec<usize> = vec![0; 1024];
-    let mut time_list:Vec<(f64, usize, usize)> = Vec::new();
+    let mut time_list:Vec<(f64, usize, usize, u16)> = Vec::new();
     let mut xarray:Vec<usize> = vec![0; 1024];
             
     for (i, val) in xarray.iter_mut().enumerate() {
@@ -102,36 +102,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Number of events in time_list is: {}", time_list.len());
     time_list.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-    let mut cluster_vec: Vec<(f64, usize, usize)> = Vec::new();
-    let cluster_det = 50.0;
-    let mut cluster_num = 0;
+    let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
+    let mut sizetot: Vec<(usize, usize)> = Vec::new();
+    let cluster_det = 80.0;
     let mut last_time: f64 = time_list[0].0;
     for x in &time_list {
         if x.0 > last_time + cluster_det {
-            last_time = x.0;
-            cluster_num += 1;
+            let veclen = cluster_vec.len();
+            let mmiter:usize = cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum();
+            sizetot.push((cluster_vec.len(), mmiter));
+            //println!("{:?}", cluster_vec);
+            cluster_vec = Vec::new();
         }
+        cluster_vec.push(*x);
+        last_time = x.0;
         
     }
-    println!("{}", cluster_num);
+    println!("Number of clusters is: {}", sizetot.len());
 
-    //println!("{:?}", time_list.get(0..100)); 
-    
-
-
-
-
-    let output_vec: Vec<String> = time_list.iter().map(|(t, _, _)| t.to_string()).collect();
+    let output_vec: Vec<String> = time_list.iter().map(|(t, _, _, _)| t.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("tH.txt", output_string)?;
     
-    let output_vec: Vec<String> = time_list.iter().map(|(_, x, _)| x.to_string()).collect();
+    let output_vec: Vec<String> = time_list.iter().map(|(_, x, _, _)| x.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("xH.txt", output_string)?;
     
-    let output_vec: Vec<String> = time_list.iter().map(|(_, _, y)| y.to_string()).collect();
+    let output_vec: Vec<String> = time_list.iter().map(|(_, _, y, _)| y.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("yH.txt", output_string)?;
+    
+    let output_vec: Vec<String> = sizetot.iter().map(|(cs, _)| cs.to_string()).collect();
+    let output_string = output_vec.join(", ");
+    fs::write("cs.txt", output_string)?;
+    
+    let output_vec: Vec<String> = sizetot.iter().map(|(_, stot)| stot.to_string()).collect();
+    let output_string = output_vec.join(", ");
+    fs::write("stot.txt", output_string)?;
 
 
 
