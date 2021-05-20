@@ -1,6 +1,8 @@
 //!`packetlib` is a collection of tools to facilitate manipulation of individual TP3 packets. Module is built
 //!in around `Packet` struct.
 
+const DEAD_PIXELS: usize = 5;
+
 pub struct Packet<'a> {
     pub chip_index: u8,
     pub data: &'a [u8],
@@ -10,7 +12,7 @@ impl<'a> Packet<'a> {
     
     pub fn x(&self) -> Option<usize> {
         let temp = ((((self.data[6] & 224))>>4 | ((self.data[7] & 15))<<4) | (((self.data[5] & 112)>>4)>>2)) as usize;
-        if temp<5 || temp>250 {
+        if temp<DEAD_PIXELS || temp>255-DEAD_PIXELS {
             return None
         }
         match self.chip_index {

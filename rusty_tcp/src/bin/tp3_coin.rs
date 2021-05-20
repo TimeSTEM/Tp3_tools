@@ -106,11 +106,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
     let mut sizetot: Vec<(usize, usize)> = Vec::new();
-    let cluster_det = 80.0;
+    let cluster_det = 50.0;
     let mut last_time: f64 = time_list[0].0;
     for x in &time_list {
         if x.0 > last_time + cluster_det {
-            let veclen = cluster_vec.len();
             let mmiter:usize = cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum();
             sizetot.push((cluster_vec.len(), mmiter));
             //println!("{:?}", cluster_vec);
