@@ -89,7 +89,7 @@ fn mean(data: &[usize]) -> Option<f32> {
     }
 }
 
-fn standard_deviation(data: &[usize]) -> Option<f32> {
+fn std_dev(data: &[usize]) -> Option<f32> {
     match (mean(data), data.len()) {
         (Some(data_mean), size) if size > 0 => {
             let variance = data.iter().map(|value| {
@@ -129,19 +129,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Time elapsed during sorting is {:?}", start.elapsed());
 
     let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
-    let mut sizetot: Vec<(usize, usize)> = Vec::new();
+    let mut sizetot: Vec<(usize, f32)> = Vec::new();
     let cluster_det = 50.0;
     let mut last_time: f64 = time_list[0].0;
     for x in &time_list {
         if x.0 > last_time + cluster_det {
             let cs = cluster_vec.len();
-            let mmiter:usize = cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum();
-            let x:usize = cluster_vec.iter().map(|&(_, x, _, _)| x).sum();
-            let y:usize = cluster_vec.iter().map(|&(_, _, y, _)| y).sum();
-            let x = x as f64 / cs as f64;
-            let y = y as f64 / cs as f64;
-            sizetot.push((cs, mmiter));
-            //println!("{:?} and {} and {}", cluster_vec, x, y);
+            let tot:f32 = cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum::<usize>() as f32;
+            let tot_mean = tot / cs as f32;
+
+            let x:Vec<usize> = cluster_vec.iter().map(|&(_, x, _, _)| x).collect();
+            let y:Vec<usize> = cluster_vec.iter().map(|&(_, _, y, _)| y).collect();
+            
+            let x_std = std_dev(&x).unwrap();
+            let y_std = std_dev(&y).unwrap();
+            let radius:f32 = (x_std*x_std + y_std*y_std).sqrt();
+            
+            sizetot.push((cs, radius));
+            //println!("{:?} and {} and {}", cluster_vec, x_std, radius);
             cluster_vec = Vec::new();
         }
         cluster_vec.push(*x);

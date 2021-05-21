@@ -11,15 +11,17 @@ stot = numpy.loadtxt("stot.txt", delimiter=',')
 print(numpy.mean(cs))
 #indexes = (x>=0) & (x<=1024)
 
-fig, ax = plt.subplots(1, 2)
+fig, ax = plt.subplots(1, 2, dpi=180)
 plt.subplots_adjust(left=0.25, bottom=0.25)
-ax[0].hist2d(stot, cs, range=[[0, 600], [1, 12]], bins=[10, 11], norm=mcolors.PowerNorm(0.5), cmap='inferno')
+ax[0].hist2d(stot, cs, range=[[0, 100], [1, 12]], bins=[10, 11], norm=mcolors.PowerNorm(0.5), cmap='inferno')
 ax[1].hist(stot, bins=50)
 
-ax[0].set_xlabel('ToT Sum (A.U.)')
+#ax[0].set_xlabel('ToT Sum (A.U.)')
+ax[0].set_xlabel('Cluster Radius std (pixels)')
 ax[0].set_ylabel('Cluster Size')
 
-ax[1].set_xlabel('ToT Sum (A.U.)')
+#ax[1].set_xlabel('ToT Sum (A.U.)')
+ax[1].set_xlabel('Cluster Radius std (pixels)')
 ax[1].set_ylabel('Frequency')
 
 #ax[0].hist(t[indexes], bins=25)
@@ -49,5 +51,5 @@ sc.on_changed(update)
 sint.on_changed(update)
 """
 
-
+plt.tight_layout()
 plt.show()
