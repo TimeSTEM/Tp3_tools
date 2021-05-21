@@ -13,8 +13,15 @@ print(numpy.mean(cs))
 
 fig, ax = plt.subplots(1, 2)
 plt.subplots_adjust(left=0.25, bottom=0.25)
-ax[0].hist2d(stot, cs, range=[[0, 600], [1, 12]], bins=[10, 11], norm=mcolors.PowerNorm(0.3), cmap='inferno')
+ax[0].hist2d(stot, cs, range=[[0, 600], [1, 12]], bins=[10, 11], norm=mcolors.PowerNorm(0.5), cmap='inferno')
 ax[1].hist(stot, bins=50)
+
+ax[0].set_xlabel('ToT Sum (A.U.)')
+ax[0].set_ylabel('Cluster Size')
+
+ax[1].set_xlabel('ToT Sum (A.U.)')
+ax[1].set_ylabel('Frequency')
+
 #ax[0].hist(t[indexes], bins=25)
 #ax[1].hist(x[indexes], bins=1024, range=(0, 1024))
 #ax[1].hist2d(x[indexes], y[indexes], bins=[101, 51], range=[[0, 1024], [50, 225]])

@@ -2,7 +2,7 @@
 //use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
 //use timepix3::{modes, misc};
 
-use plotters::prelude::*;
+//use plotters::prelude::*;
 use timepix3::packetlib::Packet;
 use timepix3::tdclib::TdcType;
 use std::io;
@@ -79,6 +79,29 @@ fn testfunc(tdcrefvec: &[f64], value: f64) -> Option<(usize, f64)> {
     tdcrefvec.iter().cloned().enumerate().filter(|(_, x)| (x-value).abs()<TIME_WIDTH).next()
 }
 
+fn mean(data: &[usize]) -> Option<f32> {
+    let sum = data.iter().sum::<usize>() as f32;
+    let size = data.len();
+    
+    match size {
+        size if size > 0 => Some(sum / size as f32),
+        _ => None
+    }
+}
+
+fn standard_deviation(data: &[usize]) -> Option<f32> {
+    match (mean(data), data.len()) {
+        (Some(data_mean), size) if size > 0 => {
+            let variance = data.iter().map(|value| {
+                let diff = data_mean - (*value as f32);
+                diff*diff
+            }).sum::<f32>() / size as f32;
+            Some(variance.sqrt())
+        },
+        _ => None
+    }
+}
+
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     
@@ -91,7 +114,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         *val = i;
     }
 
-    let start = Instant::now();
 
     let mut entries = fs::read_dir("Data")?;
     while let Some(x) = entries.next() {
@@ -102,7 +124,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("Number of events in time_list is: {}", time_list.len());
+    let start = Instant::now();
     time_list.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    println!("Time elapsed during sorting is {:?}", start.elapsed());
 
     let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
     let mut sizetot: Vec<(usize, usize)> = Vec::new();
@@ -110,9 +134,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_time: f64 = time_list[0].0;
     for x in &time_list {
         if x.0 > last_time + cluster_det {
+            let cs = cluster_vec.len();
             let mmiter:usize = cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum();
-            sizetot.push((cluster_vec.len(), mmiter));
-            //println!("{:?}", cluster_vec);
+            let x:usize = cluster_vec.iter().map(|&(_, x, _, _)| x).sum();
+            let y:usize = cluster_vec.iter().map(|&(_, _, y, _)| y).sum();
+            let x = x as f64 / cs as f64;
+            let y = y as f64 / cs as f64;
+            sizetot.push((cs, mmiter));
+            //println!("{:?} and {} and {}", cluster_vec, x, y);
             cluster_vec = Vec::new();
         }
         cluster_vec.push(*x);
@@ -122,15 +151,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let output_vec: Vec<String> = time_list.iter().map(|(t, _, _, _)| t.to_string()).collect();
     let output_string = output_vec.join(", ");
-    fs::write("tH.txt", output_string)?;
+    //fs::write("tH.txt", output_string)?;
     
     let output_vec: Vec<String> = time_list.iter().map(|(_, x, _, _)| x.to_string()).collect();
     let output_string = output_vec.join(", ");
-    fs::write("xH.txt", output_string)?;
+    //fs::write("xH.txt", output_string)?;
     
     let output_vec: Vec<String> = time_list.iter().map(|(_, _, y, _)| y.to_string()).collect();
     let output_string = output_vec.join(", ");
-    fs::write("yH.txt", output_string)?;
+    //fs::write("yH.txt", output_string)?;
     
     let output_vec: Vec<String> = sizetot.iter().map(|(cs, _)| cs.to_string()).collect();
     let output_string = output_vec.join(", ");
@@ -140,7 +169,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_string = output_vec.join(", ");
     fs::write("stot.txt", output_string)?;
 
-    println!("Time elapsed is {:?}", start.elapsed());
 
     let max = ele_vec.iter().fold(0, |acc, &x|
                                        if acc>x {acc} else {x}
@@ -154,6 +182,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Maximum value is: {} and sum is: {}", cmax, vecsum);
 
+    /*
     let root = BitMapBackend::new("out.png", (2000, 1200)).into_drawing_area();
     root.fill(&WHITE)?;
     //let root = root.margin(10, 10, 10, 10);
@@ -200,6 +229,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .border_style(&BLACK)
         .draw()?;
 
+    */
     Ok(())
 }
 
