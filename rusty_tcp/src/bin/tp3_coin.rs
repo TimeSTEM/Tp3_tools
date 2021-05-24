@@ -125,7 +125,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Number of events in time_list is: {}", time_list.len());
     let start = Instant::now();
-    time_list.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    time_list.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
     println!("Time elapsed during sorting is {:?}", start.elapsed());
 
     let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
@@ -152,6 +152,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         cluster_vec.push(*x);
         last_time = x.0;
     }
+
+    let mut fint = time_list.iter();
+    fint.next();
+    let mut sint = time_list.iter().zip(time_list.iter().skip(1)).filter(|(&(t1, x1, y1, tot1), &(t2, x2, y2, tot2))| t2>t1+50.0);
+    //println!("{:?} and {:?} and {:?}", sint.next(), sint.next(), sint.next());
+    println!("{:?}", sint.count());
+
+
     println!("Number of clusters is: {}", sizetot.len());
 
     let output_vec: Vec<String> = time_list.iter().map(|(t, _, _, _)| t.to_string()).collect();
