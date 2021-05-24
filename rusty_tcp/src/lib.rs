@@ -20,6 +20,7 @@ pub mod modes {
     const VIDEO_TIME: f64 = 0.000007;
     const COIC_TIME: f64 = 25.0e-9;
     const SPIM_SAVE: usize = 1000;
+    const CLUSTER_TIME: f64 = 50.0e-09;
     
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
@@ -205,6 +206,7 @@ pub mod modes {
     ///Returns a frame using a periodic TDC as reference.
     pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut PeriodicTdcRef) -> bool {
 
+        let mut time_list: Vec<(f64, usize, usize)> = Vec::new(); 
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
 
@@ -217,11 +219,13 @@ pub mod modes {
                     match packet.id() {
                         11 => {
                             if let Some(x) = packet.x() {
-                                let array_pos = match settings.bin {
+                                time_list.push((packet.electron_time(), x, packet.y()));
+                                /*let array_pos = match settings.bin {
                                     false => x + 1024*packet.y(),
                                     true => x
                                 };
                                 append_to_array(final_data, array_pos, settings.bytedepth);
+                                */
                             }
                         },
                         6 if packet.tdc_type() == tdc.tdctype => {
@@ -233,6 +237,7 @@ pub mod modes {
                 },
             };
         };
+        sort_and_append_to_array(time_list, final_data, settings.bin, settings.bytedepth);
         has
     }
 
@@ -314,7 +319,31 @@ pub mod modes {
         if titer==0 {None} else {Some(titer)}
     }
 
-    
+
+    fn sort_and_append_to_array(mut tl: Vec<(f64, usize, usize)>, data: &mut [u8], isbin: bool, bytedepth: usize) {
+        tl.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+        let mut t0 = tl[0].0;
+        match isbin {
+            true => {
+                for (t, x, _y) in tl {
+                    if t>t0+CLUSTER_TIME {
+                        append_to_array(data, x, bytedepth);
+                    }
+                    t0 = t;
+                }
+            },
+            false => {
+                for (t, x, y) in tl {
+                    if t>t0+CLUSTER_TIME{
+                        append_to_array(data, x+1024*y, bytedepth);
+                    }
+                    t0 = t;
+                }
+            }
+        }
+    }
+
+            
     ///Append a single electron to a given size array. Used mainly for frame based.
     fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
         let index = index * bytedepth;

@@ -55,11 +55,9 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
                             let ele_time = packet.electron_time();
                             let veclen = tdc_vec.len().min(2*MIN_LEN);
                             if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], ele_time) {
-                                //let x = packet.x().unwrap();
                                 let y = packet.y();
                                 cele_vec[x]+=1;
-                                //timelist.push((ele_time - pht, x, y));
-                                timelist.push((ele_time*1.0e9, x, y, packet.tot()));
+                                timelist.push((ele_time, x, y, packet.tot()));
                                 if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
                                     tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
                                 }
@@ -130,7 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
     let mut sizetot: Vec<(usize, f32)> = Vec::new();
-    let cluster_det = 50.0;
+    let cluster_det = 50.0e-9;
     let mut last_time: f64 = time_list[0].0;
     for x in &time_list {
         if x.0 > last_time + cluster_det {
@@ -155,13 +153,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut fint = time_list.iter();
     fint.next();
-    let mut sint = time_list.iter().zip(time_list.iter().skip(1)).filter(|(&(t1, x1, y1, tot1), &(t2, x2, y2, tot2))| t2>t1+50.0);
-    //println!("{:?} and {:?} and {:?}", sint.next(), sint.next(), sint.next());
+    let sint = time_list.iter().zip(time_list.iter().skip(1)).filter(|(&(t1, _x1, _y1, _tot1), &(t2, _x2, _y2, _tot2))| t2>t1+cluster_det);
     println!("{:?}", sint.count());
 
 
     println!("Number of clusters is: {}", sizetot.len());
 
+    /*
     let output_vec: Vec<String> = time_list.iter().map(|(t, _, _, _)| t.to_string()).collect();
     let output_string = output_vec.join(", ");
     //fs::write("tH.txt", output_string)?;
@@ -195,7 +193,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Maximum value is: {} and sum is: {}", cmax, vecsum);
 
-    /*
     let root = BitMapBackend::new("out.png", (2000, 1200)).into_drawing_area();
     root.fill(&WHITE)?;
     //let root = root.margin(10, 10, 10, 10);
