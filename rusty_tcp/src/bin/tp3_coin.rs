@@ -143,7 +143,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let y_std = std_dev(&y).unwrap();
             let radius:f32 = (x_std*x_std + y_std*y_std).sqrt();
             
-            sizetot.push((cs, radius));
+            if cluster_vec.len() > 1 {
+                sizetot.push((cs, radius));
+            }
             //println!("{:?} and {} and {}", cluster_vec, x_std, radius);
             cluster_vec = Vec::new();
         }
@@ -159,7 +161,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Number of clusters is: {}", sizetot.len());
 
-    /*
+    
     let output_vec: Vec<String> = time_list.iter().map(|(t, _, _, _)| t.to_string()).collect();
     let output_string = output_vec.join(", ");
     //fs::write("tH.txt", output_string)?;
@@ -180,7 +182,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_string = output_vec.join(", ");
     fs::write("stot.txt", output_string)?;
 
-
+    /*
     let max = ele_vec.iter().fold(0, |acc, &x|
                                        if acc>x {acc} else {x}
                                        );
