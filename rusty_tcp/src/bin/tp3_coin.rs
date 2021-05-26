@@ -125,9 +125,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
     time_list.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
     println!("Time elapsed during sorting is {:?}", start.elapsed());
-
+    
     let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
-    let mut sizetot: Vec<(usize, f32)> = Vec::new();
+    let mut sizetot: Vec<(usize, usize, usize f32)> = Vec::new();
     let cluster_det = 50.0e-9;
     let mut last_time: f64 = time_list[0].0;
     for x in &time_list {
@@ -143,9 +143,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let y_std = std_dev(&y).unwrap();
             let radius:f32 = (x_std*x_std + y_std*y_std).sqrt();
             
-            if cluster_vec.len() > 1 {
-                sizetot.push((cs, radius));
-            }
+            sizetot.push((x, y, cs, tot));
             //println!("{:?} and {} and {}", cluster_vec, x_std, radius);
             cluster_vec = Vec::new();
         }
@@ -162,23 +160,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Number of clusters is: {}", sizetot.len());
 
     
-    let output_vec: Vec<String> = time_list.iter().map(|(t, _, _, _)| t.to_string()).collect();
+    let output_vec: Vec<String> = time_list.iter().zip(time_list.iter().skip(1)).filter(|(&(t1, _x1, _y1, _tot1), &(t2, _x2, _y2, _tot2))| t2>t1+cluster_det).map(|(&(t1, _x1, _y1, _tot1), &(t2, _x2, _y2, _tot2))| t1.to_string()).collect();
     let output_string = output_vec.join(", ");
     //fs::write("tH.txt", output_string)?;
     
-    let output_vec: Vec<String> = time_list.iter().map(|(_, x, _, _)| x.to_string()).collect();
+    let output_vec: Vec<String> = sizetot.iter().map(|&(x, _,  _, _)| x.to_string()).collect();
     let output_string = output_vec.join(", ");
-    //fs::write("xH.txt", output_string)?;
+    fs::write("xH.txt", output_string)?;
     
-    let output_vec: Vec<String> = time_list.iter().map(|(_, _, y, _)| y.to_string()).collect();
-    let output_string = output_vec.join(", ");
-    //fs::write("yH.txt", output_string)?;
-    
-    let output_vec: Vec<String> = sizetot.iter().map(|(cs, _)| cs.to_string()).collect();
+    let output_vec: Vec<String> = sizetot.iter().map(|&(_, y, _, _)| y.to_string()).collect();
+    let output_string = output_vec.join(", ")
+    fs::write("yH.txt", output_string)?; 
+	
+	
+    let output_vec: Vec<String> = sizetot.iter().map(|(_, _, cs, _)| cs.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("cs.txt", output_string)?;
     
-    let output_vec: Vec<String> = sizetot.iter().map(|(_, stot)| stot.to_string()).collect();
+    let output_vec: Vec<String> = sizetot.iter().map(|(_, _, _, stot)| stot.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("stot.txt", output_string)?;
 
