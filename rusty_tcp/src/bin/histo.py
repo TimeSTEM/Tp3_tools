@@ -13,15 +13,15 @@ print(numpy.mean(cs))
 
 fig, ax = plt.subplots(1, 2, dpi=180)
 plt.subplots_adjust(left=0.25, bottom=0.25)
-ax[0].hist2d(stot, cs, range=[[0, 100], [1, 12]], bins=[10, 11], norm=mcolors.PowerNorm(0.5), cmap='inferno')
-ax[1].hist(stot, bins=50)
+ax[0].hist2d(stot, cs, range=[[0, 600], [1, 18]], bins=[10, 17], norm=mcolors.PowerNorm(0.5), cmap='inferno')
+ax[1].hist(stot, bins=50, range=[0, 600])
 
-#ax[0].set_xlabel('ToT Sum (A.U.)')
-ax[0].set_xlabel('Cluster Radius std (pixels)')
+ax[0].set_xlabel('ToT Sum (A.U.)')
+#ax[0].set_xlabel('Cluster Radius std (pixels)')
 ax[0].set_ylabel('Cluster Size')
 
-#ax[1].set_xlabel('ToT Sum (A.U.)')
-ax[1].set_xlabel('Cluster Radius std (pixels)')
+ax[1].set_xlabel('ToT Sum (A.U.)')
+#ax[1].set_xlabel('Cluster Radius std (pixels)')
 ax[1].set_ylabel('Frequency')
 
 #ax[0].hist(t[indexes], bins=25)
