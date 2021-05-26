@@ -130,12 +130,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut sizetot: Vec<(usize, f32)> = Vec::new();
     let cluster_det = 50.0e-09;
     let mut last: (f64, usize, usize, u16) = time_list[0];
+    let start = Instant::now();
     for x in &time_list {
         if x.0 > last.0 + cluster_det || (x.1 as isize - last.1 as isize).abs() > 2 || (x.2 as isize - last.2 as isize).abs() > 2 {
             let cs = cluster_vec.len();
             let tot:f32 = cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum::<usize>() as f32;
+            
             let tot_mean = tot / cs as f32;
-
+            
             let x:Vec<usize> = cluster_vec.iter().map(|&(_, x, _, _)| x).collect();
             let y:Vec<usize> = cluster_vec.iter().map(|&(_, _, y, _)| y).collect();
             let x_std = std_dev(&x).unwrap();
@@ -143,19 +145,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             //let radius:f32 = (x_std*x_std + y_std*y_std).sqrt();
             
             sizetot.push((cs, tot));
-            if x_std > 1.5 {
-                println!("{:?} and {}", cluster_vec, cluster_vec.len());
-            }
             cluster_vec = Vec::new();
         }
         last = *x;
         cluster_vec.push(*x);
     }
+    println!("Time elapsed during looping over is {:?}", start.elapsed());
 
-    let mut fint = time_list.iter();
-    fint.next();
-    let sint = time_list.iter().zip(time_list.iter().skip(1)).filter(|(&(t1, _x1, _y1, _tot1), &(t2, _x2, _y2, _tot2))| t2>t1+cluster_det);
-    println!("{:?}", sint.count());
+    let mut sint = time_list.iter().zip(time_list.iter().skip(1)).filter(|(&(t1, x1, y1, _tot1), &(t2, x2, y2, _tot2))| t2>t1+cluster_det || (x1 as isize - x2 as isize).abs() > 2 || (y1 as isize - y2 as isize).abs() > 2);
+    let start = Instant::now();
+    while let Some(x) = sint.next() {
+        //println!("{:?}", x);
+    }
+    println!("Time elapsed during looping over using iterator is {:?}", start.elapsed());
 
 
     println!("Number of clusters is: {}", sizetot.len());
