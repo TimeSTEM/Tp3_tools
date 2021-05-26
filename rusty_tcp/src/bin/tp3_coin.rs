@@ -14,8 +14,9 @@ const TIME_WIDTH: f64 = 10.0e-0;
 const TIME_DELAY: f64 = 000.0e-9;
 const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
 const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
+const CLUSTER_DET:f64 = 50.0e-09;
 
-fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], timelist: &mut Vec<(f64, usize, usize, u16)>) -> io::Result<()> {
+fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64, usize, usize, u16)>) -> io::Result<()> {
     
     let mut file = fs::File::open(file)?;
     let mut buffer:Vec<u8> = Vec::new();
@@ -56,7 +57,6 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
                             let veclen = tdc_vec.len().min(2*MIN_LEN);
                             if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], ele_time) {
                                 let y = packet.y();
-                                cele_vec[x]+=1;
                                 timelist.push((ele_time, x, y, packet.tot()));
                                 if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
                                     tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
@@ -75,6 +75,24 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
 
 fn testfunc(tdcrefvec: &[f64], value: f64) -> Option<(usize, f64)> {
     tdcrefvec.iter().cloned().enumerate().filter(|(_, x)| (x-value).abs()<TIME_WIDTH).next()
+}
+
+fn find_centroid(data: &[(f64, usize, usize, u16)]) -> Option<(usize, usize, usize)> {
+    let size = data.len();
+    if size == 0 {return None}
+    let x: usize = data.iter().map(|&(_, x, _, _)| x).sum();
+    let y: usize = data.iter().map(|&(_, _, y, _)| y).sum();
+    let tot: usize = data.iter().map(|&(_, _, _, tot)| tot as usize).sum();
+
+    Some((x / size, y / size, tot / size))
+}
+
+fn cs_tot(data: &[(f64, usize, usize, u16)]) -> Option<(usize, usize)> {
+    let size = data.len();
+    if size == 0 {return None}
+    let totsum: usize = data.iter().map(|&(_, _, _, tot)| tot as usize).sum();
+
+    Some((size, totsum))
 }
 
 fn mean(data: &[usize]) -> Option<f32> {
@@ -101,6 +119,7 @@ fn std_dev(data: &[usize]) -> Option<f32> {
 }
 
 
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut ele_vec:Vec<usize> = vec![0; 1024];
@@ -118,7 +137,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let path = x?.path();
         let dir = path.to_str().unwrap();
         println!("Looping over file {:?}", dir);
-        search_coincidence(dir, &mut ele_vec, &mut cele_vec, &mut time_list)?;
+        search_coincidence(dir, &mut ele_vec, &mut time_list)?;
     }
 
     println!("Number of events in time_list is: {}", time_list.len());
@@ -127,24 +146,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Time elapsed during sorting is {:?}", start.elapsed());
 
     let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
-    let mut sizetot: Vec<(usize, f32)> = Vec::new();
-    let cluster_det = 50.0e-09;
+    let mut sizetot: Vec<(usize, usize)> = Vec::new();
     let mut last: (f64, usize, usize, u16) = time_list[0];
     let start = Instant::now();
     for x in &time_list {
-        if x.0 > last.0 + cluster_det || (x.1 as isize - last.1 as isize).abs() > 2 || (x.2 as isize - last.2 as isize).abs() > 2 {
-            let cs = cluster_vec.len();
-            let tot:f32 = cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum::<usize>() as f32;
+        if x.0 > last.0 + CLUSTER_DET || (x.1 as isize - last.1 as isize).abs() > 2 || (x.2 as isize - last.2 as isize).abs() > 2 {
             
-            let tot_mean = tot / cs as f32;
-            
-            let x:Vec<usize> = cluster_vec.iter().map(|&(_, x, _, _)| x).collect();
-            let y:Vec<usize> = cluster_vec.iter().map(|&(_, _, y, _)| y).collect();
-            let x_std = std_dev(&x).unwrap();
-            let y_std = std_dev(&y).unwrap();
-            //let radius:f32 = (x_std*x_std + y_std*y_std).sqrt();
-            
-            sizetot.push((cs, tot));
+            if let Some(val) = cs_tot(&cluster_vec) {sizetot.push(val);}
+            if let Some(val) = find_centroid(&cluster_vec) {cele_vec[val.0]+=1}
             cluster_vec = Vec::new();
         }
         last = *x;
@@ -152,12 +161,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("Time elapsed during looping over is {:?}", start.elapsed());
 
-    let mut sint = time_list.iter().zip(time_list.iter().skip(1)).filter(|(&(t1, x1, y1, _tot1), &(t2, x2, y2, _tot2))| t2>t1+cluster_det || (x1 as isize - x2 as isize).abs() > 2 || (y1 as isize - y2 as isize).abs() > 2);
-    let start = Instant::now();
-    while let Some(x) = sint.next() {
+    //let mut sint = time_list.iter().zip(time_list.iter().skip(1)).filter(|(&(t1, x1, y1, _tot1), &(t2, x2, y2, _tot2))| t2>t1+CLUSTER_DET || (x1 as isize - x2 as isize).abs() > 2 || (y1 as isize - y2 as isize).abs() > 2);
+    //let start = Instant::now();
+    //while let Some(x) = sint.next() {
         //println!("{:?}", x);
-    }
-    println!("Time elapsed during looping over using iterator is {:?}", start.elapsed());
+    //}
+    //println!("Time elapsed during looping over using iterator is {:?}", start.elapsed());
 
 
     println!("Number of clusters is: {}", sizetot.len());
