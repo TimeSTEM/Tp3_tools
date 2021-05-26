@@ -57,7 +57,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
                             if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], ele_time) {
                                 let y = packet.y();
                                 cele_vec[x]+=1;
-                                timelist.push((ele_time, x, y, packet.tot()));
+                                timelist.push((ele_time*1.0e09, x, y, packet.tot()));
                                 if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
                                     tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
                                 }
@@ -128,7 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
     let mut sizetot: Vec<(usize, f32)> = Vec::new();
-    let cluster_det = 50.0e-9;
+    let cluster_det = 25.0;
     let mut last_time: f64 = time_list[0].0;
     for x in &time_list {
         if x.0 > last_time + cluster_det {
@@ -138,19 +138,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let x:Vec<usize> = cluster_vec.iter().map(|&(_, x, _, _)| x).collect();
             let y:Vec<usize> = cluster_vec.iter().map(|&(_, _, y, _)| y).collect();
-            
             let x_std = std_dev(&x).unwrap();
             let y_std = std_dev(&y).unwrap();
-            let radius:f32 = (x_std*x_std + y_std*y_std).sqrt();
+            //let radius:f32 = (x_std*x_std + y_std*y_std).sqrt();
             
-            if cluster_vec.len() > 1 {
-                sizetot.push((cs, radius));
+            sizetot.push((cs, tot));
+            if x_std > 0.8 && y_std > 0.8 && x_std < 2.0 && y_std < 2.0 {
+                println!("{:?} and {}", cluster_vec, cluster_vec.len());
             }
-            //println!("{:?} and {} and {}", cluster_vec, x_std, radius);
             cluster_vec = Vec::new();
         }
-        cluster_vec.push(*x);
         last_time = x.0;
+        cluster_vec.push(*x);
     }
 
     let mut fint = time_list.iter();
