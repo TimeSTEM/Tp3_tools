@@ -219,13 +219,13 @@ pub mod modes {
                     match packet.id() {
                         11 => {
                             if let Some(x) = packet.x() {
-                                time_list.push((packet.electron_time(), x, packet.y()));
-                                /*let array_pos = match settings.bin {
+                                //time_list.push((packet.electron_time(), x, packet.y()));
+                                let array_pos = match settings.bin {
                                     false => x + 1024*packet.y(),
                                     true => x
                                 };
                                 append_to_array(final_data, array_pos, settings.bytedepth);
-                                */
+                                
                             }
                         },
                         6 if packet.tdc_type() == tdc.tdctype => {
@@ -237,7 +237,7 @@ pub mod modes {
                 },
             };
         };
-        sort_and_append_to_array(time_list, final_data, settings.bin, settings.bytedepth);
+        //sort_and_append_to_array(time_list, final_data, settings.bin, settings.bytedepth);
         has
     }
 
@@ -321,23 +321,25 @@ pub mod modes {
 
 
     fn sort_and_append_to_array(mut tl: Vec<(f64, usize, usize)>, data: &mut [u8], isbin: bool, bytedepth: usize) {
-        tl.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-        let mut t0 = tl[0].0;
-        match isbin {
-            true => {
-                for (t, x, _y) in tl {
-                    if t>t0+CLUSTER_TIME {
-                        append_to_array(data, x, bytedepth);
+        if let Some(val) = tl.get(0) {
+            let mut t0 = val.0;
+            tl.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+            match isbin {
+                true => {
+                    for (t, x, _y) in tl {
+                        if t>t0+CLUSTER_TIME {
+                            append_to_array(data, x, bytedepth);
+                        }
+                        t0 = t;
                     }
-                    t0 = t;
-                }
-            },
-            false => {
-                for (t, x, y) in tl {
-                    if t>t0+CLUSTER_TIME{
-                        append_to_array(data, x+1024*y, bytedepth);
+                },
+                false => {
+                    for (t, x, y) in tl {
+                        if t>t0+CLUSTER_TIME{
+                            append_to_array(data, x+1024*y, bytedepth);
+                        }
+                        t0 = t;
                     }
-                    t0 = t;
                 }
             }
         }
