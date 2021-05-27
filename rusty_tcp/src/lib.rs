@@ -322,23 +322,23 @@ pub mod modes {
 
     fn sort_and_append_to_array(mut tl: Vec<(f64, usize, usize)>, data: &mut [u8], isbin: bool, bytedepth: usize) {
         if let Some(val) = tl.get(0) {
-            let mut t0 = val.0;
+            let mut last = val.clone();
             tl.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
             match isbin {
                 true => {
-                    for (t, x, _y) in tl {
-                        if t>t0+CLUSTER_TIME {
-                            append_to_array(data, x, bytedepth);
+                    for tp in tl {
+                        if tp.0>last.0+CLUSTER_TIME || (tp.1 as isize - last.1 as isize).abs() < 2 || (tp.2 as isize - last.2 as isize).abs() < 2 {
+                            append_to_array(data, last.1, bytedepth);
                         }
-                        t0 = t;
+                        last = tp;
                     }
                 },
                 false => {
-                    for (t, x, y) in tl {
-                        if t>t0+CLUSTER_TIME{
-                            append_to_array(data, x+1024*y, bytedepth);
+                    for tp in tl {
+                        if tp.0>last.0+CLUSTER_TIME || (tp.1 as isize - last.1 as isize).abs() < 2 || (tp.2 as isize - last.2 as isize).abs() < 2 {
+                            append_to_array(data, last.1+1024*last.2, bytedepth);
                         }
-                        t0 = t;
+                        last = tp;
                     }
                 }
             }
