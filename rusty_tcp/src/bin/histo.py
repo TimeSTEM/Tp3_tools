@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.widgets import Slider
 
-#t = numpy.loadtxt("tH.txt", delimiter=',')
+t = numpy.loadtxt("tH.txt", delimiter=',')
 x = numpy.loadtxt("xH.txt", delimiter=',')
 #y = numpy.loadtxt("yH.txt", delimiter=',')
 cs = numpy.loadtxt("cs.txt", delimiter=',')
@@ -11,19 +11,21 @@ stot = numpy.loadtxt("stot.txt", delimiter=',')
 print(numpy.mean(cs))
 #indexes = (x>=0) & (x<=1024)
 
-fig, ax = plt.subplots(1, 3, dpi=180)
+fig, ax = plt.subplots(2, 2, dpi=180)
 plt.subplots_adjust(left=0.25, bottom=0.25)
-ax[0].hist2d(stot, cs, range=[[0, 600], [1, 18]], bins=[10, 17], norm=mcolors.PowerNorm(0.5), cmap='inferno')
-ax[1].hist(stot, bins=50, range=[0, 600])
-ax[2].plot(x)
+ax[0, 0].hist2d(stot, cs, range=[[0, 600], [1, 18]], bins=[10, 17], norm=mcolors.PowerNorm(0.5), cmap='inferno')
+ax[0, 1].hist(stot, bins=50, range=[0, 600])
 
-ax[0].set_xlabel('ToT Sum (A.U.)')
+ax[1, 0].plot(x)
+ax[1, 1].hist(t)
+
+#ax[0].set_xlabel('ToT Sum (A.U.)')
 #ax[0].set_xlabel('Cluster Radius std (pixels)')
-ax[0].set_ylabel('Cluster Size')
+#ax[0].set_ylabel('Cluster Size')
 
-ax[1].set_xlabel('ToT Sum (A.U.)')
-#ax[1].set_xlabel('Cluster Radius std (pixels)')
-ax[1].set_ylabel('Frequency')
+#ax[1].set_xlabel('ToT Sum (A.U.)')
+##ax[1].set_xlabel('Cluster Radius std (pixels)')
+#ax[1].set_ylabel('Frequency')
 
 #ax[0].hist(t[indexes], bins=25)
 #ax[1].hist(x[indexes], bins=1024, range=(0, 1024))

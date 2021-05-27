@@ -10,8 +10,8 @@ use std::io::prelude::*;
 use std::fs;
 use std::time::Instant;
 
-const TIME_WIDTH: f64 = 10.0e-0;
-const TIME_DELAY: f64 = 000.0e-9;
+const TIME_WIDTH: f64 = 1000.0e-9;
+const TIME_DELAY: f64 = 0.0e-9;
 const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
 const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
 const CLUSTER_DET:f64 = 50.0e-09;
@@ -75,6 +75,13 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
 
 fn testfunc(tdcrefvec: &[f64], value: f64) -> Option<(usize, f64)> {
     tdcrefvec.iter().cloned().enumerate().filter(|(_, x)| (x-value).abs()<TIME_WIDTH).next()
+}
+
+fn find_avgt(data: &[(f64, usize, usize, u16)]) -> Option<f64> {
+    let size=data.len();
+    if size==0 {return None}
+    let t: f64 = data.iter().map(|&(t, _, _, _)| t).sum();
+    Some(t / size as f64)
 }
 
 fn find_centroid(data: &[(f64, usize, usize, u16)]) -> Option<(usize, usize, usize)> {
@@ -147,12 +154,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
     let mut sizetot: Vec<(usize, usize)> = Vec::new();
+    let mut newtl: Vec<(f64)> = Vec::new();
+
     let mut last: (f64, usize, usize, u16) = time_list[0];
     let start = Instant::now();
     for x in &time_list {
         if x.0 > last.0 + CLUSTER_DET || (x.1 as isize - last.1 as isize).abs() > 2 || (x.2 as isize - last.2 as isize).abs() > 2 {
             if let Some(val) = cs_tot(&cluster_vec) {sizetot.push(val);}
             if let Some(val) = find_centroid(&cluster_vec) {cele_vec[val.0]+=1}
+            if let Some(val) = find_avgt(&cluster_vec) {newtl.push(val);}
             cluster_vec = Vec::new();
         }
         last = *x;
@@ -163,21 +173,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
     
-    //let output_vec: Vec<String> = time_list.iter().map(|(t, _, _, _)| t.to_string()).collect();
-    //let output_string = output_vec.join(", ");
-    //fs::write("tH.txt", output_string)?;
-    
-    //let output_vec: Vec<String> = time_list.iter().map(|(_, x, _, _)| x.to_string()).collect();
-    //let output_string = output_vec.join(", ");
-    //fs::write("xH.txt", output_string)?;
-    
-    //let output_vec: Vec<String> = time_list.iter().map(|(_, _, y, _)| y.to_string()).collect();
-    //let output_string = output_vec.join(", ");
-    //fs::write("yH.txt", output_string)?;
-    
     let output_vec: Vec<String> = cele_vec.iter().map(|x| x.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("xH.txt", output_string)?;
+    
+    let output_vec: Vec<String> = newtl.iter().map(|t| t.to_string()).collect();
+    let output_string = output_vec.join(", ");
+    fs::write("tH.txt", output_string)?;
 
     let output_vec: Vec<String> = sizetot.iter().map(|(cs, _)| cs.to_string()).collect();
     let output_string = output_vec.join(", ");
