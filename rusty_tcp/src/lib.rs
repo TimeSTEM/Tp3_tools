@@ -169,6 +169,7 @@ pub mod modes {
                     
                     match packet.id() {
                         11 => {
+                            /*
                             if let Some(x) = packet.x() {
                                 let mut ele_time = packet.electron_time();
                                 ele_time -= VIDEO_TIME;
@@ -179,6 +180,8 @@ pub mod modes {
                                     append_to_index_array(&mut index_data, array_pos);
                                 }
                             }
+                            */
+                            
                         },  
                         6 if packet.tdc_type() == line_tdc.tdctype => {
                             line_tdc.upt(packet.tdc_time_norm());
