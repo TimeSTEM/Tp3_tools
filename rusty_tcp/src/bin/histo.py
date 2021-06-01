@@ -17,7 +17,7 @@ ax[0, 0].hist2d(stot, cs, range=[[0, 600], [1, 18]], bins=[10, 17], norm=mcolors
 ax[0, 1].hist(stot, bins=50, range=[0, 600])
 
 ax[1, 0].plot(x)
-ax[1, 1].hist(t)
+ax[1, 1].hist(t, bins=25)
 
 #ax[0].set_xlabel('ToT Sum (A.U.)')
 #ax[0].set_xlabel('Cluster Radius std (pixels)')
