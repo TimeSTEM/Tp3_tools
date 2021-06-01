@@ -4,8 +4,9 @@ import matplotlib.colors as mcolors
 from matplotlib.widgets import Slider
 
 t = numpy.loadtxt("tH.txt", delimiter=',')
-x = numpy.loadtxt("xH.txt", delimiter=',')
-#y = numpy.loadtxt("yH.txt", delimiter=',')
+xy = numpy.loadtxt("xyH.txt", delimiter=',')
+xy = numpy.reshape(xy, (256, 1024))
+x = numpy.sum(xy, axis=0)
 cs = numpy.loadtxt("cs.txt", delimiter=',')
 stot = numpy.loadtxt("stot.txt", delimiter=',')
 print(numpy.mean(cs))
@@ -16,6 +17,7 @@ plt.subplots_adjust(left=0.25, bottom=0.25)
 ax[0, 0].hist2d(stot, cs, range=[[0, 600], [1, 18]], bins=[10, 17], norm=mcolors.PowerNorm(0.5), cmap='inferno')
 ax[0, 1].hist(stot, bins=50, range=[0, 600])
 
+#ax[1, 0].imshow(xy, cmap=plt.cm.inferno)
 ax[1, 0].plot(x)
 ax[1, 1].hist(t, bins=25)
 

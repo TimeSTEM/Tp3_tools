@@ -10,7 +10,7 @@ use std::io::prelude::*;
 use std::fs;
 use std::time::Instant;
 
-const TIME_WIDTH: f64 = 1000.0e-9;
+const TIME_WIDTH: f64 = 1000.0e-0;
 const TIME_DELAY: f64 = 0.0e-9;
 const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
 const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
@@ -130,7 +130,8 @@ fn std_dev(data: &[usize]) -> Option<f32> {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut ele_vec:Vec<usize> = vec![0; 1024];
-    let mut cele_vec:Vec<usize> = vec![0; 1024];
+    let mut cele_vec:Vec<usize> = vec![0; 1024*256];
+    //let mut cele_vec_hist:Vec<(usize, usize)> = Vec::new();
     let mut time_list:Vec<(f64, f64, usize, usize, u16)> = Vec::new();
     let mut xarray:Vec<usize> = vec![0; 1024];
             
@@ -161,7 +162,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for x in &time_list {
         if x.0 > last.0 + CLUSTER_DET || (x.2 as isize - last.2 as isize).abs() > 2 || (x.3 as isize - last.3 as isize).abs() > 2 {
             if let Some(val) = cs_tot(&cluster_vec) {sizetot.push(val);}
-            if let Some(val) = find_centroid(&cluster_vec) {cele_vec[val.0]+=1}
+            if let Some(val) = find_centroid(&cluster_vec) {cele_vec[val.0 + 1024 * val.1]+=1}
             if let Some(val) = find_avgt(&cluster_vec) {newtl.push(val);}
             cluster_vec = Vec::new();
         }
@@ -175,7 +176,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let output_vec: Vec<String> = cele_vec.iter().map(|x| x.to_string()).collect();
     let output_string = output_vec.join(", ");
-    fs::write("xH.txt", output_string)?;
+    fs::write("xyH.txt", output_string)?;
     
     let output_vec: Vec<String> = newtl.iter().map(|t| t.to_string()).collect();
     let output_string = output_vec.join(", ");
