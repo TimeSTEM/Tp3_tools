@@ -25,6 +25,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
     let mytdc = TdcType::TdcTwoRisingEdge;
     let mut ci = 0;
     let mut tdc_vec:Vec<f64> = Vec::new();
+    let mut elist:Vec<(f64, usize, usize)> = Vec::new();
     
     let mut packet_chunks = buffer.chunks_exact(8);
     while let Some(pack_oct) = packet_chunks.next() {
@@ -36,6 +37,11 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
                     6 if packet.tdc_type() == mytdc.associate_value() => {
                         tdc_vec.push(packet.tdc_time_norm()-TIME_DELAY);
                     },
+                    11 => {
+                        if let Some(x) = packet.x() {
+                            elist.push((packet.electron_time(), x, packet.y()));
+                        }
+                    },
                     _ => {},
                 };
             },
@@ -44,7 +50,6 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
 
     let nphotons:usize = tdc_vec.len();
     
-
     let mut packet_chunks = buffer.chunks_exact(8);
     while let Some(x) = packet_chunks.next() {
         match x {
@@ -71,12 +76,29 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
             },
         };
     }
-
     Ok(nphotons)
 }
 
 fn testfunc(tdcrefvec: &[f64], value: f64) -> Option<(usize, f64)> {
     tdcrefvec.iter().cloned().enumerate().filter(|(_, x)| (x-value).abs()<TIME_WIDTH).next()
+}
+
+fn cluster_centroid(electron_list: &[(f64, usize, usize)]) -> Vec<(f64, usize, usize)> {
+    let mut nelist:Vec<(f64, usize, usize)> = Vec::new();
+    let mut last: (f64, usize, usize) = electron_list[0];
+    let mut cluster_vec: Vec<(f64, usize, usize)> = Vec::new();
+    for x in electron_list {
+        if x.0 > last.0 + CLUSTER_DET || (x.1 as isize - last.1 as isize).abs() > 2 || (x.2 as isize - last.2 as isize).abs() > 2 {
+            let t_mean:f64 = cluster_vec.iter().map(|&(t, _, _)| t).sum();
+            let x_mean:usize = cluster_vec.iter().map(|&(_, x, _)| x).sum();
+            let y_mean:usize = cluster_vec.iter().map(|&(_, _, y)| y).sum();
+            nelist.push((t_mean, x_mean, y_mean));
+            cluster_vec = Vec::new();
+        }
+        last = *x;
+        cluster_vec.push(*x);
+    }
+    nelist
 }
 
 fn find_avgt(data: &[(f64, f64, usize, usize, u16)]) -> Option<f64> {
