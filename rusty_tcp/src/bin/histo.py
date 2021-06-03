@@ -19,7 +19,7 @@ ax[0, 1].hist(stot, bins=50, range=[0, 600])
 
 #ax[1, 0].imshow(xy, cmap=plt.cm.inferno)
 ax[1, 0].plot(x)
-ax[1, 1].hist(t, bins=100)
+ax[1, 1].hist(t, bins=1000)
 
 #ax[0].set_xlabel('ToT Sum (A.U.)')
 #ax[0].set_xlabel('Cluster Radius std (pixels)')

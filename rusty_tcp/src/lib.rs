@@ -19,7 +19,7 @@ pub mod modes {
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
     const COIC_TIME: f64 = 25.0e-9;
-    const SPIM_SAVE: usize = 1000;
+    const SPIM_SAVE: usize = 10;
     const CLUSTER_TIME: f64 = 50.0e-09;
     
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
