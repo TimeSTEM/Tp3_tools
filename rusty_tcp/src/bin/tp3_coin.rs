@@ -48,7 +48,24 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
         };
     }
 
+    tdc_vec.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
     let nphotons:usize = tdc_vec.len();
+
+    elist.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+    let eclusters = cluster_centroid(&elist);
+    println!("Electron events: {}. Number of clusters: {}", elist.len(), eclusters.len());
+
+    let mut counter = 0;
+    for val in &eclusters {
+        //let veclen = tdc_vec.len().min(2*MIN_LEN);
+        if let Some((index, pht)) = testfunc(&tdc_vec, val.0) {
+            counter+=1;
+            //if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
+            //    tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
+            //}
+        }
+    }
+    println!("{}", counter);
     
     let mut packet_chunks = buffer.chunks_exact(8);
     while let Some(x) = packet_chunks.next() {
@@ -89,9 +106,10 @@ fn cluster_centroid(electron_list: &[(f64, usize, usize)]) -> Vec<(f64, usize, u
     let mut cluster_vec: Vec<(f64, usize, usize)> = Vec::new();
     for x in electron_list {
         if x.0 > last.0 + CLUSTER_DET || (x.1 as isize - last.1 as isize).abs() > 2 || (x.2 as isize - last.2 as isize).abs() > 2 {
-            let t_mean:f64 = cluster_vec.iter().map(|&(t, _, _)| t).sum();
-            let x_mean:usize = cluster_vec.iter().map(|&(_, x, _)| x).sum();
-            let y_mean:usize = cluster_vec.iter().map(|&(_, _, y)| y).sum();
+            let cluster_size: usize = cluster_vec.len();
+            let t_mean:f64 = cluster_vec.iter().map(|&(t, _, _)| t).sum::<f64>() / cluster_size as f64;
+            let x_mean:usize = cluster_vec.iter().map(|&(_, x, _)| x).sum::<usize>() / cluster_size;
+            let y_mean:usize = cluster_vec.iter().map(|&(_, _, y)| y).sum::<usize>() / cluster_size;
             nelist.push((t_mean, x_mean, y_mean));
             cluster_vec = Vec::new();
         }
