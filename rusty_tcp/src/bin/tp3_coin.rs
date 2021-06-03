@@ -10,13 +10,13 @@ use std::io::prelude::*;
 use std::fs;
 use std::time::Instant;
 
-const TIME_WIDTH: f64 = 1000.0e-0;
+const TIME_WIDTH: f64 = 1000.0e-9;
 const TIME_DELAY: f64 = 0.0e-9;
 const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
 const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
 const CLUSTER_DET:f64 = 50.0e-09;
 
-fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64, f64, usize, usize, u16)>) -> io::Result<()> {
+fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64, f64, usize, usize, u16)>) -> io::Result<usize> {
     
     let mut file = fs::File::open(file)?;
     let mut buffer:Vec<u8> = Vec::new();
@@ -41,6 +41,8 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
             },
         };
     }
+
+    let nphotons:usize = tdc_vec.len();
     
 
     let mut packet_chunks = buffer.chunks_exact(8);
@@ -70,7 +72,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
         };
     }
 
-    Ok(())
+    Ok(nphotons)
 }
 
 fn testfunc(tdcrefvec: &[f64], value: f64) -> Option<(usize, f64)> {
@@ -139,14 +141,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         *val = i;
     }
 
-
+    
+    let mut nphotons = 0usize;
     let mut entries = fs::read_dir("Data")?;
     while let Some(x) = entries.next() {
         let path = x?.path();
         let dir = path.to_str().unwrap();
         println!("Looping over file {:?}", dir);
-        search_coincidence(dir, &mut ele_vec, &mut time_list)?;
+        nphotons += search_coincidence(dir, &mut ele_vec, &mut time_list)?;
     }
+    println!("The number of photons is: {}", nphotons);
 
     println!("Number of events in time_list is: {}", time_list.len());
     let start = Instant::now();
@@ -181,7 +185,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_vec: Vec<String> = newtl.iter().map(|t| t.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("tH.txt", output_string)?;
-
+    
     let output_vec: Vec<String> = sizetot.iter().map(|(cs, _)| cs.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("cs.txt", output_string)?;
