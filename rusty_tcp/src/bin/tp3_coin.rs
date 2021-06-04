@@ -57,17 +57,17 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
 
     let mut counter = 0;
     for val in &eclusters {
-        //let veclen = tdc_vec.len().min(2*MIN_LEN);
+        ele_vec[val.1]+=1;
+        let veclen = tdc_vec.len().min(2*MIN_LEN);
         if let Some((index, pht)) = testfunc(&tdc_vec, val.0) {
             counter+=1;
             timelist.push((val.0, val.0 - pht, val.1, val.2, val.3));
-            //if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
-            //    tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
-            //}
+            if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
+                tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
+            }
         }
     }
     println!("{}", counter);
-
 
     /*
     let mut packet_chunks = buffer.chunks_exact(8);
@@ -97,6 +97,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
         };
     }
     */
+
     Ok(nphotons)
 }
 
@@ -178,15 +179,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut ele_vec:Vec<usize> = vec![0; 1024];
     let mut cele_vec:Vec<usize> = vec![0; 1024*256];
-    //let mut cele_vec_hist:Vec<(usize, usize)> = Vec::new();
     let mut time_list:Vec<(f64, f64, usize, usize, u16)> = Vec::new();
-    let mut xarray:Vec<usize> = vec![0; 1024];
             
-    for (i, val) in xarray.iter_mut().enumerate() {
-        *val = i;
-    }
-
-    
     let mut nphotons = 0usize;
     let mut entries = fs::read_dir("Data")?;
     while let Some(x) = entries.next() {
@@ -197,47 +191,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("The number of photons is: {}", nphotons);
 
-    println!("Number of events in time_list is: {}", time_list.len());
-    let start = Instant::now();
-    time_list.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-    println!("Time elapsed during sorting is {:?}", start.elapsed());
-
-    let mut cluster_vec: Vec<(f64, f64, usize, usize, u16)> = Vec::new();
-    let mut sizetot: Vec<(usize, usize)> = Vec::new();
-    let mut newtl: Vec<(f64)> = Vec::new();
-
-    let mut last: (f64, f64, usize, usize, u16) = time_list[0];
-    let start = Instant::now();
-    for x in &time_list {
-        if x.0 > last.0 + CLUSTER_DET || (x.2 as isize - last.2 as isize).abs() > 2 || (x.3 as isize - last.3 as isize).abs() > 2 {
-            if let Some(val) = cs_tot(&cluster_vec) {sizetot.push(val);}
-            if let Some(val) = find_centroid(&cluster_vec) {cele_vec[val.0 + 1024 * val.1]+=1}
-            if let Some(val) = find_avgt(&cluster_vec) {newtl.push(val);}
-            cluster_vec = Vec::new();
-        }
-        last = *x;
-        cluster_vec.push(*x);
-    }
-    println!("Time elapsed during looping over is {:?}", start.elapsed());
-    println!("Number of clusters is: {}", sizetot.len());
-
-
     
+
+
     let output_vec: Vec<String> = cele_vec.iter().map(|x| x.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("xyH.txt", output_string)?;
     
-    let output_vec: Vec<String> = newtl.iter().map(|t| t.to_string()).collect();
+    let output_vec: Vec<String> = time_list.iter().map(|(_, trel, _, _, _)| trel.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("tH.txt", output_string)?;
     
-    let output_vec: Vec<String> = sizetot.iter().map(|(cs, _)| cs.to_string()).collect();
-    let output_string = output_vec.join(", ");
-    fs::write("cs.txt", output_string)?;
+    //let output_vec: Vec<String> = sizetot.iter().map(|(cs, _)| cs.to_string()).collect();
+    //let output_string = output_vec.join(", ");
+    //fs::write("cs.txt", output_string)?;
     
-    let output_vec: Vec<String> = sizetot.iter().map(|(_, stot)| stot.to_string()).collect();
-    let output_string = output_vec.join(", ");
-    fs::write("stot.txt", output_string)?;
+    //let output_vec: Vec<String> = sizetot.iter().map(|(_, stot)| stot.to_string()).collect();
+    //let output_string = output_vec.join(", ");
+    //fs::write("stot.txt", output_string)?;
 
     /*
     let max = ele_vec.iter().fold(0, |acc, &x|
