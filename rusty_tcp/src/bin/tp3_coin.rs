@@ -10,13 +10,13 @@ use std::io::prelude::*;
 use std::fs;
 use std::time::Instant;
 
-const TIME_WIDTH: f64 = 1000.0e-9;
-const TIME_DELAY: f64 = 0.0e-9;
+const TIME_WIDTH: f64 = 25.0e-9;
+const TIME_DELAY: f64 = 150.0e-9;
 const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
 const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
 const CLUSTER_DET:f64 = 50.0e-09;
 
-fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], timelist: &mut Vec<(f64, f64, usize, usize, u16)>) -> io::Result<usize> {
+fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], clusterlist: &mut Vec<(f64, f64, usize, usize, u16, usize)>) -> io::Result<usize> {
     
     let mut file = fs::File::open(file)?;
     let mut buffer:Vec<u8> = Vec::new();
@@ -59,10 +59,10 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
     for val in &eclusters {
         ele_vec[val.1]+=1;
         let veclen = tdc_vec.len().min(2*MIN_LEN);
-        if let Some((index, pht)) = testfunc(&tdc_vec, val.0) {
+        if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], val.0) {
             counter+=1;
             cele_vec[val.1+1024*val.2]+=1;
-            timelist.push((val.0, val.0 - pht, val.1, val.2, val.3));
+            clusterlist.push((val.0, val.0 - pht, val.1, val.2, val.3, val.4));
             if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
                 tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
             }
@@ -106,8 +106,8 @@ fn testfunc(tdcrefvec: &[f64], value: f64) -> Option<(usize, f64)> {
     tdcrefvec.iter().cloned().enumerate().filter(|(_, x)| (x-value).abs()<TIME_WIDTH).next()
 }
 
-fn cluster_centroid(electron_list: &[(f64, usize, usize, u16)]) -> Vec<(f64, usize, usize, u16)> {
-    let mut nelist:Vec<(f64, usize, usize, u16)> = Vec::new();
+fn cluster_centroid(electron_list: &[(f64, usize, usize, u16)]) -> Vec<(f64, usize, usize, u16, usize)> {
+    let mut nelist:Vec<(f64, usize, usize, u16, usize)> = Vec::new();
     let mut last: (f64, usize, usize, u16) = electron_list[0];
     let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
     for x in electron_list {
@@ -117,7 +117,7 @@ fn cluster_centroid(electron_list: &[(f64, usize, usize, u16)]) -> Vec<(f64, usi
             let x_mean:usize = cluster_vec.iter().map(|&(_, x, _, _)| x).sum::<usize>() / cluster_size;
             let y_mean:usize = cluster_vec.iter().map(|&(_, _, y, _)| y).sum::<usize>() / cluster_size;
             let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum::<usize>() / cluster_size) as u16;
-            nelist.push((t_mean, x_mean, y_mean, tot_mean));
+            nelist.push((t_mean, x_mean, y_mean, tot_mean, cluster_size));
             cluster_vec = Vec::new();
         }
         last = *x;
@@ -130,7 +130,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut ele_vec:Vec<usize> = vec![0; 1024];
     let mut cele_vec:Vec<usize> = vec![0; 1024*256];
-    let mut time_list:Vec<(f64, f64, usize, usize, u16)> = Vec::new();
+    let mut cluster_list:Vec<(f64, f64, usize, usize, u16, usize)> = Vec::new();
             
     let mut nphotons = 0usize;
     let mut entries = fs::read_dir("Data")?;
@@ -138,21 +138,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let path = x?.path();
         let dir = path.to_str().unwrap();
         println!("Looping over file {:?}", dir);
-        nphotons += search_coincidence(dir, &mut ele_vec, &mut cele_vec, &mut time_list)?;
+        nphotons += search_coincidence(dir, &mut ele_vec, &mut cele_vec, &mut cluster_list)?;
     }
     println!("The number of photons is: {}", nphotons);
-
-    
-
 
     let output_vec: Vec<String> = cele_vec.iter().map(|x| x.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("xyH.txt", output_string)?;
     
-    let output_vec: Vec<String> = time_list.iter().map(|(_, trel, _, _, _)| trel.to_string()).collect();
+    let output_vec: Vec<String> = ele_vec.iter().map(|x| x.to_string()).collect();
+    let output_string = output_vec.join(", ");
+    fs::write("xHT.txt", output_string)?;
+    
+    let output_vec: Vec<String> = cluster_list.iter().map(|(_, trel, _, _, _, _)| trel.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("tH.txt", output_string)?;
     
+    let output_vec: Vec<String> = cluster_list.iter().map(|&(_, _, _, _, tot, cs)| (tot as usize*cs).to_string()).collect();
+    let output_string = output_vec.join(", ");
+    fs::write("stot.txt", output_string)?;
+    
+    let output_vec: Vec<String> = cluster_list.iter().map(|(_, _, _, _, _, cs)| cs.to_string()).collect();
+    let output_string = output_vec.join(", ");
+    fs::write("cs.txt", output_string)?;
+ 
+
+
     //let output_vec: Vec<String> = sizetot.iter().map(|(cs, _)| cs.to_string()).collect();
     //let output_string = output_vec.join(", ");
     //fs::write("cs.txt", output_string)?;
