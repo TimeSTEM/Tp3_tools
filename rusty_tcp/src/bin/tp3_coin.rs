@@ -25,7 +25,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
     let mytdc = TdcType::TdcTwoRisingEdge;
     let mut ci = 0;
     let mut tdc_vec:Vec<f64> = Vec::new();
-    let mut elist:Vec<(f64, usize, usize)> = Vec::new();
+    let mut elist:Vec<(f64, usize, usize, u16)> = Vec::new();
     
     let mut packet_chunks = buffer.chunks_exact(8);
     while let Some(pack_oct) = packet_chunks.next() {
@@ -39,7 +39,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
                     },
                     11 => {
                         if let Some(x) = packet.x() {
-                            elist.push((packet.electron_time(), x, packet.y()));
+                            elist.push((packet.electron_time(), x, packet.y(), packet.tot()));
                         }
                     },
                     _ => {},
@@ -60,13 +60,16 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
         //let veclen = tdc_vec.len().min(2*MIN_LEN);
         if let Some((index, pht)) = testfunc(&tdc_vec, val.0) {
             counter+=1;
+            timelist.push((val.0, val.0 - pht, val.1, val.2, val.3));
             //if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
             //    tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
             //}
         }
     }
     println!("{}", counter);
-    
+
+
+    /*
     let mut packet_chunks = buffer.chunks_exact(8);
     while let Some(x) = packet_chunks.next() {
         match x {
@@ -81,7 +84,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
                             let veclen = tdc_vec.len().min(2*MIN_LEN);
                             if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], ele_time) {
                                 let y = packet.y();
-                                timelist.push((ele_time, ele_time - pht, x, y, packet.tot()));
+                                //timelist.push((ele_time, ele_time - pht, x, y, packet.tot()));
                                 if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
                                     tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
                                 }
@@ -93,6 +96,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
             },
         };
     }
+    */
     Ok(nphotons)
 }
 
@@ -100,17 +104,18 @@ fn testfunc(tdcrefvec: &[f64], value: f64) -> Option<(usize, f64)> {
     tdcrefvec.iter().cloned().enumerate().filter(|(_, x)| (x-value).abs()<TIME_WIDTH).next()
 }
 
-fn cluster_centroid(electron_list: &[(f64, usize, usize)]) -> Vec<(f64, usize, usize)> {
-    let mut nelist:Vec<(f64, usize, usize)> = Vec::new();
-    let mut last: (f64, usize, usize) = electron_list[0];
-    let mut cluster_vec: Vec<(f64, usize, usize)> = Vec::new();
+fn cluster_centroid(electron_list: &[(f64, usize, usize, u16)]) -> Vec<(f64, usize, usize, u16)> {
+    let mut nelist:Vec<(f64, usize, usize, u16)> = Vec::new();
+    let mut last: (f64, usize, usize, u16) = electron_list[0];
+    let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
     for x in electron_list {
         if x.0 > last.0 + CLUSTER_DET || (x.1 as isize - last.1 as isize).abs() > 2 || (x.2 as isize - last.2 as isize).abs() > 2 {
             let cluster_size: usize = cluster_vec.len();
-            let t_mean:f64 = cluster_vec.iter().map(|&(t, _, _)| t).sum::<f64>() / cluster_size as f64;
-            let x_mean:usize = cluster_vec.iter().map(|&(_, x, _)| x).sum::<usize>() / cluster_size;
-            let y_mean:usize = cluster_vec.iter().map(|&(_, _, y)| y).sum::<usize>() / cluster_size;
-            nelist.push((t_mean, x_mean, y_mean));
+            let t_mean:f64 = cluster_vec.iter().map(|&(t, _, _, _)| t).sum::<f64>() / cluster_size as f64;
+            let x_mean:usize = cluster_vec.iter().map(|&(_, x, _, _)| x).sum::<usize>() / cluster_size;
+            let y_mean:usize = cluster_vec.iter().map(|&(_, _, y, _)| y).sum::<usize>() / cluster_size;
+            let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum::<usize>() / cluster_size) as u16;
+            nelist.push((t_mean, x_mean, y_mean, tot_mean));
             cluster_vec = Vec::new();
         }
         last = *x;

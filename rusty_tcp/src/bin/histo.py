@@ -15,11 +15,11 @@ print(numpy.mean(cs))
 fig, ax = plt.subplots(2, 2, dpi=180)
 plt.subplots_adjust(left=0.25, bottom=0.25)
 ax[0, 0].hist2d(stot, cs, range=[[0, 600], [1, 18]], bins=[10, 17], norm=mcolors.PowerNorm(0.5), cmap='inferno')
-ax[0, 1].hist(stot, bins=50, range=[0, 600])
+ax[0, 1].hist(stot, bins=100, range=[0, 600])
 
 #ax[1, 0].imshow(xy, cmap=plt.cm.inferno)
 ax[1, 0].plot(x)
-ax[1, 1].hist(t, bins=1000)
+ax[1, 1].hist(t, bins=100)
 
 #ax[0].set_xlabel('ToT Sum (A.U.)')
 #ax[0].set_xlabel('Cluster Radius std (pixels)')
