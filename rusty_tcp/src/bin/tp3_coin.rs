@@ -16,7 +16,7 @@ const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over
 const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
 const CLUSTER_DET:f64 = 50.0e-09;
 
-fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64, f64, usize, usize, u16)>) -> io::Result<usize> {
+fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], timelist: &mut Vec<(f64, f64, usize, usize, u16)>) -> io::Result<usize> {
     
     let mut file = fs::File::open(file)?;
     let mut buffer:Vec<u8> = Vec::new();
@@ -61,6 +61,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], timelist: &mut Vec<(f64
         let veclen = tdc_vec.len().min(2*MIN_LEN);
         if let Some((index, pht)) = testfunc(&tdc_vec, val.0) {
             counter+=1;
+            cele_vec[val.1+1024*val.2]+=1;
             timelist.push((val.0, val.0 - pht, val.1, val.2, val.3));
             if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
                 tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
@@ -125,56 +126,6 @@ fn cluster_centroid(electron_list: &[(f64, usize, usize, u16)]) -> Vec<(f64, usi
     nelist
 }
 
-fn find_avgt(data: &[(f64, f64, usize, usize, u16)]) -> Option<f64> {
-    let size=data.len();
-    if size==0 {return None}
-    let t: f64 = data.iter().map(|&(_, tph, _, _, _)| tph).sum();
-    Some(t / size as f64)
-}
-
-fn find_centroid(data: &[(f64, f64, usize, usize, u16)]) -> Option<(usize, usize, usize)> {
-    let size = data.len();
-    if size == 0 {return None}
-    let x: usize = data.iter().map(|&(_, _, x, _, _)| x).sum();
-    let y: usize = data.iter().map(|&(_, _, _, y, _)| y).sum();
-    let tot: usize = data.iter().map(|&(_, _, _, _, tot)| tot as usize).sum();
-
-    Some((x / size, y / size, tot / size))
-}
-
-fn cs_tot(data: &[(f64, f64, usize, usize, u16)]) -> Option<(usize, usize)> {
-    let size = data.len();
-    if size == 0 {return None}
-    let totsum: usize = data.iter().map(|&(_, _, _, _, tot)| tot as usize).sum();
-
-    Some((size, totsum))
-}
-
-fn mean(data: &[usize]) -> Option<f32> {
-    let sum = data.iter().sum::<usize>() as f32;
-    let size = data.len();
-    
-    match size {
-        size if size > 0 => Some(sum / size as f32),
-        _ => None
-    }
-}
-
-fn std_dev(data: &[usize]) -> Option<f32> {
-    match (mean(data), data.len()) {
-        (Some(data_mean), size) if size > 0 => {
-            let variance = data.iter().map(|value| {
-                let diff = data_mean - (*value as f32);
-                diff*diff
-            }).sum::<f32>() / size as f32;
-            Some(variance.sqrt())
-        },
-        _ => None
-    }
-}
-
-
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut ele_vec:Vec<usize> = vec![0; 1024];
@@ -187,7 +138,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let path = x?.path();
         let dir = path.to_str().unwrap();
         println!("Looping over file {:?}", dir);
-        nphotons += search_coincidence(dir, &mut ele_vec, &mut time_list)?;
+        nphotons += search_coincidence(dir, &mut ele_vec, &mut cele_vec, &mut time_list)?;
     }
     println!("The number of photons is: {}", nphotons);
 
