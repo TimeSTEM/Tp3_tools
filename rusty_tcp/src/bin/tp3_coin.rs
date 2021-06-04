@@ -70,35 +70,6 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
     }
     println!("{}", counter);
 
-    /*
-    let mut packet_chunks = buffer.chunks_exact(8);
-    while let Some(x) = packet_chunks.next() {
-        match x {
-            &[84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
-            _ => {
-                let packet = Packet { chip_index: ci, data: x };
-                match packet.id() {
-                    11 => {
-                        if let Some(x) = packet.x() {
-                            ele_vec[x]+=1;
-                            let ele_time = packet.electron_time();
-                            let veclen = tdc_vec.len().min(2*MIN_LEN);
-                            if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], ele_time) {
-                                let y = packet.y();
-                                //timelist.push((ele_time, ele_time - pht, x, y, packet.tot()));
-                                if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
-                                    tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
-                                }
-                            }
-                        }
-                    },
-                    _ => {},
-                };
-            },
-        };
-    }
-    */
-
     Ok(nphotons)
 }
 
@@ -162,76 +133,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_string = output_vec.join(", ");
     fs::write("cs.txt", output_string)?;
  
-
-
-    //let output_vec: Vec<String> = sizetot.iter().map(|(cs, _)| cs.to_string()).collect();
-    //let output_string = output_vec.join(", ");
-    //fs::write("cs.txt", output_string)?;
-    
-    //let output_vec: Vec<String> = sizetot.iter().map(|(_, stot)| stot.to_string()).collect();
-    //let output_string = output_vec.join(", ");
-    //fs::write("stot.txt", output_string)?;
-
-    /*
-    let max = ele_vec.iter().fold(0, |acc, &x|
-                                       if acc>x {acc} else {x}
-                                       );
-    
-    let cmax = cele_vec.iter().fold(0, |acc, &x|
-                                       if acc>x {acc} else {x}
-                                       );
-
-    let vecsum:usize = cele_vec.iter().sum();
-
-    println!("Maximum value is: {} and sum is: {}", cmax, vecsum);
-
-    let root = BitMapBackend::new("out.png", (2000, 1200)).into_drawing_area();
-    root.fill(&WHITE)?;
-    //let root = root.margin(10, 10, 10, 10);
-    let mut chart = ChartBuilder::on(&root)
-        .caption("TP3 Coincidence", ("sans_serif", 32).into_font())
-        .x_label_area_size(40)
-        .y_label_area_size(40)
-        .right_y_label_area_size(40)
-        .build_cartesian_2d(0f32..1024f32, 0f32..max as f32)?
-        .set_secondary_coord(0f32..1024f32, 0f32..cmax as f32); 
-
-    chart
-        .configure_mesh()
-        .disable_x_mesh()
-        .disable_y_mesh()
-        .y_desc("EELS")
-        .y_label_formatter(&|x| format!("{:e}", x))
-        .draw()?;
-
-    chart
-        .configure_secondary_axes()
-        .y_desc("Coinc. EELS")
-        .draw()?;
-
-    chart
-        .draw_series(LineSeries::new(
-            xarray.iter().zip(ele_vec.iter()).map(|(a, b)| (*a as f32, *b as f32)),
-            &RED,
-        ))?
-        .label("EELS")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x +20, y)], &RED));
-    
-    chart
-        .draw_secondary_series(LineSeries::new(
-            xarray.iter().zip(cele_vec.iter()).map(|(a, b)| (*a as f32, *b as f32)),
-            &BLUE,
-        ))?
-        .label("cEELS")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x +20, y)], &BLUE));
-
-    chart
-        .configure_series_labels()
-        .background_style(&WHITE.mix(0.8))
-        .border_style(&BLACK)
-        .draw()?;
-
-    */
     Ok(())
 }
 
