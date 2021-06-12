@@ -10,7 +10,7 @@ use std::io::prelude::*;
 use std::fs;
 use std::time::Instant;
 
-const TIME_WIDTH: f64 = 25.0e-9;
+const TIME_WIDTH: f64 = 50.0e-9;
 const TIME_DELAY: f64 = 165.0e-9;
 const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
 const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
@@ -53,7 +53,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
 
     elist.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
     let eclusters = cluster_centroid(&elist);
-    println!("Electron events: {}. Number of clusters: {}", elist.len(), eclusters.len());
+    println!("Electron events: {}. Number of clusters: {}. Ratio: {}", elist.len(), eclusters.len(), elist.len() as f32 / eclusters.len() as f32);
 
     let mut counter = 0;
     for val in &eclusters {
@@ -68,7 +68,7 @@ fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize],
             }
         }
     }
-    println!("{}", counter);
+    println!("The number of correlated clusters is: {}. Number of detected TDC's is: {}.", counter, nphotons);
 
     Ok(nphotons)
 }
@@ -88,6 +88,7 @@ fn cluster_centroid(electron_list: &[(f64, usize, usize, u16)]) -> Vec<(f64, usi
             let x_mean:usize = cluster_vec.iter().map(|&(_, x, _, _)| x).sum::<usize>() / cluster_size;
             let y_mean:usize = cluster_vec.iter().map(|&(_, _, y, _)| y).sum::<usize>() / cluster_size;
             let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum::<usize>() / cluster_size) as u16;
+            println!("{:?} and {}", cluster_vec, t_mean);
             nelist.push((t_mean, x_mean, y_mean, tot_mean, cluster_size));
             cluster_vec = Vec::new();
         }

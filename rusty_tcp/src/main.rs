@@ -1,4 +1,5 @@
 use std::io::prelude::*;
+use std::thread;
 use std::net::{Shutdown, TcpListener};
 use std::time::Instant;
 use timepix3::auxiliar::{RunningMode, BytesConfig, Settings};
@@ -130,15 +131,17 @@ fn connect_and_loop(runmode: RunningMode) {
         2 => {
             let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
 
-            loop {
-                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                    if size>0 {
-                        let new_data = &buffer_pack_data[0..size];
-                        let result = modes::build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
-                        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-                    } else {println!("Received zero packages from TP3."); break;}
+            //thread::spawn(move || {
+                loop {
+                        if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                            if size>0 {
+                                let new_data = &buffer_pack_data[0..size];
+                                let result = modes::build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
+                                if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+                            } else {println!("Received zero packages from TP3."); break;}
+                        }
                 }
-            }
+            //});
         },
         3 => {
             let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
@@ -198,8 +201,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        //let myrun = RunningMode::DebugStem7482;
-        let myrun = RunningMode::Tp3;
+        let myrun = RunningMode::DebugStem7482;
+        //let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
