@@ -1,5 +1,6 @@
 use std::io::prelude::*;
 use std::thread;
+use std::sync::mpsc;
 use std::net::{Shutdown, TcpListener};
 use std::time::Instant;
 use timepix3::auxiliar::{RunningMode, BytesConfig, Settings};
@@ -19,8 +20,8 @@ fn connect_and_loop(runmode: RunningMode) {
     
     let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
     println!("Nionswift connected at {:?}", ns_addr);
-    let (mut ns_sock02, ns_addr02) = ns_listener.accept().expect("Could not connect to Nionswift auxiliar client.");
-    println!("Nionswift aux. connected at {:?}", ns_addr02);
+    //let (mut ns_sock02, ns_addr02) = ns_listener.accept().expect("Could not connect to Nionswift auxiliar client.");
+    //println!("Nionswift aux. connected at {:?}", ns_addr02);
     
 
     let my_settings: Settings;
@@ -134,18 +135,24 @@ fn connect_and_loop(runmode: RunningMode) {
         },
         2 => {
             let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
-
-            //thread::spawn(move || {
+            let (tx, rx) = mpsc::channel();
+            
+            thread::spawn(move || {
                 loop {
-                        if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                            if size>0 {
-                                let new_data = &buffer_pack_data[0..size];
-                                let result = modes::build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
-                                if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-                            } else {println!("Received zero packages from TP3."); break;}
-                        }
+                    if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                        if size>0 {
+                            let new_data = &buffer_pack_data[0..size];
+                            let result = modes::build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
+                            tx.send(result).expect("Cannot send data over the thread channel.");
+                        } else {println!("Received zero packages from TP3."); break;}
+                    }
                 }
-            //});
+            });
+
+            loop {
+                let result = rx.recv().unwrap();
+                if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+            }
         },
         3 => {
             let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
