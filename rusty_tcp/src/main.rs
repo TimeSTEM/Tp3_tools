@@ -16,8 +16,12 @@ fn connect_and_loop(runmode: RunningMode) {
 
     let (mut pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
     println!("Localhost TP3 detected at {:?}", packet_addr);
+    
     let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
     println!("Nionswift connected at {:?}", ns_addr);
+    let (mut ns_sock02, ns_addr02) = ns_listener.accept().expect("Could not connect to Nionswift auxiliar client.");
+    println!("Nionswift aux. connected at {:?}", ns_addr02);
+    
 
     let my_settings: Settings;
     {
