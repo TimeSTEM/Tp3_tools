@@ -150,8 +150,10 @@ fn connect_and_loop(runmode: RunningMode) {
             });
 
             loop {
-                let result = rx.recv().unwrap();
-                if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+                if let Ok(tl) = rx.recv() {
+                    let result = modes::sort_and_append_to_index(tl);
+                    if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+                } else {break;}
             }
         },
         3 => {

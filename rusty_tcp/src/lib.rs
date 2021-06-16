@@ -24,7 +24,7 @@ pub mod modes {
     
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
-    pub fn build_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Vec<u8> {
+    pub fn build_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Vec<(f64, usize, usize)> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
         let mut timelist:Vec<(f64, usize, usize)> = Vec::new();
@@ -59,7 +59,7 @@ pub mod modes {
                 },
             };
         };
-        sort_and_append_to_index(timelist)
+        timelist
         //index_data
     }
     
@@ -381,7 +381,7 @@ pub mod modes {
         }
     }
     
-    fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize)>) -> Vec<u8> {
+    pub fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize)>) -> Vec<u8> {
         let mut index_array: Vec<u8> = Vec::new();
         if let Some(val) = tl.get(0) {
             let mut last = val.clone();
