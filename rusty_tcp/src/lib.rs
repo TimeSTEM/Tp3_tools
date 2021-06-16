@@ -27,6 +27,7 @@ pub mod modes {
     pub fn build_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Vec<u8> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut index_data:Vec<u8> = Vec::new();
+        let mut timelist:Vec<(f64, usize, usize)> = Vec::new();
         let interval = line_tdc.low_time;
         let period = line_tdc.period;
 
@@ -41,10 +42,11 @@ pub mod modes {
                             if let Some(x) = packet.x() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
                                 if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
-                                    let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
-                                    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                    let array_pos = x + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
-                                    append_to_index_array(&mut index_data, array_pos);
+                                    let line = (((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
+                                    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
+                                    let array_pos = x + line + xpos;
+                                    timelist.push((ele_time, x, array_pos));
+                                    //append_to_index_array(&mut index_data, array_pos);
                                 }
                             }
                             
@@ -57,7 +59,8 @@ pub mod modes {
                 },
             };
         };
-        index_data
+        sort_and_append_to_index(timelist)
+        //index_data
     }
     
     ///Returns None and saves locally the spectral image every 10 complete scan lines. Slice time
@@ -376,6 +379,21 @@ pub mod modes {
             },
             _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
         }
+    }
+    
+    fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize)>) -> Vec<u8> {
+        let mut index_array: Vec<u8> = Vec::new();
+        if let Some(val) = tl.get(0) {
+            let mut last = val.clone();
+            tl.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+            for tp in tl {
+                if tp.0>last.0+CLUSTER_TIME || (tp.1 as isize - last.1 as isize).abs() < 2 {
+                    append_to_index_array(&mut index_array, tp.2);
+                }
+                last = tp;
+            }
+        }
+        index_array
     }
     
     ///Append a single electron to a index list. Used mainly for spectral image, where a list of
