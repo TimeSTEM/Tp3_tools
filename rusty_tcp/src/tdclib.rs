@@ -1,6 +1,14 @@
 //!`tdclib` is a collection of tools to facilitate manipulation and choice of tdcs. Module is built
 //!in around `TdcType` enum.
 
+use std::net::TcpStream;
+use std::io::Read;
+
+fn test() {
+    println!("test");
+}
+
+
 ///The four types of TDC's.
 pub enum TdcType {
     TdcOneRisingEdge,
@@ -156,7 +164,61 @@ impl PeriodicTdcRef {
             time: last_time,
         }
     }
+    
+    fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
+        use crate::packetlib::Packet;
+        
+        let file_data = data;
+        let mut packet_chunks = file_data.chunks_exact(8);
 
+        while let Some(x) = packet_chunks.next() {
+            match x {
+                &[84, 80, 88, 51, nci, _, _, _] => {*last_ci = nci},
+                _ => {
+                    let packet = Packet { chip_index: *last_ci, data: x};
+                    
+                    match packet.id() {
+                        6 => {
+                            let time = packet.tdc_time_norm();
+                            let tdc = TdcType::associate_value_to_enum(packet.tdc_type()).unwrap();
+                            tdc_vec.push( (time, tdc) );
+                        },
+                        _ => {},
+                    };
+                },
+            };
+        };
+    }
+    
+    pub fn tcp_new_ref(tdc_type: TdcType, sock: &mut TcpStream) {
+
+        let mut buffer_pack_data = vec![0; 16384];
+        let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
+        let mut ci = 0u8;
+
+        if let Ok(size) = sock.read(&mut buffer_pack_data) {
+            if size>0 {
+                let new_data = &buffer_pack_data[0..size];
+                PeriodicTdcRef::search_any_tdc(new_data, &mut tdc_vec, &mut ci);
+            }
+        }
+        
+            //let tdc_type: Vec<(f64, TdcType)> = Vec::new();
+        //loop {
+        //    if let Ok(size) = sock.read(&mut buffer_pack_data) {
+        //        if size>0 {
+         //           let new_data = &buffer_pack_data[0..size];
+                    //misc::search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
+                    //match my_settings.mode {
+                    //    0 | 2 | 4 | 5 => {if TdcType::check_all_tdcs(&[5, 5, 0, 0], &tdc_vec)==true {break}},
+                    //    1 | 3 => {if TdcType::check_all_tdcs(&[5, 5, 5, 5], &tdc_vec)==true {break}},
+                    //    _ => panic!("Unknown mode."),
+                    //}
+                    
+          //      }
+           // }
+       // }
+    }
 }
 
 pub struct NonPeriodicTdcRef {
