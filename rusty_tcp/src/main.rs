@@ -70,36 +70,28 @@ fn connect_and_loop(runmode: RunningMode) {
         0 => {
             let mut frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneRisingEdge);
             
-            let mut data_array:Vec<u8> = if my_settings.bin {vec![0; my_settings.bytedepth*1024]} else {vec![0; 256*my_settings.bytedepth*1024]};
+            let mut data_array:Vec<u8> = vec![0; (255*!my_settings.bin as usize + 1)*my_settings.bytedepth*1024];
             data_array.push(10);
             
-            'global: loop {
-                match my_settings.cumul {
-                    false => {
-                        data_array = if my_settings.bin {vec![0; my_settings.bytedepth*1024]} else {vec![0; 256*my_settings.bytedepth*1024]};
-                        data_array.push(10);
-                    },
-                    true => {},
-                }
-
                 loop {
                     if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                         if size>0 {
                             let new_data = &buffer_pack_data[0..size];
                             if modes::build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc) {
                                 let msg = misc::create_header(&my_settings, &frame_tdc);
-                                if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'global;}
-                                if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'global;}
-                                //let sum = data_array.iter();
-                                //let sum:usize = data_array.iter().map(|x| *x as usize).sum();
-                                //println!("{}", sum);
-                                break;
+                                if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
+                                if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
+                                
+                                if my_settings.cumul == false {
+                                    data_array = vec![0; (255*!my_settings.bin as usize + 1)*my_settings.bytedepth*1024];
+                                    data_array.push(10);
+                                }
+
+                               if frame_tdc.counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter);}
                             }
-                        } else {println!("Received zero packages"); break 'global;}
+                        } else {println!("Received zero packages"); break;}
                     }
                 }
-                if frame_tdc.counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter);}
-            }
         },
         1 => {
             let mut frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneRisingEdge);
@@ -214,8 +206,8 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        //let myrun = RunningMode::DebugStem7482;
-        let myrun = RunningMode::Tp3;
+        let myrun = RunningMode::DebugStem7482;
+        //let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
         connect_and_loop(myrun);
     }
