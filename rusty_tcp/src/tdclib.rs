@@ -254,7 +254,7 @@ impl PeriodicTdcRef {
         let high_time = tdcvec::find_high_time(tdc_vec, &tdc_type);
         let period = tdcvec::find_period(tdc_vec, &tdc_type);
         let low_time = period - high_time;
-        println!("Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ms) is {}. ON interval (ms) is {}. Period (ms) is {}.", tdc_type.associate_str(), counter, last_time*1.0e3, high_time*1.0e3, period*1.0e3);
+        println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ms) is {}. ON interval (ms) is {}. Period (ms) is {}.", tdc_type.associate_str(), counter, last_time*1.0e3, high_time*1.0e3, period*1.0e3);
         PeriodicTdcRef {
             tdctype: tdc_type.associate_value(),
             counter: counter,
@@ -265,14 +265,14 @@ impl PeriodicTdcRef {
         }
     }
     
-    pub fn tcp_new_ref(tdc_type: TdcType, sock: &mut TcpStream) {
+    pub fn tcp_new_ref(tdc_type: TdcType, sock: &mut TcpStream) -> PeriodicTdcRef {
 
         let mut buffer_pack_data = vec![0; 16384];
         let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
         let mut ci = 0u8;
 
 
-        println!("Searching for Tdc {}", tdc_type.associate_str());
+        println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
         loop {
             if let Ok(size) = sock.read(&mut buffer_pack_data) {
                 if size>0 {
@@ -283,22 +283,22 @@ impl PeriodicTdcRef {
             }
         }
         
-            //let tdc_type: Vec<(f64, TdcType)> = Vec::new();
-        //loop {
-        //    if let Ok(size) = sock.read(&mut buffer_pack_data) {
-        //        if size>0 {
-         //           let new_data = &buffer_pack_data[0..size];
-                    //misc::search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
-                    //match my_settings.mode {
-                    //    0 | 2 | 4 | 5 => {if TdcType::check_all_tdcs(&[5, 5, 0, 0], &tdc_vec)==true {break}},
-                    //    1 | 3 => {if TdcType::check_all_tdcs(&[5, 5, 5, 5], &tdc_vec)==true {break}},
-                    //    _ => panic!("Unknown mode."),
-                    //}
-                    
-          //      }
-           // }
-       // }
+        let counter = tdcvec::get_counter(&tdc_vec, &tdc_type);
+        let last_time = tdcvec::get_lasttime(&tdc_vec, &tdc_type);
+        let high_time = tdcvec::find_high_time(&tdc_vec, &tdc_type);
+        let period = tdcvec::find_period(&tdc_vec, &tdc_type);
+        let low_time = period - high_time;
+        println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ms) is {}. ON interval (ms) is {}. Period (ms) is {}.", tdc_type.associate_str(), counter, last_time*1.0e3, high_time*1.0e3, period*1.0e3);
+        PeriodicTdcRef {
+            tdctype: tdc_type.associate_value(),
+            counter: counter,
+            period: period,
+            high_time: high_time,
+            low_time: low_time,
+            time: last_time,
+        }
     }
+
 }
 
 pub struct NonPeriodicTdcRef {
