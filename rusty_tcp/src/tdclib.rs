@@ -41,6 +41,62 @@ mod tdcvec {
         }
         if counter>=5 {true} else {false}
     }
+    
+    ///Outputs the time list for a specific TDC.
+    fn get_timelist(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> Vec<f64> {
+        let result: Vec<_> = tdc_vec.iter()
+            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
+            .map(|(time, _tdct)| *time)
+            .collect();
+        result
+    }
+    
+    ///Returns the + time of a periodic TDC.
+    fn find_high_time(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
+        let fal_tdc_type = match tdc_type {
+            TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
+            TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
+            _ => panic!("Bad TDC receival in `find_width`"),
+        };
+        
+        let ris_tdc_type = match tdc_type {
+            TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneRisingEdge,
+            TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoRisingEdge,
+            _ => panic!("Bad TDC receival in `find_width`"),
+        };
+
+        let mut fal = get_timelist(tdc_vec, &fal_tdc_type);
+        let mut ris = get_timelist(tdc_vec, &ris_tdc_type);
+        let last_fal = fal.pop().expect("Please get at least 01 falling Tdc");
+        let last_ris = ris.pop().expect("Please get at least 01 rising Tdc");
+        if last_fal - last_ris > 0.0 {
+            last_fal - last_ris 
+        } else {
+            last_fal - ris.pop().expect("Please get at least 02 rising Tdc's.")
+        }
+    }
+    
+    ///Returns the period time interval between lines.
+    fn find_period(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
+        let mut tdc_time = get_timelist(tdc_vec, tdc_type);
+        tdc_time.pop().expect("Please get at least 02 Tdc's") - tdc_time.pop().expect("Please get at least 02 Tdc's")
+    }
+    
+    fn get_counter(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> usize {
+        let counter = tdc_vec.iter()
+            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
+            .count();
+        counter
+    }
+    
+    fn get_lasttime(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
+        let last_time = tdc_vec.iter()
+            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
+            .map(|(time, _tdct)| *time)
+            .last().unwrap();
+        last_time
+    }
+
 }
 
 
