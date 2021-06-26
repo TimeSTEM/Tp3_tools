@@ -281,7 +281,7 @@ impl PeriodicTdcRef {
                 }
             }
         }
-        println!("***Tdc Lib***: Tdc {} has been found.", tdc_type.associate_str());
+        println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
         let counter = tdcvec::get_counter(&tdc_vec, &tdc_type);
         let last_time = tdcvec::get_lasttime(&tdc_vec, &tdc_type);
         let high_time = tdcvec::find_high_time(&tdc_vec, &tdc_type);
