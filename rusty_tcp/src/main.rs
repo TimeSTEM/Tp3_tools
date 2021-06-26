@@ -45,29 +45,9 @@ fn connect_and_loop(runmode: RunningMode) {
         RunningMode::Tp3 => vec![0; 16384],
     };
 
-    /*
-    let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
-    loop {
-        if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-            if size>0 {
-                let new_data = &buffer_pack_data[0..size];
-                misc::search_any_tdc(new_data, &mut tdc_vec, &mut last_ci);
-                match my_settings.mode {
-                    0 | 2 | 4 | 5 => {if TdcType::check_all_tdcs(&[5, 5, 0, 0], &tdc_vec)==true {break}},
-                    1 | 3 => {if TdcType::check_all_tdcs(&[5, 5, 5, 5], &tdc_vec)==true {break}},
-                    _ => panic!("Unknown mode."),
-                }
-            }
-        }
-    }
-    println!("Related TDC have been found. Entering acquisition.");
-    */
-
     let start = Instant::now();
-            
     match my_settings.mode {
         0 => {
-            //let mut frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneRisingEdge);
             let mut frame_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneRisingEdge, &mut pack_sock);
             
             let mut data_array:Vec<u8> = vec![0; (255*!my_settings.bin as usize + 1)*my_settings.bytedepth*1024];
@@ -94,8 +74,6 @@ fn connect_and_loop(runmode: RunningMode) {
                 }
         },
         1 => {
-            //let mut frame_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneRisingEdge);
-            //let mut laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcTwoFallingEdge);
             let mut frame_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneRisingEdge, &mut pack_sock);
             let mut laser_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcTwoFallingEdge, &mut pack_sock);
      
@@ -128,7 +106,6 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         },
         2 => {
-            //let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
             let mut spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
             let (tx, rx) = mpsc::channel();
             
@@ -152,8 +129,6 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         },
         3 => {
-            //let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
-            //let mut laser_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcTwoFallingEdge);
             let mut spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
             let mut laser_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcTwoFallingEdge, &mut pack_sock);
 
@@ -168,7 +143,6 @@ fn connect_and_loop(runmode: RunningMode) {
             }
         },
         4 => {
-            //let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
             let mut spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
             let mut pmt_tdc = NonPeriodicTdcRef::new_ref(TdcType::TdcTwoFallingEdge);
 
@@ -191,7 +165,6 @@ fn connect_and_loop(runmode: RunningMode) {
                 RunningMode::Tp3 => String::from("/home/asi/VGs/VG Lumière/TP3/SpimData/Slice"),
             };
             
-            //let mut spim_tdc = PeriodicTdcRef::new_ref(&tdc_vec, TdcType::TdcOneFallingEdge);
             let mut spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
 
             loop {
