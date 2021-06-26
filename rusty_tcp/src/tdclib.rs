@@ -43,7 +43,7 @@ mod tdcvec {
     }
     
     ///Outputs the time list for a specific TDC.
-    fn get_timelist(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> Vec<f64> {
+    pub fn get_timelist(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> Vec<f64> {
         let result: Vec<_> = tdc_vec.iter()
             .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
             .map(|(time, _tdct)| *time)
@@ -52,7 +52,7 @@ mod tdcvec {
     }
     
     ///Returns the + time of a periodic TDC.
-    fn find_high_time(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
+    pub fn find_high_time(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
         let fal_tdc_type = match tdc_type {
             TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
             TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
@@ -77,19 +77,19 @@ mod tdcvec {
     }
     
     ///Returns the period time interval between lines.
-    fn find_period(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
+    pub fn find_period(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
         let mut tdc_time = get_timelist(tdc_vec, tdc_type);
         tdc_time.pop().expect("Please get at least 02 Tdc's") - tdc_time.pop().expect("Please get at least 02 Tdc's")
     }
     
-    fn get_counter(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> usize {
+    pub fn get_counter(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> usize {
         let counter = tdc_vec.iter()
             .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
             .count();
         counter
     }
     
-    fn get_lasttime(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
+    pub fn get_lasttime(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
         let last_time = tdc_vec.iter()
             .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
             .map(|(time, _tdct)| *time)
@@ -182,6 +182,7 @@ pub struct PeriodicTdcRef {
 
 impl PeriodicTdcRef {
     
+    /*
     ///Outputs the time list for a specific TDC.
     fn get_timelist(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: u8) -> Vec<f64> {
         let result: Vec<_> = tdc_vec.iter()
@@ -236,6 +237,7 @@ impl PeriodicTdcRef {
             .last().unwrap();
         last_time
     }
+    */
 
     pub fn upt(&mut self, time: f64) {
         self.time = time;
@@ -243,10 +245,14 @@ impl PeriodicTdcRef {
     }
 
     pub fn new_ref(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: TdcType) -> PeriodicTdcRef {
-        let counter = PeriodicTdcRef::get_counter(tdc_vec, tdc_type.associate_value());
-        let last_time = PeriodicTdcRef::get_lasttime(tdc_vec, tdc_type.associate_value());
-        let high_time = PeriodicTdcRef::find_high_time(tdc_vec, tdc_type.associate_value());
-        let period = PeriodicTdcRef::find_period(tdc_vec, tdc_type.associate_value());
+        //let counter = PeriodicTdcRef::get_counter(tdc_vec, tdc_type.associate_value());
+        //let last_time = PeriodicTdcRef::get_lasttime(tdc_vec, tdc_type.associate_value());
+        //let high_time = PeriodicTdcRef::find_high_time(tdc_vec, tdc_type.associate_value());
+        //let period = PeriodicTdcRef::find_period(tdc_vec, tdc_type.associate_value());
+        let counter = tdcvec::get_counter(tdc_vec, &tdc_type);
+        let last_time = tdcvec::get_lasttime(tdc_vec, &tdc_type);
+        let high_time = tdcvec::find_high_time(tdc_vec, &tdc_type);
+        let period = tdcvec::find_period(tdc_vec, &tdc_type);
         let low_time = period - high_time;
         println!("Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ms) is {}. ON interval (ms) is {}. Period (ms) is {}.", tdc_type.associate_str(), counter, last_time*1.0e3, high_time*1.0e3, period*1.0e3);
         PeriodicTdcRef {
