@@ -23,7 +23,6 @@ fn connect_and_loop(runmode: RunningMode) {
     //let (mut ns_sock02, ns_addr02) = ns_listener.accept().expect("Could not connect to Nionswift auxiliar client.");
     //println!("Nionswift aux. connected at {:?}", ns_addr02);
     
-
     let my_settings: Settings;
     {
         let mut cam_settings = [0 as u8; 28];
