@@ -271,7 +271,6 @@ impl PeriodicTdcRef {
         let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
         let mut ci = 0u8;
 
-
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
         loop {
             if let Ok(size) = sock.read(&mut buffer_pack_data) {
@@ -282,7 +281,7 @@ impl PeriodicTdcRef {
                 }
             }
         }
-        
+        println!("***Tdc Lib***: Tdc {} has been found.", tdc_type.associate_str());
         let counter = tdcvec::get_counter(&tdc_vec, &tdc_type);
         let last_time = tdcvec::get_lasttime(&tdc_vec, &tdc_type);
         let high_time = tdcvec::find_high_time(&tdc_vec, &tdc_type);
@@ -310,7 +309,7 @@ pub struct NonPeriodicTdcRef {
 impl NonPeriodicTdcRef {
     
     pub fn upt(&mut self, time: f64) {
-        self.time.pop().expect("***TDCLIB***: There is no element to exclude from NonPeriodicTDC.");
+        self.time.pop().expect("***Tdc Lib***: There is no element to exclude from NonPeriodicTDC.");
         self.time.insert(0, time);
         self.counter+=1;
     }

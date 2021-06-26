@@ -45,10 +45,8 @@ fn connect_and_loop(runmode: RunningMode) {
         RunningMode::Tp3 => vec![0; 16384],
     };
 
-    //let mut buffer_pack_data: [u8; 16384] = [0; 16384];
     
     let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
-            
     loop {
         if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size>0 {
@@ -63,6 +61,8 @@ fn connect_and_loop(runmode: RunningMode) {
         }
     }
     println!("Related TDC have been found. Entering acquisition.");
+    
+
     let start = Instant::now();
             
     match my_settings.mode {
