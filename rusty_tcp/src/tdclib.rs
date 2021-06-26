@@ -5,41 +5,43 @@ use std::net::TcpStream;
 use std::io::Read;
 
 
-fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
-    use crate::packetlib::Packet;
+mod tdcvec {
     
-    let file_data = data;
-    let mut packet_chunks = file_data.chunks_exact(8);
+    use crate::tdclib::TdcType;
+    
+    pub fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
+        use crate::packetlib::Packet;
+        
+        let file_data = data;
+        let mut packet_chunks = file_data.chunks_exact(8);
 
-    while let Some(x) = packet_chunks.next() {
-        match x {
-            &[84, 80, 88, 51, nci, _, _, _] => {*last_ci = nci},
-            _ => {
-                let packet = Packet { chip_index: *last_ci, data: x};
-                
-                match packet.id() {
-                    6 => {
-                        let time = packet.tdc_time_norm();
-                        let tdc = TdcType::associate_value_to_enum(packet.tdc_type()).unwrap();
-                        tdc_vec.push( (time, tdc) );
-                    },
-                    _ => {},
-                };
-            },
+        while let Some(x) = packet_chunks.next() {
+            match x {
+                &[84, 80, 88, 51, nci, _, _, _] => {*last_ci = nci},
+                _ => {
+                    let packet = Packet { chip_index: *last_ci, data: x};
+                    
+                    match packet.id() {
+                        6 => {
+                            let time = packet.tdc_time_norm();
+                            let tdc = TdcType::associate_value_to_enum(packet.tdc_type()).unwrap();
+                            tdc_vec.push( (time, tdc) );
+                        },
+                        _ => {},
+                    };
+                },
+            };
         };
-    };
-}
-
-fn check_tdc(tdc_vec: &Vec<(f64, TdcType)>, tdc_choosen: TdcType) -> bool {
-    let mut counter = 0;
-    for (_time, tdc_type) in tdc_vec {
-        if tdc_type.associate_value() == tdc_choosen.associate_value() {counter+=1;}
     }
-    if counter>=5 {true} else {false}
+
+    pub fn check_tdc(tdc_vec: &Vec<(f64, TdcType)>, tdc_choosen: &TdcType) -> bool {
+        let mut counter = 0;
+        for (_time, tdc_type) in tdc_vec {
+            if tdc_type.associate_value() == tdc_choosen.associate_value() {counter+=1;}
+        }
+        if counter>=5 {true} else {false}
+    }
 }
-
-
-
 
 
 ///The four types of TDC's.
@@ -111,6 +113,7 @@ impl TdcType {
     
     
 }
+
 
 pub struct PeriodicTdcRef {
     pub tdctype: u8,
@@ -206,11 +209,14 @@ impl PeriodicTdcRef {
         let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
         let mut ci = 0u8;
 
+
+        println!("Searching for Tdc {}", tdc_type.associate_str());
         loop {
             if let Ok(size) = sock.read(&mut buffer_pack_data) {
                 if size>0 {
                     let new_data = &buffer_pack_data[0..size];
-                    search_any_tdc(new_data, &mut tdc_vec, &mut ci);
+                    tdcvec::search_any_tdc(new_data, &mut tdc_vec, &mut ci);
+                    if tdcvec::check_tdc(&tdc_vec, &tdc_type)==true {break;}
                 }
             }
         }
