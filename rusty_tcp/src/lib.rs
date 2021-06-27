@@ -409,36 +409,9 @@ pub mod modes {
 
 ///`misc` or `miscelaneous` is a module containing shared tools between modes.
 pub mod misc {
-    use crate::tdclib::TdcType;
-    use crate::packetlib::Packet;
+    use crate::tdclib::{PeriodicTdcRef};
     use crate::auxiliar::Settings;
-    use crate::tdclib::PeriodicTdcRef;
     
-    ///Search and index all encountered TDC's. Mutable vector contains the TDC time and its TdcType.
-    pub fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
-        
-        let file_data = data;
-        let mut packet_chunks = file_data.chunks_exact(8);
-
-        while let Some(x) = packet_chunks.next() {
-            match x {
-                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
-                _ => {
-                    let packet = Packet { chip_index: *last_ci, data: x};
-                    
-                    match packet.id() {
-                        6 => {
-                            let time = packet.tdc_time_norm();
-                            let tdc = TdcType::associate_value_to_enum(packet.tdc_type()).unwrap();
-                            tdc_vec.push( (time, tdc) );
-                        },
-                        _ => {},
-                    };
-                },
-            };
-        };
-    }
-
     ///Create header, used mainly for frame based spectroscopy.
     pub fn create_header(set: &Settings, tdc: &PeriodicTdcRef) -> Vec<u8> {
         let mut msg: String = String::from("{\"timeAtFrame\":");

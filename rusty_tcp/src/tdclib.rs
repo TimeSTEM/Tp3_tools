@@ -6,7 +6,6 @@ use std::io::Read;
 
 
 mod tdcvec {
-    
     use crate::tdclib::TdcType;
     
     pub fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
@@ -43,7 +42,7 @@ mod tdcvec {
     }
     
     ///Outputs the time list for a specific TDC.
-    pub fn get_timelist(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> Vec<f64> {
+    fn get_timelist(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> Vec<f64> {
         let result: Vec<_> = tdc_vec.iter()
             .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
             .map(|(time, _tdct)| *time)

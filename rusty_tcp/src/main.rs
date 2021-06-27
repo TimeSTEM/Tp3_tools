@@ -3,7 +3,7 @@ use std::thread;
 use std::sync::mpsc;
 use std::net::{Shutdown, TcpListener};
 use std::time::Instant;
-use timepix3::auxiliar::{RunningMode, BytesConfig, Settings};
+use timepix3::auxiliar::{RunningMode, Settings};
 use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
 use timepix3::{modes, misc};
 
@@ -23,6 +23,7 @@ fn connect_and_loop(runmode: RunningMode) {
     //let (mut ns_sock02, ns_addr02) = ns_listener.accept().expect("Could not connect to Nionswift auxiliar client.");
     //println!("Nionswift aux. connected at {:?}", ns_addr02);
     
+    /*
     let my_settings: Settings;
     {
         let mut cam_settings = [0 as u8; 28];
@@ -36,6 +37,9 @@ fn connect_and_loop(runmode: RunningMode) {
         }
         println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
     }
+    */
+
+    let my_settings = Settings::tcp_create_settings(&mut ns_sock);
 
     let mut last_ci = 0u8;
     
