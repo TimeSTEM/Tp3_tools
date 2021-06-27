@@ -26,7 +26,6 @@ pub mod modes {
     ///the beggining of each scan line.
     pub fn build_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Vec<(f64, usize, usize)> {
         let mut packet_chunks = data.chunks_exact(8);
-        let mut index_data:Vec<u8> = Vec::new();
         let mut timelist:Vec<(f64, usize, usize)> = Vec::new();
         let interval = line_tdc.low_time;
         let period = line_tdc.period;
@@ -46,7 +45,6 @@ pub mod modes {
                                     let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                     let array_pos = x + line + xpos;
                                     timelist.push((ele_time, x, array_pos));
-                                    //append_to_index_array(&mut index_data, array_pos);
                                 }
                             }
                             
@@ -60,7 +58,6 @@ pub mod modes {
             };
         };
         timelist
-        //index_data
     }
     
     ///Returns None and saves locally the spectral image every 10 complete scan lines. Slice time
@@ -212,7 +209,6 @@ pub mod modes {
     ///Returns a frame using a periodic TDC as reference.
     pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut PeriodicTdcRef) -> bool {
 
-        let mut time_list: Vec<(f64, usize, usize)> = Vec::new(); 
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
 
@@ -225,7 +221,6 @@ pub mod modes {
                     match packet.id() {
                         11 => {
                             if let Some(x) = packet.x() {
-                                //time_list.push((packet.electron_time(), x, packet.y()));
                                 let array_pos = match settings.bin {
                                     false => x + 1024*packet.y(),
                                     true => x
@@ -243,7 +238,6 @@ pub mod modes {
                 },
             };
         };
-        //sort_and_append_to_array(time_list, final_data, settings.bin, settings.bytedepth);
         has
     }
 
@@ -325,33 +319,6 @@ pub mod modes {
         if titer==0 {None} else {Some(titer)}
     }
 
-
-    fn sort_and_append_to_array(mut tl: Vec<(f64, usize, usize)>, data: &mut [u8], isbin: bool, bytedepth: usize) {
-        if let Some(val) = tl.get(0) {
-            let mut last = val.clone();
-            tl.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-            match isbin {
-                true => {
-                    for tp in tl {
-                        if tp.0>last.0+CLUSTER_TIME || (tp.1 as isize - last.1 as isize).abs() < 2 || (tp.2 as isize - last.2 as isize).abs() < 2 {
-                            append_to_array(data, last.1, bytedepth);
-                        }
-                        last = tp;
-                    }
-                },
-                false => {
-                    for tp in tl {
-                        if tp.0>last.0+CLUSTER_TIME || (tp.1 as isize - last.1 as isize).abs() < 2 || (tp.2 as isize - last.2 as isize).abs() < 2 {
-                            append_to_array(data, last.1+1024*last.2, bytedepth);
-                        }
-                        last = tp;
-                    }
-                }
-            }
-        }
-    }
-
-            
     ///Append a single electron to a given size array. Used mainly for frame based.
     fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
         let index = index * bytedepth;

@@ -23,24 +23,7 @@ fn connect_and_loop(runmode: RunningMode) {
     //let (mut ns_sock02, ns_addr02) = ns_listener.accept().expect("Could not connect to Nionswift auxiliar client.");
     //println!("Nionswift aux. connected at {:?}", ns_addr02);
     
-    /*
-    let my_settings: Settings;
-    {
-        let mut cam_settings = [0 as u8; 28];
-        match ns_sock.read(&mut cam_settings){
-            Ok(size) => {
-                println!("Received {} bytes from NS.", size);
-                let my_config = BytesConfig{data: cam_settings};
-                my_settings = my_config.create_settings();
-            },
-            Err(_) => panic!("Could not read cam initial settings."),
-        }
-        println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
-    }
-    */
-
     let my_settings = Settings::tcp_create_settings(&mut ns_sock);
-
     let mut last_ci = 0u8;
     
     let mut buffer_pack_data = match runmode {

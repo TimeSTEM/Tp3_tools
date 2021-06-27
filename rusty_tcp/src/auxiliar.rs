@@ -1,7 +1,5 @@
 //!`auxiliar` is a collection of tools to set acquisition conditions.
 
-use std::net::TcpStream;
-use std::io::Read;
 
 ///Describes how to run the program. This is a very general enumeration and can be used for setting
 ///your program in debug mode.
@@ -12,7 +10,7 @@ pub enum RunningMode {
 
 ///Configures the detector for acquisition. Each new measurement must send 28 bytes
 ///containing instructions.
-pub struct BytesConfig {
+struct BytesConfig {
     pub data: [u8; 28],
 }
 
@@ -177,7 +175,8 @@ impl BytesConfig {
         }
     }
 
-    pub fn create_settings(&self) -> Settings {
+    ///Create Settings struct from BytesConfig
+    fn create_settings(&self) -> Settings {
         Settings {
             bin: self.bin(),
             bytedepth: self.bytedepth(),
@@ -195,6 +194,10 @@ impl BytesConfig {
     }
 }
 
+use std::net::TcpStream;
+use std::io::Read;
+
+///Settings contains all relevant parameters for a given acquistion
 pub struct Settings {
     pub bin: bool,
     pub bytedepth: usize,
@@ -211,6 +214,8 @@ pub struct Settings {
 }
 
 impl Settings {
+
+    ///Create Settings structure reading from a TCP.
     pub fn tcp_create_settings(ns_sock: &mut TcpStream) -> Settings {
         
         let mut cam_settings = [0 as u8; 28];

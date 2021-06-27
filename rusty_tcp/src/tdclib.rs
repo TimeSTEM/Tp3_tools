@@ -55,13 +55,11 @@ mod tdcvec {
         let fal_tdc_type = match tdc_type {
             TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
             TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
-            _ => panic!("Bad TDC receival in `find_width`"),
         };
         
         let ris_tdc_type = match tdc_type {
             TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneRisingEdge,
             TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoRisingEdge,
-            _ => panic!("Bad TDC receival in `find_width`"),
         };
 
         let mut fal = get_timelist(tdc_vec, &fal_tdc_type);
