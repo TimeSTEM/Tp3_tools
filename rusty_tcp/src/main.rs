@@ -144,28 +144,6 @@ fn connect_and_loop(runmode: RunningMode) {
             }
             println!("Number of counts in PMT was: {}. Total elapsed time is {:?}.", pmt_tdc.counter, start.elapsed());
         },
-        5 => {
-            let mut data_array:Vec<u8> = vec![0; my_settings.bytedepth*1025*my_settings.xspim_size*my_settings.yspim_size];
-            let ping_data: Vec<u8> = vec![0; 4];
-            let filepath = match runmode {
-                RunningMode::DebugStem7482 => String::from("C:\\Users\\AUAD\\Desktop\\TimePix3\\Slice"),
-                RunningMode::Tp3 => String::from("/home/asi/VGs/VG Lumière/TP3/SpimData/Slice"),
-            };
-            
-            let mut spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
-
-            loop {
-                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                    if size>0 {
-                        let new_data = &buffer_pack_data[0..size];
-                        if let Ok(true) = modes::build_save_spim_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut spim_tdc, &filepath) {
-                            data_array = vec![0; my_settings.bytedepth*1025*my_settings.xspim_size*my_settings.yspim_size];
-                        };
-                        if let Err(_) = ns_sock.write(&ping_data) {println!("Client disconnected on data."); break;}
-                    } else {println!("Received zero packages from TP3."); break;}
-                }
-            }
-        },
         _ => panic!("Unknown mode received."),
     }
     if let Err(_) = ns_sock.shutdown(Shutdown::Both) {println!("Served not succesfully shutdown.");}

@@ -9,17 +9,12 @@ pub mod packetlib;
 
 ///`modes` is a module containing tools to live acquire frames and spectral images..
 pub mod modes {
-    use std::fs::File;
-    use std::io::prelude::*;
-
     use crate::packetlib::Packet;
     use crate::auxiliar::Settings;
     use crate::tdclib::{PeriodicTdcRef, NonPeriodicTdcRef};
 
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
-    const COIC_TIME: f64 = 25.0e-9;
-    const SPIM_SAVE: usize = 10;
     const CLUSTER_TIME: f64 = 50.0e-09;
     
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
@@ -58,54 +53,6 @@ pub mod modes {
             };
         };
         timelist
-    }
-    
-    ///Returns None and saves locally the spectral image every 10 complete scan lines. Slice time
-    ///is thus pick by total image scan time. Uses a single TDC at the beggining of each scan line.
-    pub fn build_save_spim_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, filename: &str) -> std::io::Result<bool> {
-        let mut packet_chunks = data.chunks_exact(8);
-        let interval = line_tdc.low_time;
-        let period = line_tdc.period;
-        let mut has = false;
-
-        while let Some(x) = packet_chunks.next() {
-            match x {
-                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
-                _ => {
-                    let packet = Packet { chip_index: *last_ci, data: x};
-                    
-                    match packet.id() {
-                        11 => {
-                            if let Some(x) = packet.x() {
-                                let ele_time = packet.electron_time() - VIDEO_TIME;
-                                if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
-                                    let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
-                                    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                    let array_pos = x + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
-                                    append_to_array(final_data, array_pos, settings.bytedepth);
-                                }
-                            }
-                        },
-                        6 if packet.tdc_type() == line_tdc.tdctype => {
-                            line_tdc.upt(packet.tdc_time_norm());
-                            let eff_counter = line_tdc.counter / settings.spimoverscany;
-                            if eff_counter % (settings.yspim_size * SPIM_SAVE) == 0 {
-                                let mut temp_filename: String = String::from(filename);
-                                temp_filename.push_str(&(eff_counter.to_string()));
-                                temp_filename.push_str(".txt");
-
-                                let mut my_file = File::create(temp_filename)?;
-                                my_file.write_all(final_data)?;
-                                println!("Saved spectral image slice at effective counter {:?} and time at {}.", eff_counter, packet.tdc_time());
-                                has = true;
-                            }
-                        },
-                        _ => {},
-                    };
-                },
-            };
-        };
-        Ok(has)
     }
     
     ///Returns a vector containing a list of indexes in which events happened for a time-resolved (TR) measurement.
@@ -314,11 +261,6 @@ pub mod modes {
         }
     }
     
-    fn veclist_check_if_in(ele_time: f64, timelist: &[f64]) -> Option<usize> {
-        let titer = timelist.iter().filter(|x| (**x - ele_time) >= 0.0 && (**x - ele_time) < COIC_TIME).count();
-        if titer==0 {None} else {Some(titer)}
-    }
-
     ///Append a single electron to a given size array. Used mainly for frame based.
     fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
         let index = index * bytedepth;
