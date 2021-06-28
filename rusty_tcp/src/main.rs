@@ -16,9 +16,11 @@ fn connect_and_loop() {
 
     let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not bind to TP3.");
     let ns_listener = TcpListener::bind(&addrs[..]).expect("Could not bind to NS.");
-    let ns_udp = UdpSocket::bind("127.0.0.1:8088").expect("Could not bind UDP socket.");
-    ns_udp.connect("127.0.0.1:15000").unwrap();
-    let a = ns_udp.send(&[89, 118, 101, 115, 10, 13]).expect("couldnt send message");
+    let ns_udp = UdpSocket::bind(&addrs[..]).expect("Could not bind UDP socket.");
+    println!("Packet Tcp socket connected at: {:?}", pack_listener);
+    println!("Nionswift Tcp socket connected at: {:?}", ns_listener);
+    println!("Udp socket connected at: {:?}", ns_udp);
+    let a = ns_udp.send_to(&[89, 118, 101, 115, 10, 13], ("127.0.0.1:15000")).expect("couldnt send message");
     println!("Message sent. {}", a);
 
     let (mut pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
