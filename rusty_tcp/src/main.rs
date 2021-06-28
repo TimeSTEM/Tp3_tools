@@ -1,7 +1,7 @@
 use std::io::prelude::*;
 use std::thread;
 use std::sync::mpsc;
-use std::net::{Shutdown, TcpListener, SocketAddr};
+use std::net::{Shutdown, TcpListener, SocketAddr, UdpSocket};
 use std::time::Instant;
 use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
@@ -16,11 +16,15 @@ fn connect_and_loop() {
 
     let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not bind to TP3.");
     let ns_listener = TcpListener::bind(&addrs[..]).expect("Could not bind to NS.");
+    let ns_udp = UdpSocket::bind("127.0.0.1:8088").expect("Could not bind UDP socket.");
+    ns_udp.connect("127.0.0.1:15000").unwrap();
+    let a = ns_udp.send(&[89, 118, 101, 115, 10, 13]).expect("couldnt send message");
+    println!("Message sent. {}", a);
 
     let (mut pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
-    println!("Localhost TP3 detected at {:?}", packet_addr);
+    println!("Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
     let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
-    println!("Nionswift connected at {:?}", ns_addr);
+    println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
     
     //let (mut ns_sock02, ns_addr02) = ns_listener.accept().expect("Could not connect to Nionswift auxiliar client.");
     //println!("Nionswift aux. connected at {:?}", ns_addr02);
