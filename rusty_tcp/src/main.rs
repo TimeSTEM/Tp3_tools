@@ -1,36 +1,34 @@
 use std::io::prelude::*;
 use std::thread;
 use std::sync::mpsc;
-use std::net::{Shutdown, TcpListener};
+use std::net::{Shutdown, TcpListener, SocketAddr};
 use std::time::Instant;
-use timepix3::auxiliar::{RunningMode, Settings};
+use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
 use timepix3::{modes, misc};
 
-fn connect_and_loop(runmode: RunningMode) {
+fn connect_and_loop() {
 
-    let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not connect to packets.");
-    let ns_listener = match runmode {
-        RunningMode::DebugStem7482 => TcpListener::bind("127.0.0.1:8088").expect("Could not connect to NS in debug."),
-        RunningMode::Tp3 => TcpListener::bind("192.168.199.11:8088").expect("Could not connect to NS using TP3."),
-    };
+    let addrs = [
+        SocketAddr::from(([192, 168, 199, 11], 8088)),
+        SocketAddr::from(([127, 0, 0, 1], 8088)),
+    ];
+
+    let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not bind to TP3.");
+    let ns_listener = TcpListener::bind(&addrs[..]).expect("Could not bind to NS.");
 
     let (mut pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
     println!("Localhost TP3 detected at {:?}", packet_addr);
-    
     let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
     println!("Nionswift connected at {:?}", ns_addr);
+    
     //let (mut ns_sock02, ns_addr02) = ns_listener.accept().expect("Could not connect to Nionswift auxiliar client.");
     //println!("Nionswift aux. connected at {:?}", ns_addr02);
     
     let my_settings = Settings::tcp_create_settings(&mut ns_sock);
     let mut last_ci = 0u8;
     
-    let mut buffer_pack_data = match runmode {
-        //RunningMode::DebugStem7482 => vec![0; 256],
-        RunningMode::DebugStem7482 => vec![0; 16384],
-        RunningMode::Tp3 => vec![0; 16384],
-    };
+    let mut buffer_pack_data = vec![0; 16384];
 
     let start = Instant::now();
     match my_settings.mode {
@@ -151,9 +149,7 @@ fn connect_and_loop(runmode: RunningMode) {
 
 fn main() {
     loop {
-        let myrun = RunningMode::DebugStem7482;
-        //let myrun = RunningMode::Tp3;
         println!{"Waiting for a new client"};
-        connect_and_loop(myrun);
+        connect_and_loop();
     }
 }

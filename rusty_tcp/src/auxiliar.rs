@@ -1,13 +1,5 @@
 //!`auxiliar` is a collection of tools to set acquisition conditions.
 
-
-///Describes how to run the program. This is a very general enumeration and can be used for setting
-///your program in debug mode.
-pub enum RunningMode {
-    DebugStem7482,
-    Tp3,
-}
-
 ///Configures the detector for acquisition. Each new measurement must send 28 bytes
 ///containing instructions.
 struct BytesConfig {
