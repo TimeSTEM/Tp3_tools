@@ -98,7 +98,7 @@ pub mod modes {
         };
         index_data
     }
-    
+
     ///Returns a vector containing a list of indexes in which TDC events happened. Uses one TDC
     ///referred to the beginning of a new scan line and a second Non Periodic TDC to use as pixel
     ///counter.
@@ -151,8 +151,7 @@ pub mod modes {
         };
         index_data
     }
-    
-
+ 
     ///Returns a frame using a periodic TDC as reference.
     pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut PeriodicTdcRef) -> bool {
 
@@ -192,6 +191,7 @@ pub mod modes {
     pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut PeriodicTdcRef) -> bool {
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
+
 
         while let Some(x) = packet_chunks.next() {
             match x {

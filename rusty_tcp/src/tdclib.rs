@@ -138,6 +138,10 @@ impl TdcType {
     
 }
 
+trait Tdcs {
+    fn upt(&mut self, time: f64);
+}
+
 
 pub struct PeriodicTdcRef {
     pub tdctype: u8,

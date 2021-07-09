@@ -20,16 +20,11 @@ fn connect_and_loop() {
     println!("Packet Tcp socket connected at: {:?}", pack_listener);
     println!("Nionswift Tcp socket connected at: {:?}", ns_listener);
     println!("Udp socket connected at: {:?}", ns_udp);
-    let a = ns_udp.send_to(&[89, 118, 101, 115, 10, 13], ("127.0.0.1:15000")).expect("couldnt send message");
-    println!("Message sent. {}", a);
 
     let (mut pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
     println!("Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
     let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
     println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
-    
-    //let (mut ns_sock02, ns_addr02) = ns_listener.accept().expect("Could not connect to Nionswift auxiliar client.");
-    //println!("Nionswift aux. connected at {:?}", ns_addr02);
     
     let my_settings = Settings::tcp_create_settings(&mut ns_sock);
     let mut last_ci = 0u8;
@@ -116,6 +111,7 @@ fn connect_and_loop() {
                 if let Ok(tl) = rx.recv() {
                     let result = modes::sort_and_append_to_index(tl);
                     if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+                    //if let Err(_) = ns_udp.send_to(&result, "127.0.0.1:9088") {println!("Client disconnected on data (UDP)."); break;};
                 } else {break;}
             }
         },
