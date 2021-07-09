@@ -11,7 +11,7 @@ pub mod packetlib;
 pub mod modes {
     use crate::packetlib::Packet;
     use crate::auxiliar::Settings;
-    use crate::tdclib::{PeriodicTdcRef, NonPeriodicTdcRef};
+    use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
 
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
@@ -153,7 +153,7 @@ pub mod modes {
     }
  
     ///Returns a frame using a periodic TDC as reference.
-    pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut PeriodicTdcRef) -> bool {
+    pub fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut T) -> bool {
 
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
@@ -175,7 +175,7 @@ pub mod modes {
                                 
                             }
                         },
-                        6 if packet.tdc_type() == tdc.tdctype => {
+                        6 if packet.tdc_type() == tdc.id() => {
                             tdc.upt(packet.tdc_time());
                             has = true;
                         },

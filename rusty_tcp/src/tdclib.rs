@@ -138,10 +138,10 @@ impl TdcType {
     
 }
 
-trait Tdcs {
+pub trait TdcControl {
+    fn id(&self) -> u8;
     fn upt(&mut self, time: f64);
 }
-
 
 pub struct PeriodicTdcRef {
     pub tdctype: u8,
@@ -152,12 +152,18 @@ pub struct PeriodicTdcRef {
     pub time: f64,
 }
 
-impl PeriodicTdcRef {
-    
-    pub fn upt(&mut self, time: f64) {
+impl TdcControl for PeriodicTdcRef {
+    fn id(&self) -> u8 {
+        self.tdctype
+    }
+
+    fn upt(&mut self, time: f64) {
         self.time = time;
         self.counter+=1;
     }
+}
+
+impl PeriodicTdcRef {
     
     pub fn tcp_new_ref(tdc_type: TdcType, sock: &mut TcpStream) -> PeriodicTdcRef {
 
@@ -200,13 +206,20 @@ pub struct NonPeriodicTdcRef {
     pub time: Vec<f64>,
 }
 
-impl NonPeriodicTdcRef {
-    
-    pub fn upt(&mut self, time: f64) {
+impl TdcControl for NonPeriodicTdcRef {
+    fn id(&self) -> u8 {
+        self.tdctype
+    }
+
+    fn upt(&mut self, time: f64) {
         self.time.pop().expect("***Tdc Lib***: There is no element to exclude from NonPeriodicTDC.");
         self.time.insert(0, time);
         self.counter+=1;
     }
+}
+
+impl NonPeriodicTdcRef {
+    
 
     pub fn new_ref(tdc_type: TdcType) -> NonPeriodicTdcRef {
         NonPeriodicTdcRef {
