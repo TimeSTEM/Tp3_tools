@@ -34,9 +34,9 @@ fn connect_and_loop() {
     let start = Instant::now();
     match my_settings.mode {
         0 => {
-            let mut frame_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneRisingEdge, &mut pack_sock);
+            let frame_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneRisingEdge, &mut pack_sock);
             let ref_tdc = NoTdcRef::new_ref();
-            modes::build_spectrum(&mut pack_sock, &mut ns_sock, my_settings, &mut frame_tdc);
+            modes::build_spectrum(pack_sock, ns_sock, my_settings, frame_tdc, ref_tdc);
             
             /*let mut data_array:Vec<u8> = vec![0; (255*!my_settings.bin as usize + 1)*my_settings.bytedepth*1024];
             data_array.push(10);
@@ -149,7 +149,7 @@ fn connect_and_loop() {
         },
         _ => panic!("Unknown mode received."),
     }
-    if let Err(_) = ns_sock.shutdown(Shutdown::Both) {println!("Served not succesfully shutdown.");}
+    //if let Err(_) = ns_sock.shutdown(Shutdown::Both) {println!("Served not succesfully shutdown.");}
 }
 
 fn main() {

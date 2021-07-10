@@ -161,7 +161,7 @@ pub mod modes {
 
 
 
-    pub fn build_spectrum(pack_sock: &mut TcpStream, ns_sock: &mut TcpStream, my_settings: Settings, frame_tdc: &mut PeriodicTdcRef) {
+    pub fn build_spectrum<T: TdcControl, U: TdcControl>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, mut ref_tdc: U) {
         
         let start = Instant::now();
         let mut last_ci = 0u8;
@@ -173,7 +173,7 @@ pub mod modes {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, frame_tdc) {
+                            if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc) {
                             let msg = create_header(&my_settings, &frame_tdc);
                             if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
                             if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
@@ -183,7 +183,7 @@ pub mod modes {
                                 data_array.push(10);
                             }
 
-                           if frame_tdc.counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter);}
+                           if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
                         }
                     } else {println!("Received zero packages"); break;}
                 }
@@ -191,7 +191,7 @@ pub mod modes {
     }
 
     ///Returns a frame using a periodic TDC as reference.
-    fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut PeriodicTdcRef) -> bool {
+    fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut T) -> bool {
 
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
@@ -213,7 +213,7 @@ pub mod modes {
                                 
                             }
                         },
-                        6 if packet.tdc_type() == tdc.tdctype => {
+                        6 if packet.tdc_type() == tdc.id() => {
                             tdc.upt(packet.tdc_time());
                             has = true;
                         },
@@ -356,11 +356,11 @@ pub mod modes {
         }
 
     ///Create header, used mainly for frame based spectroscopy.
-    fn create_header(set: &Settings, tdc: &PeriodicTdcRef) -> Vec<u8> {
+    fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
         let mut msg: String = String::from("{\"timeAtFrame\":");
-        msg.push_str(&(tdc.time.to_string()));
+        msg.push_str(&(tdc.time().to_string()));
         msg.push_str(",\"frameNumber\":");
-        msg.push_str(&(tdc.counter.to_string()));
+        msg.push_str(&(tdc.counter().to_string()));
         msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
         match set.bin {
             true => { msg.push_str(&((set.bytedepth*1024).to_string()))},
