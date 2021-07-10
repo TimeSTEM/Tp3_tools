@@ -7,16 +7,19 @@ pub mod auxiliar;
 pub mod tdclib;
 pub mod packetlib;
 
-///`modes` is a module containing tools to live acquire frames and spectral images..
+///`modes` is a module containing tools to live acquire frames and spectral images.
 pub mod modes {
     use crate::packetlib::Packet;
     use crate::auxiliar::Settings;
     use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
+    use std::time::Instant;
+    use std::net::TcpStream;
+    use std::io::{Read, Write};
 
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
     const CLUSTER_TIME: f64 = 50.0e-09;
-    
+
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
     pub fn build_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Vec<(f64, usize, usize)> {
@@ -152,8 +155,43 @@ pub mod modes {
         index_data
     }
  
+
+
+
+
+
+
+    pub fn build_spectrum(pack_sock: &mut TcpStream, ns_sock: &mut TcpStream, my_settings: Settings, frame_tdc: &mut PeriodicTdcRef) {
+        
+        let start = Instant::now();
+        let mut last_ci = 0u8;
+        let mut buffer_pack_data = vec![0; 16384];
+        let mut data_array:Vec<u8> = vec![0; (255*!my_settings.bin as usize + 1)*my_settings.bytedepth*1024];
+        data_array.push(10);
+        
+            loop {
+                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                    if size>0 {
+                        let new_data = &buffer_pack_data[0..size];
+                        if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, frame_tdc) {
+                            let msg = create_header(&my_settings, &frame_tdc);
+                            if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
+                            if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
+                            
+                            if my_settings.cumul == false {
+                                data_array = vec![0; (255*!my_settings.bin as usize + 1)*my_settings.bytedepth*1024];
+                                data_array.push(10);
+                            }
+
+                           if frame_tdc.counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter);}
+                        }
+                    } else {println!("Received zero packages"); break;}
+                }
+            }
+    }
+
     ///Returns a frame using a periodic TDC as reference.
-    pub fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut PeriodicTdcRef) -> bool {
+    fn build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut PeriodicTdcRef) -> bool {
 
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
@@ -227,6 +265,9 @@ pub mod modes {
         has
     }
     
+
+
+
     fn tr_check_if_in(ele_time: f64, tdc: f64, period: f64, settings: &Settings) -> Option<usize> {
         let mut eff_tdc = tdc;
         let mut counter = 0;
@@ -312,8 +353,34 @@ pub mod modes {
         data.push(((index & 16_711_680)>>16) as u8);
         data.push(((index & 65_280)>>8) as u8);
         data.push((index & 255) as u8);
+        }
+
+    ///Create header, used mainly for frame based spectroscopy.
+    fn create_header(set: &Settings, tdc: &PeriodicTdcRef) -> Vec<u8> {
+        let mut msg: String = String::from("{\"timeAtFrame\":");
+        msg.push_str(&(tdc.time.to_string()));
+        msg.push_str(",\"frameNumber\":");
+        msg.push_str(&(tdc.counter.to_string()));
+        msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
+        match set.bin {
+            true => { msg.push_str(&((set.bytedepth*1024).to_string()))},
+            false => { msg.push_str(&((set.bytedepth*1024*256).to_string()))},
+        }
+        msg.push_str(",\"bitDepth\":");
+        msg.push_str(&((set.bytedepth<<3).to_string()));
+        msg.push_str(",\"width\":");
+        msg.push_str(&(1024.to_string()));
+        msg.push_str(",\"height\":");
+        match set.bin {
+            true=>{msg.push_str(&(1.to_string()))},
+            false=>{msg.push_str(&(256.to_string()))},
+        }
+        msg.push_str("}\n");
+
+        let s: Vec<u8> = msg.into_bytes();
+        s
     }
-    
+
 }
 
 ///`misc` or `miscelaneous` is a module containing shared tools between modes.

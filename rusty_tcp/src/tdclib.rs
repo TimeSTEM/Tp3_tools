@@ -230,3 +230,21 @@ impl NonPeriodicTdcRef {
     }
 }
 
+pub struct NoTdcRef {
+}
+
+impl TdcControl for NoTdcRef {
+    fn id(&self) -> u8 {
+        0
+    }
+
+    fn upt(&mut self, _: f64) {
+    }
+}
+
+impl NoTdcRef {
+    pub fn new_ref() -> NoTdcRef {
+        NoTdcRef{}
+    }
+}
+

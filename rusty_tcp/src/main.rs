@@ -4,7 +4,7 @@ use std::sync::mpsc;
 use std::net::{Shutdown, TcpListener, SocketAddr, UdpSocket};
 use std::time::Instant;
 use timepix3::auxiliar::Settings;
-use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
+use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef, NoTdcRef};
 use timepix3::{modes, misc};
 
 fn connect_and_loop() {
@@ -35,8 +35,10 @@ fn connect_and_loop() {
     match my_settings.mode {
         0 => {
             let mut frame_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneRisingEdge, &mut pack_sock);
+            let ref_tdc = NoTdcRef::new_ref();
+            modes::build_spectrum(&mut pack_sock, &mut ns_sock, my_settings, &mut frame_tdc);
             
-            let mut data_array:Vec<u8> = vec![0; (255*!my_settings.bin as usize + 1)*my_settings.bytedepth*1024];
+            /*let mut data_array:Vec<u8> = vec![0; (255*!my_settings.bin as usize + 1)*my_settings.bytedepth*1024];
             data_array.push(10);
             
                 loop {
@@ -58,6 +60,7 @@ fn connect_and_loop() {
                         } else {println!("Received zero packages"); break;}
                     }
                 }
+                */
         },
         1 => {
             let mut frame_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneRisingEdge, &mut pack_sock);
