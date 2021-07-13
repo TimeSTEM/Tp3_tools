@@ -31,7 +31,9 @@ impl<'a> Packet<'a> {
             return None
         }
         match self.chip_index {
-            0 => Some(255 - temp),
+            0 => Some(temp),
+            1 => Some(temp),
+            2 => Some(256 * 2 - 1 - temp),
             3 => Some(256 * 2 - 1 - temp),
             _ => None,
         }
@@ -52,13 +54,14 @@ impl<'a> Packet<'a> {
             return None
         }
         match self.chip_index {
-            0 => Some(255 - temp),
+            0 => Some(temp),
+            1 => Some(256 * 2 - 1 - temp),
+            2 => Some(temp),
             3 => Some(256 * 2 - 1 - temp),
             _ => None,
         }
     }
     
-
     pub fn id(&self) -> u8 {
         (self.data[7] & 240) >> 4
     }
