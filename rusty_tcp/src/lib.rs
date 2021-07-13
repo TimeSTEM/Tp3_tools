@@ -19,8 +19,8 @@ pub mod modes {
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
     const CLUSTER_TIME: f64 = 50.0e-09;
-    const CAM_DESIGN: (usize, usize) = (1024, 256);
-    //const CAM_DESIGN: (usize, usize) = (512, 512);
+    //const CAM_DESIGN: (usize, usize) = (1024, 256);
+    const CAM_DESIGN: (usize, usize) = (512, 512);
 
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
@@ -206,9 +206,9 @@ pub mod modes {
                     
                     match packet.id() {
                         11 => {
-                            if let Some(x) = packet.x() {
+                            if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
                                 let array_pos = match settings.bin {
-                                    false => x + 1024*packet.y(),
+                                    false => x + CAM_DESIGN.0*y,
                                     true => x
                                 };
                                 append_to_array(final_data, array_pos, settings.bytedepth);
@@ -241,11 +241,11 @@ pub mod modes {
                     
                     match packet.id() {
                         11 => {
-                            if let Some(x) = packet.x() {
+                            if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
                                 let ele_time = packet.electron_time();
                                 if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time, ref_tdc.period, settings) {
                                     let array_pos = match settings.bin {
-                                        false => x + 1024*packet.y(),
+                                        false => x + 1024*y,
                                         true => x
                                     };
                                     append_to_array(final_data, array_pos, settings.bytedepth);

@@ -8,6 +8,7 @@ pub struct Packet<'a> {
     pub data: &'a [u8],
 }
 
+
 impl<'a> Packet<'a> {
     
     pub fn x(&self) -> Option<usize> {
@@ -28,7 +29,12 @@ impl<'a> Packet<'a> {
         !((((self.data[6] & 224))>>4 | ((self.data[7] & 15))<<4) | (((self.data[5] & 112)>>4)>>2)) as usize
     }
     
-    pub fn y(&self) -> usize {
+    pub fn y(&self) -> Option<usize> {
+        let y = (   ( ((self.data[5] & 128))>>5 | ((self.data[6] & 31))<<3 ) | ( (((self.data[5] & 112)>>4)) & 3 )   ) as usize;
+        Some(y)
+    }
+    
+    pub fn y2(&self) -> usize {
         (   ( ((self.data[5] & 128))>>5 | ((self.data[6] & 31))<<3 ) | ( (((self.data[5] & 112)>>4)) & 3 )   ) as usize
     }
 
