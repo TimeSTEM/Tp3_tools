@@ -19,6 +19,8 @@ pub mod modes {
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
     const CLUSTER_TIME: f64 = 50.0e-09;
+    const CAM_DESIGN: (usize, usize) = (1024, 256);
+    //const CAM_DESIGN: (usize, usize) = (512, 512);
 
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
@@ -161,7 +163,7 @@ pub mod modes {
 
 
 
-    pub fn build_spectrum<T: TdcControl, U: TdcControl>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, mut ref_tdc: U) {
+    pub fn build_spectrum<T: TdcControl, U: TdcControl>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, _ref_tdc: U) {
         
         let start = Instant::now();
         let mut last_ci = 0u8;
@@ -369,11 +371,11 @@ pub mod modes {
         msg.push_str(",\"bitDepth\":");
         msg.push_str(&((set.bytedepth<<3).to_string()));
         msg.push_str(",\"width\":");
-        msg.push_str(&(1024.to_string()));
+        msg.push_str(&(CAM_DESIGN.0.to_string()));
         msg.push_str(",\"height\":");
         match set.bin {
             true=>{msg.push_str(&(1.to_string()))},
-            false=>{msg.push_str(&(256.to_string()))},
+            false=>{msg.push_str(&(CAM_DESIGN.1.to_string()))},
         }
         msg.push_str("}\n");
 
