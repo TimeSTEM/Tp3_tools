@@ -3,11 +3,72 @@
 
 const DEAD_PIXELS: usize = 5;
 
-pub struct Packet<'a> {
+pub trait PacketTrait {
+    fn ci(&self) -> u8;
+    fn data(&self) -> &[u8];
+    fn x(&self) -> Option<usize> {
+        let temp = ((((self.data()[6] & 224))>>4 | ((self.data()[7] & 15))<<4) | (((self.data()[5] & 112)>>4)>>2)) as usize;
+        if temp<DEAD_PIXELS || temp>255-DEAD_PIXELS {
+            return None
+        }
+        match self.ci() {
+            0 => Some(255 - temp),
+            1 => Some(temp),
+            2 => Some(temp + 255),
+            3 => Some(256 * 2 - 1 - temp),
+            _ => None,
+        }
+    }
+    fn y(&self) -> Option<usize> {
+        let temp = (   ( ((self.data()[5] & 128))>>5 | ((self.data()[6] & 31))<<3 ) | ( (((self.data()[5] & 112)>>4)) & 3 )   ) as usize;
+        if temp<DEAD_PIXELS || temp>255-DEAD_PIXELS {
+            return None
+        }
+        match self.ci() {
+            0 => Some(temp),
+            1 => Some(256 * 2 - 1 - temp),
+            2 => Some(256 * 2 - 1 - temp),
+            3 => Some(temp),
+            _ => None,
+        }
+    }
+    fn id(&self) -> u8 {
+        (self.data()[7] & 240) >> 4
+    }
+    fn tdc_type(&self) -> u8 {
+        self.data()[7] & 15 
+    }
+
+    fn tdc_time(&self) -> f64 {
+        let coarse = ((self.data()[1] & 254) as u64)>>1 | ((self.data()[2]) as u64)<<7 | ((self.data()[3]) as u64)<<15 | ((self.data()[4]) as u64)<<23 | ((self.data()[5] & 15) as u64)<<31;
+        let fine = (self.data()[0] & 224)>>5 | (self.data()[1] & 1)<<3;
+        (coarse as f64) * (1.0/320.0e6) + (fine as f64) * 260.0e-12
+    }
+
+}
+
+pub struct PacketTest<'a> {
     pub chip_index: u8,
     pub data: &'a [u8],
 }
 
+impl<'a> PacketTrait for PacketTest<'a> {
+    fn ci(&self) -> u8 {
+        self.chip_index
+    }
+    fn data(&self) -> &[u8] {
+        self.data
+    }
+}
+
+
+
+
+
+pub struct Packet<'a> {
+    pub chip_index: u8,
+    pub data: &'a [u8],
+}
 
 impl<'a> Packet<'a> {
     

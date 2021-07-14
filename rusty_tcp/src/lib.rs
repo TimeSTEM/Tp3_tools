@@ -9,18 +9,20 @@ pub mod packetlib;
 
 ///`modes` is a module containing tools to live acquire frames and spectral images.
 pub mod modes {
-    use crate::packetlib::Packet;
-    use crate::auxiliar::Settings;
-    use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
-    use std::time::Instant;
-    use std::net::TcpStream;
-    use std::io::{Read, Write};
 
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
     const CLUSTER_TIME: f64 = 50.0e-09;
     //const CAM_DESIGN: (usize, usize) = (1024, 256);
     const CAM_DESIGN: (usize, usize) = (512, 512);
+    
+    use crate::packetlib::{Packet, PacketTrait, PacketTest};
+    use crate::auxiliar::Settings;
+    use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
+    use std::time::Instant;
+    use std::net::TcpStream;
+    use std::io::{Read, Write};
+
 
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
@@ -202,11 +204,15 @@ pub mod modes {
             match x {
                 &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
                 _ => {
-                    let packet = Packet { chip_index: *last_ci, data: x};
+                    //let packet = Packet { chip_index: *last_ci, data: x};
+                    let packet_test = match CAM_DESIGN {
+                        (512, 512) => PacketTest { chip_index: *last_ci, data: x},
+                        _ => PacketTest { chip_index: *last_ci, data: x},
+                    };
                     
-                    match packet.id() {
+                    match packet_test.id() {
                         11 => {
-                            if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
+                            if let (Some(x), Some(y)) = (packet_test.x(), packet_test.y()) {
                                 let array_pos = match settings.bin {
                                     false => x + CAM_DESIGN.0*y,
                                     true => x
@@ -215,8 +221,8 @@ pub mod modes {
                                 
                             }
                         },
-                        6 if packet.tdc_type() == tdc.id() => {
-                            tdc.upt(packet.tdc_time());
+                        6 if packet_test.tdc_type() == tdc.id() => {
+                            tdc.upt(packet_test.tdc_time());
                             has = true;
                         },
                         _ => {},
