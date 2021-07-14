@@ -9,20 +9,18 @@ pub mod packetlib;
 
 ///`modes` is a module containing tools to live acquire frames and spectral images.
 pub mod modes {
-
-    const SPIM_PIXELS: usize = 1025;
-    const VIDEO_TIME: f64 = 0.000007;
-    const CLUSTER_TIME: f64 = 50.0e-09;
-    //const CAM_DESIGN: (usize, usize) = (1024, 256);
-    const CAM_DESIGN: (usize, usize) = (512, 512);
-    
-    use crate::packetlib::{Packet, PacketTrait, PacketTest};
+    use crate::packetlib::{Packet, PacketEELS, PacketDiff as Pack};
     use crate::auxiliar::Settings;
     use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
     use std::time::Instant;
     use std::net::TcpStream;
     use std::io::{Read, Write};
 
+    const SPIM_PIXELS: usize = 1025;
+    const VIDEO_TIME: f64 = 0.000007;
+    const CLUSTER_TIME: f64 = 50.0e-09;
+    //const CAM_DESIGN: (usize, usize) = (1024, 256);
+    const CAM_DESIGN: (usize, usize) = (512, 512);
 
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
@@ -36,7 +34,7 @@ pub mod modes {
             match x {
                 &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
                 _ => {
-                    let packet = Packet { chip_index: *last_ci, data: x};
+                    let packet = Pack { chip_index: *last_ci, data: x};
                     
                     match packet.id() {
                         11 => {
@@ -74,7 +72,7 @@ pub mod modes {
             match x {
                 &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
                 _ => {
-                    let packet = Packet { chip_index: *last_ci, data: x};
+                    let packet = Pack { chip_index: *last_ci, data: x};
                     
                     match packet.id() {
                         11 => {
@@ -119,7 +117,7 @@ pub mod modes {
             match x {
                 &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
                 _ => {
-                    let packet = Packet { chip_index: *last_ci, data: x};
+                    let packet = Pack { chip_index: *last_ci, data: x};
                     
                     match packet.id() {
                         11 => {
@@ -205,10 +203,12 @@ pub mod modes {
                 &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
                 _ => {
                     //let packet = Packet { chip_index: *last_ci, data: x};
-                    let packet_test = match CAM_DESIGN {
-                        (512, 512) => PacketTest { chip_index: *last_ci, data: x},
-                        _ => PacketTest { chip_index: *last_ci, data: x},
-                    };
+                    //let packet_test = match CAM_DESIGN {
+                    //    (512, 512) => Box::new(PacketDiff { chip_index: *last_ci, data: x}) as Box<Packet>,
+                    //    (1024, 256) => Box::new(PacketEELS { chip_index: *last_ci, data: x}) as Box<Packet>,
+                    //    _ => panic!("***Lib***: Packet must be (512, 512) or (1024, 256)."),
+                    //};
+                    let packet_test = Pack { chip_index: *last_ci, data: x};
                     
                     match packet_test.id() {
                         11 => {
@@ -243,7 +243,7 @@ pub mod modes {
             match x {
                 &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
                 _ => {
-                    let packet = Packet { chip_index: *last_ci, data: x};
+                    let packet = Pack { chip_index: *last_ci, data: x};
                     
                     match packet.id() {
                         11 => {

@@ -9,7 +9,7 @@ mod tdcvec {
     use crate::tdclib::TdcType;
     
     pub fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
-        use crate::packetlib::Packet;
+        use crate::packetlib::{Packet, PacketEELS};
         
         let file_data = data;
         let mut packet_chunks = file_data.chunks_exact(8);
@@ -18,7 +18,7 @@ mod tdcvec {
             match x {
                 &[84, 80, 88, 51, nci, _, _, _] => {*last_ci = nci},
                 _ => {
-                    let packet = Packet { chip_index: *last_ci, data: x};
+                    let packet = PacketEELS { chip_index: *last_ci, data: x};
                     
                     match packet.id() {
                         6 => {
