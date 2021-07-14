@@ -103,19 +103,25 @@ impl<'a> Packet for PacketEELS<'a> {
     }
 }
 
-pub struct PacketDiff<'a> {
+impl<'a> PacketEELS<'a> {
+    pub const fn chip_array() -> (usize, usize) {
+        (1024, 256)
+    }
+}
+
+
+pub struct PacketDiffraction<'a> {
     pub chip_index: u8,
     pub data: &'a [u8],
 }
 
-impl<'a> Packet for PacketDiff<'a> {
+impl<'a> Packet for PacketDiffraction<'a> {
     fn ci(&self) -> u8 {
         self.chip_index
     }
     fn data(&self) -> &[u8] {
         self.data
     }
-    
     fn x(&self) -> Option<usize> {
         let temp = ((((self.data[6] & 224))>>4 | ((self.data[7] & 15))<<4) | (((self.data[5] & 112)>>4)>>2)) as usize;
         if temp<DEAD_PIXELS || temp>255-DEAD_PIXELS {
@@ -142,6 +148,12 @@ impl<'a> Packet for PacketDiff<'a> {
             3 => Some(temp),
             _ => None,
         }
+    }
+}
+
+impl<'a> PacketDiffraction<'a> {
+    pub const fn chip_array() -> (usize, usize) {
+        (512, 512)
     }
 }
 

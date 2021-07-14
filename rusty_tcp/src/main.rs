@@ -1,7 +1,7 @@
 use std::io::prelude::*;
 use std::thread;
 use std::sync::mpsc;
-use std::net::{Shutdown, TcpListener, SocketAddr, UdpSocket};
+use std::net::{TcpListener, SocketAddr, UdpSocket};
 use std::time::Instant;
 use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef, NoTdcRef};

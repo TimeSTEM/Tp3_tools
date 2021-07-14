@@ -9,7 +9,7 @@ pub mod packetlib;
 
 ///`modes` is a module containing tools to live acquire frames and spectral images.
 pub mod modes {
-    use crate::packetlib::{Packet, PacketEELS, PacketDiff as Pack};
+    use crate::packetlib::{Packet, PacketEELS, PacketDiffraction as Pack};
     use crate::auxiliar::Settings;
     use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
     use std::time::Instant;
@@ -19,8 +19,7 @@ pub mod modes {
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
     const CLUSTER_TIME: f64 = 50.0e-09;
-    //const CAM_DESIGN: (usize, usize) = (1024, 256);
-    const CAM_DESIGN: (usize, usize) = (512, 512);
+    const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
@@ -165,6 +164,7 @@ pub mod modes {
 
     pub fn build_spectrum<T: TdcControl, U: TdcControl>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, _ref_tdc: U) {
         
+
         let start = Instant::now();
         let mut last_ci = 0u8;
         let mut buffer_pack_data = vec![0; 16384];
@@ -197,22 +197,16 @@ pub mod modes {
 
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
-
+        
         while let Some(x) = packet_chunks.next() {
             match x {
                 &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
                 _ => {
-                    //let packet = Packet { chip_index: *last_ci, data: x};
-                    //let packet_test = match CAM_DESIGN {
-                    //    (512, 512) => Box::new(PacketDiff { chip_index: *last_ci, data: x}) as Box<Packet>,
-                    //    (1024, 256) => Box::new(PacketEELS { chip_index: *last_ci, data: x}) as Box<Packet>,
-                    //    _ => panic!("***Lib***: Packet must be (512, 512) or (1024, 256)."),
-                    //};
-                    let packet_test = Pack { chip_index: *last_ci, data: x};
+                    let packet = Pack { chip_index: *last_ci, data: x};
                     
-                    match packet_test.id() {
+                    match packet.id() {
                         11 => {
-                            if let (Some(x), Some(y)) = (packet_test.x(), packet_test.y()) {
+                            if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
                                 let array_pos = match settings.bin {
                                     false => x + CAM_DESIGN.0*y,
                                     true => x
@@ -221,8 +215,8 @@ pub mod modes {
                                 
                             }
                         },
-                        6 if packet_test.tdc_type() == tdc.id() => {
-                            tdc.upt(packet_test.tdc_time());
+                        6 if packet.tdc_type() == tdc.id() => {
+                            tdc.upt(packet.tdc_time());
                             has = true;
                         },
                         _ => {},
