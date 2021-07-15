@@ -36,6 +36,7 @@ fn connect_and_loop() {
         0 => {
             let frame_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneRisingEdge, &mut pack_sock);
             let none_tdc = NoTdcRef::new_ref();
+            
             modes::build_spectrum(pack_sock, ns_sock, my_settings, frame_tdc, none_tdc);
         },
         1 => {

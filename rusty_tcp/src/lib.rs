@@ -16,6 +16,7 @@ pub mod modes {
     use std::net::TcpStream;
     use std::io::{Read, Write};
     use std::sync::mpsc;
+    use std::thread;
 
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
@@ -163,10 +164,10 @@ pub mod modes {
 
 
 
-    pub fn build_spectrum<T: TdcControl, U: TdcControl>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, mut ref_tdc: U) {
+    pub fn build_spectrum_thread<T: 'static + TdcControl + Send, U: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, mut ref_tdc: U) {
         
 
-        //let (tx, rx) = mpsc::channel();
+        let (tx, rx) = mpsc::channel();
         let start = Instant::now();
         let mut last_ci = 0u8;
         let mut buffer_pack_data = vec![0; 16384];
@@ -175,25 +176,63 @@ pub mod modes {
 
         assert!(frame_tdc.is_periodic());
         
+        thread::spawn(move || {
             loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
                             if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
                             let msg = create_header(&my_settings, &frame_tdc);
-                            if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
-                            if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
-                            
+                            tx.send((data_array.clone(), msg)).expect("could not send data in the thread channel.");
                             if my_settings.cumul == false {
                                 data_array = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
                                 data_array.push(10);
+                            };
+                            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
                             }
-
-                           if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
-                        }
-                    } else {println!("Received zero packages"); break;}
+                    }
                 }
             }
+        });
+
+        loop {
+            if let Ok((result, msg)) = rx.recv() {
+                if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on data."); break;}
+                if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+            } else {break;}
+        }
+    }
+
+
+    
+    pub fn build_spectrum<T: TdcControl, U: TdcControl>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, mut ref_tdc: U) {
+        
+
+        let start = Instant::now();
+        let mut last_ci = 0u8;
+        let mut buffer_pack_data = vec![0; 16384];
+        let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
+        data_array.push(10);
+
+        assert!(frame_tdc.is_periodic());
+        
+        loop {
+            if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                if size>0 {
+                    let new_data = &buffer_pack_data[0..size];
+                        if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
+                        let msg = create_header(&my_settings, &frame_tdc);
+                        if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
+                        if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
+                        if my_settings.cumul == false {
+                            data_array = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
+                            data_array.push(10);
+                        };
+                        if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
+                        }
+                }
+            }
+        }
     }
 
     ///Returns a frame using a periodic TDC as reference.
