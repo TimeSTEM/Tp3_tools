@@ -9,7 +9,7 @@ pub mod packetlib;
 
 ///`modes` is a module containing tools to live acquire frames and spectral images.
 pub mod modes {
-    use crate::packetlib::{Packet, PacketEELS as Pack, PacketDiffraction};
+    use crate::packetlib::{Packet, PacketEELS, PacketDiffraction as Pack};
     use crate::auxiliar::Settings;
     use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
     use std::time::Instant;
@@ -251,8 +251,6 @@ pub mod modes {
             eff_tdc = eff_tdc - period;
         }
         
-        if counter>5 {return None}
-        
         if ele_time > eff_tdc + settings.time_delay && ele_time < eff_tdc + settings.time_delay + settings.time_width {
             Some(counter)
         } else {
@@ -356,36 +354,4 @@ pub mod modes {
         s
     }
 
-}
-
-///`misc` or `miscelaneous` is a module containing shared tools between modes.
-pub mod misc {
-    use crate::tdclib::{PeriodicTdcRef};
-    use crate::auxiliar::Settings;
-    
-    ///Create header, used mainly for frame based spectroscopy.
-    pub fn create_header(set: &Settings, tdc: &PeriodicTdcRef) -> Vec<u8> {
-        let mut msg: String = String::from("{\"timeAtFrame\":");
-        msg.push_str(&(tdc.time.to_string()));
-        msg.push_str(",\"frameNumber\":");
-        msg.push_str(&(tdc.counter.to_string()));
-        msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
-        match set.bin {
-            true => { msg.push_str(&((set.bytedepth*1024).to_string()))},
-            false => { msg.push_str(&((set.bytedepth*1024*256).to_string()))},
-        }
-        msg.push_str(",\"bitDepth\":");
-        msg.push_str(&((set.bytedepth<<3).to_string()));
-        msg.push_str(",\"width\":");
-        msg.push_str(&(1024.to_string()));
-        msg.push_str(",\"height\":");
-        match set.bin {
-            true=>{msg.push_str(&(1.to_string()))},
-            false=>{msg.push_str(&(256.to_string()))},
-        }
-        msg.push_str("}\n");
-
-        let s: Vec<u8> = msg.into_bytes();
-        s
-    }
 }
