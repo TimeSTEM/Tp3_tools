@@ -15,6 +15,7 @@ pub mod modes {
     use std::time::Instant;
     use std::net::TcpStream;
     use std::io::{Read, Write};
+    use std::sync::mpsc;
 
     const SPIM_PIXELS: usize = 1025;
     const VIDEO_TIME: f64 = 0.000007;
@@ -165,6 +166,7 @@ pub mod modes {
     pub fn build_spectrum<T: TdcControl, U: TdcControl>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, mut ref_tdc: U) {
         
 
+        //let (tx, rx) = mpsc::channel();
         let start = Instant::now();
         let mut last_ci = 0u8;
         let mut buffer_pack_data = vec![0; 16384];
