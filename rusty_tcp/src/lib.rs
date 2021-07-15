@@ -23,13 +23,40 @@ pub mod modes {
     const CLUSTER_TIME: f64 = 50.0e-09;
     const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 
+
+    pub fn build_spim(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut spim_tdc: PeriodicTdcRef) {
+        let (tx, rx) = mpsc::channel();
+        let mut last_ci = 0u8;
+        let mut buffer_pack_data = vec![0; 16384];
+            
+        thread::spawn(move || {
+            loop {
+                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                    if size>0 {
+                        let new_data = &buffer_pack_data[0..size];
+                        let result = build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
+                        tx.send(result).expect("Cannot send data over the thread channel.");
+                    } else {println!("Received zero packages from TP3."); break;}
+                }
+            }
+        });
+
+        loop {
+            if let Ok(tl) = rx.recv() {
+                let result = sort_and_append_to_index(tl);
+                if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+                //if let Err(_) = ns_udp.send_to(&result, "127.0.0.1:9088") {println!("Client disconnected on data (UDP)."); break;};
+            } else {break;}
+        }
+    }
+
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
-    pub fn build_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Vec<(f64, usize, usize)> {
+    fn build_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Vec<(f64, usize, usize)> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut timelist:Vec<(f64, usize, usize)> = Vec::new();
         let interval = line_tdc.low_time;
-        let period = line_tdc.period;
+        let period = line_tdc.period();
 
         while let Some(x) = packet_chunks.next() {
             match x {
@@ -41,16 +68,16 @@ pub mod modes {
                         11 => {
                             if let Some(x) = packet.x() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
-                                if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
-                                    let line = (((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
-                                    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
+                                if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
+                                    let line = (((line_tdc.counter() - backline) / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
+                                    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                     let array_pos = x + line + xpos;
                                     timelist.push((ele_time, x, array_pos));
                                 }
                             }
                             
                         },
-                        6 if packet.tdc_type() == line_tdc.tdctype => {
+                        6 if packet.tdc_type() == line_tdc.id() => {
                             line_tdc.upt(packet.tdc_time_norm());
                         },
                         _ => {},
@@ -159,14 +186,8 @@ pub mod modes {
     }
  
 
-
-
-
-
-
     pub fn build_spectrum_thread<T: 'static + TdcControl + Send, U: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, mut ref_tdc: U) {
         
-
         let (tx, rx) = mpsc::channel();
         let start = Instant::now();
         let mut last_ci = 0u8;
@@ -182,13 +203,13 @@ pub mod modes {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
                             if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
-                            let msg = create_header(&my_settings, &frame_tdc);
-                            tx.send((data_array.clone(), msg)).expect("could not send data in the thread channel.");
-                            if my_settings.cumul == false {
-                                data_array = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
-                                data_array.push(10);
-                            };
-                            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
+                                let msg = create_header(&my_settings, &frame_tdc);
+                                tx.send((data_array.clone(), msg)).expect("could not send data in the thread channel.");
+                                if my_settings.cumul == false {
+                                    data_array = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
+                                    data_array.push(10);
+                                };
+                                if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
                             }
                     }
                 }
@@ -206,7 +227,6 @@ pub mod modes {
 
     
     pub fn build_spectrum<T: TdcControl, U: TdcControl>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, mut ref_tdc: U) {
-        
 
         let start = Instant::now();
         let mut last_ci = 0u8;
@@ -221,14 +241,14 @@ pub mod modes {
                 if size>0 {
                     let new_data = &buffer_pack_data[0..size];
                         if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
-                        let msg = create_header(&my_settings, &frame_tdc);
-                        if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
-                        if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
-                        if my_settings.cumul == false {
-                            data_array = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
-                            data_array.push(10);
-                        };
-                        if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
+                            let msg = create_header(&my_settings, &frame_tdc);
+                            if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
+                            if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
+                            if my_settings.cumul == false {
+                                data_array = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
+                                data_array.push(10);
+                            };
+                            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
                         }
                 }
             }

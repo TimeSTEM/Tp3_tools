@@ -1,6 +1,4 @@
 use std::io::prelude::*;
-use std::thread;
-use std::sync::mpsc;
 use std::net::{TcpListener, SocketAddr, UdpSocket};
 use std::time::Instant;
 use timepix3::auxiliar::Settings;
@@ -46,8 +44,11 @@ fn connect_and_loop() {
             modes::build_spectrum(pack_sock, ns_sock, my_settings, frame_tdc, laser_tdc);
         },
         2 => {
-            let mut spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
-            let (tx, rx) = mpsc::channel();
+            let spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
+
+            modes::build_spim(pack_sock, ns_sock, my_settings, spim_tdc);
+
+            /*let (tx, rx) = mpsc::channel();
             
             thread::spawn(move || {
                 loop {
@@ -68,6 +69,7 @@ fn connect_and_loop() {
                     //if let Err(_) = ns_udp.send_to(&result, "127.0.0.1:9088") {println!("Client disconnected on data (UDP)."); break;};
                 } else {break;}
             }
+            */
         },
         3 => {
             let mut spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
