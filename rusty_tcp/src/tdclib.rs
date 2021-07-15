@@ -4,7 +4,6 @@
 use std::net::TcpStream;
 use std::io::Read;
 
-
 mod tdcvec {
     use crate::tdclib::TdcType;
     
@@ -94,7 +93,6 @@ mod tdcvec {
             .last().unwrap();
         last_time
     }
-
 }
 
 

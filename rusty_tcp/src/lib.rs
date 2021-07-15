@@ -168,7 +168,7 @@ pub mod modes {
         let start = Instant::now();
         let mut last_ci = 0u8;
         let mut buffer_pack_data = vec![0; 16384];
-        let mut data_array:Vec<u8> = vec![0; (255*!my_settings.bin as usize + 1)*my_settings.bytedepth*1024];
+        let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
         data_array.push(10);
         
             loop {
@@ -181,7 +181,7 @@ pub mod modes {
                             if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
                             
                             if my_settings.cumul == false {
-                                data_array = vec![0; (255*!my_settings.bin as usize + 1)*my_settings.bytedepth*1024];
+                                data_array = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
                                 data_array.push(10);
                             }
 
@@ -266,9 +266,6 @@ pub mod modes {
         };
         has
     }
-    
-
-
 
     fn tr_check_if_in(ele_time: f64, tdc: f64, period: f64, settings: &Settings) -> Option<usize> {
         let mut eff_tdc = tdc;
@@ -365,8 +362,8 @@ pub mod modes {
         msg.push_str(&(tdc.counter().to_string()));
         msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
         match set.bin {
-            true => { msg.push_str(&((set.bytedepth*1024).to_string()))},
-            false => { msg.push_str(&((set.bytedepth*1024*256).to_string()))},
+            true => { msg.push_str(&((set.bytedepth*CAM_DESIGN.0).to_string()))},
+            false => { msg.push_str(&((set.bytedepth*CAM_DESIGN.0*CAM_DESIGN.1).to_string()))},
         }
         msg.push_str(",\"bitDepth\":");
         msg.push_str(&((set.bytedepth<<3).to_string()));
