@@ -186,7 +186,20 @@ pub mod modes {
     }
  
 
-    pub fn build_spectrum_thread<T: 'static + TdcControl + Send, U: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, mut ref_tdc: U) {
+
+
+
+
+
+
+
+
+
+
+
+
+
+    pub fn build_spectrum_thread<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
         
         let (tx, rx) = mpsc::channel();
         let start = Instant::now();
@@ -195,8 +208,6 @@ pub mod modes {
         let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
         data_array.push(10);
 
-        assert!(frame_tdc.is_periodic());
-        
         thread::spawn(move || {
             loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -226,7 +237,7 @@ pub mod modes {
 
 
     
-    pub fn build_spectrum<T: TdcControl, U: TdcControl>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, mut ref_tdc: U) {
+    pub fn build_spectrum<T: TdcControl>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
 
         let start = Instant::now();
         let mut last_ci = 0u8;
@@ -234,8 +245,6 @@ pub mod modes {
         let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
         data_array.push(10);
 
-        assert!(frame_tdc.is_periodic());
-        
         loop {
             if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                 if size>0 {
@@ -256,7 +265,7 @@ pub mod modes {
     }
 
     ///Returns a frame using a periodic TDC as reference.
-    fn build_data<T: TdcControl, U: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, frame_tdc: &mut T, ref_tdc: &mut U) -> bool {
+    fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
 
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
