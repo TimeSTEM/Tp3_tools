@@ -5,7 +5,7 @@ use std::net::{TcpListener, SocketAddr, UdpSocket};
 use std::time::Instant;
 use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef, NoTdcRef};
-use timepix3::{modes, misc};
+use timepix3::modes;
 
 fn connect_and_loop() {
 
@@ -37,62 +37,12 @@ fn connect_and_loop() {
             let frame_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneRisingEdge, &mut pack_sock);
             let ref_tdc = NoTdcRef::new_ref();
             modes::build_spectrum(pack_sock, ns_sock, my_settings, frame_tdc, ref_tdc);
-            
-            /*let mut data_array:Vec<u8> = vec![0; (255*!my_settings.bin as usize + 1)*my_settings.bytedepth*1024];
-            data_array.push(10);
-            
-                loop {
-                    if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                        if size>0 {
-                            let new_data = &buffer_pack_data[0..size];
-                            if modes::build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc) {
-                                let msg = misc::create_header(&my_settings, &frame_tdc);
-                                if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
-                                if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
-                                
-                                if my_settings.cumul == false {
-                                    data_array = vec![0; (255*!my_settings.bin as usize + 1)*my_settings.bytedepth*1024];
-                                    data_array.push(10);
-                                }
-
-                               if frame_tdc.counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter);}
-                            }
-                        } else {println!("Received zero packages"); break;}
-                    }
-                }
-                */
         },
         1 => {
-            let mut frame_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneRisingEdge, &mut pack_sock);
-            let mut laser_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcTwoFallingEdge, &mut pack_sock);
+            let frame_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneRisingEdge, &mut pack_sock);
+            let laser_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcTwoFallingEdge, &mut pack_sock);
      
-            let mut data_array:Vec<u8> = if my_settings.bin {vec![0; my_settings.bytedepth*1024]} else {vec![0; 256*my_settings.bytedepth*1024]};
-            data_array.push(10);
-            
-            'TRglobal: loop {
-                match my_settings.cumul {
-                    false => {
-                        data_array = if my_settings.bin {vec![0; my_settings.bytedepth*1024]} else {vec![0; 256*my_settings.bytedepth*1024]};
-                        data_array.push(10);
-                    },
-                    true => {},
-                }
-
-                loop {
-                    if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                        if size>0 {
-                            let new_data = &buffer_pack_data[0..size];
-                            if modes::tr_build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut laser_tdc) {
-                                let msg = misc::create_header(&my_settings, &frame_tdc);
-                                if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break 'TRglobal;}
-                                if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break 'TRglobal;}
-                                break;
-                            }
-                        } else {println!("Received zero packages"); break 'TRglobal;}
-                    }
-                }
-                if frame_tdc.counter % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter);}
-            }
+            modes::build_spectrum(pack_sock, ns_sock, my_settings, frame_tdc, laser_tdc);
         },
         2 => {
             let mut spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
