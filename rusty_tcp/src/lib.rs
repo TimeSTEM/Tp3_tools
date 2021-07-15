@@ -11,7 +11,7 @@ pub mod packetlib;
 pub mod modes {
     use crate::packetlib::{Packet, PacketEELS, PacketDiffraction as Pack};
     use crate::auxiliar::Settings;
-    use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
+    use crate::tdclib::{TdcControl, PeriodicTdcRef};
     use std::time::Instant;
     use std::net::TcpStream;
     use std::io::{Read, Write};
@@ -116,6 +116,7 @@ pub mod modes {
         timelist
     }
     
+    /*
     ///Returns a vector containing a list of indexes in which TDC events happened. Uses one TDC
     ///referred to the beginning of a new scan line and a second Non Periodic TDC to use as pixel
     ///counter.
@@ -168,6 +169,7 @@ pub mod modes {
         };
         index_data
     }
+    */
  
 
 

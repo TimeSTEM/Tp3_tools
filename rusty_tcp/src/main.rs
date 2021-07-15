@@ -1,6 +1,4 @@
-use std::io::prelude::*;
 use std::net::{TcpListener, SocketAddr, UdpSocket};
-use std::time::Instant;
 use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef, NoTdcRef};
 use timepix3::modes;
@@ -25,11 +23,7 @@ fn connect_and_loop() {
     println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
     
     let my_settings = Settings::tcp_create_settings(&mut ns_sock);
-    let mut last_ci = 0u8;
-    
-    let mut buffer_pack_data = vec![0; 16384];
 
-    let start = Instant::now();
     match my_settings.mode {
         0 => {
             let frame_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneRisingEdge, &mut pack_sock);
@@ -56,9 +50,12 @@ fn connect_and_loop() {
             modes::build_spim(pack_sock, ns_sock, my_settings, spim_tdc, laser_tdc);
         },
         4 => {
-            let mut spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
-            let mut pmt_tdc = NonPeriodicTdcRef::new_ref(TdcType::TdcTwoFallingEdge);
+            let spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
+            let pmt_tdc = NonPeriodicTdcRef::new_ref(TdcType::TdcTwoFallingEdge);
+            
+            modes::build_spim(pack_sock, ns_sock, my_settings, spim_tdc, pmt_tdc);
 
+            /*
             loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
@@ -69,6 +66,7 @@ fn connect_and_loop() {
                 }
             }
             println!("Number of counts in PMT was: {}. Total elapsed time is {:?}.", pmt_tdc.counter, start.elapsed());
+            */
         },
         _ => panic!("Unknown mode received."),
     }
