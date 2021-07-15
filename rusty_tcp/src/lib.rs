@@ -9,7 +9,7 @@ pub mod packetlib;
 
 ///`modes` is a module containing tools to live acquire frames and spectral images.
 pub mod modes {
-    use crate::packetlib::{Packet, PacketEELS, PacketDiffraction as Pack};
+    use crate::packetlib::{Packet, PacketEELS as Pack, PacketDiffraction};
     use crate::auxiliar::Settings;
     use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
     use std::time::Instant;
@@ -162,7 +162,7 @@ pub mod modes {
 
 
 
-    pub fn build_spectrum<T: TdcControl, U: TdcControl>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, _ref_tdc: U) {
+    pub fn build_spectrum<T: TdcControl, U: TdcControl>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: T, mut ref_tdc: U) {
         
 
         let start = Instant::now();
@@ -170,12 +170,14 @@ pub mod modes {
         let mut buffer_pack_data = vec![0; 16384];
         let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
         data_array.push(10);
+
+        assert!(frame_tdc.is_periodic());
         
             loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                            if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc) {
+                            if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
                             let msg = create_header(&my_settings, &frame_tdc);
                             if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
                             if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
@@ -193,7 +195,7 @@ pub mod modes {
     }
 
     ///Returns a frame using a periodic TDC as reference.
-    fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, tdc: &mut T) -> bool {
+    fn build_data<T: TdcControl, U: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, frame_tdc: &mut T, ref_tdc: &mut U) -> bool {
 
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
@@ -205,7 +207,7 @@ pub mod modes {
                     let packet = Pack { chip_index: *last_ci, data: x};
                     
                     match packet.id() {
-                        11 => {
+                        11 if !ref_tdc.is_periodic() => {
                             if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
                                 let array_pos = match settings.bin {
                                     false => x + CAM_DESIGN.0*y,
@@ -215,9 +217,23 @@ pub mod modes {
                                 
                             }
                         },
-                        6 if packet.tdc_type() == tdc.id() => {
-                            tdc.upt(packet.tdc_time());
+                        11 if ref_tdc.is_periodic() => {
+                            if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
+                                if let Some(_backtdc) = tr_check_if_in(packet.electron_time(), ref_tdc.time(), ref_tdc.period(), settings) {
+                                    let array_pos = match settings.bin {
+                                        false => x + CAM_DESIGN.0*y,
+                                        true => x
+                                    };
+                                    append_to_array(final_data, array_pos, settings.bytedepth);
+                                }
+                            }
+                        },
+                        6 if packet.tdc_type() == frame_tdc.id() => {
+                            frame_tdc.upt(packet.tdc_time());
                             has = true;
+                        },
+                        6 if packet.tdc_type() == ref_tdc.id() => {
+                            ref_tdc.upt(packet.tdc_time_norm());
                         },
                         _ => {},
                     };

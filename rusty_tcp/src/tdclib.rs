@@ -142,6 +142,7 @@ pub trait TdcControl {
     fn upt(&mut self, time: f64);
     fn counter(&self) -> usize;
     fn time(&self) -> f64;
+    fn period(&self) -> f64;
     fn is_periodic(&self) -> bool;
 }
 
@@ -170,6 +171,10 @@ impl TdcControl for PeriodicTdcRef {
 
     fn time(&self) -> f64 {
         self.time
+    }
+
+    fn period(&self) -> f64 {
+        self.period
     }
 
     fn is_periodic(&self) -> bool {
@@ -239,6 +244,10 @@ impl TdcControl for NonPeriodicTdcRef {
     fn time(&self) -> f64 {
         self.time[0]
     }
+
+    fn period(&self) -> f64 {
+        self.time[0] - self.time[1]
+    }
     
     fn is_periodic(&self) -> bool {
         false
@@ -273,6 +282,10 @@ impl TdcControl for NoTdcRef {
     }
 
     fn time(&self) -> f64 {
+        0.0
+    }
+
+    fn period(&self) -> f64 {
         0.0
     }
     
