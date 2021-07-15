@@ -23,8 +23,9 @@ mod tdcvec {
                     match packet.id() {
                         6 => {
                             let time = packet.tdc_time_norm();
-                            let tdc = TdcType::associate_value_to_enum(packet.tdc_type()).unwrap();
-                            tdc_vec.push( (time, tdc) );
+                            if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
+                                tdc_vec.push( (time, tdc) );
+                            }
                         },
                         _ => {},
                     };
@@ -126,13 +127,13 @@ impl TdcType {
     }
 
     ///From associate value to enum TdcType.
-    pub fn associate_value_to_enum(value: u8) -> Result<TdcType, &'static str> {
+    pub fn associate_value_to_enum(value: u8) -> Option<TdcType> {
         match value {
-            15 => Ok(TdcType::TdcOneRisingEdge),
-            10 => Ok(TdcType::TdcOneFallingEdge),
-            14 => Ok(TdcType::TdcTwoRisingEdge),
-            11 => Ok(TdcType::TdcTwoFallingEdge),
-            _ => Err("Bad TDC receival"),
+            15 => Some(TdcType::TdcOneRisingEdge),
+            10 => Some(TdcType::TdcOneFallingEdge),
+            14 => Some(TdcType::TdcTwoRisingEdge),
+            11 => Some(TdcType::TdcTwoFallingEdge),
+            _ => None,
         }
     }
     
