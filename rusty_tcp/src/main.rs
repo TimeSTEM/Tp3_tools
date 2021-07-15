@@ -48,46 +48,12 @@ fn connect_and_loop() {
             let none_tdc = NoTdcRef::new_ref();
 
             modes::build_spim(pack_sock, ns_sock, my_settings, spim_tdc, none_tdc);
-
-            /*let (tx, rx) = mpsc::channel();
-            
-            thread::spawn(move || {
-                loop {
-                    if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                        if size>0 {
-                            let new_data = &buffer_pack_data[0..size];
-                            let result = modes::build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
-                            tx.send(result).expect("Cannot send data over the thread channel.");
-                        } else {println!("Received zero packages from TP3."); break;}
-                    }
-                }
-            });
-
-            loop {
-                if let Ok(tl) = rx.recv() {
-                    let result = modes::sort_and_append_to_index(tl);
-                    if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-                    //if let Err(_) = ns_udp.send_to(&result, "127.0.0.1:9088") {println!("Client disconnected on data (UDP)."); break;};
-                } else {break;}
-            }
-            */
         },
         3 => {
             let spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
             let laser_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcTwoFallingEdge, &mut pack_sock);
             
             modes::build_spim(pack_sock, ns_sock, my_settings, spim_tdc, laser_tdc);
-
-            /*loop {
-                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                    if size>0 {
-                        let new_data = &buffer_pack_data[0..size];
-                        let result = modes::build_tr_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut laser_tdc);
-                        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-                    } else {println!("Received zero packages from TP3."); break;}
-                }
-            }
-            */
         },
         4 => {
             let mut spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);

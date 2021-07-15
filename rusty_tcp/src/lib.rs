@@ -106,50 +106,6 @@ pub mod modes {
         timelist
     }
     
-    ///Returns a vector containing a list of indexes in which events happened for a time-resolved (TR) measurement.
-    ///Uses one TDC for the beginning of a scan line and another one for the TR.
-    pub fn build_tr_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut PeriodicTdcRef) -> Vec<u8> {
-        let mut packet_chunks = data.chunks_exact(8);
-        let mut index_data:Vec<u8> = Vec::new();
-        let interval = line_tdc.low_time;
-        let period = line_tdc.period;
-
-        while let Some(x) = packet_chunks.next() {
-            match x {
-                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
-                _ => {
-                    let packet = Pack { chip_index: *last_ci, data: x};
-                    
-                    match packet.id() {
-                        11 => {
-                            if let Some(x) = packet.x() {
-                                let mut ele_time = packet.electron_time();
-                                if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time, ref_tdc.period, settings) {
-                                    ele_time -= VIDEO_TIME;
-                                    if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time, interval, period) {
-                                        let line = ((line_tdc.counter - backline) / settings.spimoverscany) % settings.yspim_size;
-                                        let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time - (backline as f64)*period))/interval)) as usize;
-                                        let array_pos = x + SPIM_PIXELS*settings.xspim_size*line + SPIM_PIXELS*xpos;
-                                        append_to_index_array(&mut index_data, array_pos);
-                                    }
-                                }
-                            }
-                            
-                        },
-                        6 if packet.tdc_type() == line_tdc.tdctype => {
-                            line_tdc.upt(packet.tdc_time_norm());
-                        },
-                        6 if packet.tdc_type() == ref_tdc.tdctype => {
-                            ref_tdc.upt(packet.tdc_time_norm());
-                        },
-                        _ => {},
-                    };
-                },
-            };
-        };
-        index_data
-    }
-
     ///Returns a vector containing a list of indexes in which TDC events happened. Uses one TDC
     ///referred to the beginning of a new scan line and a second Non Periodic TDC to use as pixel
     ///counter.
