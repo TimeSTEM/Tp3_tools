@@ -54,19 +54,6 @@ fn connect_and_loop() {
             let pmt_tdc = NonPeriodicTdcRef::new_ref(TdcType::TdcTwoFallingEdge);
             
             modes::build_spim(pack_sock, ns_sock, my_settings, spim_tdc, pmt_tdc);
-
-            /*
-            loop {
-                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                    if size>0 {
-                        let new_data = &buffer_pack_data[0..size];
-                        let result = modes::build_tdc_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut pmt_tdc);
-                        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-                    } else {println!("Received zero packages from TP3."); break;}
-                }
-            }
-            println!("Number of counts in PMT was: {}. Total elapsed time is {:?}.", pmt_tdc.counter, start.elapsed());
-            */
         },
         _ => panic!("Unknown mode received."),
     }
