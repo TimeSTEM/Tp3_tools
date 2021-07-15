@@ -52,9 +52,9 @@ pub mod modes {
 
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
-    fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Vec<(f64, usize, usize)> {
+    fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Vec<(f64, usize, usize, u8)> {
         let mut packet_chunks = data.chunks_exact(8);
-        let mut timelist:Vec<(f64, usize, usize)> = Vec::new();
+        let mut timelist:Vec<(f64, usize, usize, u8)> = Vec::new();
         let interval = line_tdc.low_time;
         let period = line_tdc.period();
 
@@ -64,7 +64,8 @@ pub mod modes {
                 _ => {
                     let packet = Pack { chip_index: *last_ci, data: x};
                     
-                    match packet.id() {
+                    let id = packet.id();
+                    match id {
                         11 if !ref_tdc.is_periodic() => {
                             if let Some(x) = packet.x() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
@@ -72,10 +73,9 @@ pub mod modes {
                                     let line = (((line_tdc.counter() - backline) / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
                                     let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                     let array_pos = x + line + xpos;
-                                    timelist.push((ele_time, x, array_pos));
+                                    timelist.push((ele_time, x, array_pos, id));
                                 }
                             }
-                            
                         },
                         11 if ref_tdc.is_periodic() => {
                             if let Some(x) = packet.x() {
@@ -86,17 +86,27 @@ pub mod modes {
                                         let line = (((line_tdc.counter() - backline) / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
                                         let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                         let array_pos = x + line + xpos;
-                                        timelist.push((ele_time, x, array_pos));
+                                        timelist.push((ele_time, x, array_pos, id));
                                     }
                                 }
                             }
-                            
                         },
                         6 if packet.tdc_type() == line_tdc.id() => {
                             line_tdc.upt(packet.tdc_time_norm());
                         },
-                        6 if packet.tdc_type() == ref_tdc.id() => {
+                        6 if (packet.tdc_type() == ref_tdc.id() || ref_tdc.is_periodic())=> {
                             ref_tdc.upt(packet.tdc_time_norm());
+                        },
+                        6 if (packet.tdc_type() == ref_tdc.id() || !ref_tdc.is_periodic())=> {
+                            let tdc_time = packet.tdc_time_norm();
+                            ref_tdc.upt(tdc_time);
+                            let tdc_time = tdc_time - VIDEO_TIME;
+                            if let Some(backline) = spim_check_if_in(tdc_time, line_tdc.time(), interval, period) {
+                                let line = (((line_tdc.counter() - backline) / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
+                                let xpos = (settings.xspim_size as f64 * ((tdc_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
+                                let array_pos = (SPIM_PIXELS-1) + line + xpos;
+                                timelist.push((tdc_time, SPIM_PIXELS-1, array_pos, id));
+                            }
                         },
                         _ => {},
                     };
@@ -348,13 +358,13 @@ pub mod modes {
         }
     }
     
-    pub fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize)>) -> Vec<u8> {
+    pub fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
         let mut index_array: Vec<u8> = Vec::new();
         if let Some(val) = tl.get(0) {
             let mut last = val.clone();
             tl.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
             for tp in tl {
-                if tp.0>last.0+CLUSTER_TIME || (tp.1 as isize - last.1 as isize).abs() < 2 {
+                if (tp.0>last.0+CLUSTER_TIME || (tp.1 as isize - last.1 as isize).abs() > 2) || tp.3==6 {
                     append_to_index_array(&mut index_array, tp.2);
                 }
                 last = tp;
