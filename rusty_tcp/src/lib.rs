@@ -24,7 +24,7 @@ pub mod modes {
     const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 
 
-    pub fn build_spim(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut spim_tdc: PeriodicTdcRef) {
+    pub fn build_spim<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T) {
         let (tx, rx) = mpsc::channel();
         let mut last_ci = 0u8;
         let mut buffer_pack_data = vec![0; 16384];
@@ -34,7 +34,7 @@ pub mod modes {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
-                        let result = build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc);
+                        let result = build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
                         tx.send(result).expect("Cannot send data over the thread channel.");
                     } else {println!("Received zero packages from TP3."); break;}
                 }
@@ -52,7 +52,7 @@ pub mod modes {
 
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
-    fn build_spim_data(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Vec<(f64, usize, usize)> {
+    fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Vec<(f64, usize, usize)> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut timelist:Vec<(f64, usize, usize)> = Vec::new();
         let interval = line_tdc.low_time;
@@ -65,7 +65,7 @@ pub mod modes {
                     let packet = Pack { chip_index: *last_ci, data: x};
                     
                     match packet.id() {
-                        11 => {
+                        11 if !ref_tdc.is_periodic() => {
                             if let Some(x) = packet.x() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
                                 if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
@@ -77,8 +77,26 @@ pub mod modes {
                             }
                             
                         },
+                        11 if ref_tdc.is_periodic() => {
+                            if let Some(x) = packet.x() {
+                                let mut ele_time = packet.electron_time();
+                                if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time(), ref_tdc.period(), settings) {
+                                    ele_time -= VIDEO_TIME;
+                                    if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
+                                        let line = (((line_tdc.counter() - backline) / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
+                                        let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
+                                        let array_pos = x + line + xpos;
+                                        timelist.push((ele_time, x, array_pos));
+                                    }
+                                }
+                            }
+                            
+                        },
                         6 if packet.tdc_type() == line_tdc.id() => {
                             line_tdc.upt(packet.tdc_time_norm());
+                        },
+                        6 if packet.tdc_type() == ref_tdc.id() => {
+                            ref_tdc.upt(packet.tdc_time_norm());
                         },
                         _ => {},
                     };

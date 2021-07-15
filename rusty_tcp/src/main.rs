@@ -45,8 +45,9 @@ fn connect_and_loop() {
         },
         2 => {
             let spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
+            let none_tdc = NoTdcRef::new_ref();
 
-            modes::build_spim(pack_sock, ns_sock, my_settings, spim_tdc);
+            modes::build_spim(pack_sock, ns_sock, my_settings, spim_tdc, none_tdc);
 
             /*let (tx, rx) = mpsc::channel();
             
@@ -72,10 +73,12 @@ fn connect_and_loop() {
             */
         },
         3 => {
-            let mut spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
-            let mut laser_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcTwoFallingEdge, &mut pack_sock);
+            let spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
+            let laser_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcTwoFallingEdge, &mut pack_sock);
+            
+            modes::build_spim(pack_sock, ns_sock, my_settings, spim_tdc, laser_tdc);
 
-            loop {
+            /*loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
@@ -84,6 +87,7 @@ fn connect_and_loop() {
                     } else {println!("Received zero packages from TP3."); break;}
                 }
             }
+            */
         },
         4 => {
             let mut spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
