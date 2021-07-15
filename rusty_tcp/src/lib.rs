@@ -243,46 +243,6 @@ pub mod modes {
         has
     }
 
-    ///Returns a frame using a periodic TDC as reference and a second TDC to discriminate in time.
-    pub fn tr_build_data(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut PeriodicTdcRef) -> bool {
-        let mut packet_chunks = data.chunks_exact(8);
-        let mut has = false;
-
-
-        while let Some(x) = packet_chunks.next() {
-            match x {
-                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
-                _ => {
-                    let packet = Pack { chip_index: *last_ci, data: x};
-                    
-                    match packet.id() {
-                        11 => {
-                            if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
-                                let ele_time = packet.electron_time();
-                                if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time, ref_tdc.period, settings) {
-                                    let array_pos = match settings.bin {
-                                        false => x + 1024*y,
-                                        true => x
-                                    };
-                                    append_to_array(final_data, array_pos, settings.bytedepth);
-                                }
-                            }
-                        },
-                        6 if packet.tdc_type() == frame_tdc.tdctype => {
-                            frame_tdc.upt(packet.tdc_time());
-                            has = true;
-                        },
-                        6 if packet.tdc_type() == ref_tdc.tdctype => {
-                            ref_tdc.upt(packet.tdc_time_norm());
-                        },
-                        _ => {},
-                    };
-                },
-            };
-        };
-        has
-    }
-
     fn tr_check_if_in(ele_time: f64, tdc: f64, period: f64, settings: &Settings) -> Option<usize> {
         let mut eff_tdc = tdc;
         let mut counter = 0;
