@@ -1,7 +1,7 @@
 use std::net::{TcpListener, SocketAddr, UdpSocket};
 use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef, NoTdcRef};
-use timepix3::modes;
+use timepix3::{modes, message_board};
 
 fn connect_and_loop() {
 
@@ -63,6 +63,7 @@ fn connect_and_loop() {
 fn main() {
     loop {
         println!{"Waiting for a new client"};
+        //message_board::start_message_board();
         connect_and_loop();
     }
 }
