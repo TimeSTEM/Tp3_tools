@@ -357,9 +357,8 @@ pub mod modes {
 
 pub mod message_board {
     use std::fs;
-    use std::net::TcpStream;
+    use std::net::{TcpListener, TcpStream};
     use std::io::{Read, Write};
-    use std::net::{TcpListener, SocketAddr, UdpSocket};
 
     pub fn start_message_board() {
         //let (mut mb_sock, mb_addr) = mb_listener.accept().expect("Could not connect to Message Board.");
@@ -382,6 +381,28 @@ pub mod message_board {
         );
         stream.write(response.as_bytes()).unwrap();
         stream.flush().unwrap();
+    }
+
+    pub fn event_counter(my_vec: Vec<usize>) -> (Vec<usize>, Vec<usize>) {
+        let mut unique:Vec<usize> = Vec::new();
+        let mut indexes:Vec<usize> = Vec::new();
+        let mut counter = 1;
+        let mut last = my_vec[0];
+        
+        for val in my_vec {
+            if last == val {
+                counter += 1;
+            } else {
+                unique.push(counter);
+                indexes.push(last);
+                counter = 1;
+            }
+            last = val;
+        }
+        unique.push(counter);
+        indexes.push(last);
+        println!("{:?} and {:?}", unique, indexes);
+        (unique, indexes)
     }
 }
                      

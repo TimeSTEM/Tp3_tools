@@ -64,6 +64,8 @@ fn main() {
     loop {
         println!{"Waiting for a new client"};
         //message_board::start_message_board();
+        //let test_vec:Vec<usize> = vec![1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9];
+        //message_board::event_counter(test_vec);
         connect_and_loop();
     }
 }
