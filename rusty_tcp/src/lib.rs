@@ -44,7 +44,7 @@ pub mod modes {
         loop {
             if let Ok(tl) = rx.recv() {
                 //let result = sort_and_append_to_index(tl);
-                let (unique, result) = sort_and_append_to_unique_index(tl);
+                let result = sort_and_append_to_unique_index(tl);
                 if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
                 //if let Err(_) = ns_udp.send_to(&result, "127.0.0.1:9088") {println!("Client disconnected on data (UDP)."); break;};
             } else {break;}
@@ -306,7 +306,7 @@ pub mod modes {
         }
     }
     
-    pub fn sort_and_append_to_unique_index(mut tl: Vec<(f64, usize, usize, u8)>) -> (Vec<u8>, Vec<u8>) {
+    pub fn sort_and_append_to_unique_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
         let mut index_array: Vec<usize> = Vec::new();
         if let Some(val) = tl.get(0) {
             let mut last = val.clone();
@@ -346,10 +346,10 @@ pub mod modes {
         }
     
 
-    pub fn event_counter(mut my_vec: Vec<usize>) -> (Vec<u8>, Vec<u8>) {
+    pub fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
         my_vec.sort_unstable();
         let mut unique:Vec<u8> = Vec::new();
-        let mut indexes:Vec<u8> = Vec::new();
+        let mut index:Vec<u8> = Vec::new();
         let mut counter:u8 = 1;
         if my_vec.len() > 0 {
             let mut last = my_vec[0];
@@ -358,15 +358,21 @@ pub mod modes {
                     counter += 1;
                 } else {
                     unique.push(counter);
-                append_to_index_array(&mut indexes, last);
-                counter = 1;
+                    append_to_index_array(&mut index, last);
+                    counter = 1;
                 }
                 last = val;
             }
             unique.push(counter);
-            append_to_index_array(&mut indexes, last);
+            append_to_index_array(&mut index, last);
         }
-        (unique, indexes)
+        let mut my_vec:Vec<u8> = String::from("{StartUnique}").into_bytes();
+        my_vec.append(&mut unique);
+        let mut index_header:Vec<u8> = String::from("{StartIndexes}").into_bytes();
+        my_vec.append(&mut index_header);
+        my_vec.append(&mut index);
+        //my_vec = unique.into_iter().chain(index.into_iter()).collect::<Vec<u8>>();
+        my_vec
     }
 
     ///Create header, used mainly for frame based spectroscopy.
@@ -389,17 +395,6 @@ pub mod modes {
             true=>{msg.push_str(&(1.to_string()))},
             false=>{msg.push_str(&(CAM_DESIGN.1.to_string()))},
         }
-        msg.push_str("}\n");
-
-        let s: Vec<u8> = msg.into_bytes();
-        s
-    }
-    
-    fn create_spim_header(dsize: usize) -> Vec<u8> {
-        let mut msg: String = String::from("{\"indexDepth\":");
-        msg.push_str("32");
-        msg.push_str(",\"dataSize\":");
-        msg.push_str(&dsize.to_string());
         msg.push_str("}\n");
 
         let s: Vec<u8> = msg.into_bytes();
