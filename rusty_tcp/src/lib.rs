@@ -43,6 +43,7 @@ pub mod modes {
 
         loop {
             if let Ok(tl) = rx.recv() {
+                //let result = sort_and_append_to_index(tl);
                 let (unique, result) = sort_and_append_to_unique_index(tl);
                 if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
                 //if let Err(_) = ns_udp.send_to(&result, "127.0.0.1:9088") {println!("Client disconnected on data (UDP)."); break;};
@@ -344,6 +345,7 @@ pub mod modes {
         data.push((index & 255) as u8);
         }
     
+
     pub fn event_counter(mut my_vec: Vec<usize>) -> (Vec<u8>, Vec<u8>) {
         my_vec.sort_unstable();
         let mut unique:Vec<u8> = Vec::new();
@@ -356,17 +358,14 @@ pub mod modes {
                     counter += 1;
                 } else {
                     unique.push(counter);
-                //indexes.push(last);
                 append_to_index_array(&mut indexes, last);
                 counter = 1;
                 }
                 last = val;
             }
             unique.push(counter);
-            //indexes.push(last);
             append_to_index_array(&mut indexes, last);
         }
-        //println!("{:?}", unique);
         (unique, indexes)
     }
 
@@ -390,6 +389,17 @@ pub mod modes {
             true=>{msg.push_str(&(1.to_string()))},
             false=>{msg.push_str(&(CAM_DESIGN.1.to_string()))},
         }
+        msg.push_str("}\n");
+
+        let s: Vec<u8> = msg.into_bytes();
+        s
+    }
+    
+    fn create_spim_header(dsize: usize) -> Vec<u8> {
+        let mut msg: String = String::from("{\"indexDepth\":");
+        msg.push_str("32");
+        msg.push_str(",\"dataSize\":");
+        msg.push_str(&dsize.to_string());
         msg.push_str("}\n");
 
         let s: Vec<u8> = msg.into_bytes();
