@@ -43,10 +43,9 @@ pub mod modes {
 
         loop {
             if let Ok(tl) = rx.recv() {
-                //let result = sort_and_append_to_index(tl);
-                let result = sort_and_append_to_unique_index(tl);
+                let result = sort_and_append_to_index(tl);
+                //let result = sort_and_append_to_unique_index(tl);
                 if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-                //if let Err(_) = ns_udp.send_to(&result, "127.0.0.1:9088") {println!("Client disconnected on data (UDP)."); break;};
             } else {break;}
         }
     }
