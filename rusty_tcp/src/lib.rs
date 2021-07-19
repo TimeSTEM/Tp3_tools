@@ -43,7 +43,7 @@ pub mod modes {
 
         loop {
             if let Ok(tl) = rx.recv() {
-                let result = sort_and_append_to_index(tl);
+                let (unique, result) = sort_and_append_to_unique_index(tl);
                 if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
                 //if let Err(_) = ns_udp.send_to(&result, "127.0.0.1:9088") {println!("Client disconnected on data (UDP)."); break;};
             } else {break;}
@@ -57,6 +57,7 @@ pub mod modes {
         let mut timelist:Vec<(f64, usize, usize, u8)> = Vec::new();
         let interval = line_tdc.low_time;
         let period = line_tdc.period();
+        let mut index_array_usize: Vec<usize> = Vec::new();
 
         while let Some(x) = packet_chunks.next() {
             match x {
@@ -74,6 +75,7 @@ pub mod modes {
                                     let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                     let array_pos = x + line + xpos;
                                     timelist.push((ele_time, x, array_pos, id));
+                                    index_array_usize.push(array_pos);
                                 }
                             }
                         },
@@ -303,6 +305,21 @@ pub mod modes {
         }
     }
     
+    pub fn sort_and_append_to_unique_index(mut tl: Vec<(f64, usize, usize, u8)>) -> (Vec<u8>, Vec<u8>) {
+        let mut index_array: Vec<usize> = Vec::new();
+        if let Some(val) = tl.get(0) {
+            let mut last = val.clone();
+            tl.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+            for tp in tl {
+                if (tp.0>last.0+CLUSTER_TIME || (tp.1 as isize - last.1 as isize).abs() > 2) || tp.3==6 {
+                    index_array.push(tp.2);
+                }
+                last = tp;
+            }
+        }
+        event_counter(index_array)
+    }
+    
     pub fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
         let mut index_array: Vec<u8> = Vec::new();
         if let Some(val) = tl.get(0) {
@@ -326,6 +343,32 @@ pub mod modes {
         data.push(((index & 65_280)>>8) as u8);
         data.push((index & 255) as u8);
         }
+    
+    pub fn event_counter(mut my_vec: Vec<usize>) -> (Vec<u8>, Vec<u8>) {
+        my_vec.sort_unstable();
+        let mut unique:Vec<u8> = Vec::new();
+        let mut indexes:Vec<u8> = Vec::new();
+        let mut counter:u8 = 1;
+        if my_vec.len() > 0 {
+            let mut last = my_vec[0];
+            for val in my_vec {
+                if last == val {
+                    counter += 1;
+                } else {
+                    unique.push(counter);
+                //indexes.push(last);
+                append_to_index_array(&mut indexes, last);
+                counter = 1;
+                }
+                last = val;
+            }
+            unique.push(counter);
+            //indexes.push(last);
+            append_to_index_array(&mut indexes, last);
+        }
+        //println!("{:?}", unique);
+        (unique, indexes)
+    }
 
     ///Create header, used mainly for frame based spectroscopy.
     fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
@@ -352,6 +395,7 @@ pub mod modes {
         let s: Vec<u8> = msg.into_bytes();
         s
     }
+    
 
 }
 
@@ -383,26 +427,5 @@ pub mod message_board {
         stream.flush().unwrap();
     }
 
-    pub fn event_counter(my_vec: Vec<usize>) -> (Vec<usize>, Vec<usize>) {
-        let mut unique:Vec<usize> = Vec::new();
-        let mut indexes:Vec<usize> = Vec::new();
-        let mut counter = 1;
-        let mut last = my_vec[0];
-        
-        for val in my_vec {
-            if last == val {
-                counter += 1;
-            } else {
-                unique.push(counter);
-                indexes.push(last);
-                counter = 1;
-            }
-            last = val;
-        }
-        unique.push(counter);
-        indexes.push(last);
-        println!("{:?} and {:?}", unique, indexes);
-        (unique, indexes)
-    }
 }
                      
