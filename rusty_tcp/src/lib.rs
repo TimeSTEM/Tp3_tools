@@ -23,31 +23,41 @@ pub mod modes {
     const CAM_DESIGN: (usize, usize) = Pack::chip_array();
     const SPIM_PIXELS: usize = 1025;
 
-
     pub fn build_spim<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T) {
         let (tx, rx) = mpsc::channel();
         let mut last_ci = 0u8;
         let mut buffer_pack_data = vec![0; 16384];
-            
-        thread::spawn(move || {
+        
+        thread::spawn( move || {
             loop {
                 if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                     if size>0 {
                         let new_data = &buffer_pack_data[0..size];
                         let result = build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
-                        tx.send(result).expect("Cannot send data over the thread channel.");
+                        if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
                     } else {println!("Received zero packages from TP3."); break;}
                 }
             }
         });
-
-        loop {
-            if let Ok(tl) = rx.recv() {
-                //let result = sort_and_append_to_index(tl);
-                let result = sort_and_append_to_unique_index(tl);
-                if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-            } else {break;}
+        
+        for tl in rx {
+            let result = sort_and_append_to_unique_index(tl);
+            if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
         }
+
+        /*
+        //thread::spawn(move || {
+            loop {
+                if let Ok(tl) = rx.recv() {
+                    //let result = sort_and_append_to_index(tl);
+                    let result = sort_and_append_to_unique_index(tl);
+                    if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data.");}
+                } else {break;}
+            }
+        //});
+        */
+            
+
     }
 
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
@@ -305,7 +315,7 @@ pub mod modes {
         }
     }
     
-    pub fn sort_and_append_to_unique_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
+    fn sort_and_append_to_unique_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
         let mut index_array: Vec<usize> = Vec::new();
         if let Some(val) = tl.get(0) {
             let mut last = val.clone();
@@ -320,7 +330,7 @@ pub mod modes {
         event_counter(index_array)
     }
     
-    pub fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
+    fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
         let mut index_array: Vec<u8> = Vec::new();
         if let Some(val) = tl.get(0) {
             let mut last = val.clone();
@@ -345,7 +355,7 @@ pub mod modes {
         }
     
 
-    pub fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
+    fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
         my_vec.sort_unstable();
         let mut unique:Vec<u8> = Vec::new();
         let mut index:Vec<u8> = Vec::new();
