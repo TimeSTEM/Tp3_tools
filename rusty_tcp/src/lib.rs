@@ -370,16 +370,11 @@ pub mod modes {
         //let mut header_indexes:Vec<u8> = String::from("{StartIndexes}").into_bytes();
         let header_indexes:Vec<u8> = vec![123, 83, 116, 97, 114, 116, 73, 110, 100, 101, 120, 101, 115, 125];
 
-        //let sum_unique = unique.iter().map(|&x| x as usize).sum::<usize>();
-        //let indexes_len = index.len();
-
-        let vec = header_unique.into_iter()
+        header_unique.into_iter()
             .chain(unique.into_iter())
             .chain(header_indexes.into_iter())
             .chain(index.into_iter())
-            .collect::<Vec<u8>>();
-        //println!("Total len with unique: {}. Total len using only indexes: {}. Improved flux by a factor of {}", vec.len(), indexes_len * sum_unique, indexes_len * sum_unique / vec.len());
-        vec
+            .collect::<Vec<u8>>()
     }
 
     ///Create header, used mainly for frame based spectroscopy.
