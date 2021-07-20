@@ -30,7 +30,7 @@ pub mod modes {
         
         thread::spawn( move || {
             while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                if size == 0 {break;}
+                if size == 0 {println!("Timepix3 sent zero bytes."); break;}
                 let new_data = &buffer_pack_data[0..size];
                 let result = build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
                 if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
@@ -41,9 +41,6 @@ pub mod modes {
             let result = sort_and_append_to_unique_index(tl);
             if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
         }
-
-        println!("over");
-
 
         /*
         //thread::spawn(move || {
@@ -186,21 +183,19 @@ pub mod modes {
         let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
         data_array.push(10);
 
-        loop {
-            if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                if size>0 {
-                    let new_data = &buffer_pack_data[0..size];
-                        if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
-                            let msg = create_header(&my_settings, &frame_tdc);
-                            if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
-                            if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
-                            if my_settings.cumul == false {
-                                data_array = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
-                                data_array.push(10);
-                            };
-                            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
-                        }
-                }
+
+        while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+            if size == 0 {println!("Timepix3 sent zero bytes."); break;}
+            let new_data = &buffer_pack_data[0..size];
+            if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
+                let msg = create_header(&my_settings, &frame_tdc);
+                if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
+                if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
+                if my_settings.cumul == false {
+                    data_array = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
+                    data_array.push(10);
+                };
+                if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
             }
         }
     }
