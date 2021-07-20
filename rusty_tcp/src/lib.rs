@@ -38,8 +38,10 @@ pub mod modes {
         });
         
         for tl in rx {
-            let result = sort_and_append_to_unique_index(tl);
-            if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+            if let Some(result) = sort_and_append_to_unique_index(tl) {
+            //if let Some(result) = sort_and_append_to_index(tl) {
+                if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+            }
         }
 
         /*
@@ -64,7 +66,6 @@ pub mod modes {
         let mut timelist:Vec<(f64, usize, usize, u8)> = Vec::new();
         let interval = line_tdc.low_time;
         let period = line_tdc.period();
-        let mut index_array_usize: Vec<usize> = Vec::new();
 
         while let Some(x) = packet_chunks.next() {
             match x {
@@ -82,7 +83,6 @@ pub mod modes {
                                     let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                     let array_pos = x + line + xpos;
                                     timelist.push((ele_time, x, array_pos, id));
-                                    index_array_usize.push(array_pos);
                                 }
                             }
                         },
@@ -310,7 +310,7 @@ pub mod modes {
         }
     }
     
-    fn sort_and_append_to_unique_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
+    fn sort_and_append_to_unique_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Option<Vec<u8>> {
         let mut index_array: Vec<usize> = Vec::new();
         if let Some(val) = tl.get(0) {
             let mut last = val.clone();
@@ -322,10 +322,11 @@ pub mod modes {
                 last = tp;
             }
         }
-        event_counter(index_array)
+        if index_array.len() > 0 {Some(event_counter(index_array))}
+        else {None}
     }
     
-    fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
+    fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Option<Vec<u8>> {
         let mut index_array: Vec<u8> = Vec::new();
         if let Some(val) = tl.get(0) {
             let mut last = val.clone();
@@ -337,7 +338,7 @@ pub mod modes {
                 last = tp;
             }
         }
-        index_array
+        Some(index_array)
     }
     
     ///Append a single electron to a index list. Used mainly for spectral image, where a list of
@@ -372,6 +373,7 @@ pub mod modes {
         }
         let sum_unique = unique.iter().map(|&x| x as usize).sum::<usize>();
         let indexes_len = index.len();
+        //println!("{:?}", unique);
 
         //let mut header_unique:Vec<u8> = String::from("{StartUnique}").into_bytes();
         let header_unique:Vec<u8> = vec![123, 83, 116, 97, 114, 116, 85, 110, 105, 113, 117, 101, 125];
@@ -383,7 +385,7 @@ pub mod modes {
             .chain(header_indexes.into_iter())
             .chain(index.into_iter())
             .collect::<Vec<u8>>();
-        println!("Total len with unique: {}. Total len only indexes: {}", vec.len(), indexes_len * sum_unique);
+        //println!("Total len with unique: {}. Total len only indexes: {}", vec.len(), sum_unique * indexes_len);
         vec
     }
 
