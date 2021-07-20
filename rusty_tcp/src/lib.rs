@@ -9,7 +9,7 @@ pub mod packetlib;
 
 ///`modes` is a module containing tools to live acquire frames and spectral images.
 pub mod modes {
-    use crate::packetlib::{Packet, PacketEELS, PacketDiffraction as Pack};
+    use crate::packetlib::{Packet, PacketEELS as Pack, PacketDiffraction};
     use crate::auxiliar::Settings;
     use crate::tdclib::{TdcControl, PeriodicTdcRef};
     use std::time::Instant;
@@ -370,16 +370,21 @@ pub mod modes {
             unique.push(counter);
             append_to_index_array(&mut index, last);
         }
+        let sum_unique = unique.iter().map(|&x| x as usize).sum::<usize>();
+        let indexes_len = index.len();
+
         //let mut header_unique:Vec<u8> = String::from("{StartUnique}").into_bytes();
         let header_unique:Vec<u8> = vec![123, 83, 116, 97, 114, 116, 85, 110, 105, 113, 117, 101, 125];
         //let mut header_indexes:Vec<u8> = String::from("{StartIndexes}").into_bytes();
         let header_indexes:Vec<u8> = vec![123, 83, 116, 97, 114, 116, 73, 110, 100, 101, 120, 101, 115, 125];
 
-        header_unique.into_iter()
+        let vec = header_unique.into_iter()
             .chain(unique.into_iter())
             .chain(header_indexes.into_iter())
             .chain(index.into_iter())
-            .collect::<Vec<u8>>()
+            .collect::<Vec<u8>>();
+        println!("Total len with unique: {}. Total len only indexes: {}", vec.len(), indexes_len * sum_unique);
+        vec
     }
 
     ///Create header, used mainly for frame based spectroscopy.
