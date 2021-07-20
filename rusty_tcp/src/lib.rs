@@ -29,14 +29,11 @@ pub mod modes {
         let mut buffer_pack_data = vec![0; 16384];
         
         thread::spawn( move || {
-            loop {
-                if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                    if size>0 {
-                        let new_data = &buffer_pack_data[0..size];
-                        let result = build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
-                        if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
-                    } else {println!("Received zero packages from TP3."); break;}
-                }
+            while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+                if size == 0 {break;}
+                let new_data = &buffer_pack_data[0..size];
+                let result = build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+                if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
             }
         });
         
@@ -44,6 +41,9 @@ pub mod modes {
             let result = sort_and_append_to_unique_index(tl);
             if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
         }
+
+        println!("over");
+
 
         /*
         //thread::spawn(move || {
