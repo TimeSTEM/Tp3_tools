@@ -43,8 +43,8 @@ pub mod modes {
 
         loop {
             if let Ok(tl) = rx.recv() {
-                let result = sort_and_append_to_index(tl);
-                //let result = sort_and_append_to_unique_index(tl);
+                //let result = sort_and_append_to_index(tl);
+                let result = sort_and_append_to_unique_index(tl);
                 if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
             } else {break;}
         }
@@ -365,13 +365,13 @@ pub mod modes {
             unique.push(counter);
             append_to_index_array(&mut index, last);
         }
-        let mut my_vec:Vec<u8> = String::from("{StartUnique}").into_bytes();
-        my_vec.append(&mut unique);
-        let mut index_header:Vec<u8> = String::from("{StartIndexes}").into_bytes();
-        my_vec.append(&mut index_header);
-        my_vec.append(&mut index);
-        //my_vec = unique.into_iter().chain(index.into_iter()).collect::<Vec<u8>>();
-        my_vec
+        println!("{:?}", unique);
+        //let mut header_unique:Vec<u8> = String::from("{StartUnique}").into_bytes();
+        let header_unique:Vec<u8> = vec![123, 83, 116, 97, 114, 116, 85, 110, 105, 113, 117, 101, 125];
+        //let mut header_indexes:Vec<u8> = String::from("{StartIndexes}").into_bytes();
+        let header_indexes:Vec<u8> = vec![123, 83, 116, 97, 114, 116, 73, 110, 100, 101, 120, 101, 115, 125];
+
+        header_unique.into_iter().chain(unique.into_iter()).chain(header_indexes.into_iter()).chain(index.into_iter()).collect::<Vec<u8>>()
     }
 
     ///Create header, used mainly for frame based spectroscopy.
