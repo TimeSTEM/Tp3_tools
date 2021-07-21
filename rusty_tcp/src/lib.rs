@@ -33,8 +33,7 @@ pub mod modes {
             while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                 if size == 0 {println!("Timepix3 sent zero bytes."); break;}
                 let new_data = &buffer_pack_data[0..size];
-                let result = build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
-                if result.len() > 0 {
+                if let Some(result) = build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
                     if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
                 }
             }
@@ -63,7 +62,7 @@ pub mod modes {
 
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
-    fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Vec<(f64, usize, usize, u8)> {
+    fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Vec<(f64, usize, usize, u8)>> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut timelist:Vec<(f64, usize, usize, u8)> = Vec::new();
         let interval = line_tdc.low_time;
@@ -81,7 +80,7 @@ pub mod modes {
                             if let Some(x) = packet.x() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
                                 if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
-                                    let line = (((line_tdc.counter() - backline) / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
+                                    let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
                                     let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                     let array_pos = x + line + xpos;
                                     timelist.push((ele_time, x, array_pos, id));
@@ -94,7 +93,7 @@ pub mod modes {
                                 if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time(), ref_tdc.period(), settings) {
                                     ele_time -= VIDEO_TIME;
                                     if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
-                                        let line = (((line_tdc.counter() - backline) / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
+                                        let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
                                         let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                         let array_pos = x + line + xpos;
                                         timelist.push((ele_time, x, array_pos, id));
@@ -113,7 +112,7 @@ pub mod modes {
                             ref_tdc.upt(tdc_time);
                             let tdc_time = tdc_time - VIDEO_TIME;
                             if let Some(backline) = spim_check_if_in(tdc_time, line_tdc.time(), interval, period) {
-                                let line = (((line_tdc.counter() - backline) / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
+                                let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((tdc_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                 let array_pos = (SPIM_PIXELS-1) + line + xpos;
                                 timelist.push((tdc_time, SPIM_PIXELS-1, array_pos, id));
@@ -124,7 +123,8 @@ pub mod modes {
                 },
             };
         };
-        timelist
+        if timelist.len() > 0 {Some(timelist)}
+        else {None}
     }
     
 
@@ -266,15 +266,38 @@ pub mod modes {
         }
     }
     
-    fn spim_check_if_in(ele_time: f64, start_line: f64, interval: f64, period: f64) -> Option<usize> {
+    fn spim_check_if_in(ele_time: f64, start_line: f64, interval: f64, period: f64) -> Option<isize> {
         let mut new_start_line = start_line;
         let mut counter = 0;
+
+        //let x = ((start_line - ele_time) / period) as isize + 1;
+        //let x_line = start_line - x as f64 * period;
+        
         while ele_time < new_start_line {
             counter+=1;
             new_start_line = new_start_line - period;
         }
+
+        //if new_start_line != x_line {
+        //    println!("{} and {}", new_start_line, x_line);
+        //    println!("{} and {}", counter, x);
+        //}
+
+        //if counter != 0 {
+        //    println!("{:?} and {:?}", (x_line, x), (new_start_line, counter));
+        //}
+
+        //
+        //
+        //while ele_time > new_start_line + interval {
+        //    counter = counter - 1;
+        //    new_start_line = new_start_line + period;
+            //println!("{} and {} and {}", ele_time, new_start_line, new_start_line + interval);
+            //panic!("tchau");
+        //}
         
-        if counter>5 {return None}
+        //if counter>5 {return None}
+        //if counter != 0 {println!("{} and {} and {}", counter, (-(ele_time - start_line)/period) as usize + 1, x);}
         
         if ele_time > new_start_line && ele_time < new_start_line + interval {
             Some(counter)
