@@ -114,10 +114,10 @@ pub mod modes {
                         6 if packet.tdc_type() == line_tdc.id() => {
                             line_tdc.upt(packet.tdc_time_norm());
                         },
-                        6 if (packet.tdc_type() == ref_tdc.id() || ref_tdc.is_periodic())=> {
+                        6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.is_periodic())=> {
                             ref_tdc.upt(packet.tdc_time_norm());
                         },
-                        6 if (packet.tdc_type() == ref_tdc.id() || !ref_tdc.is_periodic())=> {
+                        6 if (packet.tdc_type() == ref_tdc.id() && !ref_tdc.is_periodic())=> {
                             let tdc_time = packet.tdc_time_norm();
                             ref_tdc.upt(tdc_time);
                             let tdc_time = tdc_time - VIDEO_TIME;
@@ -279,11 +279,11 @@ pub mod modes {
     fn spim_detector(ele_time: f64, begin: f64, interval: f64, period: f64, xspim_size: usize, yspim_size: usize) -> Option<usize>{
         //let single = (((ele_time - begin) / period) * (xspim_size*SPIM_PIXELS) as f64);
         let ratio = (ele_time - begin) / period; //0 to ifn
-        let line = (ratio as usize) % yspim_size; //multiple of yspim_size
         let ratio_inline = ratio - (ratio as usize) as f64; //from 0.0 to 1.0
         if ratio_inline < 1.0 - interval / period {
             None
         } else {
+            let line = (ratio as usize) % yspim_size; //multiple of yspim_size
             let xpos = (xspim_size as f64 * ratio_inline) as usize;
             let result = (line * xspim_size + xpos) * SPIM_PIXELS;
             Some(result)
@@ -396,8 +396,8 @@ pub mod modes {
             unique.push(counter);
             append_to_index_array(&mut index, last);
         }
-        let sum_unique = unique.iter().map(|&x| x as usize).sum::<usize>();
-        let indexes_len = index.len();
+        //let sum_unique = unique.iter().map(|&x| x as usize).sum::<usize>();
+        //let indexes_len = index.len();
         //println!("{:?}", unique);
 
         //let mut header_unique:Vec<u8> = String::from("{StartUnique}").into_bytes();
