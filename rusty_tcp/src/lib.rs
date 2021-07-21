@@ -66,6 +66,7 @@ pub mod modes {
         let mut packet_chunks = data.chunks_exact(8);
         let mut timelist:Vec<(f64, usize, usize, u8)> = Vec::new();
         let interval = line_tdc.low_time;
+        let begin = line_tdc.begin;
         let period = line_tdc.period();
 
         while let Some(x) = packet_chunks.next() {
@@ -83,6 +84,8 @@ pub mod modes {
                                     let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
                                     let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                     let array_pos = x + line + xpos;
+                                    //let test = spim_detector(ele_time, begin, interval, period, settings.xspim_size, settings.yspim_size);
+                                    //println!("{} and {:?}", xpos, test);
                                     timelist.push((ele_time, x, array_pos, id));
                                 }
                             }
@@ -263,6 +266,19 @@ pub mod modes {
             Some(counter)
         } else {
             None
+        }
+    }
+
+    fn spim_detector(ele_time: f64, begin: f64, interval: f64, period: f64, xspim_size: usize, yspim_size: usize) -> Option<usize>{
+        let ratio =(ele_time - begin) / period; //0 to ifn
+        let line = (ratio as usize) % yspim_size; //multiple of yspim_size
+        let ratio_inline = ratio - line as f64; //from 0.0 to 1.0
+        if ratio_inline + period / interval < 0.0 {
+            None
+        } else {
+            let xpos = (xspim_size as f64 * ratio_inline) as usize;
+            let result = (line * xspim_size + xpos) * SPIM_PIXELS;
+            Some(result)
         }
     }
     
