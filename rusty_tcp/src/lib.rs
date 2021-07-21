@@ -81,14 +81,15 @@ pub mod modes {
                             if let Some(x) = packet.x() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
                                 //if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
-                                //    let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
-                                //    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
-                                //    let array_pos = x + line + xpos;
-                                //    let test = spim_detector(ele_time, begin, interval, period, settings.xspim_size, settings.yspim_size);
+                                    //let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
+                                    //let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
+                                    //let array_pos = x + line + xpos;
+                                    //let test = spim_detector(ele_time, begin, interval, period, settings.xspim_size, settings.yspim_size);
+                                    //println!("{:?} and {}", test, array_pos - x);
 
                                   //  timelist.push((ele_time, x, array_pos, id));
-                               // }
-                           // }
+                                //}
+                            //}
                         //},
 
                                 if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings.xspim_size, settings.yspim_size) {
@@ -277,9 +278,9 @@ pub mod modes {
 
     fn spim_detector(ele_time: f64, begin: f64, interval: f64, period: f64, xspim_size: usize, yspim_size: usize) -> Option<usize>{
         let ratio = (ele_time - begin) / period; //0 to ifn
-        let line = (ratio as usize) % yspim_size; //multiple of yspim_size
-        let ratio_inline = ratio - line as f64; //from 0.0 to 1.0
-        if ratio_inline > 10.0 - interval / period {
+        let line = (ratio as usize) % yspim_size + 1; //multiple of yspim_size
+        let ratio_inline = ratio - (ratio as usize) as f64; //from 0.0 to 1.0
+        if ratio_inline > interval / period {
             None
         } else {
             let xpos = (xspim_size as f64 * ratio_inline) as usize;
