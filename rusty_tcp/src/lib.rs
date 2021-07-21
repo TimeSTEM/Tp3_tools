@@ -22,26 +22,28 @@ pub mod modes {
     const CLUSTER_TIME: f64 = 50.0e-09;
     const CAM_DESIGN: (usize, usize) = Pack::chip_array();
     const SPIM_PIXELS: usize = 1025;
+    const BUFFER_SIZE: usize = 16384 * 3;
 
     pub fn build_spim<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T) {
         let (tx, rx) = mpsc::channel();
         let mut last_ci = 0u8;
-        let mut buffer_pack_data = vec![0; 16384];
+        let mut buffer_pack_data = vec![0; BUFFER_SIZE];
         
         thread::spawn( move || {
             while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                 if size == 0 {println!("Timepix3 sent zero bytes."); break;}
                 let new_data = &buffer_pack_data[0..size];
                 let result = build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
-                if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
+                if result.len() > 0 {
+                    if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
+                }
             }
         });
         
         for tl in rx {
-            if let Some(result) = sort_and_append_to_unique_index(tl) {
-            //if let Some(result) = sort_and_append_to_index(tl) {
-                if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-            }
+            let result = sort_and_append_to_unique_index(tl);
+            //let result = sort_and_append_to_index(tl);
+            if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
         }
 
         /*
@@ -142,7 +144,7 @@ pub mod modes {
         let (tx, rx) = mpsc::channel();
         let start = Instant::now();
         let mut last_ci = 0u8;
-        let mut buffer_pack_data = vec![0; 16384];
+        let mut buffer_pack_data = vec![0; BUFFER_SIZE];
         let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
         data_array.push(10);
 
@@ -310,7 +312,7 @@ pub mod modes {
         }
     }
     
-    fn sort_and_append_to_unique_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Option<Vec<u8>> {
+    fn sort_and_append_to_unique_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
         let mut index_array: Vec<usize> = Vec::new();
         if let Some(val) = tl.get(0) {
             let mut last = val.clone();
@@ -322,11 +324,10 @@ pub mod modes {
                 last = tp;
             }
         }
-        if index_array.len() > 0 {Some(event_counter(index_array))}
-        else {None}
+        event_counter(index_array)
     }
     
-    fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Option<Vec<u8>> {
+    fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
         let mut index_array: Vec<u8> = Vec::new();
         if let Some(val) = tl.get(0) {
             let mut last = val.clone();
@@ -338,7 +339,7 @@ pub mod modes {
                 last = tp;
             }
         }
-        Some(index_array)
+        index_array
     }
     
     ///Append a single electron to a index list. Used mainly for spectral image, where a list of
