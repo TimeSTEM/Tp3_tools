@@ -40,8 +40,8 @@ pub mod modes {
         });
         
         for tl in rx {
-            let result = sort_and_append_to_unique_index(tl);
-            //let result = sort_and_append_to_index(tl);
+            //let result = sort_and_append_to_unique_index(tl);
+            let result = sort_and_append_to_index(tl);
             if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
         }
 
@@ -80,16 +80,22 @@ pub mod modes {
                         11 if !ref_tdc.is_periodic() => {
                             if let Some(x) = packet.x() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
-                                if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
-                                    let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
-                                    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
-                                    let array_pos = x + line + xpos;
-                                    //let test = spim_detector(ele_time, begin, interval, period, settings.xspim_size, settings.yspim_size);
-                                    //println!("{} and {:?}", xpos, test);
-                                    timelist.push((ele_time, x, array_pos, id));
+                                //if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
+                                //    let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
+                                //    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
+                                //    let array_pos = x + line + xpos;
+                                //    let test = spim_detector(ele_time, begin, interval, period, settings.xspim_size, settings.yspim_size);
+
+                                  //  timelist.push((ele_time, x, array_pos, id));
+                               // }
+                           // }
+                        //},
+
+                                if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings.xspim_size, settings.yspim_size) {
+                                    timelist.push((ele_time, x, array_pos+x, id));
                                 }
                             }
-                        },
+                            },
                         11 if ref_tdc.is_periodic() => {
                             if let Some(x) = packet.x() {
                                 let mut ele_time = packet.electron_time();
@@ -270,10 +276,10 @@ pub mod modes {
     }
 
     fn spim_detector(ele_time: f64, begin: f64, interval: f64, period: f64, xspim_size: usize, yspim_size: usize) -> Option<usize>{
-        let ratio =(ele_time - begin) / period; //0 to ifn
+        let ratio = (ele_time - begin) / period; //0 to ifn
         let line = (ratio as usize) % yspim_size; //multiple of yspim_size
         let ratio_inline = ratio - line as f64; //from 0.0 to 1.0
-        if ratio_inline + period / interval < 0.0 {
+        if ratio_inline > 10.0 - interval / period {
             None
         } else {
             let xpos = (xspim_size as f64 * ratio_inline) as usize;
@@ -286,35 +292,13 @@ pub mod modes {
         let mut new_start_line = start_line;
         let mut counter = 0;
 
-        //let x = ((start_line - ele_time) / period) as isize + 1;
-        //let x_line = start_line - x as f64 * period;
-        
         while ele_time < new_start_line {
             counter+=1;
             new_start_line = new_start_line - period;
         }
 
-        //if new_start_line != x_line {
-        //    println!("{} and {}", new_start_line, x_line);
-        //    println!("{} and {}", counter, x);
-        //}
+        //Some(counter)
 
-        //if counter != 0 {
-        //    println!("{:?} and {:?}", (x_line, x), (new_start_line, counter));
-        //}
-
-        //
-        //
-        //while ele_time > new_start_line + interval {
-        //    counter = counter - 1;
-        //    new_start_line = new_start_line + period;
-            //println!("{} and {} and {}", ele_time, new_start_line, new_start_line + interval);
-            //panic!("tchau");
-        //}
-        
-        //if counter>5 {return None}
-        //if counter != 0 {println!("{} and {} and {}", counter, (-(ele_time - start_line)/period) as usize + 1, x);}
-        
         if ele_time > new_start_line && ele_time < new_start_line + interval {
             Some(counter)
         } else {
@@ -400,7 +384,8 @@ pub mod modes {
             let mut last = my_vec[0];
             for val in my_vec {
                 if last == val {
-                    counter += 1;
+                    //counter.wrapping_add(1);
+                    counter+=1;
                 } else {
                     unique.push(counter);
                     append_to_index_array(&mut index, last);

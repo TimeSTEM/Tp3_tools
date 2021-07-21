@@ -93,6 +93,14 @@ mod tdcvec {
             .last().unwrap();
         last_time
     }
+    
+    pub fn get_begintime(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
+        let begin_time = tdc_vec.iter()
+            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
+            .map(|(time, _tdct)| *time)
+            .next().unwrap();
+        begin_time
+    }
 }
 
 
@@ -149,6 +157,7 @@ pub trait TdcControl {
 pub struct PeriodicTdcRef {
     pub tdctype: u8,
     pub counter: usize,
+    pub begin: f64,
     pub period: f64,
     pub high_time: f64,
     pub low_time: f64,
@@ -203,6 +212,7 @@ impl PeriodicTdcRef {
         }
         println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
         let counter = tdcvec::get_counter(&tdc_vec, &tdc_type);
+        let begin_time = tdcvec::get_begintime(&tdc_vec, &tdc_type);
         let last_time = tdcvec::get_lasttime(&tdc_vec, &tdc_type);
         let high_time = tdcvec::find_high_time(&tdc_vec, &tdc_type);
         let period = tdcvec::find_period(&tdc_vec, &tdc_type);
@@ -211,6 +221,7 @@ impl PeriodicTdcRef {
         PeriodicTdcRef {
             tdctype: tdc_type.associate_value(),
             counter: counter,
+            begin: begin_time,
             period: period,
             high_time: high_time,
             low_time: low_time,
