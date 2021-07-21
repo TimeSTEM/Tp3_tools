@@ -80,23 +80,23 @@ pub mod modes {
                         11 if !ref_tdc.is_periodic() => {
                             if let Some(x) = packet.x() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
-                                //if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
-                                    //let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
-                                    //let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
-                                    //let array_pos = x + line + xpos;
-                                    //let test = spim_detector(ele_time, begin, interval, period, settings.xspim_size, settings.yspim_size);
-                                    //println!("{:?} and {}", test, array_pos - x);
-
-                                  //  timelist.push((ele_time, x, array_pos, id));
-                                //}
-                            //}
-                        //},
-
                                 if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings.xspim_size, settings.yspim_size) {
                                     timelist.push((ele_time, x, array_pos+x, id));
                                 }
                             }
-                            },
+                        },
+
+                        /*
+                                
+                                if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
+                                    let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
+                                    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
+                                    let array_pos = x + line + xpos;
+                                
+                                }
+                            }
+                        },
+                        */
                         11 if ref_tdc.is_periodic() => {
                             if let Some(x) = packet.x() {
                                 let mut ele_time = packet.electron_time();
@@ -277,10 +277,11 @@ pub mod modes {
     }
 
     fn spim_detector(ele_time: f64, begin: f64, interval: f64, period: f64, xspim_size: usize, yspim_size: usize) -> Option<usize>{
+        //let single = (((ele_time - begin) / period) * (xspim_size*SPIM_PIXELS) as f64);
         let ratio = (ele_time - begin) / period; //0 to ifn
-        let line = (ratio as usize) % yspim_size + 1; //multiple of yspim_size
+        let line = (ratio as usize) % yspim_size; //multiple of yspim_size
         let ratio_inline = ratio - (ratio as usize) as f64; //from 0.0 to 1.0
-        if ratio_inline > interval / period {
+        if ratio_inline < 1.0 - interval / period {
             None
         } else {
             let xpos = (xspim_size as f64 * ratio_inline) as usize;
@@ -297,8 +298,6 @@ pub mod modes {
             counter+=1;
             new_start_line = new_start_line - period;
         }
-
-        //Some(counter)
 
         if ele_time > new_start_line && ele_time < new_start_line + interval {
             Some(counter)
