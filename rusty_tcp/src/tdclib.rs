@@ -246,7 +246,6 @@ impl TdcControl for NonPeriodicTdcRef {
         self.time.pop().expect("***Tdc Lib***: There is no element to exclude from NonPeriodicTDC.");
         self.time.insert(0, time);
         self.counter+=1;
-        if self.counter % 100 == 0 {println!("{:?}", (100.0 / (self.time[0] - self.time[99])) as usize );}
     }
 
     fn counter(&self) -> usize {

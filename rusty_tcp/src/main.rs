@@ -1,6 +1,6 @@
 use std::net::{TcpListener, SocketAddr, UdpSocket};
 use timepix3::auxiliar::Settings;
-use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef, NoTdcRef};
+use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef, NonPeriodicTdcRefMonitor, NoTdcRef};
 use timepix3::{modes, message_board};
 
 fn connect_and_loop() {
@@ -39,9 +39,9 @@ fn connect_and_loop() {
         },
         2 => {
             let spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
-            let none_tdc = NoTdcRef::new_ref();
+            let np_tdc = NonPeriodicTdcRef::new_ref(TdcType::TdcTwoFallingEdge);
 
-            modes::build_spim(pack_sock, ns_sock, my_settings, spim_tdc, none_tdc);
+            modes::build_spim(pack_sock, ns_sock, my_settings, spim_tdc, np_tdc);
         },
         3 => {
             let spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
@@ -51,7 +51,7 @@ fn connect_and_loop() {
         },
         4 => {
             let spim_tdc = PeriodicTdcRef::tcp_new_ref(TdcType::TdcOneFallingEdge, &mut pack_sock);
-            let pmt_tdc = NonPeriodicTdcRef::new_ref(TdcType::TdcTwoFallingEdge);
+            let pmt_tdc = NonPeriodicTdcRefMonitor::new_ref(TdcType::TdcTwoFallingEdge, 100);
             
             modes::build_spim(pack_sock, ns_sock, my_settings, spim_tdc, pmt_tdc);
         },
