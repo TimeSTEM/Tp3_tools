@@ -113,7 +113,9 @@ pub mod modes {
                         },
                         6 if packet.tdc_type() == line_tdc.id() => {
                             line_tdc.upt(packet.tdc_time_norm());
-                            //println!("{} and {} and {}", line_tdc.counter(), packet.tdc_counter(), line_tdc.time());
+                            if line_tdc.counter() % (settings.yspim_size * settings.spimoverscany) == 0 {
+                                line_tdc.begin = line_tdc.time();
+                            }
                         },
                         6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.is_periodic())=> {
                             ref_tdc.upt(packet.tdc_time_norm());
@@ -280,13 +282,14 @@ pub mod modes {
     fn spim_detector(ele_time: f64, begin: f64, interval: f64, period: f64, set: &Settings) -> Option<usize>{
         //let single = (((ele_time - begin) / period) * (xspim_size*SPIM_PIXELS) as f64);
         if ele_time<begin {return None}
+        //println!("{} and {}", period, interval);
         let ratio = (ele_time - begin) / period; //0 to ifn
         let ratio_inline = ratio - (ratio as usize) as f64; //from 0.0 to 1.0
-        if ratio_inline < 1.0 - interval / period {
+        if ratio_inline > interval / period {
             None
         } else {
             let line = (ratio as usize / set.spimoverscany) % set.yspim_size; //multiple of yspim_size
-            let xpos = (set.xspim_size as f64 * ratio_inline) as usize;
+            let xpos = (set.xspim_size as f64 * ratio_inline / (interval / period)) as usize;
             let result = (line * set.xspim_size + xpos) * SPIM_PIXELS;
             //if result==0 {println!("{} and {}", ele_time, begin);}
             Some(result)
