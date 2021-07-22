@@ -45,19 +45,6 @@ pub mod modes {
             if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
         }
 
-        /*
-        //thread::spawn(move || {
-            loop {
-                if let Ok(tl) = rx.recv() {
-                    //let result = sort_and_append_to_index(tl);
-                    let result = sort_and_append_to_unique_index(tl);
-                    if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data.");}
-                } else {break;}
-            }
-        //});
-        */
-            
-
     }
 
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
@@ -86,17 +73,6 @@ pub mod modes {
                             }
                         },
 
-                        /*
-                                
-                                if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
-                                    let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
-                                    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
-                                    let array_pos = x + line + xpos;
-                                
-                                }
-                            }
-                        },
-                        */
                         11 if ref_tdc.is_periodic() => {
                             if let Some(x) = packet.x() {
                                 let mut ele_time = packet.electron_time();
@@ -113,7 +89,7 @@ pub mod modes {
                         },
                         6 if packet.tdc_type() == line_tdc.id() => {
                             line_tdc.upt(packet.tdc_time_norm());
-                            if line_tdc.counter() % (settings.yspim_size * settings.spimoverscany) == 0 {
+                            if (packet.tdc_counter() as usize / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
                                 line_tdc.begin = line_tdc.time();
                             }
                         },
@@ -281,17 +257,15 @@ pub mod modes {
 
     fn spim_detector(ele_time: f64, begin: f64, interval: f64, period: f64, set: &Settings) -> Option<usize>{
         //let single = (((ele_time - begin) / period) * (xspim_size*SPIM_PIXELS) as f64);
-        if ele_time<begin {return None}
-        //println!("{} and {}", period, interval);
-        let ratio = (ele_time - begin) / period; //0 to ifn
+        if ele_time<begin {return None} //Ignoring these electrons
+        let ratio = (ele_time - begin) / period; //0 to next complete frame
         let ratio_inline = ratio - (ratio as usize) as f64; //from 0.0 to 1.0
-        if ratio_inline > interval / period {
+        if ratio_inline > interval / period { //this means electron is in line return
             None
         } else {
             let line = (ratio as usize / set.spimoverscany) % set.yspim_size; //multiple of yspim_size
-            let xpos = (set.xspim_size as f64 * ratio_inline / (interval / period)) as usize;
-            let result = (line * set.xspim_size + xpos) * SPIM_PIXELS;
-            //if result==0 {println!("{} and {}", ele_time, begin);}
+            let xpos = (set.xspim_size as f64 * ratio_inline / (interval / period)) as usize; //absolute position in the horizontal line. Division by interval/period re-escales the X.
+            let result = (line * set.xspim_size + xpos) * SPIM_PIXELS; //total array position
             Some(result)
         }
     }
