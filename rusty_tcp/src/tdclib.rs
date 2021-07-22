@@ -246,6 +246,7 @@ impl TdcControl for NonPeriodicTdcRef {
         self.time.pop().expect("***Tdc Lib***: There is no element to exclude from NonPeriodicTDC.");
         self.time.insert(0, time);
         self.counter+=1;
+        if self.counter % 100 == 0 {println!("{:?}", (100.0 / (self.time[0] - self.time[99])) as usize );}
     }
 
     fn counter(&self) -> usize {
@@ -272,7 +273,56 @@ impl NonPeriodicTdcRef {
         NonPeriodicTdcRef {
             tdctype: tdc_type.associate_value(),
             counter: 0,
-            time: vec![0.0; 3],
+            time: vec![0.0; 100],
+        }
+    }
+}
+
+pub struct NonPeriodicTdcRefMonitor {
+    pub tdctype: u8,
+    pub counter: usize,
+    pub time: Vec<f64>,
+    average: usize,
+}
+
+impl TdcControl for NonPeriodicTdcRefMonitor {
+    fn id(&self) -> u8 {
+        self.tdctype
+    }
+
+    fn upt(&mut self, time: f64) {
+        self.time.pop().expect("***Tdc Lib***: There is no element to exclude from NonPeriodicTDC.");
+        self.time.insert(0, time);
+        self.counter+=1;
+        if self.counter % self.average == 0 {println!("{:?}", (self.average as f64 / (self.time[0] - self.time[99])) as usize );}
+    }
+
+    fn counter(&self) -> usize {
+        self.counter
+    }
+
+    fn time(&self) -> f64 {
+        self.time[0]
+    }
+
+    fn period(&self) -> f64 {
+        self.time[0] - self.time[1]
+    }
+    
+    fn is_periodic(&self) -> bool {
+        false
+    }
+}
+
+impl NonPeriodicTdcRefMonitor {
+    
+
+    pub fn new_ref(tdc_type: TdcType, avg: usize) -> NonPeriodicTdcRefMonitor {
+        NonPeriodicTdcRefMonitor {
+            tdctype: tdc_type.associate_value(),
+            counter: 0,
+            time: vec![0.0; avg],
+            average: avg,
         }
     }
 }
