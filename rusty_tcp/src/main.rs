@@ -1,4 +1,4 @@
-use std::net::{TcpListener, SocketAddr, UdpSocket};
+use std::net::{TcpListener, SocketAddr};
 use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef, NonPeriodicTdcRefMonitor, NoTdcRef};
 use timepix3::{modes, message_board};
@@ -12,10 +12,8 @@ fn connect_and_loop() {
 
     let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not bind to TP3.");
     let ns_listener = TcpListener::bind(&addrs[..]).expect("Could not bind to NS.");
-    let ns_udp = UdpSocket::bind(&addrs[..]).expect("Could not bind UDP socket.");
     println!("Packet Tcp socket connected at: {:?}", pack_listener);
     println!("Nionswift Tcp socket connected at: {:?}", ns_listener);
-    println!("Udp socket connected at: {:?}", ns_udp);
 
     let (mut pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
     println!("Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
@@ -57,7 +55,6 @@ fn connect_and_loop() {
         },
         _ => panic!("Unknown mode received."),
     }
-    //if let Err(_) = ns_sock.shutdown(Shutdown::Both) {println!("Served not succesfully shutdown.");}
 }
 
 fn main() {

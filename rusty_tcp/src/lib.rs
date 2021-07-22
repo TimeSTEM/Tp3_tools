@@ -72,7 +72,6 @@ pub mod modes {
                                 }
                             }
                         },
-
                         11 if ref_tdc.is_periodic() => {
                             if let Some(x) = packet.x() {
                                 let mut ele_time = packet.electron_time();
