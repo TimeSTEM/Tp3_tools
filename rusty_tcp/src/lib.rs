@@ -113,6 +113,7 @@ pub mod modes {
                         },
                         6 if packet.tdc_type() == line_tdc.id() => {
                             line_tdc.upt(packet.tdc_time_norm());
+                            //println!("{} and {} and {}", line_tdc.counter(), packet.tdc_counter(), line_tdc.time());
                         },
                         6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.is_periodic())=> {
                             ref_tdc.upt(packet.tdc_time_norm());
