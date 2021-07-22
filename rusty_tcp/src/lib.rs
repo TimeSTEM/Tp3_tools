@@ -54,7 +54,7 @@ pub mod modes {
         let mut timelist:Vec<(f64, usize, usize, u8)> = Vec::new();
         let interval = line_tdc.low_time;
         let begin = line_tdc.begin;
-        let period = line_tdc.period();
+        let period = line_tdc.period().unwrap();
 
         while let Some(x) = packet_chunks.next() {
             match x {
@@ -64,7 +64,7 @@ pub mod modes {
                     
                     let id = packet.id();
                     match id {
-                        11 if !ref_tdc.is_periodic() => {
+                        11 if ref_tdc.period().is_none() => {
                             if let Some(x) = packet.x() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
                                 if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings) {
@@ -72,10 +72,10 @@ pub mod modes {
                                 }
                             }
                         },
-                        11 if ref_tdc.is_periodic() => {
+                        11 if ref_tdc.period().is_some() => {
                             if let Some(x) = packet.x() {
                                 let mut ele_time = packet.electron_time();
-                                if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time(), ref_tdc.period(), settings) {
+                                if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
                                     ele_time -= VIDEO_TIME;
                                     if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
                                         let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
@@ -92,10 +92,10 @@ pub mod modes {
                                 line_tdc.begin = line_tdc.time();
                             }
                         },
-                        6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.is_periodic())=> {
+                        6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.period().is_some())=> {
                             ref_tdc.upt(packet.tdc_time_norm());
                         },
-                        6 if (packet.tdc_type() == ref_tdc.id() && !ref_tdc.is_periodic())=> {
+                        6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.period().is_none())=> {
                             let tdc_time = packet.tdc_time_norm();
                             ref_tdc.upt(tdc_time);
                             let tdc_time = tdc_time - VIDEO_TIME;
@@ -214,7 +214,7 @@ pub mod modes {
                     let packet = Pack { chip_index: *last_ci, data: x};
                     
                     match packet.id() {
-                        11 if !ref_tdc.is_periodic() => {
+                        11 if ref_tdc.period().is_none() => {
                             if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
                                 let array_pos = match settings.bin {
                                     false => x + CAM_DESIGN.0*y,
@@ -224,9 +224,9 @@ pub mod modes {
                                 
                             }
                         },
-                        11 if ref_tdc.is_periodic() => {
+                        11 if ref_tdc.period().is_some() => {
                             if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
-                                if let Some(_backtdc) = tr_check_if_in(packet.electron_time(), ref_tdc.time(), ref_tdc.period(), settings) {
+                                if let Some(_backtdc) = tr_check_if_in(packet.electron_time(), ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
                                     let array_pos = match settings.bin {
                                         false => x + CAM_DESIGN.0*y,
                                         true => x
