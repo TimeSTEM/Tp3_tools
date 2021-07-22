@@ -347,7 +347,7 @@ pub mod modes {
             tl.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
             for tp in tl {
                 if (tp.0>last.0+CLUSTER_TIME || (tp.1 as isize - last.1 as isize).abs() > 2) || tp.3==6 {
-                    append_to_index_array(&mut index_array, tp.2);
+                    append_to_index_array(&mut index_array, tp.2, 4);
                 }
                 last = tp;
             }
@@ -357,19 +357,23 @@ pub mod modes {
     
     ///Append a single electron to a index list. Used mainly for spectral image, where a list of
     ///indexes is passed to client computer. Always push indexes using 32 bits.
-    fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
-        data.push(((index & 4_278_190_080)>>24) as u8);
-        data.push(((index & 16_711_680)>>16) as u8);
-        data.push(((index & 65_280)>>8) as u8);
-        data.push((index & 255) as u8);
+    fn append_to_index_array(data: &mut Vec<u8>, index: usize, bytedepth: u8) {
+        if bytedepth==4 {
+            data.push(((index & 4_278_190_080)>>24) as u8);
+            data.push(((index & 16_711_680)>>16) as u8);
         }
+        if bytedepth>=2 {
+            data.push(((index & 65_280)>>8) as u8);
+        }
+        data.push((index & 255) as u8);
+    }
     
 
     fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
         my_vec.sort_unstable();
         let mut unique:Vec<u8> = Vec::new();
         let mut index:Vec<u8> = Vec::new();
-        let mut counter:u8 = 1;
+        let mut counter:usize = 1;
         if my_vec.len() > 0 {
             let mut last = my_vec[0];
             for val in my_vec {
@@ -377,14 +381,14 @@ pub mod modes {
                     //counter.wrapping_add(1);
                     counter+=1;
                 } else {
-                    unique.push(counter);
-                    append_to_index_array(&mut index, last);
+                    append_to_index_array(&mut unique, counter, 1);
+                    append_to_index_array(&mut index, last, 4);
                     counter = 1;
                 }
                 last = val;
             }
-            unique.push(counter);
-            append_to_index_array(&mut index, last);
+            append_to_index_array(&mut unique, counter, 1);
+            append_to_index_array(&mut index, last, 4);
         }
         //let sum_unique = unique.iter().map(|&x| x as usize).sum::<usize>();
         //let indexes_len = index.len();
