@@ -18,7 +18,7 @@ pub mod modes {
     use std::sync::mpsc;
     use std::thread;
 
-    const VIDEO_TIME: f64 = 0.000007;
+    const VIDEO_TIME: f64 = 0.000005;
     const CLUSTER_TIME: f64 = 50.0e-09;
     const CAM_DESIGN: (usize, usize) = Pack::chip_array();
     const SPIM_PIXELS: usize = 1025;
@@ -99,6 +99,16 @@ pub mod modes {
                             let tdc_time = packet.tdc_time_norm();
                             ref_tdc.upt(tdc_time);
                             let tdc_time = tdc_time - VIDEO_TIME;
+                            
+                            if let Some(array_pos) = spim_detector(tdc_time, begin, interval, period, settings) {
+                                timelist.push((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
+                            }
+                        },
+                            
+                            /*
+                            let tdc_time = packet.tdc_time_norm();
+                            ref_tdc.upt(tdc_time);
+                            let tdc_time = tdc_time - VIDEO_TIME;
                             if let Some(backline) = spim_check_if_in(tdc_time, line_tdc.time(), interval, period) {
                                 let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
                                 let xpos = (settings.xspim_size as f64 * ((tdc_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
@@ -106,6 +116,7 @@ pub mod modes {
                                 timelist.push((tdc_time, SPIM_PIXELS-1, array_pos, id));
                             }
                         },
+                            */
                         _ => {},
                     };
                 },

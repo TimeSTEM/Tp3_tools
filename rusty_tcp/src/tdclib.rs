@@ -294,6 +294,7 @@ impl TdcControl for NonPeriodicTdcRefMonitor {
         self.time.insert(0, time);
         self.counter+=1;
         if self.counter % self.average == 0 {println!("{:?}", (self.average as f64 / (self.time[0] - self.time[self.average-1])) as usize );}
+        if self.counter % (self.average*10) == 0 {println!("---->");}
     }
 
     fn counter(&self) -> usize {
