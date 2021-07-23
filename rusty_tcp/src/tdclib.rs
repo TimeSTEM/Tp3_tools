@@ -55,11 +55,13 @@ mod tdcvec {
         let fal_tdc_type = match tdc_type {
             TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
             TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
+            TdcType::NoTdc => TdcType::NoTdc,
         };
         
         let ris_tdc_type = match tdc_type {
             TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneRisingEdge,
             TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoRisingEdge,
+            TdcType::NoTdc => TdcType::NoTdc,
         };
 
         let mut fal = get_timelist(tdc_vec, &fal_tdc_type);
@@ -110,6 +112,7 @@ pub enum TdcType {
     TdcOneFallingEdge,
     TdcTwoRisingEdge,
     TdcTwoFallingEdge,
+    NoTdc,
 }
 
 impl TdcType {
@@ -120,6 +123,7 @@ impl TdcType {
             TdcType::TdcOneFallingEdge => 10,
             TdcType::TdcTwoRisingEdge => 14,
             TdcType::TdcTwoFallingEdge => 11,
+            TdcType::NoTdc => 0,
         }
     }
 
@@ -129,6 +133,7 @@ impl TdcType {
             TdcType::TdcOneFallingEdge => String::from("Tdc 01 Falling Edge"),
             TdcType::TdcTwoRisingEdge => String::from("Tdc 02 Rising Edge"),
             TdcType::TdcTwoFallingEdge => String::from("Tdc 02 Falling Edge"),
+            TdcType::NoTdc => String::from("Tdc Disabled"),
         }
     }
 
@@ -412,6 +417,7 @@ impl TdcControl for NoTdcRef {
     fn period(&self) -> Option<f64> {
         None
     }
+
     fn new(tdc_type: TdcType, sock: &mut TcpStream) -> Self {
         Self {}
     }
