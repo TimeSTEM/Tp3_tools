@@ -145,12 +145,35 @@ impl TdcType {
     
 }
 
+
+pub trait Test {
+    fn new() -> Self;
+}
+
+pub struct sTest {}
+pub struct sTest2 {}
+
+impl Test for sTest {
+    fn new() -> Self {
+        Self{}
+    }
+}
+
+impl Test for sTest2 {
+    fn new() -> sTest2 {
+        sTest2{}
+    }
+}
+
+
+
 pub trait TdcControl {
     fn id(&self) -> u8;
     fn upt(&mut self, time: f64);
     fn counter(&self) -> usize;
     fn time(&self) -> f64;
     fn period(&self) -> Option<f64>;
+    fn new(tdc_type: TdcType, sock: &mut TcpStream) -> Self;
 }
 
 pub struct PeriodicTdcRef {
@@ -184,6 +207,41 @@ impl TdcControl for PeriodicTdcRef {
     fn period(&self) -> Option<f64> {
         Some(self.period)
     }
+
+    fn new(tdc_type: TdcType, sock: &mut TcpStream) -> Self {
+        let mut buffer_pack_data = vec![0; 16384];
+        let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
+        let mut ci = 0u8;
+
+        println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
+        loop {
+            if let Ok(size) = sock.read(&mut buffer_pack_data) {
+                if size>0 {
+                    let new_data = &buffer_pack_data[0..size];
+                    tdcvec::search_any_tdc(new_data, &mut tdc_vec, &mut ci);
+                    if tdcvec::check_tdc(&tdc_vec, &tdc_type)==true {break;}
+                }
+            }
+        }
+        println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
+        let counter = tdcvec::get_counter(&tdc_vec, &tdc_type);
+        let begin_time = tdcvec::get_begintime(&tdc_vec, &tdc_type);
+        let last_time = tdcvec::get_lasttime(&tdc_vec, &tdc_type);
+        let high_time = tdcvec::find_high_time(&tdc_vec, &tdc_type);
+        let period = tdcvec::find_period(&tdc_vec, &tdc_type);
+        let low_time = period - high_time;
+        println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ms) is {}. ON interval (ms) is {}. Period (ms) is {}.", tdc_type.associate_str(), counter, last_time*1.0e3, high_time*1.0e3, period*1.0e3);
+        Self {
+            tdctype: tdc_type.associate_value(),
+            counter: counter,
+            begin: begin_time,
+            period: period,
+            high_time: high_time,
+            low_time: low_time,
+            time: last_time,
+        }
+    }
+
 
 }
 
@@ -255,6 +313,14 @@ impl TdcControl for NonPeriodicTdcRef {
         None
     }
     
+    fn new(tdc_type: TdcType, sock: &mut TcpStream) -> Self {
+        Self {
+            tdctype: tdc_type.associate_value(),
+            counter: 0,
+            time: vec![0.0; 5],
+        }
+    }
+    
 }
 
 impl NonPeriodicTdcRef {
@@ -300,6 +366,14 @@ impl TdcControl for NonPeriodicTdcRefMonitor {
     fn period(&self) -> Option<f64> {
         None
     }
+    fn new(tdc_type: TdcType, sock: &mut TcpStream) -> Self {
+        Self {
+            tdctype: tdc_type.associate_value(),
+            counter: 0,
+            time: vec![0.0; 100],
+            average: 100,
+        }
+    }
     
 }
 
@@ -337,6 +411,9 @@ impl TdcControl for NoTdcRef {
 
     fn period(&self) -> Option<f64> {
         None
+    }
+    fn new(tdc_type: TdcType, sock: &mut TcpStream) -> Self {
+        Self {}
     }
 }
 
