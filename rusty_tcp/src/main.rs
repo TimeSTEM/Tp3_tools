@@ -1,26 +1,10 @@
-use std::net::{TcpListener, SocketAddr};
 use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef, NonPeriodicTdcRefMonitor, NoTdcRef};
 use timepix3::{modes, message_board};
 
 fn connect_and_loop() {
 
-    let addrs = [
-        SocketAddr::from(([192, 168, 199, 11], 8088)),
-        SocketAddr::from(([127, 0, 0, 1], 8088)),
-    ];
-
-    let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not bind to TP3.");
-    let ns_listener = TcpListener::bind(&addrs[..]).expect("Could not bind to NS.");
-    println!("Packet Tcp socket connected at: {:?}", pack_listener);
-    println!("Nionswift Tcp socket connected at: {:?}", ns_listener);
-
-    let (mut pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
-    println!("Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
-    let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
-    println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
-    
-    let my_settings = Settings::tcp_create_settings(&mut ns_sock);
+    let (my_settings, mut pack_sock, ns_sock) = Settings::create_settings([192, 168, 199, 11], 8088).unwrap();
 
     match my_settings.mode {
         0 => {

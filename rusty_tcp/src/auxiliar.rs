@@ -186,7 +186,7 @@ impl BytesConfig {
     }
 }
 
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream, SocketAddr};
 use std::io::Read;
 
 ///Settings contains all relevant parameters for a given acquistion
@@ -208,7 +208,24 @@ pub struct Settings {
 impl Settings {
 
     ///Create Settings structure reading from a TCP.
-    pub fn tcp_create_settings(ns_sock: &mut TcpStream) -> Settings {
+    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, TcpStream, TcpStream), &'static str> {
+    
+        
+        let addrs = [
+            SocketAddr::from((host_computer, port)),
+            SocketAddr::from(([127, 0, 0, 1], port)),
+        ];
+        
+        let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not bind to TP3.");
+        let ns_listener = TcpListener::bind(&addrs[..]).expect("Could not bind to NS.");
+        println!("Packet Tcp socket connected at: {:?}", pack_listener);
+        println!("Nionswift Tcp socket connected at: {:?}", ns_listener);
+        
+        let (pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
+        println!("Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
+        let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
+        println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
+
         
         let mut cam_settings = [0 as u8; 28];
         
@@ -224,6 +241,6 @@ impl Settings {
         
         let my_settings = my_config.create_settings();
         println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
-        my_settings
+        Ok((my_settings, pack_sock, ns_sock))
     }
 }
