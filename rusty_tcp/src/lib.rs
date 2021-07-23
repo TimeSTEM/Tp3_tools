@@ -23,7 +23,7 @@ pub mod modes {
     const CAM_DESIGN: (usize, usize) = Pack::chip_array();
     const SPIM_PIXELS: usize = 1025;
     const BUFFER_SIZE: usize = 16384 * 3;
-    const UNIQUE_BYTE: usize = 1;
+    const UNIQUE_BYTE: usize = 2;
     const INDEX_BYTE: usize = 4;
 
     pub fn build_spim<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T) {
@@ -43,7 +43,6 @@ pub mod modes {
         
         for tl in rx {
             let result = sort_and_append_to_unique_index(tl);
-            //let result = sort_and_append_to_index(tl);
             if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
         }
 
@@ -56,7 +55,7 @@ pub mod modes {
         let mut timelist:Vec<(f64, usize, usize, u8)> = Vec::new();
         let interval = line_tdc.low_time;
         let begin = line_tdc.begin;
-        let period = line_tdc.period().unwrap();
+        let period = line_tdc.period;
 
         while let Some(x) = packet_chunks.next() {
             match x {
@@ -106,19 +105,6 @@ pub mod modes {
                                 timelist.push((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
                             }
                         },
-                            
-                            /*
-                            let tdc_time = packet.tdc_time_norm();
-                            ref_tdc.upt(tdc_time);
-                            let tdc_time = tdc_time - VIDEO_TIME;
-                            if let Some(backline) = spim_check_if_in(tdc_time, line_tdc.time(), interval, period) {
-                                let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
-                                let xpos = (settings.xspim_size as f64 * ((tdc_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
-                                let array_pos = (SPIM_PIXELS-1) + line + xpos;
-                                timelist.push((tdc_time, SPIM_PIXELS-1, array_pos, id));
-                            }
-                        },
-                            */
                         _ => {},
                     };
                 },
@@ -128,10 +114,6 @@ pub mod modes {
         else {None}
     }
     
-
-
-
-
 
 
 
@@ -268,7 +250,6 @@ pub mod modes {
     }
 
     fn spim_detector(ele_time: f64, begin: f64, interval: f64, period: f64, set: &Settings) -> Option<usize>{
-        //let single = (((ele_time - begin) / period) * (xspim_size*SPIM_PIXELS) as f64);
         let ratio = (ele_time - begin) / period; //0 to next complete frame
         let ratio_inline = ratio.fract(); //from 0.0 to 1.0
         if ratio_inline > interval / period || ratio_inline.is_sign_negative() { //Removes electrons in line return or before last tdc
