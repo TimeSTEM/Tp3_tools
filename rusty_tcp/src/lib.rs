@@ -23,6 +23,8 @@ pub mod modes {
     const CAM_DESIGN: (usize, usize) = Pack::chip_array();
     const SPIM_PIXELS: usize = 1025;
     const BUFFER_SIZE: usize = 16384 * 3;
+    const UNIQUE_BYTE: usize = 1;
+    const INDEX_BYTE: usize = 4;
 
     pub fn build_spim<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T) {
         let (tx, rx) = mpsc::channel();
@@ -357,15 +359,23 @@ pub mod modes {
     
     ///Append a single electron to a index list. Used mainly for spectral image, where a list of
     ///indexes is passed to client computer. Always push indexes using 32 bits.
-    fn append_to_index_array(data: &mut Vec<u8>, index: usize, bytedepth: u8) {
-        if bytedepth==4 {
-            data.push(((index & 4_278_190_080)>>24) as u8);
-            data.push(((index & 16_711_680)>>16) as u8);
+    fn append_to_index_array(data: &mut Vec<u8>, index: usize, bytedepth: usize) {
+        match bytedepth {
+            4 => {
+                data.push(((index & 4_278_190_080)>>24) as u8);
+                data.push(((index & 16_711_680)>>16) as u8);
+                data.push(((index & 65_280)>>8) as u8);
+                data.push((index & 255) as u8);
+            },
+            2 => {
+                data.push(((index & 65_280)>>8) as u8);
+                data.push((index & 255) as u8);
+            },
+            1 => {
+                data.push((index & 255) as u8);
+            },
+            _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
         }
-        if bytedepth>=2 {
-            data.push(((index & 65_280)>>8) as u8);
-        }
-        data.push((index & 255) as u8);
     }
     
 
@@ -381,14 +391,14 @@ pub mod modes {
                     //counter.wrapping_add(1);
                     counter+=1;
                 } else {
-                    append_to_index_array(&mut unique, counter, 1);
-                    append_to_index_array(&mut index, last, 4);
+                    append_to_index_array(&mut unique, counter, UNIQUE_BYTE);
+                    append_to_index_array(&mut index, last, INDEX_BYTE);
                     counter = 1;
                 }
                 last = val;
             }
-            append_to_index_array(&mut unique, counter, 1);
-            append_to_index_array(&mut index, last, 4);
+            append_to_index_array(&mut unique, counter, UNIQUE_BYTE);
+            append_to_index_array(&mut index, last, INDEX_BYTE);
         }
         //let sum_unique = unique.iter().map(|&x| x as usize).sum::<usize>();
         //let indexes_len = index.len();
