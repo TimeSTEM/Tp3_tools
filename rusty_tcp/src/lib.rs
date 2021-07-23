@@ -269,10 +269,9 @@ pub mod modes {
 
     fn spim_detector(ele_time: f64, begin: f64, interval: f64, period: f64, set: &Settings) -> Option<usize>{
         //let single = (((ele_time - begin) / period) * (xspim_size*SPIM_PIXELS) as f64);
-        if ele_time<begin {return None} //Ignoring these electrons
         let ratio = (ele_time - begin) / period; //0 to next complete frame
-        let ratio_inline = ratio - (ratio as usize) as f64; //from 0.0 to 1.0
-        if ratio_inline > interval / period { //this means electron is in line return
+        let ratio_inline = ratio.fract(); //from 0.0 to 1.0
+        if ratio_inline > interval / period || ratio_inline.is_sign_negative() { //Removes electrons in line return or before last tdc
             None
         } else {
             let line = (ratio as usize / set.spimoverscany) % set.yspim_size; //multiple of yspim_size
