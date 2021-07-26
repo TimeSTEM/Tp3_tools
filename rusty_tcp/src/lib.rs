@@ -27,9 +27,9 @@ pub mod modes {
     const INDEX_BYTE: usize = 4;
 
     pub fn build_spim<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T) {
+        let nb_sockets = my_settings.number_sockets;
         let (tx, rx) = mpsc::channel();
         let mut last_ci = 0usize;
-        let nb_sockets = my_settings.number_sockets;
         let mut buffer_pack_data = vec![0; BUFFER_SIZE];
         
         thread::spawn( move || {
@@ -74,7 +74,7 @@ pub mod modes {
                             if let Some(x) = packet.x() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
                                 if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings) {
-                                    timelist.push((ele_time, x, array_pos+x, id));
+                                    //timelist.push((ele_time, x, array_pos+x, id));
                                     timelist02[*last_ci].push((ele_time, x, array_pos+x, id));
                                 }
                             }

@@ -19,6 +19,15 @@ pub trait Packet {
             _ => None,
         }
     }
+    
+    fn x_raw(&self) -> Option<usize> {
+        let x = ((((self.data()[6] & 224))>>4 | ((self.data()[7] & 15))<<4) | (((self.data()[5] & 112)>>4)>>2)) as usize;
+        if x<DEAD_PIXELS || x>255-DEAD_PIXELS {
+            return None
+        }
+        Some(x)
+    }
+    
     fn y(&self) -> Option<usize> {
         let y = (   ( ((self.data()[5] & 128))>>5 | ((self.data()[6] & 31))<<3 ) | ( (((self.data()[5] & 112)>>4)) & 3 )   ) as usize;
         Some(y)
