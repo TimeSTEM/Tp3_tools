@@ -26,10 +26,13 @@ pub mod modes {
     const UNIQUE_BYTE: usize = 2;
     const INDEX_BYTE: usize = 4;
 
-    pub fn build_spim<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T) {
+    pub fn build_spim<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T) {
         let (tx, rx) = mpsc::channel();
         let mut last_ci = 0u8;
         let mut buffer_pack_data = vec![0; BUFFER_SIZE];
+        
+        let mut ns_sock = vec_ns_sock.pop().unwrap();
+        let mut ns_sock = vec_ns_sock.pop().unwrap();
         
         thread::spawn( move || {
             while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -160,7 +163,7 @@ pub mod modes {
 
 
     
-    pub fn build_spectrum<T: TdcControl>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
+    pub fn build_spectrum<T: TdcControl>(mut pack_sock: TcpStream, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
 
         let start = Instant::now();
         let mut last_ci = 0u8;
@@ -168,6 +171,8 @@ pub mod modes {
         let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
         data_array.push(10);
 
+        let mut ns_sock = vec_ns_sock.pop().unwrap();
+        let mut ns_sock = vec_ns_sock.pop().unwrap();
 
         while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size == 0 {println!("Timepix3 sent zero bytes."); break;}

@@ -275,7 +275,11 @@ impl Settings {
         let my_settings = my_config.create_settings()?;
         sock_vec.push(ns_sock);
         
-        for _i in 0..my_settings.number_sockets-1 {
+        println!("Connecting auxiliar sockets...");
+        for i in 0..my_settings.number_sockets-1 {
+            let (ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
+            println!("Nionswift ({}) connected at {:?} and {:?}.", i, ns_addr, ns_sock);
+            sock_vec.push(ns_sock);
         }
 
         println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
