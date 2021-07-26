@@ -1,7 +1,6 @@
 //!`auxiliar` is a collection of tools to set acquisition conditions.
 
-const CONFIG_SIZE: usize = 28;
-const SOCKET_SIZE: usize = 1;
+const CONFIG_SIZE: usize = 30;
 
 #[derive(Debug)]
 pub enum BytesConfigError {
@@ -12,8 +11,6 @@ pub enum BytesConfigError {
     XSize,
     YSize,
 }
-
-
 
 ///Configures the detector for acquisition. Each new measurement must send 28 bytes
 ///containing instructions.
@@ -193,6 +190,12 @@ impl BytesConfig {
         }
     }
 
+    fn nsockets(&self) -> usize {
+        let number_sockets = (self.data[28] as usize)<<8 | (self.data[29] as usize);
+        println!("Number of sockets is: {}", number_sockets);
+        number_sockets
+    }
+
     ///Create Settings struct from BytesConfig
     fn create_settings(&self) -> Result<Settings, BytesConfigError> {
         let my_set = Settings {
@@ -208,9 +211,11 @@ impl BytesConfig {
             time_width: self.time_width(),
             spimoverscanx: self.spimoverscanx()?,
             spimoverscany: self.spimoverscany()?,
+            number_sockets: self.nsockets(),
         };
         Ok(my_set)
     }
+
 }
 
 use std::net::{TcpListener, TcpStream, SocketAddr};
@@ -230,6 +235,7 @@ pub struct Settings {
     pub time_width: f64,
     pub spimoverscanx: usize,
     pub spimoverscany: usize,
+    pub number_sockets: usize,
 }
 
 impl Settings {
@@ -251,20 +257,12 @@ impl Settings {
         
         let (pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
         println!("Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
+        let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
+        println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
  
-
-        for _i in 0..SOCKET_SIZE {
-            let (ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
-            println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
-            sock_vec.push(ns_sock);
-        }
-
-
-        
         let mut cam_settings = [0 as u8; CONFIG_SIZE];
         
         let my_config = {
-            let mut ns_sock = &sock_vec[0];
             match ns_sock.read(&mut cam_settings){
                 Ok(size) => {
                     println!("Received {} bytes from NS.", size);
@@ -273,10 +271,13 @@ impl Settings {
                 Err(_) => panic!("Could not read cam initial settings."),
             }
         };
-
-
         
         let my_settings = my_config.create_settings()?;
+        sock_vec.push(ns_sock);
+        
+        for _i in 0..my_settings.number_sockets-1 {
+        }
+
         println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
         Ok((my_settings, pack_sock, sock_vec))
     }
