@@ -8,10 +8,8 @@ pub enum BytesConfigError {
     ByteDepth,
     Cumul,
     Mode,
-    XSizeSpim,
-    YSizeSpim,
-    XSizeScan,
-    YSizeScan,
+    XSize,
+    YSize,
 }
 
 
@@ -62,44 +60,49 @@ impl BytesConfig {
     }
 
     ///Sums all arriving data. `\x00` for False, `\x01` for True. Panics otherwise. Byte[2].
-    fn cumul(&self) -> bool {
+    fn cumul(&self) -> Result<bool, BytesConfigError> {
         match self.data[2] {
             0 => {
                 println!("Cumulation mode is OFF.");
-                false
+                Ok(false)
             },
             1 => {
                 println!("Cumulation mode is ON.");
-                true
+                Ok(true)
             },
-            _ => panic!("Cumulation must be 0 | 1."),
+            _ => Err(BytesConfigError::Cumul),
         }
     }
 
     ///Acquisition Mode. `\x00` for normal, `\x01` for spectral image and `\x02` for time-resolved. Panics otherwise. Byte[2..4].
-    fn mode(&self) -> u8 {
+    fn mode(&self) -> Result<u8, BytesConfigError> {
         match self.data[3] {
             0 => {
                 println!("Mode is Focus/Cumul.");
+                Ok(self.data[3])
             },
             1 => {
                 println!("Entering in time resolved mode (Focus/Cumul).");
+                Ok(self.data[3])
             },
             2 => {
                 println!("Entering in Spectral Image (SpimTP).");
+                Ok(self.data[3])
             },
             3 => {
                 println!("Entering in time resolved mode (SpimTP).");
+                Ok(self.data[3])
             },
             4 => {
                 println!("Entering in Spectral Image [TDC Mode] (SpimTP).");
+                Ok(self.data[3])
             },
             5 => {
                 println!("Entering in Spectral Image [Save Locally] (SpimTP).");
+                Ok(self.data[3])
             },
-            _ => panic!("Spim config must be 0 | 1 | 2 | 3 | 4 | 5."),
-        };
-        self.data[3]
+            _ => Err(BytesConfigError::Mode),
+        }
     }
 
     ///X spim size. Must be sent with 2 bytes in big-endian mode. Byte[4..6]
@@ -154,35 +157,37 @@ impl BytesConfig {
     }
     
     ///Convenience method. Returns the ratio between scan and spim size in X.
-    fn spimoverscanx(&self) -> usize {
+    fn spimoverscanx(&self) -> Result<usize, BytesConfigError> {
         let xspim = self.xspim_size();
         let xscan = self.xscan_size();
+        if xspim == 0 {return Err(BytesConfigError::XSize);}
         let var = xscan / xspim;
         match var {
             0 => {
                 println!("Xratio is: 1.");
-                1
+                Ok(1)
             },
             _ => {
                 println!("Xratio is: {}.", var);
-                var
+                Ok(var)
             },
         }
     }
     
     ///Convenience method. Returns the ratio between scan and spim size in Y.
-    fn spimoverscany(&self) -> usize {
+    fn spimoverscany(&self) -> Result<usize, BytesConfigError> {
         let yspim = self.yspim_size();
         let yscan = self.yscan_size();
+        if yspim == 0 {return Err(BytesConfigError::YSize);}
         let var = yscan / yspim;
         match var {
             0 => {
                 println!("Yratio is: 1.");
-                1
+                Ok(1)
             },
             _ => {
                 println!("Yratio is: {}.", var);
-                var
+                Ok(var)
             },
         }
     }
@@ -192,16 +197,16 @@ impl BytesConfig {
         let my_set = Settings {
             bin: self.bin()?,
             bytedepth: self.bytedepth()?,
-            cumul: self.cumul(),
-            mode: self.mode(),
+            cumul: self.cumul()?,
+            mode: self.mode()?,
             xspim_size: self.xspim_size(),
             yspim_size: self.yspim_size(),
             xscan_size: self.xscan_size(),
             yscan_size: self.yscan_size(),
             time_delay: self.time_delay(),
             time_width: self.time_width(),
-            spimoverscanx: self.spimoverscanx(),
-            spimoverscany: self.spimoverscany(),
+            spimoverscanx: self.spimoverscanx()?,
+            spimoverscany: self.spimoverscany()?,
         };
         Ok(my_set)
     }
