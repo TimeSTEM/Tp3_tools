@@ -4,7 +4,9 @@ use timepix3::{modes, message_board};
 
 fn connect_and_loop() {
 
-    let (my_settings, mut pack_sock, ns_sock) = Settings::create_settings([192, 168, 199, 11], 8088).unwrap();
+    let (my_settings, mut pack_sock, mut vec_ns_sock) = Settings::create_settings([192, 168, 199, 11], 8088).unwrap();
+
+    let ns_sock = vec_ns_sock.pop().unwrap();
 
     match my_settings.mode {
         0 => {

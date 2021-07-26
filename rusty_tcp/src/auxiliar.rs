@@ -1,43 +1,63 @@
 //!`auxiliar` is a collection of tools to set acquisition conditions.
 
+const CONFIG_SIZE: usize = 28;
+
+#[derive(Debug)]
+pub enum BytesConfigError {
+    Bin,
+    ByteDepth,
+    Cumul,
+    Mode,
+    XSizeSpim,
+    YSizeSpim,
+    XSizeScan,
+    YSizeScan,
+}
+
+
+
 ///Configures the detector for acquisition. Each new measurement must send 28 bytes
 ///containing instructions.
 struct BytesConfig {
-    pub data: [u8; 28],
+    pub data: [u8; CONFIG_SIZE],
 }
 
 impl BytesConfig {
     ///Set binning mode for 1x4 detector. `\x00` for unbinned and `\x01` for binned. Panics otherwise. Byte[0].
-    fn bin(&self) -> bool {
+    fn bin(&self) -> Result<bool, BytesConfigError> {
         match self.data[0] {
             0 => {
                 println!("Bin is False.");
-                false
+                Ok(false)
             },
             1 => {
                 println!("Bin is True.");
-                true
+                Ok(true)
             },
-            _ => panic!("Binning choice must be 0 | 1."),
+            _ => Err(BytesConfigError::Bin),
         }
     }
 
     ///Set bytedepth. `\x00` for 1, `\x01` for 2 and `\x02` for 4. Panics otherwise. Byte[1].
-    fn bytedepth(&self) -> usize {
+    fn bytedepth(&self) -> Result<usize, BytesConfigError> {
         match self.data[1] {
             0 => {
                 println!("Bitdepth is 8.");
-                1
+                Ok(1)
             },
             1 => {
                 println!("Bitdepth is 16.");
-                2
+                Ok(2)
             },
             2 => {
                 println!("Bitdepth is 32.");
-                4
+                Ok(4)
             },
-            _ => panic!("Bytedepth must be  1 | 2 | 4."),
+            3 => {
+                println!("Bitdepth is 32.");
+                Ok(8)
+            },
+            _ => Err(BytesConfigError::ByteDepth),
         }
     }
 
@@ -168,10 +188,10 @@ impl BytesConfig {
     }
 
     ///Create Settings struct from BytesConfig
-    fn create_settings(&self) -> Settings {
-        Settings {
-            bin: self.bin(),
-            bytedepth: self.bytedepth(),
+    fn create_settings(&self) -> Result<Settings, BytesConfigError> {
+        let my_set = Settings {
+            bin: self.bin()?,
+            bytedepth: self.bytedepth()?,
             cumul: self.cumul(),
             mode: self.mode(),
             xspim_size: self.xspim_size(),
@@ -182,7 +202,8 @@ impl BytesConfig {
             time_width: self.time_width(),
             spimoverscanx: self.spimoverscanx(),
             spimoverscany: self.spimoverscany(),
-        }
+        };
+        Ok(my_set)
     }
 }
 
@@ -208,8 +229,9 @@ pub struct Settings {
 impl Settings {
 
     ///Create Settings structure reading from a TCP.
-    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, TcpStream, TcpStream), &'static str> {
+    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, TcpStream, Vec<TcpStream>), BytesConfigError> {
     
+        let mut sock_vec: Vec<TcpStream> = Vec::new();
         
         let addrs = [
             SocketAddr::from((host_computer, port)),
@@ -227,7 +249,7 @@ impl Settings {
         println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
 
         
-        let mut cam_settings = [0 as u8; 28];
+        let mut cam_settings = [0 as u8; CONFIG_SIZE];
         
         let my_config = {
             match ns_sock.read(&mut cam_settings){
@@ -238,9 +260,12 @@ impl Settings {
                 Err(_) => panic!("Could not read cam initial settings."),
             }
         };
+
+        sock_vec.push(ns_sock);
+
         
-        let my_settings = my_config.create_settings();
+        let my_settings = my_config.create_settings()?;
         println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
-        Ok((my_settings, pack_sock, ns_sock))
+        Ok((my_settings, pack_sock, sock_vec))
     }
 }
