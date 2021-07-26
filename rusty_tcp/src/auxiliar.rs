@@ -1,6 +1,7 @@
 //!`auxiliar` is a collection of tools to set acquisition conditions.
 
 const CONFIG_SIZE: usize = 28;
+const SOCKET_SIZE: usize = 1;
 
 #[derive(Debug)]
 pub enum BytesConfigError {
@@ -250,13 +251,20 @@ impl Settings {
         
         let (pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
         println!("Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
-        let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
-        println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
+ 
+
+        for _i in 0..SOCKET_SIZE {
+            let (ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
+            println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
+            sock_vec.push(ns_sock);
+        }
+
 
         
         let mut cam_settings = [0 as u8; CONFIG_SIZE];
         
         let my_config = {
+            let mut ns_sock = &sock_vec[0];
             match ns_sock.read(&mut cam_settings){
                 Ok(size) => {
                     println!("Received {} bytes from NS.", size);
@@ -266,7 +274,6 @@ impl Settings {
             }
         };
 
-        sock_vec.push(ns_sock);
 
         
         let my_settings = my_config.create_settings()?;
