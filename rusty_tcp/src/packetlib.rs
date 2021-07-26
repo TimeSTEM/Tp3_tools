@@ -4,7 +4,7 @@
 const DEAD_PIXELS: usize = 5;
 
 pub trait Packet {
-    fn ci(&self) -> u8;
+    fn ci(&self) -> usize;
     fn data(&self) -> &[u8];
     fn x(&self) -> Option<usize> {
         let temp = ((((self.data()[6] & 224))>>4 | ((self.data()[7] & 15))<<4) | (((self.data()[5] & 112)>>4)>>2)) as usize;
@@ -90,12 +90,12 @@ pub trait Packet {
 }
 
 pub struct PacketEELS<'a> {
-    pub chip_index: u8,
+    pub chip_index: usize,
     pub data: &'a [u8],
 }
 
 impl<'a> Packet for PacketEELS<'a> {
-    fn ci(&self) -> u8 {
+    fn ci(&self) -> usize {
         self.chip_index
     }
     fn data(&self) -> &[u8] {
@@ -111,12 +111,12 @@ impl<'a> PacketEELS<'a> {
 
 
 pub struct PacketDiffraction<'a> {
-    pub chip_index: u8,
+    pub chip_index: usize,
     pub data: &'a [u8],
 }
 
 impl<'a> Packet for PacketDiffraction<'a> {
-    fn ci(&self) -> u8 {
+    fn ci(&self) -> usize {
         self.chip_index
     }
     fn data(&self) -> &[u8] {

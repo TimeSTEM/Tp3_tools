@@ -28,11 +28,9 @@ pub mod modes {
 
     pub fn build_spim<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T) {
         let (tx, rx) = mpsc::channel();
-        let mut last_ci = 0u8;
+        let mut last_ci = 0usize;
+        let nb_sockets = my_settings.number_sockets;
         let mut buffer_pack_data = vec![0; BUFFER_SIZE];
-        
-        let mut ns_sock = vec_ns_sock.pop().unwrap();
-        let mut ns_sock = vec_ns_sock.pop().unwrap();
         
         thread::spawn( move || {
             while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -44,25 +42,29 @@ pub mod modes {
             }
         });
         
-        for tl in rx {
-            let result = sort_and_append_to_unique_index(tl);
-            if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+        'global: for mut tl in rx {
+            for i in 0..nb_sockets {
+                let tl_partial = tl.pop().expect("Problem ocurring popping our timelist vector.");
+                let result = sort_and_append_to_unique_index(tl_partial);
+                if let Err(_) = vec_ns_sock[nb_sockets - i - 1].write(&result) {println!("Client disconnected on data."); break 'global;}
+            }
         }
 
     }
 
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
-    fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Vec<(f64, usize, usize, u8)>> {
+    fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Vec<Vec<(f64, usize, usize, u8)>>> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut timelist:Vec<(f64, usize, usize, u8)> = Vec::new();
+        let mut timelist02:Vec<Vec<(f64, usize, usize, u8)>> = vec![Vec::new(); 4];
         let interval = line_tdc.low_time;
         let begin = line_tdc.begin;
         let period = line_tdc.period;
 
         while let Some(x) = packet_chunks.next() {
             match x {
-                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
+                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
                 _ => {
                     let packet = Pack { chip_index: *last_ci, data: x};
                     
@@ -73,6 +75,7 @@ pub mod modes {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
                                 if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings) {
                                     timelist.push((ele_time, x, array_pos+x, id));
+                                    timelist02[*last_ci].push((ele_time, x, array_pos+x, id));
                                 }
                             }
                         },
@@ -113,8 +116,11 @@ pub mod modes {
                 },
             };
         };
-        if timelist.len() > 0 {Some(timelist)}
-        else {None}
+        if let Some(_) = timelist02.iter().flatten().next() {
+            Some(timelist02)
+        } else {None}
+        //if timelist.len() > 0 {Some(timelist)}
+        //else {None}
     }
     
 
@@ -129,7 +135,7 @@ pub mod modes {
         
         let (tx, rx) = mpsc::channel();
         let start = Instant::now();
-        let mut last_ci = 0u8;
+        let mut last_ci = 0usize;
         let mut buffer_pack_data = vec![0; BUFFER_SIZE];
         let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
         data_array.push(10);
@@ -166,21 +172,18 @@ pub mod modes {
     pub fn build_spectrum<T: TdcControl>(mut pack_sock: TcpStream, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
 
         let start = Instant::now();
-        let mut last_ci = 0u8;
+        let mut last_ci = 0usize;
         let mut buffer_pack_data = vec![0; 16384];
         let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
         data_array.push(10);
-
-        let mut ns_sock = vec_ns_sock.pop().unwrap();
-        let mut ns_sock = vec_ns_sock.pop().unwrap();
 
         while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size == 0 {println!("Timepix3 sent zero bytes."); break;}
             let new_data = &buffer_pack_data[0..size];
             if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
                 let msg = create_header(&my_settings, &frame_tdc);
-                if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
-                if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
+                if let Err(_) = vec_ns_sock[0].write(&msg) {println!("Client disconnected on header."); break;}
+                if let Err(_) = vec_ns_sock[0].write(&data_array) {println!("Client disconnected on data."); break;}
                 if my_settings.cumul == false {
                     data_array = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
                     data_array.push(10);
@@ -191,14 +194,14 @@ pub mod modes {
     }
 
     ///Returns a frame using a periodic TDC as reference.
-    fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u8, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
+    fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
 
         let mut packet_chunks = data.chunks_exact(8);
         let mut has = false;
         
         while let Some(x) = packet_chunks.next() {
             match x {
-                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
+                &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
                 _ => {
                     let packet = Pack { chip_index: *last_ci, data: x};
                     

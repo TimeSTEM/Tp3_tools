@@ -7,7 +7,7 @@ use std::io::Read;
 mod tdcvec {
     use crate::tdclib::TdcType;
     
-    pub fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut u8) {
+    pub fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut usize) {
         use crate::packetlib::{Packet, PacketEELS};
         
         let file_data = data;
@@ -15,7 +15,7 @@ mod tdcvec {
 
         while let Some(x) = packet_chunks.next() {
             match x {
-                &[84, 80, 88, 51, nci, _, _, _] => {*last_ci = nci},
+                &[84, 80, 88, 51, nci, _, _, _] => {*last_ci = nci as usize},
                 _ => {
                     let packet = PacketEELS { chip_index: *last_ci, data: x};
                     
@@ -195,7 +195,7 @@ impl TdcControl for PeriodicTdcRef {
     fn new(tdc_type: TdcType, sock: &mut TcpStream) -> Self {
         let mut buffer_pack_data = vec![0; 16384];
         let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
-        let mut ci = 0u8;
+        let mut ci = 0usize;
 
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
         loop {
