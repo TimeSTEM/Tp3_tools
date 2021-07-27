@@ -56,8 +56,7 @@ pub mod modes {
     ///the beggining of each scan line.
     fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Vec<Vec<(f64, usize, usize, u8)>>> {
         let mut packet_chunks = data.chunks_exact(8);
-        let mut timelist:Vec<(f64, usize, usize, u8)> = Vec::new();
-        let mut timelist02:Vec<Vec<(f64, usize, usize, u8)>> = vec![Vec::new(); settings.number_sockets];
+        let mut timelist:Vec<Vec<(f64, usize, usize, u8)>> = vec![Vec::new(); settings.number_sockets];
         let nbsock_chips = settings.number_sockets / 4;
         let total_size = settings.xspim_size * settings.yspim_size * 1025;
         let interval = line_tdc.low_time;
@@ -76,8 +75,7 @@ pub mod modes {
                             if let Some(x) = packet.x_raw() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
                                 if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings) {
-                                    //timelist.push((ele_time, x, array_pos+x, id));
-                                    timelist02[*last_ci * nbsock_chips + (array_pos * nbsock_chips) / total_size].push((ele_time, x, array_pos+x, id));
+                                    timelist[*last_ci * nbsock_chips + (array_pos * nbsock_chips) / total_size].push((ele_time, x, array_pos+x, id));
                                 }
                             }
                         },
@@ -90,7 +88,7 @@ pub mod modes {
                                         let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
                                         let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                         let array_pos = x + line + xpos;
-                                        timelist.push((ele_time, x, array_pos, id));
+                                        timelist[*last_ci * nbsock_chips + (array_pos * nbsock_chips) / total_size].push((ele_time, x, array_pos, id));
                                     }
                                 }
                             }
@@ -110,7 +108,7 @@ pub mod modes {
                             let tdc_time = tdc_time - VIDEO_TIME;
                             
                             if let Some(array_pos) = spim_detector(tdc_time, begin, interval, period, settings) {
-                                timelist.push((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
+                                timelist[*last_ci * nbsock_chips + (array_pos * nbsock_chips) / total_size].push((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
                             }
                         },
                         _ => {},
@@ -118,11 +116,9 @@ pub mod modes {
                 },
             };
         };
-        if let Some(_) = timelist02.iter().flatten().next() {
-            Some(timelist02)
+        if let Some(_) = timelist.iter().flatten().next() {
+            Some(timelist)
         } else {None}
-        //if timelist.len() > 0 {Some(timelist)}
-        //else {None}
     }
     
 
