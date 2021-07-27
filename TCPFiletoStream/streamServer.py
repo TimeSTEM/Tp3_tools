@@ -43,8 +43,7 @@ def create_tdc(Tdif, trigger='tdc1Ris'):
 Set Script Parameters Here
 """
 
-FOLDER = 'laser_tdc'
-#FOLDER = 'gain_data'
+FOLDER = '23072021-00'
 CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
 HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 PORT = 8098 #Pick a port to connect your socket
@@ -76,6 +75,7 @@ def open_and_read(filepath, number):
 
 while isRunning:
     if not INFINITE_SERVER: isRunning=False
+    start = time.time()
     print('Waiting a new client connection..')
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as serv:
         try:
@@ -89,20 +89,22 @@ while isRunning:
         while True:
             now_file = os.path.join(FOLDER, "raw000"+format(loop, '.0f').zfill(3)+".tpx3")
             if os.path.isfile(now_file):
+                print(now_file)
                 np_data = numpy.fromfile(now_file, dtype='uint8')
             else:
-                print('Resetting. Current loop is', loop)
+                print('Resetting. Current loop is', loop, '. Time is', time.time()-start)
+                start = time.time()
                 loop = 0
                 now_file = os.path.join(FOLDER, "raw000"+format(loop, '.0f').zfill(3)+".tpx3")
                 np_data = numpy.fromfile(now_file, dtype='uint8')
 
-            split_data = numpy.array_split(np_data, 32)
+            #split_data = numpy.array_split(np_data, 32)
 
             try:
-                #send = serv.send(np_data)
+                send = serv.send(np_data)
                 #print(send)
-                for val in split_data:
-                    size = serv.send(val)
+                #for val in split_data:
+                #    size = serv.send(val)
                 #    print(size)
             except ConnectionResetError:
                 break

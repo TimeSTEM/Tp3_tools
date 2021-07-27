@@ -193,7 +193,7 @@ impl BytesConfig {
 
     fn nsockets(&self) -> Result<usize, BytesConfigError> {
         let number_sockets = (self.data[28] as usize)<<8 | (self.data[29] as usize);
-        if number_sockets % 4 == 0 {
+        if number_sockets == 1 || number_sockets % 4 == 0{
             println!("Number of sockets is: {}", number_sockets);
             Ok(number_sockets)
         } else {Err(BytesConfigError::NbSockets)}
