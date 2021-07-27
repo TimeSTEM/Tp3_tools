@@ -71,7 +71,7 @@ pub mod modes {
                     let id = packet.id();
                     match id {
                         11 if ref_tdc.period().is_none() => {
-                            if let Some(x) = packet.x() {
+                            if let Some(x) = packet.x_raw() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
                                 if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings) {
                                     //timelist.push((ele_time, x, array_pos+x, id));
