@@ -27,7 +27,6 @@ pub mod modes {
     const INDEX_BYTE: usize = 4;
 
     pub fn build_spim<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T) {
-        let nb_sockets = my_settings.number_sockets;
         let (tx, rx) = mpsc::channel();
         let mut last_ci = 0usize;
         let mut buffer_pack_data = vec![0; BUFFER_SIZE];
@@ -41,24 +40,22 @@ pub mod modes {
                 }
             }
         });
-        
-        'global: for mut tl in rx {
-            for i in 0..nb_sockets {
-                let tl_partial = tl.pop().expect("Problem ocurring popping our timelist vector.");
-                let result = sort_and_append_to_unique_index(tl_partial);
-                if let Err(_) = vec_ns_sock[nb_sockets - i - 1].write(&result) {println!("Client disconnected on data."); break 'global;}
-            }
-        }
 
+        thread::spawn( move || {
+            let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
+            for tl in rx {
+                let result = sort_and_append_to_unique_index(tl);
+                if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+            }
+        });
     }
 
+        
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
-    fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Vec<Vec<(f64, usize, usize, u8)>>> {
+    fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Vec<(f64, usize, usize, u8)>> {
         let mut packet_chunks = data.chunks_exact(8);
-        let mut timelist:Vec<Vec<(f64, usize, usize, u8)>> = vec![Vec::new(); settings.number_sockets];
-        let nbsock_chips = settings.number_sockets / 4;
-        let total_size = settings.xspim_size * settings.yspim_size * 1025;
+        let mut timelist:Vec<(f64, usize, usize, u8)> = Vec::new();
         let interval = line_tdc.low_time;
         let begin = line_tdc.begin;
         let period = line_tdc.period;
@@ -72,10 +69,10 @@ pub mod modes {
                     let id = packet.id();
                     match id {
                         11 if ref_tdc.period().is_none() => {
-                            if let Some(x) = packet.x_raw() {
+                            if let Some(x) = packet.x() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
                                 if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings) {
-                                    timelist[*last_ci * nbsock_chips + (array_pos * nbsock_chips) / total_size].push((ele_time, x, array_pos+x, id));
+                                    timelist.push((ele_time, x, array_pos+x, id));
                                 }
                             }
                         },
@@ -88,7 +85,7 @@ pub mod modes {
                                         let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
                                         let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                         let array_pos = x + line + xpos;
-                                        timelist[*last_ci * nbsock_chips + (array_pos * nbsock_chips) / total_size].push((ele_time, x, array_pos, id));
+                                        timelist.push((ele_time, x, array_pos, id));
                                     }
                                 }
                             }
@@ -106,9 +103,8 @@ pub mod modes {
                             let tdc_time = packet.tdc_time_norm();
                             ref_tdc.upt(tdc_time);
                             let tdc_time = tdc_time - VIDEO_TIME;
-                            
                             if let Some(array_pos) = spim_detector(tdc_time, begin, interval, period, settings) {
-                                timelist[*last_ci * nbsock_chips + (array_pos * nbsock_chips) / total_size].push((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
+                                timelist.push((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
                             }
                         },
                         _ => {},
@@ -116,7 +112,7 @@ pub mod modes {
                 },
             };
         };
-        if let Some(_) = timelist.iter().flatten().next() {
+        if let Some(_) = timelist.iter().next() {
             Some(timelist)
         } else {None}
     }
