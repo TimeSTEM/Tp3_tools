@@ -57,7 +57,9 @@ pub mod modes {
     fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Vec<Vec<(f64, usize, usize, u8)>>> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut timelist:Vec<(f64, usize, usize, u8)> = Vec::new();
-        let mut timelist02:Vec<Vec<(f64, usize, usize, u8)>> = vec![Vec::new(); 4];
+        let mut timelist02:Vec<Vec<(f64, usize, usize, u8)>> = vec![Vec::new(); settings.number_sockets];
+        let nbsock_chips = settings.number_sockets / 4;
+        let total_size = settings.xspim_size * settings.yspim_size * 1025;
         let interval = line_tdc.low_time;
         let begin = line_tdc.begin;
         let period = line_tdc.period;
@@ -75,7 +77,7 @@ pub mod modes {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
                                 if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings) {
                                     //timelist.push((ele_time, x, array_pos+x, id));
-                                    timelist02[*last_ci].push((ele_time, x, array_pos+x, id));
+                                    timelist02[*last_ci * nbsock_chips + (array_pos * nbsock_chips) / total_size].push((ele_time, x, array_pos+x, id));
                                 }
                             }
                         },

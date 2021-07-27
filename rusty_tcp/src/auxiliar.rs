@@ -10,6 +10,7 @@ pub enum BytesConfigError {
     Mode,
     XSize,
     YSize,
+    NbSockets,
 }
 
 ///Configures the detector for acquisition. Each new measurement must send 28 bytes
@@ -190,10 +191,12 @@ impl BytesConfig {
         }
     }
 
-    fn nsockets(&self) -> usize {
+    fn nsockets(&self) -> Result<usize, BytesConfigError> {
         let number_sockets = (self.data[28] as usize)<<8 | (self.data[29] as usize);
-        println!("Number of sockets is: {}", number_sockets);
-        number_sockets
+        if number_sockets % 4 == 0 {
+            println!("Number of sockets is: {}", number_sockets);
+            Ok(number_sockets)
+        } else {Err(BytesConfigError::NbSockets)}
     }
 
     ///Create Settings struct from BytesConfig
@@ -211,7 +214,7 @@ impl BytesConfig {
             time_width: self.time_width(),
             spimoverscanx: self.spimoverscanx()?,
             spimoverscany: self.spimoverscany()?,
-            number_sockets: self.nsockets(),
+            number_sockets: self.nsockets()?,
         };
         Ok(my_set)
     }
