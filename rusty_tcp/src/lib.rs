@@ -381,40 +381,6 @@ pub mod modes {
         }
     }
     
-    /*
-    fn sort_and_append_to_unique_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
-        let mut index_array: Vec<usize> = Vec::new();
-        if let Some(val) = tl.get(0) {
-            let mut last = val.clone();
-            tl.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-            for tp in tl {
-                if (tp.0>last.0+CLUSTER_TIME || (tp.1 as isize - last.1 as isize).abs() > 2) || tp.3==6 {
-                    index_array.push(tp.2);
-                }
-                last = tp;
-            }
-        }
-        event_counter(index_array)
-    }
-    
-    fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
-        let mut index_array: Vec<u8> = Vec::new();
-        if let Some(val) = tl.get(0) {
-            let mut last = val.clone();
-            tl.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-            for tp in tl {
-                if (tp.0>last.0+CLUSTER_TIME || (tp.1 as isize - last.1 as isize).abs() > 2) || tp.3==6 {
-                    append_to_index_array(&mut index_array, tp.2, 4);
-                }
-                last = tp;
-            }
-        }
-        index_array
-    }
-    */
-    
-    ///Append a single electron to a index list. Used mainly for spectral image, where a list of
-    ///indexes is passed to client computer. Always push indexes using 32 bits.
     fn append_to_index_array(data: &mut Vec<u8>, index: usize, bytedepth: usize) {
         match bytedepth {
             4 => {
@@ -434,8 +400,6 @@ pub mod modes {
         }
     }
     
-
-    ///Create header, used mainly for frame based spectroscopy.
     fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
         let mut msg: String = String::from("{\"timeAtFrame\":");
         msg.push_str(&(tdc.time().to_string()));
@@ -460,8 +424,6 @@ pub mod modes {
         let s: Vec<u8> = msg.into_bytes();
         s
     }
-    
-
 }
 
 pub mod message_board {
@@ -491,6 +453,5 @@ pub mod message_board {
         stream.write(response.as_bytes()).unwrap();
         stream.flush().unwrap();
     }
-
 }
                      
