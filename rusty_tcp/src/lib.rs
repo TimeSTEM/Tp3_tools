@@ -37,6 +37,10 @@ pub mod modes {
         fn upt(&mut self, new_data: T) {
             self.data.push(new_data);
         }
+
+        fn check(&self) -> bool {
+            self.data.iter().next().is_some()
+        }
     }
 
     impl Output<(f64, usize, usize, u8)> {
@@ -54,7 +58,6 @@ pub mod modes {
             }
             event_counter(index_array)
         }
-
     }
 
     impl Output<usize> {
@@ -192,10 +195,9 @@ pub mod modes {
                 },
             };
         };
-        Some(list)
+        if list.check() {Some(list)}
+        else {None}
     }
-    
-
 
 
     pub fn build_spectrum_thread<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
