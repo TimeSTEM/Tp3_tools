@@ -40,7 +40,6 @@ pub mod modes {
     }
 
     impl Output<(f64, usize, usize, u8)> {
-        
         fn build_output(mut self) -> Vec<u8> {
             let mut index_array: Vec<usize> = Vec::new();
             if let Some(val) = self.data.get(0) {
@@ -105,6 +104,7 @@ pub mod modes {
     }
         
 
+    ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
     pub fn build_spim<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T) {
         let (tx, rx) = mpsc::channel();
         let mut last_ci = 0usize;
@@ -130,8 +130,6 @@ pub mod modes {
     }
 
         
-    ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
-    ///the beggining of each scan line.
     fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<usize>> {
         let mut packet_chunks = data.chunks_exact(8);
         let mut list = Output{ data: Vec::new() };
@@ -200,11 +198,6 @@ pub mod modes {
 
 
 
-
-
-
-
-
     pub fn build_spectrum_thread<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
         
         let (tx, rx) = mpsc::channel();
@@ -243,6 +236,7 @@ pub mod modes {
 
 
     
+    ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
     pub fn build_spectrum<T: TdcControl>(mut pack_sock: TcpStream, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
 
         let start = Instant::now();
@@ -267,7 +261,6 @@ pub mod modes {
         }
     }
 
-    ///Returns a frame using a periodic TDC as reference.
     fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
 
         let mut packet_chunks = data.chunks_exact(8);
@@ -360,7 +353,6 @@ pub mod modes {
         }
     }
     
-    ///Append a single electron to a given size array. Used mainly for frame based.
     fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
         let index = index * bytedepth;
         match bytedepth {
