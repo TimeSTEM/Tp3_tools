@@ -26,11 +26,89 @@ pub mod modes {
     const UNIQUE_BYTE: usize = 2;
     const INDEX_BYTE: usize = 4;
 
+
+    pub struct Output<T>{
+        data: Vec<T>,
+    }
+
+    impl<T> Output<T> {
+        fn upt(&mut self, new_data: T) {
+            self.data.push(new_data);
+        }
+    }
+
+    impl Output<(f64, usize, usize, u8)> {
+        
+        fn build_output(mut self) -> Vec<u8> {
+            let mut index_array: Vec<usize> = Vec::new();
+            if let Some(val) = self.data.get(0) {
+                let mut last = val.clone();
+                self.data.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+                for tp in self.data {
+                    if (tp.0>last.0+CLUSTER_TIME || (tp.1 as isize - last.1 as isize).abs() > 2) || tp.3==6 {
+                        index_array.push(tp.2);
+                    }
+                    last = tp;
+                }
+            }
+            event_counter(index_array)
+        }
+    }
+
+    /*
+    impl Output<usize> {
+
+        fn build_output(self) -> Vec<u8> {
+            event_counter(self.data)
+        }
+    }
+    */
+    
+    fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
+        my_vec.sort_unstable();
+        let mut unique:Vec<u8> = Vec::new();
+        let mut index:Vec<u8> = Vec::new();
+        let mut counter:usize = 1;
+        if my_vec.len() > 0 {
+            let mut last = my_vec[0];
+            for val in my_vec {
+                if last == val {
+                    //counter.wrapping_add(1);
+                    counter+=1;
+                } else {
+                    append_to_index_array(&mut unique, counter, UNIQUE_BYTE);
+                    append_to_index_array(&mut index, last, INDEX_BYTE);
+                    counter = 1;
+                }
+                last = val;
+            }
+            append_to_index_array(&mut unique, counter, UNIQUE_BYTE);
+            append_to_index_array(&mut index, last, INDEX_BYTE);
+        }
+        //let sum_unique = unique.iter().map(|&x| x as usize).sum::<usize>();
+        //let indexes_len = index.len();
+        //println!("{:?}", unique);
+
+        //let mut header_unique:Vec<u8> = String::from("{StartUnique}").into_bytes();
+        let header_unique:Vec<u8> = vec![123, 83, 116, 97, 114, 116, 85, 110, 105, 113, 117, 101, 125];
+        //let mut header_indexes:Vec<u8> = String::from("{StartIndexes}").into_bytes();
+        let header_indexes:Vec<u8> = vec![123, 83, 116, 97, 114, 116, 73, 110, 100, 101, 120, 101, 115, 125];
+
+        let vec = header_unique.into_iter()
+            .chain(unique.into_iter())
+            .chain(header_indexes.into_iter())
+            .chain(index.into_iter())
+            .collect::<Vec<u8>>();
+        //println!("Total len with unique: {}. Total len only indexes: {}", vec.len(), sum_unique * indexes_len);
+        vec
+    }
+        
+
     pub fn build_spim<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T) {
         let (tx, rx) = mpsc::channel();
         let mut last_ci = 0usize;
         let mut buffer_pack_data = vec![0; BUFFER_SIZE];
-        
+
         thread::spawn( move || {
             while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
                 if size == 0 {println!("Timepix3 sent zero bytes."); break;}
@@ -44,7 +122,7 @@ pub mod modes {
         thread::spawn( move || {
             let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
             for tl in rx {
-                let result = sort_and_append_to_unique_index(tl);
+                let result = tl.build_output();
                 if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
             }
         });
@@ -53,9 +131,11 @@ pub mod modes {
         
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
-    fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Vec<(f64, usize, usize, u8)>> {
+    //fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Vec<usize>> {
+    fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<(f64, usize, usize, u8)>> {
         let mut packet_chunks = data.chunks_exact(8);
-        let mut timelist:Vec<(f64, usize, usize, u8)> = Vec::new();
+        let mut list = Output{ data: Vec::new()};
+        //let mut index_array:Vec<usize> = Vec::new();
         let interval = line_tdc.low_time;
         let begin = line_tdc.begin;
         let period = line_tdc.period;
@@ -72,7 +152,9 @@ pub mod modes {
                             if let Some(x) = packet.x() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
                                 if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings) {
-                                    timelist.push((ele_time, x, array_pos+x, id));
+                                    list.upt((ele_time, x, array_pos+x, id));
+                                    //timelist.push((ele_time, x, array_pos+x, id));
+                                    //index_array.push(array_pos+x);
                                 }
                             }
                         },
@@ -85,7 +167,7 @@ pub mod modes {
                                         let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
                                         let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                         let array_pos = x + line + xpos;
-                                        timelist.push((ele_time, x, array_pos, id));
+                                        list.upt((ele_time, x, array_pos, id));
                                     }
                                 }
                             }
@@ -104,7 +186,7 @@ pub mod modes {
                             ref_tdc.upt(tdc_time);
                             let tdc_time = tdc_time - VIDEO_TIME;
                             if let Some(array_pos) = spim_detector(tdc_time, begin, interval, period, settings) {
-                                timelist.push((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
+                                list.upt((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
                             }
                         },
                         _ => {},
@@ -112,9 +194,7 @@ pub mod modes {
                 },
             };
         };
-        if let Some(_) = timelist.iter().next() {
-            Some(timelist)
-        } else {None}
+        Some(list)
     }
     
 
@@ -309,6 +389,7 @@ pub mod modes {
         }
     }
     
+    /*
     fn sort_and_append_to_unique_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
         let mut index_array: Vec<usize> = Vec::new();
         if let Some(val) = tl.get(0) {
@@ -323,6 +404,7 @@ pub mod modes {
         }
         event_counter(index_array)
     }
+    */
     
     fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
         let mut index_array: Vec<u8> = Vec::new();
@@ -360,45 +442,6 @@ pub mod modes {
         }
     }
     
-
-    fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
-        my_vec.sort_unstable();
-        let mut unique:Vec<u8> = Vec::new();
-        let mut index:Vec<u8> = Vec::new();
-        let mut counter:usize = 1;
-        if my_vec.len() > 0 {
-            let mut last = my_vec[0];
-            for val in my_vec {
-                if last == val {
-                    //counter.wrapping_add(1);
-                    counter+=1;
-                } else {
-                    append_to_index_array(&mut unique, counter, UNIQUE_BYTE);
-                    append_to_index_array(&mut index, last, INDEX_BYTE);
-                    counter = 1;
-                }
-                last = val;
-            }
-            append_to_index_array(&mut unique, counter, UNIQUE_BYTE);
-            append_to_index_array(&mut index, last, INDEX_BYTE);
-        }
-        //let sum_unique = unique.iter().map(|&x| x as usize).sum::<usize>();
-        //let indexes_len = index.len();
-        //println!("{:?}", unique);
-
-        //let mut header_unique:Vec<u8> = String::from("{StartUnique}").into_bytes();
-        let header_unique:Vec<u8> = vec![123, 83, 116, 97, 114, 116, 85, 110, 105, 113, 117, 101, 125];
-        //let mut header_indexes:Vec<u8> = String::from("{StartIndexes}").into_bytes();
-        let header_indexes:Vec<u8> = vec![123, 83, 116, 97, 114, 116, 73, 110, 100, 101, 120, 101, 115, 125];
-
-        let vec = header_unique.into_iter()
-            .chain(unique.into_iter())
-            .chain(header_indexes.into_iter())
-            .chain(index.into_iter())
-            .collect::<Vec<u8>>();
-        //println!("Total len with unique: {}. Total len only indexes: {}", vec.len(), sum_unique * indexes_len);
-        vec
-    }
 
     ///Create header, used mainly for frame based spectroscopy.
     fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
