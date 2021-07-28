@@ -23,10 +23,12 @@ pub mod modes {
     const CAM_DESIGN: (usize, usize) = Pack::chip_array();
     const SPIM_PIXELS: usize = 1025;
     const BUFFER_SIZE: usize = 16384 * 3;
-    const UNIQUE_BYTE: usize = 2;
+    const UNIQUE_BYTE: usize = 1;
     const INDEX_BYTE: usize = 4;
 
-
+    /// Possible outputs to build spim data. `usize` does not implement cluster detection. `(f64,
+    /// usize, usize, u8)` performs cluster detection. This could reduce the data flux but will
+    /// cost processing time.
     pub struct Output<T>{
         data: Vec<T>,
     }
@@ -53,16 +55,15 @@ pub mod modes {
             }
             event_counter(index_array)
         }
+
     }
 
-    /*
     impl Output<usize> {
 
         fn build_output(self) -> Vec<u8> {
             event_counter(self.data)
         }
     }
-    */
     
     fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
         my_vec.sort_unstable();
@@ -86,8 +87,8 @@ pub mod modes {
             append_to_index_array(&mut index, last, INDEX_BYTE);
         }
         //let sum_unique = unique.iter().map(|&x| x as usize).sum::<usize>();
+        //let mmax_unique = unique.iter().map(|&x| x as usize).max().unwrap();
         //let indexes_len = index.len();
-        //println!("{:?}", unique);
 
         //let mut header_unique:Vec<u8> = String::from("{StartUnique}").into_bytes();
         let header_unique:Vec<u8> = vec![123, 83, 116, 97, 114, 116, 85, 110, 105, 113, 117, 101, 125];
@@ -99,7 +100,7 @@ pub mod modes {
             .chain(header_indexes.into_iter())
             .chain(index.into_iter())
             .collect::<Vec<u8>>();
-        //println!("Total len with unique: {}. Total len only indexes: {}", vec.len(), sum_unique * indexes_len);
+        //println!("Total len with unique: {}. Total len only indexes (older): {}. Max unique is {}.", vec.len(), sum_unique * indexes_len, mmax_unique);
         vec
     }
         
@@ -131,11 +132,9 @@ pub mod modes {
         
     ///Returns a vector containing a list of indexes in which events happened. Uses a single TDC at
     ///the beggining of each scan line.
-    //fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Vec<usize>> {
-    fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<(f64, usize, usize, u8)>> {
+    fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<usize>> {
         let mut packet_chunks = data.chunks_exact(8);
-        let mut list = Output{ data: Vec::new()};
-        //let mut index_array:Vec<usize> = Vec::new();
+        let mut list = Output{ data: Vec::new() };
         let interval = line_tdc.low_time;
         let begin = line_tdc.begin;
         let period = line_tdc.period;
@@ -152,9 +151,8 @@ pub mod modes {
                             if let Some(x) = packet.x() {
                                 let ele_time = packet.electron_time() - VIDEO_TIME;
                                 if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings) {
-                                    list.upt((ele_time, x, array_pos+x, id));
-                                    //timelist.push((ele_time, x, array_pos+x, id));
-                                    //index_array.push(array_pos+x);
+                                    //list.upt((ele_time, x, array_pos+x, id));
+                                    list.upt(array_pos+x);
                                 }
                             }
                         },
@@ -167,7 +165,8 @@ pub mod modes {
                                         let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
                                         let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
                                         let array_pos = x + line + xpos;
-                                        list.upt((ele_time, x, array_pos, id));
+                                        //list.upt((ele_time, x, array_pos, id));
+                                        list.upt(array_pos+x);
                                     }
                                 }
                             }
@@ -186,7 +185,8 @@ pub mod modes {
                             ref_tdc.upt(tdc_time);
                             let tdc_time = tdc_time - VIDEO_TIME;
                             if let Some(array_pos) = spim_detector(tdc_time, begin, interval, period, settings) {
-                                list.upt((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
+                                //list.upt((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
+                                list.upt(array_pos+SPIM_PIXELS-1);
                             }
                         },
                         _ => {},
@@ -404,7 +404,6 @@ pub mod modes {
         }
         event_counter(index_array)
     }
-    */
     
     fn sort_and_append_to_index(mut tl: Vec<(f64, usize, usize, u8)>) -> Vec<u8> {
         let mut index_array: Vec<u8> = Vec::new();
@@ -420,6 +419,7 @@ pub mod modes {
         }
         index_array
     }
+    */
     
     ///Append a single electron to a index list. Used mainly for spectral image, where a list of
     ///indexes is passed to client computer. Always push indexes using 32 bits.
