@@ -428,6 +428,8 @@ pub mod modes {
     }
 }
 
+///`message_board` is a module containing tools to display HTTP based informations about the
+///detector status.
 pub mod message_board {
     use std::fs;
     use std::net::{TcpListener, TcpStream};
@@ -455,5 +457,20 @@ pub mod message_board {
         stream.write(response.as_bytes()).unwrap();
         stream.flush().unwrap();
     }
+}
+
+pub mod coincidence {
+    use std::fs;
+    use crate::packetlib::{Packet, PacketEELS as Pack};
+    use crate::tdclib::{TdcControl, PeriodicTdcRef};
+
+    const TIME_WIDTH: f64 = 50.0e-9;
+    const TIME_DELAY: f64 = 165.0e-9;
+    const MIN_LEN: usize = 100;
+    const EXC: (usize, usize) = (20, 5);
+    const CLUSTER_DET: f64 = 50.0e-09;
+
+
+
 }
                      
