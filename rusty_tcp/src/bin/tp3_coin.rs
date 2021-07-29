@@ -1,15 +1,5 @@
-//use timepix3::auxiliar::{RunningMode, BytesConfig, Settings};
-//use timepix3::tdclib::{TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
-//use timepix3::{modes, misc};
-
-//use plotters::prelude::*;
-use timepix3::packetlib::PacketEELS as Packet;
-use timepix3::tdclib::TdcType;
-use timepix3::postlib::postproc;
-use std::io;
-use std::io::prelude::*;
+use timepix3::postlib::coincidence;
 use std::fs;
-use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     
@@ -23,7 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let path = x?.path();
         let dir = path.to_str().unwrap();
         println!("Looping over file {:?}", dir);
-        nphotons += postproc::search_coincidence(dir, &mut ele_vec, &mut cele_vec, &mut cluster_list)?;
+        nphotons += coincidence::search_coincidence(dir, &mut ele_vec, &mut cele_vec, &mut cluster_list)?;
     }
     println!("The number of photons is: {}", nphotons);
 
