@@ -461,14 +461,52 @@ pub mod message_board {
 
 pub mod coincidence {
     use std::fs;
+    use std::io;
+    use std::io::prelude::*;
     use crate::packetlib::{Packet, PacketEELS as Pack};
-    use crate::tdclib::{TdcControl, PeriodicTdcRef};
+    use crate::tdclib::{TdcType, TdcControl, PeriodicTdcRef};
 
     const TIME_WIDTH: f64 = 50.0e-9;
     const TIME_DELAY: f64 = 165.0e-9;
     const MIN_LEN: usize = 100;
     const EXC: (usize, usize) = (20, 5);
     const CLUSTER_DET: f64 = 50.0e-09;
+
+    fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], clusterlist: &mut Vec<(f64, f64, usize, usize, u16, usize)>) -> io::Result<usize> {
+
+        let mut file = fs::File::open(file)?;
+        let mut buffer:Vec<u8> = Vec::new();
+        file.read_to_end(&mut buffer);
+
+        let mytdc = TdcType::TdcTwoRisingEdge;
+        let mut ci = 0;
+        let mut tdc_vec: Vec<f64> = Vec::new();
+        let mut elist: Vec<(f64, usize, usize, u16)> = Vec::new();
+
+        let mut packet_chunks = buffer.chunks_exact(8);
+        while let Some(pack_oct) = packet_chunks.next() {
+            match pack_oct {
+                &[84, 80, 88, 51, nci, _, _, _] => {ci = nci as usize},
+                _ => {
+                    let packet = Pack {chip_index: ci, data: pack_oct};
+                    let id = packet.id();
+                    match id {
+                        6 if packet.tdc_type() == mytdc.associate_value() => {
+                            tdc_vec.push(packet.tdc_time_norm() - TIME_DELAY);
+                        },
+                        11 => {
+                            if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
+                                elist.push((packet.electron_time(), x, y, packet.tot()));
+                            }
+                        },
+                        _ => {},
+                    };
+                },
+            };
+        };
+        Ok(0)
+    }
+
 
 
 
