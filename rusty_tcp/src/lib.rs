@@ -6,6 +6,7 @@
 pub mod auxiliar;
 pub mod tdclib;
 pub mod packetlib;
+pub mod postlib;
 
 ///`modes` is a module containing tools to live acquire frames and spectral images.
 pub mod modes {

@@ -1,7 +1,7 @@
-pub mod post_processing {
+pub mod postproc {
 
-    use timepix3::packetlib::PacketEELS as Packet;
-    use timepix3::tdclib::TdcType;
+    use crate::packetlib::{Packet, PacketEELS as Pack};
+    use crate::tdclib::TdcType;
     use std::io;
     use std::io::prelude::*;
     use std::fs;
@@ -13,7 +13,7 @@ pub mod post_processing {
     const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
     const CLUSTER_DET:f64 = 50.0e-09;
 
-    fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], clusterlist: &mut Vec<(f64, f64, usize, usize, u16, usize)>) -> io::Result<usize> {
+    pub fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], clusterlist: &mut Vec<(f64, f64, usize, usize, u16, usize)>) -> io::Result<usize> {
         
         let mut file = fs::File::open(file)?;
         let mut buffer:Vec<u8> = Vec::new();
@@ -27,16 +27,16 @@ pub mod post_processing {
         let mut packet_chunks = buffer.chunks_exact(8);
         while let Some(pack_oct) = packet_chunks.next() {
             match pack_oct {
-                &[84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
+                &[84, 80, 88, 51, nci, _, _, _] => {ci=nci as usize;},
                 _ => {
-                    let packet = Packet { chip_index: ci, data: pack_oct };
+                    let packet = Pack { chip_index: ci, data: pack_oct };
                     match packet.id() {
                         6 if packet.tdc_type() == mytdc.associate_value() => {
                             tdc_vec.push(packet.tdc_time_norm()-TIME_DELAY);
                         },
                         11 => {
-                            if let Some(x) = packet.x() {
-                                elist.push((packet.electron_time(), x, packet.y(), packet.tot()));
+                            if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
+                                elist.push((packet.electron_time(), x, y, packet.tot()));
                             }
                         },
                         _ => {},
@@ -85,7 +85,7 @@ pub mod post_processing {
                 let x_mean:usize = cluster_vec.iter().map(|&(_, x, _, _)| x).sum::<usize>() / cluster_size;
                 let y_mean:usize = cluster_vec.iter().map(|&(_, _, y, _)| y).sum::<usize>() / cluster_size;
                 let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum::<usize>() / cluster_size) as u16;
-                println!("{:?} and {}", cluster_vec, t_mean);
+                //println!("{:?} and {}", cluster_vec, t_mean);
                 nelist.push((t_mean, x_mean, y_mean, tot_mean, cluster_size));
                 cluster_vec = Vec::new();
             }
