@@ -13,6 +13,23 @@ pub mod coincidence {
     const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
     const CLUSTER_DET:f64 = 50.0e-09;
 
+    pub struct ElectronData {
+        pub time: Vec<f64>,
+        pub rel_time: Vec<f64>,
+        pub x: Vec<usize>,
+        pub y: Vec<usize>,
+        pub tot: Vec<usize>,
+        pub spectrum: Vec<usize>,
+        pub corr_spectrum: Vec<usize>,
+    }
+
+    impl ElectronData {
+        fn add_electron(&mut self, index: usize) {
+            self.spectrum[index] += 1;
+        }
+    }
+            
+
     pub fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], clusterlist: &mut Vec<(f64, f64, usize, usize, u16, usize)>) -> io::Result<usize> {
         
         let mut file = fs::File::open(file)?;
