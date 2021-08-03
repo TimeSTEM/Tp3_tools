@@ -32,6 +32,39 @@ pub mod coincidence {
         fn add_coincident_eletron(&mut self, index: usize) {
             self.corr_spectrum[index] += 1;
         }
+
+        fn new() -> Self {
+            Self {
+                time: Vec::new(),
+                rel_time: Vec::new(),
+                x: Vec::new(),
+                y: Vec::new(),
+                tot: Vec::new(),
+                cluster_size: Vec::new(),
+                spectrum: vec![0; 1024],
+                corr_spectrum: vec![0; 1024],
+            }
+        }
+    }
+
+    pub struct TempElectronData {
+        pub tdc: Vec<f64>,
+        pub time: Vec<f64>,
+        pub x: Vec<usize>,
+        pub y: Vec<usize>,
+        pub tot: Vec<usize>,
+    }
+
+    impl TempElectronData {
+        fn new() -> Self {
+            Self {
+                tdc: Vec::new(),
+                time: Vec::new(),
+                x: Vec::new(),
+                y: Vec::new(),
+                tot: Vec::new(),
+            }
+        }
     }
             
 
@@ -45,6 +78,8 @@ pub mod coincidence {
         let mut ci = 0;
         let mut tdc_vec:Vec<f64> = Vec::new();
         let mut elist:Vec<(f64, usize, usize, u16)> = Vec::new();
+
+        let mut temp = TempElectronData::new();
         
         let mut packet_chunks = buffer.chunks_exact(8);
         while let Some(pack_oct) = packet_chunks.next() {
