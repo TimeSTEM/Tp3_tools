@@ -19,6 +19,7 @@ pub mod coincidence {
         pub x: Vec<usize>,
         pub y: Vec<usize>,
         pub tot: Vec<usize>,
+        pub cluster_size: Vec<usize>,
         pub spectrum: Vec<usize>,
         pub corr_spectrum: Vec<usize>,
     }
@@ -26,6 +27,10 @@ pub mod coincidence {
     impl ElectronData {
         fn add_electron(&mut self, index: usize) {
             self.spectrum[index] += 1;
+        }
+
+        fn add_coincident_eletron(&mut self, index: usize) {
+            self.corr_spectrum[index] += 1;
         }
     }
             
