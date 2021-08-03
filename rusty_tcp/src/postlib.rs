@@ -33,7 +33,7 @@ pub mod coincidence {
             self.corr_spectrum[index] += 1;
         }
 
-        fn new() -> Self {
+        pub fn new() -> Self {
             Self {
                 time: Vec::new(),
                 rel_time: Vec::new(),
