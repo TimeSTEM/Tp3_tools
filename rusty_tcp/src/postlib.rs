@@ -29,9 +29,10 @@ pub mod coincidence {
             self.spectrum[index] += 1;
         }
 
-        fn add_coincident_eletron(&mut self, index: usize) {
+        fn add_coincident_electron(&mut self, index: usize) {
             self.corr_spectrum[index] += 1;
         }
+
 
         pub fn new() -> Self {
             Self {
@@ -49,26 +50,34 @@ pub mod coincidence {
 
     pub struct TempElectronData {
         pub tdc: Vec<f64>,
-        pub time: Vec<f64>,
-        pub x: Vec<usize>,
-        pub y: Vec<usize>,
-        pub tot: Vec<usize>,
+        pub electron: Vec<(f64, usize, usize, u16)>,
     }
 
     impl TempElectronData {
         fn new() -> Self {
             Self {
                 tdc: Vec::new(),
-                time: Vec::new(),
-                x: Vec::new(),
-                y: Vec::new(),
-                tot: Vec::new(),
+                electron: Vec::new(),
             }
+        }
+
+        fn add_tdc(&mut self, my_pack: &Pack) {
+            self.tdc.push(my_pack.tdc_time_norm() - TIME_DELAY);
+        }
+
+        fn add_electron(&mut self, my_pack: &Pack) {
+            self.electron.push((my_pack.electron_time(), my_pack.x().unwrap(), my_pack.y().unwrap(), my_pack.tot()));
+        }
+
+        fn sort_all(&mut self) {
+            self.tdc.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+            self.electron.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         }
     }
             
 
-    pub fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], clusterlist: &mut Vec<(f64, f64, usize, usize, u16, usize)>) -> io::Result<usize> {
+    //pub fn search_coincidence(file: &str, ele_vec: &mut [usize], cele_vec: &mut [usize], clusterlist: &mut Vec<(f64, f64, usize, usize, u16, usize)>) -> io::Result<usize> {
+    pub fn search_coincidence(file: &str, coinc_data: &mut ElectronData) -> io::Result<usize> {
         
         let mut file = fs::File::open(file)?;
         let mut buffer:Vec<u8> = Vec::new();
@@ -79,7 +88,7 @@ pub mod coincidence {
         let mut tdc_vec:Vec<f64> = Vec::new();
         let mut elist:Vec<(f64, usize, usize, u16)> = Vec::new();
 
-        let mut temp = TempElectronData::new();
+        let mut temp_edata = TempElectronData::new();
         
         let mut packet_chunks = buffer.chunks_exact(8);
         while let Some(pack_oct) = packet_chunks.next() {
@@ -89,11 +98,13 @@ pub mod coincidence {
                     let packet = Pack { chip_index: ci, data: pack_oct };
                     match packet.id() {
                         6 if packet.tdc_type() == mytdc.associate_value() => {
-                            tdc_vec.push(packet.tdc_time_norm()-TIME_DELAY);
+                            //tdc_vec.push(packet.tdc_time_norm()-TIME_DELAY);
+                            temp_edata.add_tdc(&packet);
                         },
                         11 => {
                             if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
-                                elist.push((packet.electron_time(), x, y, packet.tot()));
+                                temp_edata.add_electron(&packet);
+                                //elist.push((packet.electron_time(), x, y, packet.tot()));
                             }
                         },
                         _ => {},
@@ -102,20 +113,24 @@ pub mod coincidence {
             };
         }
 
-        tdc_vec.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-        let nphotons:usize = tdc_vec.len();
+        temp_edata.sort_all();
+        //tdc_vec.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+        let nphotons:usize = temp_edata.tdc.len();
 
-        elist.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+        //elist.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         let eclusters = cluster_centroid(&elist);
         println!("Electron events: {}. Number of clusters: {}. Ratio: {}", elist.len(), eclusters.len(), elist.len() as f32 / eclusters.len() as f32);
 
         let mut counter = 0;
         for val in &eclusters {
-            ele_vec[val.1]+=1;
+            //ele_vec[val.1]+=1;
+            coinc_data.add_electron(val.1);
             let veclen = tdc_vec.len().min(2*MIN_LEN);
             if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], val.0) {
                 counter+=1;
-                cele_vec[val.1+1024*val.2]+=1;
+                //cele_vec[val.1+1024*val.2]+=1;
+                coinc_data.add_coincident_electron(val.1);
+
                 clusterlist.push((val.0, val.0 - pht, val.1, val.2, val.3, val.4));
                 if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
                     tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
