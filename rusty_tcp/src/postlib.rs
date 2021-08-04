@@ -137,7 +137,7 @@ pub mod coincidence {
         
         let mytdc = TdcType::TdcTwoRisingEdge;
         let mut ci = 0;
-        let mut tdc_vec:Vec<f64> = Vec::new();
+        //let mut tdc_vec:Vec<f64> = Vec::new();
         let mut elist:Vec<(f64, usize, usize, u16)> = Vec::new();
 
         let mut temp_edata = TempElectronData::new();
@@ -150,7 +150,7 @@ pub mod coincidence {
                     let packet = Pack { chip_index: ci, data: pack_oct };
                     match packet.id() {
                         6 if packet.tdc_type() == mytdc.associate_value() => {
-                            tdc_vec.push(packet.tdc_time_norm()-TIME_DELAY);
+                            //tdc_vec.push(packet.tdc_time_norm()-TIME_DELAY);
                             temp_edata.add_tdc(&packet);
                         },
                         11 => {
@@ -178,18 +178,19 @@ pub mod coincidence {
         for val in temp_edata.electron {
             //ele_vec[val.1]+=1;
             coinc_data.add_electron(val.1);
-            let veclen = tdc_vec.len().min(2*MIN_LEN);
-            if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], val.0) {
+            let veclen = temp_edata.tdc.len().min(2*MIN_LEN);
+            if let Some((index, pht)) = testfunc(&temp_edata.tdc[0..veclen], val.0) {
                 counter+=1;
                 //cele_vec[val.1+1024*val.2]+=1;
                 coinc_data.add_coincident_electron(val, pht);
 
                 //clusterlist.push((val.0, val.0 - pht, val.1, val.2, val.3, val.4));
-                if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
-                    tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
+                if index>EXC.0 && temp_edata.tdc.len()>index+MIN_LEN{
+                    temp_edata.tdc = temp_edata.tdc.into_iter().skip(index-EXC.1).collect();
                 }
             }
         }
+
         println!("The number of correlated clusters is: {}. Number of detected TDC's is: {}.", counter, nphotons);
 
         Ok(nphotons)
