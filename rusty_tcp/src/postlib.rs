@@ -36,11 +36,26 @@ pub mod coincidence {
             self.x.push(val.1);
             self.y.push(val.2);
             self.tot.push(val.3);
-            //self.cluster_size.push(val.4);
         }
 
-        fn append_cluster_size(&mut self, cs: &mut Vec<usize>) {
-            self.cluster_size.append(cs);
+        fn add_events(&mut self, mut temp_edata: TempElectronData, mut temp_tdc: TempTdcData) {
+            temp_edata.sort();
+            temp_tdc.sort();
+            let nelectrons = temp_edata.electron.len();
+            let nphotons = temp_tdc.tdc.len();
+            
+            let mut cs = temp_edata.remove_clusters();
+            let nclusters = cs.len();
+            self.cluster_size.append(&mut cs);
+        
+            println!("Electron events: {}. Number of clusters: {}, Number of photons: {}", nelectrons, nclusters, nphotons);
+
+            for val in temp_edata.electron {
+                self.add_electron(val.1);
+                if let Some(pht) = temp_tdc.check(val.0) {
+                    self.add_coincident_electron(val, pht);
+                }
+            }
         }
 
         pub fn new() -> Self {
@@ -74,7 +89,7 @@ pub mod coincidence {
             fs::write("tH.txt", output_string).unwrap();
         }
 
-        pub fn output_sum_tot(&self) {
+        pub fn output_cluster_size(&self) {
             //let output_vec: Vec<String> = self.rel_time.iter().map(|x| x.to_string()).collect();
             //let output_string = output_vec.join(", ");
             //fs::write("tH.txt", output_string).unwrap();
@@ -132,6 +147,8 @@ pub mod coincidence {
             }
         }
 
+
+
         fn remove_clusters(&mut self) -> Vec<usize> {
             let mut nelist:Vec<(f64, usize, usize, u16)> = Vec::new();
             let mut cs_list: Vec<usize> = Vec::new();
@@ -153,7 +170,6 @@ pub mod coincidence {
                 last = *x;
                 cluster_vec.push(*x);
             }
-
             self.electron = nelist;
             cs_list
         }
@@ -169,7 +185,7 @@ pub mod coincidence {
     }
             
 
-    pub fn search_coincidence(file: &str, coinc_data: &mut ElectronData) -> io::Result<usize> {
+    pub fn search_coincidence(file: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
         
         let mut file = fs::File::open(file)?;
         let mut buffer:Vec<u8> = Vec::new();
@@ -201,32 +217,7 @@ pub mod coincidence {
                 },
             };
         }
-
-        temp_edata.sort();
-        temp_tdc.sort();
-        let nphotons:usize = temp_tdc.tdc.len();
-
-        let nelectrons = temp_edata.electron.len();
-        
-        {
-            let mut cluster_size_vec = temp_edata.remove_clusters();
-            coinc_data.append_cluster_size(&mut cluster_size_vec);
-        }
-
-
-
-        println!("Electron events: {}. Number of clusters: {}", nelectrons, temp_edata.electron.len());
-
-        let mut counter = 0;
-        for val in temp_edata.electron {
-            coinc_data.add_electron(val.1);
-            if let Some(pht) = temp_tdc.check(val.0) {
-                counter+=1;
-                coinc_data.add_coincident_electron(val, pht);
-            }
-        }
-        println!("The number of correlated clusters is: {}. Number of detected TDC's is: {}.", counter, nphotons);
-
-        Ok(nphotons)
+        coinc_data.add_events(temp_edata, temp_tdc);
+        Ok(())
     }
 }

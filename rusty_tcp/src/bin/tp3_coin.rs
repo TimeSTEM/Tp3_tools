@@ -6,23 +6,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut coinc_data = ElectronData::new();
  
-    /*
-    let mut ele_vec:Vec<usize> = vec![0; 1024];
-    let mut cele_vec:Vec<usize> = vec![0; 1024*256];
-    let mut cluster_list:Vec<(f64, f64, usize, usize, u16, usize)> = Vec::new();
-    */
-
     let start = Instant::now();
 
-    let mut nphotons = 0usize;
     let mut entries = fs::read_dir("Data")?;
     while let Some(x) = entries.next() {
         let path = x?.path();
         let dir = path.to_str().unwrap();
         println!("Looping over file {:?}", dir);
-        nphotons += search_coincidence(dir, &mut coinc_data)?;
+        search_coincidence(dir, &mut coinc_data)?;
     }
-    println!("The number of photons is: {}. Time elapsed is: {:?}", nphotons, start.elapsed());
+    println!("Total time elapsed is: {:?}", start.elapsed());
 
 
     coinc_data.output_spectrum();
