@@ -180,7 +180,7 @@ pub mod coincidence {
                             temp_tdc.add_tdc(&packet);
                         },
                         11 => {
-                            if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
+                            if let (Some(_), Some(_)) = (packet.x(), packet.y()) {
                                 temp_edata.add_electron(&packet);
                             }
                         },
@@ -194,32 +194,20 @@ pub mod coincidence {
         temp_tdc.sort();
         let nphotons:usize = temp_tdc.tdc.len();
 
-        let mut temp_edata = temp_edata.remove_clusters();
-        //println!("Electron events: {}. Number of clusters: {}. Ratio: {}", elist.len(), eclusters.len(), elist.len() as f32 / eclusters.len() as f32);
+        let nelectrons = temp_edata.electron.len();
+        let temp_edata = temp_edata.remove_clusters();
+        println!("Electron events: {}. Number of clusters: {}", nelectrons, temp_edata.electron.len());
 
         let mut counter = 0;
         for val in temp_edata.electron {
-            //ele_vec[val.1]+=1;
             coinc_data.add_electron(val.1);
-            let veclen = temp_tdc.tdc.len().min(2*MIN_LEN);
-            //if let Some((index, pht)) = testfunc(&temp_tdc.tdc[0..veclen], val.0) {
             if let Some(pht) = temp_tdc.check(val.0) {
                 counter+=1;
                 coinc_data.add_coincident_electron(val, pht);
-
-                //if index>EXC.0 && temp_tdc.tdc.len()>index+MIN_LEN{
-                //    temp_tdc.tdc = temp_tdc.tdc.into_iter().skip(index-EXC.1).collect();
-                //}
             }
         }
-
         println!("The number of correlated clusters is: {}. Number of detected TDC's is: {}.", counter, nphotons);
 
         Ok(nphotons)
     }
-
-    fn testfunc(tdcrefvec: &[f64], value: f64) -> Option<(usize, f64)> {
-        tdcrefvec.iter().cloned().enumerate().filter(|(_, x)| (x-value).abs()<TIME_WIDTH).next()
-    }
-
 }
