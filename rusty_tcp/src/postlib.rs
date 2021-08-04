@@ -18,7 +18,7 @@ pub mod coincidence {
         pub rel_time: Vec<f64>,
         pub x: Vec<usize>,
         pub y: Vec<usize>,
-        pub tot: Vec<usize>,
+        pub tot: Vec<u16>,
         pub cluster_size: Vec<usize>,
         pub spectrum: Vec<usize>,
         pub corr_spectrum: Vec<usize>,
@@ -29,8 +29,14 @@ pub mod coincidence {
             self.spectrum[index] += 1;
         }
 
-        fn add_coincident_electron(&mut self, index: usize) {
-            self.corr_spectrum[index] += 1;
+        fn add_coincident_electron(&mut self, val: (f64, usize, usize, u16, usize), photon_time: f64) {
+            self.corr_spectrum[val.1] += 1;
+            self.time.push(val.0);
+            self.rel_time.push(val.0-photon_time);
+            self.x.push(val.1);
+            self.y.push(val.2);
+            self.tot.push(val.3);
+            self.cluster_size.push(val.4);
         }
 
 
@@ -51,6 +57,7 @@ pub mod coincidence {
     pub struct TempElectronData {
         pub tdc: Vec<f64>,
         pub electron: Vec<(f64, usize, usize, u16)>,
+        pub cluster_size: Vec<usize>,
     }
 
     impl TempElectronData {
@@ -58,6 +65,36 @@ pub mod coincidence {
             Self {
                 tdc: Vec::new(),
                 electron: Vec::new(),
+                cluster_size: Vec::new(),
+            }
+        }
+
+        fn remove_clusters(self) -> Self {
+            let mut nelist:Vec<(f64, usize, usize, u16)> = Vec::new();
+            let mut cs_list: Vec<usize> = Vec::new();
+
+            let mut last: (f64, usize, usize, u16) = self.electron[0];
+            let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
+            for x in self.electron {
+                if x.0 > last.0 + CLUSTER_DET || (x.1 as isize - last.1 as isize).abs() > 2 || (x.2 as isize - last.2 as isize).abs() > 2 {
+                    let cluster_size: usize = cluster_vec.len();
+                    let t_mean:f64 = cluster_vec.iter().map(|&(t, _, _, _)| t).sum::<f64>() / cluster_size as f64;
+                    let x_mean:usize = cluster_vec.iter().map(|&(_, x, _, _)| x).sum::<usize>() / cluster_size;
+                    let y_mean:usize = cluster_vec.iter().map(|&(_, _, y, _)| y).sum::<usize>() / cluster_size;
+                    let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum::<usize>() / cluster_size) as u16;
+                    //println!("{:?} and {}", cluster_vec, t_mean);
+                    nelist.push((t_mean, x_mean, y_mean, tot_mean));
+                    cs_list.push(cluster_size);
+                    cluster_vec = Vec::new();
+                }
+                last = x;
+                cluster_vec.push(x);
+            }
+
+            Self {
+                tdc: self.tdc,
+                electron: nelist,
+                cluster_size: cs_list,
             }
         }
 
@@ -118,20 +155,21 @@ pub mod coincidence {
         let nphotons:usize = temp_edata.tdc.len();
 
         //elist.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-        let eclusters = cluster_centroid(&elist);
+        //let eclusters = cluster_centroid(&elist);
+        temp_edata.remove_clusters();
         println!("Electron events: {}. Number of clusters: {}. Ratio: {}", elist.len(), eclusters.len(), elist.len() as f32 / eclusters.len() as f32);
 
         let mut counter = 0;
-        for val in &eclusters {
+        for val in temp_edata {
             //ele_vec[val.1]+=1;
             coinc_data.add_electron(val.1);
             let veclen = tdc_vec.len().min(2*MIN_LEN);
             if let Some((index, pht)) = testfunc(&tdc_vec[0..veclen], val.0) {
                 counter+=1;
                 //cele_vec[val.1+1024*val.2]+=1;
-                coinc_data.add_coincident_electron(val.1);
+                coinc_data.add_coincident_electron(val, pht);
 
-                clusterlist.push((val.0, val.0 - pht, val.1, val.2, val.3, val.4));
+                //clusterlist.push((val.0, val.0 - pht, val.1, val.2, val.3, val.4));
                 if index>EXC.0 && tdc_vec.len()>index+MIN_LEN{
                     tdc_vec = tdc_vec.into_iter().skip(index-EXC.1).collect();
                 }
