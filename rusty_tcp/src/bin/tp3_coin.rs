@@ -1,22 +1,31 @@
-use timepix3::postlib::coincidence;
+use timepix3::postlib::coincidence::*;
 use std::fs;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    
+
+    let mut coinc_data = ElectronData::new();
+ 
+    /*
     let mut ele_vec:Vec<usize> = vec![0; 1024];
     let mut cele_vec:Vec<usize> = vec![0; 1024*256];
     let mut cluster_list:Vec<(f64, f64, usize, usize, u16, usize)> = Vec::new();
-            
+    */
+
     let mut nphotons = 0usize;
     let mut entries = fs::read_dir("Data")?;
     while let Some(x) = entries.next() {
         let path = x?.path();
         let dir = path.to_str().unwrap();
         println!("Looping over file {:?}", dir);
-        nphotons += coincidence::search_coincidence(dir, &mut ele_vec, &mut cele_vec, &mut cluster_list)?;
+        nphotons += search_coincidence(dir, &mut coinc_data)?;
     }
     println!("The number of photons is: {}", nphotons);
 
+    coinc_data.output_spectrum();
+    coinc_data.output_corr_spectrum();
+
+
+    /*
     let output_vec: Vec<String> = cele_vec.iter().map(|x| x.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("xyH.txt", output_string)?;
@@ -36,7 +45,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_vec: Vec<String> = cluster_list.iter().map(|(_, _, _, _, _, cs)| cs.to_string()).collect();
     let output_string = output_vec.join(", ");
     fs::write("cs.txt", output_string)?;
- 
+    */
+
     Ok(())
 }
 

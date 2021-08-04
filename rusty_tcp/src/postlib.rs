@@ -29,14 +29,14 @@ pub mod coincidence {
             self.spectrum[index] += 1;
         }
 
-        fn add_coincident_electron(&mut self, val: (f64, usize, usize, u16, usize), photon_time: f64) {
-            self.corr_spectrum[val.1] += 1;
+        fn add_coincident_electron(&mut self, val: (f64, usize, usize, u16), photon_time: f64) {
+            self.corr_spectrum[val.1 + 1024*val.2] += 1;
             self.time.push(val.0);
             self.rel_time.push(val.0-photon_time);
             self.x.push(val.1);
             self.y.push(val.2);
             self.tot.push(val.3);
-            self.cluster_size.push(val.4);
+            //self.cluster_size.push(val.4);
         }
 
 
@@ -49,8 +49,20 @@ pub mod coincidence {
                 tot: Vec::new(),
                 cluster_size: Vec::new(),
                 spectrum: vec![0; 1024],
-                corr_spectrum: vec![0; 1024],
+                corr_spectrum: vec![0; 1024*256],
             }
+        }
+
+        pub fn output_corr_spectrum(&self) {
+            let output_vec: Vec<String> = self.corr_spectrum.iter().map(|x| x.to_string()).collect();
+            let output_string = output_vec.join(", ");
+            fs::write("xyH.txt", output_string).unwrap();
+        }
+        
+        pub fn output_spectrum(&self) {
+            let output_vec: Vec<String> = self.spectrum.iter().map(|x| x.to_string()).collect();
+            let output_string = output_vec.join(", ");
+            fs::write("xHT.txt", output_string).unwrap();
         }
     }
 
@@ -59,6 +71,9 @@ pub mod coincidence {
         pub electron: Vec<(f64, usize, usize, u16)>,
         pub cluster_size: Vec<usize>,
     }
+
+    //impl Iterator for TempElectronData {
+        
 
     impl TempElectronData {
         fn new() -> Self {
@@ -135,7 +150,7 @@ pub mod coincidence {
                     let packet = Pack { chip_index: ci, data: pack_oct };
                     match packet.id() {
                         6 if packet.tdc_type() == mytdc.associate_value() => {
-                            //tdc_vec.push(packet.tdc_time_norm()-TIME_DELAY);
+                            tdc_vec.push(packet.tdc_time_norm()-TIME_DELAY);
                             temp_edata.add_tdc(&packet);
                         },
                         11 => {
@@ -156,11 +171,11 @@ pub mod coincidence {
 
         //elist.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         //let eclusters = cluster_centroid(&elist);
-        temp_edata.remove_clusters();
-        println!("Electron events: {}. Number of clusters: {}. Ratio: {}", elist.len(), eclusters.len(), elist.len() as f32 / eclusters.len() as f32);
+        let mut temp_edata = temp_edata.remove_clusters();
+        //println!("Electron events: {}. Number of clusters: {}. Ratio: {}", elist.len(), eclusters.len(), elist.len() as f32 / eclusters.len() as f32);
 
         let mut counter = 0;
-        for val in temp_edata {
+        for val in temp_edata.electron {
             //ele_vec[val.1]+=1;
             coinc_data.add_electron(val.1);
             let veclen = tdc_vec.len().min(2*MIN_LEN);
