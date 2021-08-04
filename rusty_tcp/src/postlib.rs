@@ -39,6 +39,9 @@ pub mod coincidence {
             //self.cluster_size.push(val.4);
         }
 
+        fn append_cluster_size(&mut self, cs: &mut Vec<usize>) {
+            self.cluster_size.append(cs);
+        }
 
         pub fn new() -> Self {
             Self {
@@ -64,6 +67,19 @@ pub mod coincidence {
             let output_string = output_vec.join(", ");
             fs::write("xHT.txt", output_string).unwrap();
         }
+
+        pub fn output_relative_time(&self) {
+            let output_vec: Vec<String> = self.rel_time.iter().map(|x| x.to_string()).collect();
+            let output_string = output_vec.join(", ");
+            fs::write("tH.txt", output_string).unwrap();
+        }
+
+        pub fn output_sum_tot(&self) {
+            //let output_vec: Vec<String> = self.rel_time.iter().map(|x| x.to_string()).collect();
+            //let output_string = output_vec.join(", ");
+            //fs::write("tH.txt", output_string).unwrap();
+        }
+            
     }
 
     pub struct TempTdcData {
@@ -104,7 +120,6 @@ pub mod coincidence {
 
     pub struct TempElectronData {
         pub electron: Vec<(f64, usize, usize, u16)>,
-        pub cluster_size: Vec<usize>,
     }
 
     //impl Iterator for TempElectronData {
@@ -114,17 +129,16 @@ pub mod coincidence {
         fn new() -> Self {
             Self {
                 electron: Vec::new(),
-                cluster_size: Vec::new(),
             }
         }
 
-        fn remove_clusters(self) -> Self {
+        fn remove_clusters(&mut self) -> Vec<usize> {
             let mut nelist:Vec<(f64, usize, usize, u16)> = Vec::new();
             let mut cs_list: Vec<usize> = Vec::new();
 
             let mut last: (f64, usize, usize, u16) = self.electron[0];
             let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
-            for x in self.electron {
+            for x in &self.electron {
                 if x.0 > last.0 + CLUSTER_DET || (x.1 as isize - last.1 as isize).abs() > 2 || (x.2 as isize - last.2 as isize).abs() > 2 {
                     let cluster_size: usize = cluster_vec.len();
                     let t_mean:f64 = cluster_vec.iter().map(|&(t, _, _, _)| t).sum::<f64>() / cluster_size as f64;
@@ -136,14 +150,12 @@ pub mod coincidence {
                     cs_list.push(cluster_size);
                     cluster_vec = Vec::new();
                 }
-                last = x;
-                cluster_vec.push(x);
+                last = *x;
+                cluster_vec.push(*x);
             }
 
-            Self {
-                electron: nelist,
-                cluster_size: cs_list,
-            }
+            self.electron = nelist;
+            cs_list
         }
 
 
@@ -195,7 +207,14 @@ pub mod coincidence {
         let nphotons:usize = temp_tdc.tdc.len();
 
         let nelectrons = temp_edata.electron.len();
-        let temp_edata = temp_edata.remove_clusters();
+        
+        {
+            let mut cluster_size_vec = temp_edata.remove_clusters();
+            coinc_data.append_cluster_size(&mut cluster_size_vec);
+        }
+
+
+
         println!("Electron events: {}. Number of clusters: {}", nelectrons, temp_edata.electron.len());
 
         let mut counter = 0;
