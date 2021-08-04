@@ -1,5 +1,6 @@
 use timepix3::postlib::coincidence::*;
 use std::fs;
+use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
@@ -11,6 +12,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut cluster_list:Vec<(f64, f64, usize, usize, u16, usize)> = Vec::new();
     */
 
+    let start = Instant::now();
+
     let mut nphotons = 0usize;
     let mut entries = fs::read_dir("Data")?;
     while let Some(x) = entries.next() {
@@ -19,7 +22,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Looping over file {:?}", dir);
         nphotons += search_coincidence(dir, &mut coinc_data)?;
     }
-    println!("The number of photons is: {}", nphotons);
+    println!("The number of photons is: {}. Time elapsed is: {:?}", nphotons, start.elapsed());
+
 
     coinc_data.output_spectrum();
     coinc_data.output_corr_spectrum();
