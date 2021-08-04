@@ -66,8 +66,29 @@ pub mod coincidence {
         }
     }
 
-    pub struct TempElectronData {
+    pub struct TempTdcData {
         pub tdc: Vec<f64>,
+    }
+
+    impl TempTdcData {
+        fn new() -> Self {
+            Self {
+                tdc: Vec::new(),
+            }
+        }
+
+        fn add_tdc(&mut self, my_pack: &Pack) {
+            self.tdc.push(my_pack.tdc_time_norm() - TIME_DELAY);
+        }
+
+        fn sort(&mut self) {
+            self.tdc.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+        }
+    }
+
+
+
+    pub struct TempElectronData {
         pub electron: Vec<(f64, usize, usize, u16)>,
         pub cluster_size: Vec<usize>,
     }
@@ -78,7 +99,6 @@ pub mod coincidence {
     impl TempElectronData {
         fn new() -> Self {
             Self {
-                tdc: Vec::new(),
                 electron: Vec::new(),
                 cluster_size: Vec::new(),
             }
@@ -107,22 +127,17 @@ pub mod coincidence {
             }
 
             Self {
-                tdc: self.tdc,
                 electron: nelist,
                 cluster_size: cs_list,
             }
         }
 
-        fn add_tdc(&mut self, my_pack: &Pack) {
-            self.tdc.push(my_pack.tdc_time_norm() - TIME_DELAY);
-        }
 
         fn add_electron(&mut self, my_pack: &Pack) {
             self.electron.push((my_pack.electron_time(), my_pack.x().unwrap(), my_pack.y().unwrap(), my_pack.tot()));
         }
 
-        fn sort_all(&mut self) {
-            self.tdc.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+        fn sort(&mut self) {
             self.electron.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         }
     }
@@ -141,6 +156,7 @@ pub mod coincidence {
         let mut elist:Vec<(f64, usize, usize, u16)> = Vec::new();
 
         let mut temp_edata = TempElectronData::new();
+        let mut temp_tdc = TempTdcData::new();
         
         let mut packet_chunks = buffer.chunks_exact(8);
         while let Some(pack_oct) = packet_chunks.next() {
@@ -151,7 +167,7 @@ pub mod coincidence {
                     match packet.id() {
                         6 if packet.tdc_type() == mytdc.associate_value() => {
                             //tdc_vec.push(packet.tdc_time_norm()-TIME_DELAY);
-                            temp_edata.add_tdc(&packet);
+                            temp_tdc.add_tdc(&packet);
                         },
                         11 => {
                             if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
@@ -165,12 +181,10 @@ pub mod coincidence {
             };
         }
 
-        temp_edata.sort_all();
-        //tdc_vec.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-        let nphotons:usize = temp_edata.tdc.len();
+        temp_edata.sort();
+        temp_tdc.sort();
+        let nphotons:usize = temp_tdc.tdc.len();
 
-        //elist.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-        //let eclusters = cluster_centroid(&elist);
         let mut temp_edata = temp_edata.remove_clusters();
         //println!("Electron events: {}. Number of clusters: {}. Ratio: {}", elist.len(), eclusters.len(), elist.len() as f32 / eclusters.len() as f32);
 
@@ -178,15 +192,15 @@ pub mod coincidence {
         for val in temp_edata.electron {
             //ele_vec[val.1]+=1;
             coinc_data.add_electron(val.1);
-            let veclen = temp_edata.tdc.len().min(2*MIN_LEN);
-            if let Some((index, pht)) = testfunc(&temp_edata.tdc[0..veclen], val.0) {
+            let veclen = temp_tdc.tdc.len().min(2*MIN_LEN);
+            if let Some((index, pht)) = testfunc(&temp_tdc.tdc[0..veclen], val.0) {
                 counter+=1;
                 //cele_vec[val.1+1024*val.2]+=1;
                 coinc_data.add_coincident_electron(val, pht);
 
                 //clusterlist.push((val.0, val.0 - pht, val.1, val.2, val.3, val.4));
-                if index>EXC.0 && temp_edata.tdc.len()>index+MIN_LEN{
-                    temp_edata.tdc = temp_edata.tdc.into_iter().skip(index-EXC.1).collect();
+                if index>EXC.0 && temp_tdc.tdc.len()>index+MIN_LEN{
+                    temp_tdc.tdc = temp_tdc.tdc.into_iter().skip(index-EXC.1).collect();
                 }
             }
         }
