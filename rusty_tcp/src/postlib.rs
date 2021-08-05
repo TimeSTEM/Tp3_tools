@@ -252,3 +252,67 @@ pub mod coincidence {
         Ok(())
     }
 }
+
+pub mod time_resolved {
+    use crate::packetlib::{Packet, PacketEELS as Pack};
+    use crate::tdclib::TdcType;
+    use std::io;
+    use std::io::prelude::*;
+    use std::fs;
+
+    pub struct TimeSpectral {
+        pub spectra: Vec<[usize; 1024]>,
+        pub interval: usize, //in nanoseconds
+    }
+
+    impl TimeSpectral {
+        fn new(interval: usize) -> Self {
+            Self {
+                spectra: Vec::new(),
+                interval: interval,
+            }
+        }
+
+        fn which_spectrum(&self, time: f64) -> usize {
+            (time * 1.0e9) as usize / self.interval
+        }
+
+        fn add_packet(&mut self, packet: &Pack) {
+            let vec_index = (packet.electron_time() * 1.0e9) as usize / self.interval;
+            while self.spectra.len() < vec_index {
+                self.spectra.push([0; 1024]);
+            }
+            if let Some(x) = packet.x() {
+                self.spectra[vec_index][x] += 1;
+            }
+        }
+
+    }
+
+    pub fn analyze_data(file: &str, data: TimeSpectral) {
+        let mut file = fs::File::open(file).expect("Could not open desired file.");
+        let mut buffer: Vec<u8> = Vec::new();
+        file.read_to_end(&mut buffer).expect("Could not write file on buffer.");
+
+        let mut ci = 0usize;
+        let mut packet_chunks = buffer.chunks_exact(8);
+
+        while let Some(pack_oct) = packet_chunks.next() {
+            match pack_oct {
+                &[84, 80, 88, 51, nci, _, _, _] => {ci = nci as usize},
+                _ => {
+                    let packet = Pack{chip_index: ci, data: pack_oct};
+                    match packet.id() {
+                        6 => {
+                            println!("tdc found, we dont care");
+                        },
+                        11 => {
+                            println!("electron found.");
+                        },
+                        _ => {},
+                    };
+                },
+            };
+        };
+    }
+}
