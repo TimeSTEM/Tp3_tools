@@ -72,50 +72,59 @@ pub mod coincidence {
         }
 
         pub fn output_corr_spectrum(&self, bin: bool) {
-            let output_vec: Vec<String> = match bin {
+            let out: String = match bin {
                 true => {
                     let mut spec: Vec<usize> = vec![0; 1024];
                     for val in self.corr_spectrum.chunks_exact(1024) {
                         spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
                     }
-                    spec.iter().map(|x| x.to_string()).collect()
+                    spec.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
                 },
                 false => {
-                    self.corr_spectrum.iter().map(|x| x.to_string()).collect()
+                    self.corr_spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
                 },
             };
-            let output_string = output_vec.join(", ");
-            fs::write("xyH.txt", output_string).unwrap();
+            fs::write("xyH.txt", out).unwrap();
         }
         
         pub fn output_spectrum(&self, bin: bool) {
-            let output_vec: Vec<String> = match bin {
+            let out: String = match bin {
                 true => {
                     let mut spec: Vec<usize> = vec![0; 1024];
                     for val in self.spectrum.chunks_exact(1024) {
                         spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
                     }
-                    spec.iter().map(|x| x.to_string()).collect()
+                    spec.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
                 },
                 false => {
-                    self.spectrum.iter().map(|x| x.to_string()).collect()
+                    self.spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
                 },
             };
-            let output_string = output_vec.join(", ");
-            fs::write("xHT.txt", output_string).unwrap();
+            fs::write("xHT.txt", out).unwrap();
         }
 
         pub fn output_relative_time(&self) {
-            let output_vec: Vec<String> = self.rel_time.iter().map(|x| x.to_string()).collect();
-            let output_string = output_vec.join(", ");
-            fs::write("tH.txt", output_string).unwrap();
+            let out: String = self.rel_time.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            fs::write("tH.txt", out).unwrap();
         }
 
         pub fn output_cluster_size(&self) {
-            //let output_vec: Vec<String> = self.rel_time.iter().map(|x| x.to_string()).collect();
-            //let output_string = output_vec.join(", ");
-            //fs::write("tH.txt", output_string).unwrap();
+            let out: String = self.cluster_size.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            fs::write("cs.txt", out).unwrap();
         }
+
+        pub fn output_tot(&self, sum_cluster: bool) {
+            let out: String = match sum_cluster {
+                false => {
+                    self.tot.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
+                },
+                true => {
+                    self.tot.iter().zip(self.cluster_size.iter()).map(|(tot, cs)| (*tot as usize * cs).to_string()).collect::<Vec<String>>().join(", ")
+                },
+            };
+            fs::write("tot.txt", out).unwrap();
+        }
+
             
     }
 
