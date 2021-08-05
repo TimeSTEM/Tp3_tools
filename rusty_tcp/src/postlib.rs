@@ -25,8 +25,8 @@ pub mod coincidence {
     }
 
     impl ElectronData {
-        fn add_electron(&mut self, index: usize) {
-            self.spectrum[index] += 1;
+        fn add_electron(&mut self, val: (f64, usize, usize, u16)) {
+            self.spectrum[val.1 + 1024 * val.2] += 1;
         }
 
         fn add_coincident_electron(&mut self, val: (f64, usize, usize, u16), photon_time: f64) {
@@ -51,7 +51,7 @@ pub mod coincidence {
             println!("Electron events: {}. Number of clusters: {}, Number of photons: {}", nelectrons, nclusters, nphotons);
 
             for val in temp_edata.electron {
-                self.add_electron(val.1);
+                self.add_electron(val);
                 if let Some(pht) = temp_tdc.check(val.0) {
                     self.add_coincident_electron(val, pht);
                 }
@@ -66,7 +66,7 @@ pub mod coincidence {
                 y: Vec::new(),
                 tot: Vec::new(),
                 cluster_size: Vec::new(),
-                spectrum: vec![0; 1024],
+                spectrum: vec![0; 1024*256],
                 corr_spectrum: vec![0; 1024*256],
             }
         }
@@ -78,7 +78,13 @@ pub mod coincidence {
         }
         
         pub fn output_spectrum(&self) {
-            let output_vec: Vec<String> = self.spectrum.iter().map(|x| x.to_string()).collect();
+            let mut spec: Vec<usize> = vec![0; 1024];
+            for val in self.spectrum.chunks_exact(1024) {
+                spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
+            }
+
+            let output_vec: Vec<String> = spec.iter().map(|x| x.to_string()).collect();
+            println!("{}", spec.len());
             let output_string = output_vec.join(", ");
             fs::write("xHT.txt", output_string).unwrap();
         }
