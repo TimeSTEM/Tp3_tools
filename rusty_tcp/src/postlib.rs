@@ -263,13 +263,15 @@ pub mod time_resolved {
     pub struct TimeSpectral {
         pub spectra: Vec<[usize; 1024]>,
         pub interval: usize, //in nanoseconds
+        pub counter: usize,
     }
 
     impl TimeSpectral {
-        fn new(interval: usize) -> Self {
+        pub fn new(interval: usize) -> Self {
             Self {
                 spectra: Vec::new(),
                 interval: interval,
+                counter: 0,
             }
         }
 
@@ -279,17 +281,18 @@ pub mod time_resolved {
 
         fn add_packet(&mut self, packet: &Pack) {
             let vec_index = (packet.electron_time() * 1.0e9) as usize / self.interval;
-            while self.spectra.len() < vec_index {
+            while self.spectra.len() < vec_index+1 {
                 self.spectra.push([0; 1024]);
             }
             if let Some(x) = packet.x() {
                 self.spectra[vec_index][x] += 1;
+                self.counter += 1;
             }
         }
 
     }
 
-    pub fn analyze_data(file: &str, data: TimeSpectral) {
+    pub fn analyze_data(file: &str, data: &mut TimeSpectral) {
         let mut file = fs::File::open(file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = Vec::new();
         file.read_to_end(&mut buffer).expect("Could not write file on buffer.");
@@ -303,16 +306,22 @@ pub mod time_resolved {
                 _ => {
                     let packet = Pack{chip_index: ci, data: pack_oct};
                     match packet.id() {
-                        6 => {
-                            println!("tdc found, we dont care");
-                        },
+                        6 => {},
                         11 => {
-                            println!("electron found.");
+                            data.add_packet(&packet);
                         },
                         _ => {},
                     };
                 },
             };
         };
+    }
+
+    #[cfg(test)]
+    mod tests {
+        #[test]
+        fn it_works() {
+            assert_eq!(2+2, 4);
+        }
     }
 }
