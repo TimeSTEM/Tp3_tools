@@ -71,20 +71,36 @@ pub mod coincidence {
             }
         }
 
-        pub fn output_corr_spectrum(&self) {
-            let output_vec: Vec<String> = self.corr_spectrum.iter().map(|x| x.to_string()).collect();
+        pub fn output_corr_spectrum(&self, bin: bool) {
+            let output_vec: Vec<String> = match bin {
+                true => {
+                    let mut spec: Vec<usize> = vec![0; 1024];
+                    for val in self.corr_spectrum.chunks_exact(1024) {
+                        spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
+                    }
+                    spec.iter().map(|x| x.to_string()).collect()
+                },
+                false => {
+                    self.corr_spectrum.iter().map(|x| x.to_string()).collect()
+                },
+            };
             let output_string = output_vec.join(", ");
             fs::write("xyH.txt", output_string).unwrap();
         }
         
-        pub fn output_spectrum(&self) {
-            let mut spec: Vec<usize> = vec![0; 1024];
-            for val in self.spectrum.chunks_exact(1024) {
-                spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
-            }
-
-            let output_vec: Vec<String> = spec.iter().map(|x| x.to_string()).collect();
-            println!("{}", spec.len());
+        pub fn output_spectrum(&self, bin: bool) {
+            let output_vec: Vec<String> = match bin {
+                true => {
+                    let mut spec: Vec<usize> = vec![0; 1024];
+                    for val in self.spectrum.chunks_exact(1024) {
+                        spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
+                    }
+                    spec.iter().map(|x| x.to_string()).collect()
+                },
+                false => {
+                    self.spectrum.iter().map(|x| x.to_string()).collect()
+                },
+            };
             let output_string = output_vec.join(", ");
             fs::write("xHT.txt", output_string).unwrap();
         }

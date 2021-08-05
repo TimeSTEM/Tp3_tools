@@ -18,8 +18,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Total time elapsed is: {:?}", start.elapsed());
 
 
-    coinc_data.output_spectrum();
-    coinc_data.output_corr_spectrum();
+    coinc_data.output_spectrum(true);
+    coinc_data.output_corr_spectrum(false);
 
 
     /*
