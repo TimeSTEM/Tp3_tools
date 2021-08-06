@@ -2,8 +2,7 @@ use timepix3::postlib::time_resolved::*;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
-    //let mut specs = TimeSpectral::new(1e9 as usize);
-    let mut specs = TimePixel::new(1e9 as usize, 600, 900)?;
+    let mut specs = TimeSpectral::new(1e9 as usize, 30, 512)?;
 
     let mut entries = fs::read_dir("Data").expect("Could not read the directory.");
     while let Some(x) = entries.next() {
