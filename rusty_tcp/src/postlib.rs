@@ -260,6 +260,11 @@ pub mod time_resolved {
     use std::io::prelude::*;
     use std::fs;
 
+    pub trait TimeTypes {
+        fn new(interval: usize) -> Self;
+        fn add_packet(&mut self, packet: &Pack);
+    }
+
     pub struct TimeSpectral {
         pub spectra: Vec<[usize; 1024]>,
         pub initial_time: Option<f64>,
@@ -267,8 +272,8 @@ pub mod time_resolved {
         pub counter: Vec<usize>,
     }
 
-    impl TimeSpectral {
-        pub fn new(interval: usize) -> Self {
+    impl TimeTypes for TimeSpectral {
+        fn new(interval: usize) -> Self {
             Self {
                 spectra: Vec::new(),
                 interval: interval,
@@ -276,7 +281,7 @@ pub mod time_resolved {
                 initial_time: None,
             }
         }
-
+        
         fn add_packet(&mut self, packet: &Pack) {
             self.initial_time = match self.initial_time {
                 Some(t) => {Some(t)},
@@ -295,10 +300,14 @@ pub mod time_resolved {
                 }
             }
         }
+    }
 
+    impl TimeSpectral {
+        
         pub fn total_electrons(&self) -> usize {
             self.counter.iter().sum::<usize>()
         }
+        
 
         pub fn output_all(&self) {
             for (i, spectrum) in self.spectra.iter().enumerate() {
