@@ -255,16 +255,96 @@ pub mod coincidence {
 
 pub mod time_resolved {
     use crate::packetlib::{Packet, PacketEELS as Pack};
-    use crate::tdclib::TdcType;
-    use std::io;
     use std::io::prelude::*;
     use std::fs;
 
+    #[derive(Debug)]
+    pub enum ErrorType {
+        OutOfBounds,
+        FolderTimePixelDoesNotExist,
+        FolderTimeSpectralDoesNotExist,
+    }
+
     pub trait TimeTypes {
-        fn new(interval: usize) -> Self;
         fn add_packet(&mut self, packet: &Pack);
     }
 
+    /// This enables spectral analysis in a certain spectral window.
+    pub struct TimePixel {
+        pub spectra: Vec<[usize; 1024]>,
+        pub initial_time: Option<f64>,
+        pub interval: usize,
+        pub counter: Vec<usize>,
+        pub min: usize,
+        pub max: usize,
+    }
+
+    impl TimeTypes for TimePixel {
+        fn add_packet(&mut self, packet: &Pack) {
+            self.initial_time = match self.initial_time {
+                Some(t) => {Some(t)},
+                None => {Some(packet.electron_time())},
+            };
+
+            if let Some(offset) = self.initial_time {
+                let vec_index = ((packet.electron_time()-offset) * 1.0e9) as usize / self.interval;
+                while self.spectra.len() < vec_index+1 {
+                    self.spectra.push([0; 1024]);
+                    self.counter.push(0);
+                }
+                match packet.x() {
+                    Some(x) if x>self.min && x<self.max => {
+                        self.spectra[vec_index][x] += 1;
+                        self.counter[vec_index] += 1;
+                    },
+                    _ => {},
+                };
+            }
+        }
+    }
+
+    
+    impl TimePixel {
+
+        pub fn new(interval: usize, xmin: usize, xmax: usize) -> Result<Self, ErrorType> {
+            if xmax>1024 {return Err(ErrorType::OutOfBounds)}
+            Ok(Self {
+                spectra: Vec::new(),
+                interval: interval,
+                counter: Vec::new(),
+                initial_time: None,
+                min: xmin,
+                max: xmax,
+            })
+        }
+        
+        pub fn total_electrons(&self) -> usize {
+            self.counter.iter().sum::<usize>()
+        }
+        
+        pub fn output_all(&self) -> Result<(), ErrorType> {
+            let mut entries = match fs::read_dir("TimePixel") {
+                Ok(e) => e,
+                Err(_) => return Err(ErrorType::FolderTimePixelDoesNotExist),
+            };
+            while let Some(x) = entries.next() {
+                let path = x.unwrap().path();
+                let dir = path.to_str().unwrap();
+                fs::remove_file(dir).unwrap();
+            };
+            for (i, spectrum) in self.spectra.iter().enumerate() {
+                let mut folder: String = String::from("TimePixel/");
+                folder.push_str(&i.to_string());
+                let out = spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+                if let Err(_) = fs::write(folder, out) {
+                    return Err(ErrorType::FolderTimePixelDoesNotExist);
+                }
+            }
+            Ok(())
+        }
+    }
+
+    /// This enables spectral analysis in the entire spectral window.
     pub struct TimeSpectral {
         pub spectra: Vec<[usize; 1024]>,
         pub initial_time: Option<f64>,
@@ -273,14 +353,6 @@ pub mod time_resolved {
     }
 
     impl TimeTypes for TimeSpectral {
-        fn new(interval: usize) -> Self {
-            Self {
-                spectra: Vec::new(),
-                interval: interval,
-                counter: Vec::new(),
-                initial_time: None,
-            }
-        }
         
         fn add_packet(&mut self, packet: &Pack) {
             self.initial_time = match self.initial_time {
@@ -304,24 +376,46 @@ pub mod time_resolved {
 
     impl TimeSpectral {
         
+        pub fn new(interval: usize) -> Self {
+            Self {
+                spectra: Vec::new(),
+                interval: interval,
+                counter: Vec::new(),
+                initial_time: None,
+            }
+        }
+        
         pub fn total_electrons(&self) -> usize {
             self.counter.iter().sum::<usize>()
         }
         
 
-        pub fn output_all(&self) {
+        pub fn output_all(&self) -> Result<(), ErrorType> {
+            let mut entries = match fs::read_dir("TimeSpectral") {
+                Ok(e) => e,
+                Err(_) => return Err(ErrorType::FolderTimeSpectralDoesNotExist),
+            };
+            while let Some(x) = entries.next() {
+                let path = x.unwrap().path();
+                let dir = path.to_str().unwrap();
+                fs::remove_file(dir).unwrap();
+            };
+
             for (i, spectrum) in self.spectra.iter().enumerate() {
                 let mut folder: String = String::from("TimeSpectral/");
                 folder.push_str(&i.to_string());
                 let out = spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-                fs::write(folder, out).unwrap();
+                if let Err(_) = fs::write(folder, out) {
+                    return Err(ErrorType::FolderTimeSpectralDoesNotExist);
+                }
             }
+            Ok(())
         }
 
 
     }
 
-    pub fn analyze_data(file: &str, data: &mut TimeSpectral) {
+    pub fn analyze_data<T: TimeTypes>(file: &str, data: &mut T) {
         let mut file = fs::File::open(file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = Vec::new();
         file.read_to_end(&mut buffer).expect("Could not write file on buffer.");
