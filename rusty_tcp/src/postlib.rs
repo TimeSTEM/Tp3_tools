@@ -346,16 +346,17 @@ pub mod time_resolved {
             folder.push_str(&self.max.to_string());
 
             let out = self.spectra.iter().flatten().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-            if let Err(_) = fs::write(folder, out) {
+            if let Err(_) = fs::write(&folder, out) {
                 return Err(ErrorType::FolderDoesNotExist);
             }
             
-            //for (i, spectrum) in self.spectra.iter().enumerate() {
-            //    let out = spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-            //    if let Err(_) = fs::write(folder, out) {
-            //        return Err(ErrorType::FolderDoesNotExist);
-            //    }
-            //}
+            folder.push_str("_");
+            folder.push_str("counter");
+
+            let out = self.counter.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            if let Err(_) = fs::write(folder, out) {
+                return Err(ErrorType::FolderDoesNotExist);
+            }
             
             Ok(())
         }
