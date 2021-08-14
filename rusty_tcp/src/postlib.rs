@@ -261,7 +261,8 @@ pub mod time_resolved {
     #[derive(Debug)]
     pub enum ErrorType {
         OutOfBounds,
-        FolderTimeSpectralDoesNotExist,
+        FolderDoesNotExist,
+        FolderNotCreated,
     }
 
     pub trait TimeTypes {
@@ -321,10 +322,15 @@ pub mod time_resolved {
             self.counter.iter().sum::<usize>()
         }
         
-        pub fn output_all(&self) -> Result<(), ErrorType> {
-            let mut entries = match fs::read_dir("TimeSpectral") {
+        pub fn output_all(&self, folder: &str) -> Result<(), ErrorType> {
+            if let Err(_) = fs::read_dir(folder) {
+                if let Err(_) = fs::create_dir(folder) {
+                    return Err(ErrorType::FolderNotCreated);
+                }
+            }
+            let mut entries = match fs::read_dir(folder) {
                 Ok(e) => e,
-                Err(_) => return Err(ErrorType::FolderTimeSpectralDoesNotExist),
+                Err(_) => return Err(ErrorType::FolderDoesNotExist),
             };
             while let Some(x) = entries.next() {
                 let path = x.unwrap().path();
@@ -332,11 +338,16 @@ pub mod time_resolved {
                 fs::remove_file(dir).unwrap();
             };
             for (i, spectrum) in self.spectra.iter().enumerate() {
-                let mut folder: String = String::from("TimeSpectral/");
+                let mut folder: String = String::from(folder);
+                folder.push_str("\\");
                 folder.push_str(&i.to_string());
+                folder.push_str("_");
+                folder.push_str(&self.min.to_string());
+                folder.push_str("_");
+                folder.push_str(&self.max.to_string());
                 let out = spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
                 if let Err(_) = fs::write(folder, out) {
-                    return Err(ErrorType::FolderTimeSpectralDoesNotExist);
+                    return Err(ErrorType::FolderDoesNotExist);
                 }
             }
             Ok(())
