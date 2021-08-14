@@ -337,19 +337,26 @@ pub mod time_resolved {
                 let dir = path.to_str().unwrap();
                 fs::remove_file(dir).unwrap();
             };
-            for (i, spectrum) in self.spectra.iter().enumerate() {
-                let mut folder: String = String::from(folder);
-                folder.push_str("\\");
-                folder.push_str(&i.to_string());
-                folder.push_str("_");
-                folder.push_str(&self.min.to_string());
-                folder.push_str("_");
-                folder.push_str(&self.max.to_string());
-                let out = spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-                if let Err(_) = fs::write(folder, out) {
-                    return Err(ErrorType::FolderDoesNotExist);
-                }
+            let mut folder: String = String::from(folder);
+            folder.push_str("\\");
+            folder.push_str(&(self.spectra.len()).to_string());
+            folder.push_str("_");
+            folder.push_str(&self.min.to_string());
+            folder.push_str("_");
+            folder.push_str(&self.max.to_string());
+
+            let out = self.spectra.iter().flatten().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            if let Err(_) = fs::write(folder, out) {
+                return Err(ErrorType::FolderDoesNotExist);
             }
+            
+            //for (i, spectrum) in self.spectra.iter().enumerate() {
+            //    let out = spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            //    if let Err(_) = fs::write(folder, out) {
+            //        return Err(ErrorType::FolderDoesNotExist);
+            //    }
+            //}
+            
             Ok(())
         }
     }
