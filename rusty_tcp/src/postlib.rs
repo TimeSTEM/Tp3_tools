@@ -267,6 +267,11 @@ pub mod time_resolved {
 
     pub trait TimeTypes {
         fn add_packet(&mut self, packet: &Pack);
+        fn output(&self) -> Result<(), ErrorType>;
+    }
+
+    pub struct TimeSet {
+        pub set: Vec<Box<dyn TimeTypes>>,
     }
 
     /// This enables spectral analysis in a certain spectral window.
@@ -277,6 +282,7 @@ pub mod time_resolved {
         pub counter: Vec<usize>,
         pub min: usize,
         pub max: usize,
+        pub folder: String,
     }
 
     impl TimeTypes for TimeSpectral {
@@ -301,12 +307,52 @@ pub mod time_resolved {
                 };
             }
         }
+        
+        fn output(&self) -> Result<(), ErrorType> {
+            if let Err(_) = fs::read_dir(&self.folder) {
+                if let Err(_) = fs::create_dir(&self.folder) {
+                    return Err(ErrorType::FolderNotCreated);
+                }
+            }
+            let mut entries = match fs::read_dir(&self.folder) {
+                Ok(e) => e,
+                Err(_) => return Err(ErrorType::FolderDoesNotExist),
+            };
+            /*
+            while let Some(x) = entries.next() {
+                let path = x.unwrap().path();
+                let dir = path.to_str().unwrap();
+                fs::remove_file(dir).unwrap();
+            };
+            */
+            let mut folder: String = String::from(&self.folder);
+            folder.push_str("\\");
+            folder.push_str(&(self.spectra.len()).to_string());
+            folder.push_str("_");
+            folder.push_str(&self.min.to_string());
+            folder.push_str("_");
+            folder.push_str(&self.max.to_string());
+
+            let out = self.spectra.iter().flatten().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            if let Err(_) = fs::write(&folder, out) {
+                return Err(ErrorType::FolderDoesNotExist);
+            }
+            
+            folder.push_str("_");
+            folder.push_str("counter");
+
+            let out = self.counter.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            if let Err(_) = fs::write(folder, out) {
+                return Err(ErrorType::FolderDoesNotExist);
+            }
+            Ok(())
+        }
     }
 
     
     impl TimeSpectral {
 
-        pub fn new(interval: usize, xmin: usize, xmax: usize) -> Result<Self, ErrorType> {
+        pub fn new(interval: usize, xmin: usize, xmax: usize, folder: String) -> Result<Self, ErrorType> {
             if xmax>1024 {return Err(ErrorType::OutOfBounds)}
             Ok(Self {
                 spectra: Vec::new(),
@@ -315,6 +361,7 @@ pub mod time_resolved {
                 initial_time: None,
                 min: xmin,
                 max: xmax,
+                folder: folder,
             })
         }
         
@@ -322,13 +369,13 @@ pub mod time_resolved {
             self.counter.iter().sum::<usize>()
         }
         
-        pub fn output_all(&self, folder: &str) -> Result<(), ErrorType> {
-            if let Err(_) = fs::read_dir(folder) {
-                if let Err(_) = fs::create_dir(folder) {
+        pub fn output_all(&self) -> Result<(), ErrorType> {
+            if let Err(_) = fs::read_dir(&self.folder) {
+                if let Err(_) = fs::create_dir(&self.folder) {
                     return Err(ErrorType::FolderNotCreated);
                 }
             }
-            let mut entries = match fs::read_dir(folder) {
+            let mut entries = match fs::read_dir(&self.folder) {
                 Ok(e) => e,
                 Err(_) => return Err(ErrorType::FolderDoesNotExist),
             };
@@ -337,7 +384,7 @@ pub mod time_resolved {
                 let dir = path.to_str().unwrap();
                 fs::remove_file(dir).unwrap();
             };
-            let mut folder: String = String::from(folder);
+            let mut folder: String = String::from(&self.folder);
             folder.push_str("\\");
             folder.push_str(&(self.spectra.len()).to_string());
             folder.push_str("_");
@@ -362,7 +409,8 @@ pub mod time_resolved {
         }
     }
 
-    pub fn analyze_data<T: TimeTypes>(file: &str, data: &mut T) {
+    //pub fn analyze_data<T: TimeTypes>(file: &str, data: &mut T) {
+    pub fn analyze_data(file: &str, data: &mut TimeSet) {
         let mut file = fs::File::open(file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = Vec::new();
         file.read_to_end(&mut buffer).expect("Could not write file on buffer.");
@@ -379,7 +427,9 @@ pub mod time_resolved {
                         //6 => {println!("{} and {}", packet.tdc_time() * 1.0e9, packet.tdc_type());},
                         6 => {},
                         11 => {
-                            data.add_packet(&packet);
+                            for each in data.set.iter_mut() {
+                                each.add_packet(&packet);
+                            }
                         },
                         _ => {},
                     };
