@@ -268,6 +268,7 @@ pub mod time_resolved {
     pub trait TimeTypes {
         fn add_packet(&mut self, packet: &Pack);
         fn output(&self) -> Result<(), ErrorType>;
+        fn display_info(&self) -> Result<(), ErrorType>;
     }
 
     pub struct TimeSet {
@@ -314,11 +315,12 @@ pub mod time_resolved {
                     return Err(ErrorType::FolderNotCreated);
                 }
             }
+            /*
             let mut entries = match fs::read_dir(&self.folder) {
                 Ok(e) => e,
                 Err(_) => return Err(ErrorType::FolderDoesNotExist),
             };
-            /*
+            
             while let Some(x) = entries.next() {
                 let path = x.unwrap().path();
                 let dir = path.to_str().unwrap();
@@ -347,6 +349,12 @@ pub mod time_resolved {
             }
             Ok(())
         }
+
+        fn display_info(&self) -> Result<(), ErrorType> {
+            let number = self.counter.iter().sum::<usize>();
+            println!("Total number of spectra are: {}. Total number of electrons are: {}. Electrons / spectra is {}. First electron detected at {:?}", self.spectra.len(), number, number / self.spectra.len(), self.initial_time);
+            Ok(())
+        }
     }
 
     
@@ -364,52 +372,8 @@ pub mod time_resolved {
                 folder: folder,
             })
         }
-        
-        pub fn total_electrons(&self) -> usize {
-            self.counter.iter().sum::<usize>()
-        }
-        
-        pub fn output_all(&self) -> Result<(), ErrorType> {
-            if let Err(_) = fs::read_dir(&self.folder) {
-                if let Err(_) = fs::create_dir(&self.folder) {
-                    return Err(ErrorType::FolderNotCreated);
-                }
-            }
-            let mut entries = match fs::read_dir(&self.folder) {
-                Ok(e) => e,
-                Err(_) => return Err(ErrorType::FolderDoesNotExist),
-            };
-            while let Some(x) = entries.next() {
-                let path = x.unwrap().path();
-                let dir = path.to_str().unwrap();
-                fs::remove_file(dir).unwrap();
-            };
-            let mut folder: String = String::from(&self.folder);
-            folder.push_str("\\");
-            folder.push_str(&(self.spectra.len()).to_string());
-            folder.push_str("_");
-            folder.push_str(&self.min.to_string());
-            folder.push_str("_");
-            folder.push_str(&self.max.to_string());
-
-            let out = self.spectra.iter().flatten().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-            if let Err(_) = fs::write(&folder, out) {
-                return Err(ErrorType::FolderDoesNotExist);
-            }
-            
-            folder.push_str("_");
-            folder.push_str("counter");
-
-            let out = self.counter.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-            if let Err(_) = fs::write(folder, out) {
-                return Err(ErrorType::FolderDoesNotExist);
-            }
-            
-            Ok(())
-        }
     }
 
-    //pub fn analyze_data<T: TimeTypes>(file: &str, data: &mut T) {
     pub fn analyze_data(file: &str, data: &mut TimeSet) {
         let mut file = fs::File::open(file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = Vec::new();

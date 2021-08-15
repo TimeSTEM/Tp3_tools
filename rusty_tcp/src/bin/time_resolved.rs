@@ -6,7 +6,7 @@ fn main() -> Result<(), ErrorType> {
     let mut specs = TimeSet {
         set: 
             vec![Box::new(TimeSpectral::new(1e8 as usize, 31, 1024, String::from("TimeSpectral"))?),
-            Box::new(TimeSpectral::new(1e7 as usize, 125, 1024, String::from("TimeSpectral"))?),
+            Box::new(TimeSpectral::new(1e6 as usize, 125, 1024, String::from("TimeSpectral"))?),
             Box::new(TimeSpectral::new(1e9 as usize, 12, 102, String::from("TimeSpectral"))?)],
     };
 
@@ -19,6 +19,7 @@ fn main() -> Result<(), ErrorType> {
     }
 
     for spec in specs.set.iter_mut() {
+        spec.display_info()?;
         spec.output()?;
     }
 
