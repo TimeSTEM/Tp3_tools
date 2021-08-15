@@ -5,9 +5,8 @@ fn main() -> Result<(), ErrorType> {
     //let mut specs = TimeSpectral::new(1e8 as usize, 31, 1024)?;
     let mut specs = TimeSet {
         set: 
-            vec![Box::new(TimeSpectral::new(1e8 as usize, 31, 1024, String::from("TimeSpectral"))?),
-            Box::new(TimeSpectral::new(1e6 as usize, 125, 1024, String::from("TimeSpectral"))?),
-            Box::new(TimeSpectral::new(1e9 as usize, 12, 102, String::from("TimeSpectral"))?)],
+            vec![Box::new(TimeSpectral::new(1e8 as usize, 0, 1024, String::from("TimeSpectral"))?),
+            Box::new(TimeSpectral::new(1e8 as usize, 12, 102, String::from("TimeSpectral"))?)],
     };
 
     let mut entries = fs::read_dir("Data").expect("Could not read the directory.");
