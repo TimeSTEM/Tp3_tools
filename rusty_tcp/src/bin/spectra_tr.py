@@ -10,6 +10,14 @@ step = 1
 directory = "TimeSpectral"
 
 for filename in os.listdir(directory):
+    filename = os.path.join(directory, filename)
+    if "30_1024" in filename and "counter" in filename:
+        my_file = numpy.loadtxt(filename, delimiter = ',')
+        full_spectra = my_file
+        print("Full spectra counter found. Will be used to normalized other counters.")
+
+
+for filename in os.listdir(directory):
 
     filename = os.path.join(directory, filename)
     my_file = numpy.loadtxt(filename, delimiter=',')
@@ -27,7 +35,7 @@ for filename in os.listdir(directory):
 
     if "counter" in filename:
         print("Found counter in the current filename. Using different analysis.")
-        spectra = [my_file]
+        spectra = [numpy.divide(my_file, full_spectra)]
 
     [ax.plot(spectrum, label = str(index)) for (index, spectrum) in enumerate(spectra)]
     #plt.legend(fontsize=4)

@@ -2,11 +2,20 @@ use timepix3::postlib::time_resolved::*;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
-    //let mut specs = TimeSpectral::new(1e8 as usize, 31, 1024)?;
+    let time = 5e7 as usize;
     let mut specs = TimeSet {
         set: 
-            vec![Box::new(TimeSpectral::new(1e8 as usize, 0, 1024, String::from("TimeSpectral"))?),
-            Box::new(TimeSpectral::new(1e8 as usize, 12, 102, String::from("TimeSpectral"))?)],
+            vec![Box::new(TimeSpectral::new(time, 0, 1024, String::from("TimeSpectral"))?),
+            Box::new(TimeSpectral::new(time, 30, 1024, String::from("TimeSpectral"))?),
+            Box::new(TimeSpectral::new(time, 30, 250, String::from("TimeSpectral"))?),
+            Box::new(TimeSpectral::new(time, 50, 57, String::from("TimeSpectral"))?),
+            Box::new(TimeSpectral::new(time, 98, 110, String::from("TimeSpectral"))?),
+            Box::new(TimeSpectral::new(time, 664, 673, String::from("TimeSpectral"))?),
+            Box::new(TimeSpectral::new(time, 664, 705, String::from("TimeSpectral"))?),
+            //Box::new(TimeSpectral::new(time, 667, 671, String::from("TimeSpectral"))?),
+            Box::new(TimeSpectral::new(time, 794, 810, String::from("TimeSpectral"))?),
+            Box::new(TimeSpectral::new(time, 794, 801, String::from("TimeSpectral"))?),
+            Box::new(TimeSpectral::new(time, 801, 810, String::from("TimeSpectral"))?)],
     };
 
     let mut entries = fs::read_dir("Data").expect("Could not read the directory.");
