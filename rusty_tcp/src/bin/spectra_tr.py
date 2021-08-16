@@ -4,10 +4,10 @@ import matplotlib.colors as mcolors
 import os
 
 minimum = 0
-maximum = 165
+maximum = 270
 step = 1
 
-directory = "TimeSpectral"
+directory = "SpimTimeSpectral"
 
 for filename in os.listdir(directory):
     filename = os.path.join(directory, filename)
