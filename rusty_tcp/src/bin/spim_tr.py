@@ -1,9 +1,10 @@
 import numpy
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
+from matplotlib.animation import FuncAnimation
 import os
 
-xspim = yspim = 67
+xspim = yspim = 48
 
 directory = "SpimTimeSpectral"
 
@@ -24,9 +25,7 @@ for filename in os.listdir(directory):
     number_spectra = int(len(my_file)/(xspim*yspim))
 
     
-    spectra = [my_file[i*xspim*yspim:(i+1)*xspim*yspim] for i in range(number_spectra)]
-    new_spim = numpy.reshape(spectra[0], (xspim, yspim))
-    print(new_spim.shape)
+    spectra = [numpy.reshape(my_file[i*xspim*yspim:(i+1)*xspim*yspim], (xspim, yspim)) for i in range(number_spectra)]
 
     """
     if "counter" in filename:
@@ -34,8 +33,12 @@ for filename in os.listdir(directory):
         spectra = [numpy.divide(my_file, full_spectra)]
     """
 
-    fig, ax = plt.subplots(1, 1, dpi=180, sharex=True)
-    ax.imshow(new_spim)
-    #[ax.plot(spectrum, label = str(index)) for (index, spectrum) in enumerate(spectra)]
-    #plt.legend(fontsize=4)
+    fig, ax = plt.subplots(1, 1, dpi=180, sharex=True, figsize=(8, 8))
+    im = ax.imshow(spectra[0])
+
+    def animate_func(i):
+        im.set_array(spectra[i])
+        return [im]
+
+    anim = FuncAnimation(fig, animate_func, frames=len(spectra)-1, interval=250)
     plt.show()

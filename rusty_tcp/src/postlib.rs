@@ -397,6 +397,7 @@ pub mod time_resolved {
         pub tdc_low_time: Option<f64>,
         pub tdc_timelist: Vec<(f64, TdcType)>,
         pub tdc_type: TdcType,
+        pub tdc_counter: usize,
     }
     
     impl TimeTypes for TimeSpectralSpatial {
@@ -436,9 +437,10 @@ pub mod time_resolved {
             }
 
             if packet.tdc_type() == self.tdc_type.associate_value() {
-                if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
+                self.tdc_counter += 1;
+                //if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
+                if self.tdc_counter % self.spimy == 0 {
                     //self.tdc_start_frame = Some(packet.tdc_time_norm());
-                    //println!("{} and {} and {}", packet.tdc_type(), packet.tdc_counter(), packet.tdc_time_norm());
                 };
             }
 
@@ -463,7 +465,8 @@ pub mod time_resolved {
             if let Err(_) = fs::write(&folder, out) {
                 return Err(ErrorType::FolderDoesNotExist);
             }
-            
+         
+            /*
             folder.push_str("_");
             folder.push_str("counter");
 
@@ -471,6 +474,7 @@ pub mod time_resolved {
             if let Err(_) = fs::write(folder, out) {
                 return Err(ErrorType::FolderDoesNotExist);
             }
+            */
             Ok(())
         }
 
@@ -500,6 +504,7 @@ pub mod time_resolved {
                 tdc_low_time: None,
                 tdc_timelist: Vec::new(),
                 tdc_type: tdc_type,
+                tdc_counter: 0,
             })
         }
 
