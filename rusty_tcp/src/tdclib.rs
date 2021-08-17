@@ -4,7 +4,7 @@
 use std::net::TcpStream;
 use std::io::Read;
 
-mod tdcvec {
+pub mod tdcvec {
     use crate::tdclib::TdcType;
     
     pub fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut usize) {

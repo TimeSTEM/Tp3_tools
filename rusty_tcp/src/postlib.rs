@@ -255,7 +255,7 @@ pub mod coincidence {
 
 pub mod time_resolved {
     use crate::packetlib::{Packet, PacketEELS as Pack};
-    use crate::tdclib::TdcType;
+    use crate::tdclib::{tdcvec, TdcType};
     use std::io::prelude::*;
     use std::fs;
 
@@ -393,7 +393,7 @@ pub mod time_resolved {
         pub tdc_start_frame: Option<f64>,
         pub tdc_period: Option<f64>,
         pub tdc_low_time: Option<f64>,
-        pub tdc_timelist: Vec<(u8, f64)>,
+        pub tdc_timelist: Vec<(f64, TdcType)>,
         pub tdc_type: TdcType,
     }
     
@@ -421,9 +421,13 @@ pub mod time_resolved {
         }
 
         fn add_tdc(&mut self, packet: &Pack) {
-            if let (None, None, None) = (self.tdc_start_frame, self.tdc_period, self.tdc_low_time) {
-                if TdcType::is_same_inputline(self.tdc_type.associate_value(), packet.tdc_type()) {
-                    self.tdc_timelist.push( (packet.tdc_type(), packet.tdc_time_norm()) );
+            if let ( None, None, None, Some(tdc_found) ) = ( self.tdc_start_frame, self.tdc_period, self.tdc_low_time, TdcType::associate_value_to_enum(packet.tdc_type()) ) {
+                self.tdc_timelist.push( (packet.tdc_time_norm(), tdc_found) );
+                if tdcvec::check_tdc(&self.tdc_timelist, &self.tdc_type) {
+                    self.tdc_start_frame = Some(tdcvec::get_begintime(&self.tdc_timelist, &self.tdc_type));
+                    self.tdc_period = Some(tdcvec::find_period(&self.tdc_timelist, &self.tdc_type));
+                    let tdc_high_time = tdcvec::find_high_time(&self.tdc_timelist, &self.tdc_type);
+                    self.tdc_low_time = Some(self.tdc_period.unwrap() - tdc_high_time);
                 }
             }
         }
