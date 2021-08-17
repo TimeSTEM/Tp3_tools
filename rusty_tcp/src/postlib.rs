@@ -311,7 +311,7 @@ pub mod time_resolved {
             }
         }
 
-        fn add_tdc(&mut self, packet: &Pack) {
+        fn add_tdc(&mut self, _packet: &Pack) {
         }
         
         fn output(&self) -> Result<(), ErrorType> {
@@ -410,9 +410,9 @@ pub mod time_resolved {
                     self.spectra.push(vec![0; self.spimx*self.spimy*1024]);
                     self.counter.push(0);
                 }
-                match packet.x() {
-                    Some(x) if x>self.min && x<self.max => {
-                        self.spectra[vec_index][x] += 1;
+                match (packet.x(), self.spim_detector(packet.electron_time())) {
+                    (Some(x), Some(array_pos)) if x>self.min && x<self.max => {
+                        self.spectra[vec_index][array_pos+x] += 1;
                         self.counter[vec_index] += 1;
                     },
                     _ => {},
@@ -467,6 +467,21 @@ pub mod time_resolved {
                 tdc_timelist: Vec::new(),
                 tdc_type: tdc_type,
             })
+        }
+
+        fn spim_detector(&self, ele_time: f64) -> Option<usize> {
+            if let (Some(begin), Some(interval), Some(period)) = (self.tdc_start_frame, self.tdc_low_time, self.tdc_period) {
+                let ratio = (ele_time - begin) / period;
+                let ratio_inline = ratio.fract();
+                if ratio_inline > interval / period || ratio_inline.is_sign_negative() {
+                    None
+                } else {
+                    let line = ratio as usize % self.spimy;
+                    let xpos = (self.spimx as f64 * ratio_inline / (interval / period)) as usize;
+                    let result = (line * self.spimx + xpos) * 1024;
+                    Some(result)
+                }
+            } else {None}
         }
     }
 
