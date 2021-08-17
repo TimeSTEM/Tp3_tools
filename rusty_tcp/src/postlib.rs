@@ -428,8 +428,14 @@ pub mod time_resolved {
                     self.tdc_period = Some(tdcvec::find_period(&self.tdc_timelist, &self.tdc_type));
                     let tdc_high_time = tdcvec::find_high_time(&self.tdc_timelist, &self.tdc_type);
                     self.tdc_low_time = Some(self.tdc_period.unwrap() - tdc_high_time);
+                    println!("Start frame (us) is {:?}. Period (us) is {:?} and low time (us) is {:?}", self.tdc_start_frame.unwrap()*1e6, self.tdc_period.unwrap()*1e6, self.tdc_low_time.unwrap()*1e6);
                 }
             }
+
+            if packet.tdc_type() == self.tdc_type.associate_value() {
+                if (packet.tdc_counter() as usize / 2) % self.spimy == 0 {self.tdc_start_frame = Some(packet.tdc_time_norm());};
+            }
+
         }
 
         fn output(&self) -> Result<(), ErrorType> {

@@ -1,9 +1,11 @@
 use timepix3::postlib::time_resolved::*;
+use timepix3::tdclib::TdcType;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
     let time = 1e9 as usize;
     
+    /*
     let mut specs = TimeSet {
         set: 
             vec![Box::new(TimeSpectral::new(time, 0, 1024, String::from("TimeSpectral"))?),
@@ -18,15 +20,18 @@ fn main() -> Result<(), ErrorType> {
             Box::new(TimeSpectral::new(time, 794, 801, String::from("TimeSpectral"))?),
             Box::new(TimeSpectral::new(time, 801, 810, String::from("TimeSpectral"))?)],
     };
+    */
     
     
-    /*
+    
+    let tdc_type = TdcType::TdcOneFallingEdge;
+
     let mut specs = TimeSet {
         set:
-            vec![Box::new(TimeSpectral::new(time, 0, 1024, String::from("SpimTimeSpectral"))?),
-            Box::new(TimeSpectral::new(time, 30, 1024, String::from("SpimTimeSpectral"))?)],
+            vec![Box::new(TimeSpectralSpatial::new(time, 0, 1024, 48, 48, tdc_type, String::from("SpimTimeSpectral"))?)],
+            //Box::new(TimeSpectralSpatial::new(time, 30, 1024, String::from("SpimTimeSpectral"))?)],
     };
-    */
+    
 
 
     let mut entries = fs::read_dir("Data").expect("Could not read the directory.");
