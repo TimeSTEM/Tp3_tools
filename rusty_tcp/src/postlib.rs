@@ -436,8 +436,9 @@ pub mod time_resolved {
             }
 
             if packet.tdc_type() == self.tdc_type.associate_value() {
-                if (packet.tdc_counter() as usize / 2) % self.spimy == 0 {
-                    self.tdc_start_frame = Some(packet.tdc_time_norm());
+                if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
+                    //self.tdc_start_frame = Some(packet.tdc_time_norm());
+                    //println!("{} and {} and {}", packet.tdc_type(), packet.tdc_counter(), packet.tdc_time_norm());
                 };
             }
 

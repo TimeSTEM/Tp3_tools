@@ -48,6 +48,7 @@ CREATE_TDC = False #if you wanna to add a tdc after the end of each read frame
 HOST = '127.0.0.1' #127.0.0.1 is LOCALHOST. Not visible in the network.
 PORT = 8098 #Pick a port to connect your socket
 INFINITE_SERVER = True #This hangs for a new client after a client has been disconnected.
+loop_min = 0
 
 """
 Uncomment code below if you wish a meaningfull wobbler data with a fake tdc
@@ -83,7 +84,7 @@ while isRunning:
         except ConnectionRefusedError:
             pass
         print('TCP3 raw connected.')
-        loop = 0
+        loop = loop_min
         now_data=b''
         
         while True:
@@ -94,7 +95,7 @@ while isRunning:
             else:
                 print('Resetting. Current loop is', loop, '. Time is', time.time()-start)
                 start = time.time()
-                loop = 0
+                loop = loop_min
                 now_file = os.path.join(FOLDER, "raw000"+format(loop, '.0f').zfill(3)+".tpx3")
                 np_data = numpy.fromfile(now_file, dtype='uint8')
 
