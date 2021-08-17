@@ -147,6 +147,16 @@ impl TdcType {
             _ => None,
         }
     }
+
+    ///Check if a given tdc is from the same input line.
+    pub fn is_same_inputline(given: u8, check: u8) -> bool {
+        match given {
+            15 | 10 if check==15 || check==10 => true,
+            14 | 11 if check==14 || check==11 => true,
+            _ => false,
+        }
+    }
+
     
 }
 
