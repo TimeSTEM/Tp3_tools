@@ -380,13 +380,19 @@ pub mod time_resolved {
 
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial {
-        pub spectra: Vec<[usize; 1024]>,
+        pub spectra: Vec<Vec<usize>>,
         pub initial_time: Option<f64>,
         pub interval: usize,
         pub counter: Vec<usize>,
         pub min: usize,
         pub max: usize,
         pub folder: String,
+        pub spimx: usize,
+        pub spimy: usize,
+        pub tdc_start_frame: Option<f64>,
+        pub tdc_period: Option<f64>,
+        pub tdc_low_time: Option<f64>,
+        pub tdc_timelist: Vec<(u8, f64)>,
     }
     
     impl TimeTypes for TimeSpectralSpatial {
@@ -399,7 +405,7 @@ pub mod time_resolved {
             if let Some(offset) = self.initial_time {
                 let vec_index = ((packet.electron_time()-offset) * 1.0e9) as usize / self.interval;
                 while self.spectra.len() < vec_index+1 {
-                    self.spectra.push([0; 1024]);
+                    self.spectra.push(vec![0; self.spimx*self.spimy*1024]);
                     self.counter.push(0);
                 }
                 match packet.x() {
@@ -413,6 +419,9 @@ pub mod time_resolved {
         }
 
         fn add_tdc(&mut self, packet: &Pack) {
+            if let (None, None, None) = (self.tdc_start_frame, self.tdc_period, self.tdc_low_time) {
+                self.tdc_timelist.push( (packet.tdc_type(), packet.tdc_time_norm()) );
+            }
         }
 
         fn output(&self) -> Result<(), ErrorType> {
@@ -426,7 +435,7 @@ pub mod time_resolved {
     
     impl TimeSpectralSpatial {
 
-        pub fn new(interval: usize, xmin: usize, xmax: usize, folder: String) -> Result<Self, ErrorType> {
+        pub fn new(interval: usize, xmin: usize, xmax: usize, spimx: usize, spimy: usize, folder: String) -> Result<Self, ErrorType> {
             if xmax>1024 {return Err(ErrorType::OutOfBounds)}
             Ok(Self {
                 spectra: Vec::new(),
@@ -435,7 +444,13 @@ pub mod time_resolved {
                 initial_time: None,
                 min: xmin,
                 max: xmax,
+                spimx: spimx,
+                spimy: spimy,
                 folder: folder,
+                tdc_start_frame: None,
+                tdc_period: None,
+                tdc_low_time: None,
+                tdc_timelist: Vec::new(),
             })
         }
     }

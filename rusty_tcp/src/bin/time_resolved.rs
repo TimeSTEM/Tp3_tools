@@ -3,7 +3,7 @@ use std::fs;
 
 fn main() -> Result<(), ErrorType> {
     let time = 1e9 as usize;
-    /*
+    
     let mut specs = TimeSet {
         set: 
             vec![Box::new(TimeSpectral::new(time, 0, 1024, String::from("TimeSpectral"))?),
@@ -18,12 +18,15 @@ fn main() -> Result<(), ErrorType> {
             Box::new(TimeSpectral::new(time, 794, 801, String::from("TimeSpectral"))?),
             Box::new(TimeSpectral::new(time, 801, 810, String::from("TimeSpectral"))?)],
     };
-    */
+    
+    
+    /*
     let mut specs = TimeSet {
         set:
             vec![Box::new(TimeSpectral::new(time, 0, 1024, String::from("SpimTimeSpectral"))?),
             Box::new(TimeSpectral::new(time, 30, 1024, String::from("SpimTimeSpectral"))?)],
     };
+    */
 
 
     let mut entries = fs::read_dir("Data").expect("Could not read the directory.");
