@@ -266,6 +266,8 @@ pub mod time_resolved {
         FolderNotCreated,
     }
 
+    const VIDEO_TIME: f64 = 0.000005;
+
     pub trait TimeTypes {
         fn add_packet(&mut self, packet: &Pack);
         fn add_tdc(&mut self, packet: &Pack);
@@ -411,7 +413,7 @@ pub mod time_resolved {
                     //self.spectra.push(vec![0; self.spimx*self.spimy*1024]);
                     self.counter.push(0);
                 }
-                match (packet.x(), self.spim_detector(packet.electron_time())) {
+                match (packet.x(), self.spim_detector(packet.electron_time() - VIDEO_TIME)) {
                     (Some(x), Some(array_pos)) if x>self.min && x<self.max => {
                         self.spectra[vec_index][array_pos] += 1;
                         self.counter[vec_index] += 1;
@@ -434,7 +436,9 @@ pub mod time_resolved {
             }
 
             if packet.tdc_type() == self.tdc_type.associate_value() {
-                if (packet.tdc_counter() as usize / 2) % self.spimy == 0 {self.tdc_start_frame = Some(packet.tdc_time_norm());};
+                if (packet.tdc_counter() as usize / 2) % self.spimy == 0 {
+                    self.tdc_start_frame = Some(packet.tdc_time_norm());
+                };
             }
 
         }

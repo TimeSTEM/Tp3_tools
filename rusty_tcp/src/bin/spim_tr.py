@@ -26,6 +26,7 @@ for filename in os.listdir(directory):
     
     spectra = [my_file[i*xspim*yspim:(i+1)*xspim*yspim] for i in range(number_spectra)]
     new_spim = numpy.reshape(spectra[0], (xspim, yspim))
+    print(new_spim.shape)
 
     """
     if "counter" in filename:

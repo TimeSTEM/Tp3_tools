@@ -29,10 +29,9 @@ fn main() -> Result<(), ErrorType> {
 
     let mut specs = TimeSet {
         set:
-            vec![Box::new(TimeSpectralSpatial::new(time, 0, 255, spim_size, spim_size, tdc_type, String::from("SpimTimeSpectral"))?)],
+            vec![Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, tdc_type, String::from("SpimTimeSpectral"))?)],
             //Box::new(TimeSpectralSpatial::new(time, 30, 1024, String::from("SpimTimeSpectral"))?)],
     };
-    
 
 
     let mut entries = fs::read_dir("Data").expect("Could not read the directory.");
