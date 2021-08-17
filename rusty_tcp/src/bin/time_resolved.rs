@@ -3,7 +3,7 @@ use timepix3::tdclib::TdcType;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
-    let time = 1e9 as usize;
+    let time = 1e11 as usize;
     
     /*
     let mut specs = TimeSet {
@@ -25,10 +25,11 @@ fn main() -> Result<(), ErrorType> {
     
     
     let tdc_type = TdcType::TdcOneFallingEdge;
+    let spim_size = 67;
 
     let mut specs = TimeSet {
         set:
-            vec![Box::new(TimeSpectralSpatial::new(time, 0, 1024, 48, 48, tdc_type, String::from("SpimTimeSpectral"))?)],
+            vec![Box::new(TimeSpectralSpatial::new(time, 0, 255, spim_size, spim_size, tdc_type, String::from("SpimTimeSpectral"))?)],
             //Box::new(TimeSpectralSpatial::new(time, 30, 1024, String::from("SpimTimeSpectral"))?)],
     };
     

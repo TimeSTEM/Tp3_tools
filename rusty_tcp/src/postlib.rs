@@ -407,12 +407,13 @@ pub mod time_resolved {
             if let Some(offset) = self.initial_time {
                 let vec_index = ((packet.electron_time()-offset) * 1.0e9) as usize / self.interval;
                 while self.spectra.len() < vec_index+1 {
-                    self.spectra.push(vec![0; self.spimx*self.spimy*1024]);
+                    self.spectra.push(vec![0; self.spimx*self.spimy]);
+                    //self.spectra.push(vec![0; self.spimx*self.spimy*1024]);
                     self.counter.push(0);
                 }
                 match (packet.x(), self.spim_detector(packet.electron_time())) {
                     (Some(x), Some(array_pos)) if x>self.min && x<self.max => {
-                        self.spectra[vec_index][array_pos+x] += 1;
+                        self.spectra[vec_index][array_pos] += 1;
                         self.counter[vec_index] += 1;
                     },
                     _ => {},
@@ -439,10 +440,38 @@ pub mod time_resolved {
         }
 
         fn output(&self) -> Result<(), ErrorType> {
+            if let Err(_) = fs::read_dir(&self.folder) {
+                if let Err(_) = fs::create_dir(&self.folder) {
+                    return Err(ErrorType::FolderNotCreated);
+                }
+            }
+            
+            let mut folder: String = String::from(&self.folder);
+            folder.push_str("\\");
+            folder.push_str(&(self.spectra.len()).to_string());
+            folder.push_str("_");
+            folder.push_str(&self.min.to_string());
+            folder.push_str("_");
+            folder.push_str(&self.max.to_string());
+
+            let out = self.spectra.iter().flatten().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            if let Err(_) = fs::write(&folder, out) {
+                return Err(ErrorType::FolderDoesNotExist);
+            }
+            
+            folder.push_str("_");
+            folder.push_str("counter");
+
+            let out = self.counter.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            if let Err(_) = fs::write(folder, out) {
+                return Err(ErrorType::FolderDoesNotExist);
+            }
             Ok(())
         }
 
         fn display_info(&self) -> Result<(), ErrorType> {
+            let number = self.counter.iter().sum::<usize>();
+            println!("Total number of spims are: {}. Total number of electrons are: {}. Electrons / spim are {}. First electron detected at {:?}. TDC period (us) is {}. TDC low time (us) is {}.", self.spectra.len(), number, number / self.spectra.len(), self.initial_time, self.tdc_period.unwrap()*1e6, self.tdc_low_time.unwrap()*1e6);
             Ok(())
         }
     }
@@ -478,7 +507,8 @@ pub mod time_resolved {
                 } else {
                     let line = ratio as usize % self.spimy;
                     let xpos = (self.spimx as f64 * ratio_inline / (interval / period)) as usize;
-                    let result = (line * self.spimx + xpos) * 1024;
+                    let result = (line * self.spimx + xpos);
+                    //let result = (line * self.spimx + xpos) * 1024;
                     Some(result)
                 }
             } else {None}
