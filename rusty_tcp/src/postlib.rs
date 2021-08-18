@@ -495,28 +495,31 @@ pub mod time_resolved {
                 folder.push_str(&self.scanx.unwrap().to_string());
                 folder.push_str("_");
                 folder.push_str(&self.scany.unwrap().to_string());
+            } else {
+                folder.push_str("_spim");
             }
+
 
             let out = self.spectra.iter().flatten().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
             if let Err(_) = fs::write(&folder, out) {
                 return Err(ErrorType::FolderDoesNotExist);
             }
          
-            /*
-            folder.push_str("_");
-            folder.push_str("counter");
-
-            let out = self.counter.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-            if let Err(_) = fs::write(folder, out) {
-                return Err(ErrorType::FolderDoesNotExist);
+            if !self.is_image {
+                folder.push_str("_");
+                folder.push_str("counter");
+                let out = self.counter.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+                if let Err(_) = fs::write(folder, out) {
+                    return Err(ErrorType::FolderDoesNotExist);
+                }
             }
-            */
+
             Ok(())
         }
 
         fn display_info(&self) -> Result<(), ErrorType> {
             let number = self.counter.iter().sum::<usize>();
-            println!("Total number of spims are: {}. Total number of electrons are: {}. Electrons / spim are {}. First electron detected at {:?}. TDC period (us) is {}. TDC low time (us) is {}.", self.spectra.len(), number, number / self.spectra.len(), self.initial_time, self.tdc_period.unwrap()*1e6, self.tdc_low_time.unwrap()*1e6);
+            println!("Total number of spims are: {}. Total number of electrons are: {}. Electrons / spim are {}. First electron detected at {:?}. TDC period (us) is {}. TDC low time (us) is {}. Output is image: {}. Scanx, Scany and Spec_bin is {:?}, {:?} and {:?} (must be all None is is_image).", self.spectra.len(), number, number / self.spectra.len(), self.initial_time, self.tdc_period.unwrap()*1e6, self.tdc_low_time.unwrap()*1e6, self.is_image, self.scanx, self.scany, self.spec_bin);
             Ok(())
         }
     }
@@ -570,8 +573,6 @@ pub mod time_resolved {
                         (Some(posx), Some(posy), Some(spec_bin)) if (posx as isize-xpos as isize).abs()<spec_bin as isize && (posy as isize-line as isize).abs()<spec_bin as isize => Some(result),
                         _ => None,
                     }
-                    //let result = (line * self.spimx + xpos) * 1024;
-                    //Some(result)
                 }
             } else {None}
         }
