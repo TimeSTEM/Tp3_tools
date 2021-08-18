@@ -22,15 +22,15 @@ fn main() -> Result<(), ErrorType> {
     };
     */
     
-    
-    
-    let tdc_type = TdcType::TdcOneFallingEdge;
-    let spim_size = 48;
+    let spim_size = 67;
 
     let mut specs = TimeSet {
         set:
-            vec![Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, None, None, tdc_type, String::from("SpimTimeSpectral"))?)],
-            //Box::new(TimeSpectralSpatial::new(time, 30, 1024, String::from("SpimTimeSpectral"))?)],
+            vec![Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, None, None, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?),
+            Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, Some(5), Some(5), Some(10), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral02"))?),
+            Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, Some(25), Some(25), Some(10), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral02"))?),
+            Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, Some(45), Some(45), Some(10), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral02"))?),
+            Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, Some(65), Some(65), Some(10), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral02"))?)],
     };
 
 

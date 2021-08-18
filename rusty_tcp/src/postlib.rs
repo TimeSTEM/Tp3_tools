@@ -398,6 +398,7 @@ pub mod time_resolved {
         pub scanx: Option<usize>,
         pub scany: Option<usize>,
         pub is_image: bool,
+        pub spec_bin: Option<usize>,
         pub tdc_start_frame: Option<f64>,
         pub tdc_period: Option<f64>,
         pub tdc_low_time: Option<f64>,
@@ -438,25 +439,12 @@ pub mod time_resolved {
                 let vec_index = ((corrected_el-offset) * 1.0e9) as usize / self.interval;
                 while self.spectra.len() < vec_index+1 {
                     self.expand_data();
-                    //if self.is_image {
-                    //    self.spectra.push(vec![0; self.spimx*self.spimy]);
-                    //} else {
-                    //    self.spectra.push(vec![0; 1024]);
-                    //}
-                    //self.spectra.push(vec![0; self.spimx*self.spimy*1024]);
                     self.counter.push(0);
                 }
                 //match (packet.x(), self.spim_detector(packet.electron_time() - VIDEO_TIME)) {
                 match (packet.x(), self.spim_detector(corrected_el - VIDEO_TIME)) {
                     (Some(x), Some(array_pos)) if x>self.min && x<self.max => {
                         self.append_electron(vec_index, array_pos, x);
-                        
-                            //if self.is_image {
-                        //    self.spectra[vec_index][array_pos] += 1;
-                        //} else {
-                        //    self.spectra[vec_index][x] += 1;
-                        //}
-                        
                         self.counter[vec_index] += 1;
                     },
                     _ => {},
@@ -502,6 +490,12 @@ pub mod time_resolved {
             folder.push_str(&self.min.to_string());
             folder.push_str("_");
             folder.push_str(&self.max.to_string());
+            if !self.is_image {
+                folder.push_str("_");
+                folder.push_str(&self.scanx.unwrap().to_string());
+                folder.push_str("_");
+                folder.push_str(&self.scany.unwrap().to_string());
+            }
 
             let out = self.spectra.iter().flatten().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
             if let Err(_) = fs::write(&folder, out) {
@@ -529,12 +523,12 @@ pub mod time_resolved {
     
     impl TimeSpectralSpatial {
 
-        pub fn new(interval: usize, xmin: usize, xmax: usize, spimx: usize, spimy: usize, scanx: Option<usize>, scany: Option<usize>, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
+        pub fn new(interval: usize, xmin: usize, xmax: usize, spimx: usize, spimy: usize, scanx: Option<usize>, scany: Option<usize>, spec_bin: Option<usize>, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
             if xmax>1024 {return Err(ErrorType::OutOfBounds)}
-            let is_image = match (scanx, scany) {
-                (None, None) => true,
-                (Some(_), Some(_)) => false,
-                (Some(_), None) | (None, Some(_)) => {return Err(ErrorType::SpimScanDifferentOption)},
+            let is_image = match (scanx, scany, spec_bin) {
+                (None, None, None) => true,
+                (Some(_), Some(_), Some(_)) => false,
+                _ => {return Err(ErrorType::SpimScanDifferentOption)},
             };
             Ok(Self {
                 spectra: Vec::new(),
@@ -550,6 +544,7 @@ pub mod time_resolved {
                 scanx: scanx,
                 scany: scany,
                 is_image: is_image,
+                spec_bin: spec_bin,
                 folder: folder,
                 tdc_start_frame: None,
                 tdc_period: None,
@@ -570,8 +565,13 @@ pub mod time_resolved {
                     let line = ratio as usize % self.spimy;
                     let xpos = (self.spimx as f64 * ratio_inline / (interval / period)) as usize;
                     let result = line * self.spimx + xpos;
+                    match (self.scanx, self.scany, self.spec_bin) {
+                        (None, None, None) => Some(result),
+                        (Some(posx), Some(posy), Some(spec_bin)) if (posx as isize-xpos as isize).abs()<spec_bin as isize && (posy as isize-line as isize).abs()<spec_bin as isize => Some(result),
+                        _ => None,
+                    }
                     //let result = (line * self.spimx + xpos) * 1024;
-                    Some(result)
+                    //Some(result)
                 }
             } else {None}
         }
