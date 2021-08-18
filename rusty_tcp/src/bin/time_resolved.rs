@@ -3,7 +3,7 @@ use timepix3::tdclib::TdcType;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
-    let time = 1e9 as usize;
+    let time = 1e8 as usize;
     
     /*
     let mut specs = TimeSet {
@@ -25,7 +25,7 @@ fn main() -> Result<(), ErrorType> {
     
     
     let tdc_type = TdcType::TdcOneFallingEdge;
-    let spim_size = 48;
+    let spim_size = 67;
 
     let mut specs = TimeSet {
         set:

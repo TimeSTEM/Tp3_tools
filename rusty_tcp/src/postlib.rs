@@ -385,6 +385,8 @@ pub mod time_resolved {
     pub struct TimeSpectralSpatial {
         pub spectra: Vec<Vec<usize>>,
         pub initial_time: Option<f64>,
+        pub cycle_counter: f64,
+        pub cycle_trigger: bool,
         pub interval: usize,
         pub counter: Vec<usize>,
         pub min: usize,
@@ -402,19 +404,41 @@ pub mod time_resolved {
     
     impl TimeTypes for TimeSpectralSpatial {
         fn add_packet(&mut self, packet: &Pack) {
+
+            //Getting Initial Time
             self.initial_time = match self.initial_time {
                 Some(t) => {Some(t)},
                 None => {Some(packet.electron_time())},
             };
 
+            //Correcting Electron Time;
+            let el = packet.electron_time();
+            if el > 26.7 && self.cycle_trigger {
+                self.cycle_counter += 1.0;
+                self.cycle_trigger = false;
+                println!("new counter");
+            }
+            else if el > 0.1 && packet.electron_time() < 13.0 && !self.cycle_trigger {
+                self.cycle_trigger = true;
+            }
+            let corrected_el = if !self.cycle_trigger && (el + self.cycle_counter * Pack::electron_reset_time()) > ((0.5 + self.cycle_counter) * Pack::electron_reset_time()) {
+                el
+            } else {
+                el + self.cycle_counter * Pack::electron_reset_time()
+            };
+
+            //Creating the array using the electron corrected time. Note that you dont need to use
+            //it in the 'spim_detector' if you synchronize the clocks.
             if let Some(offset) = self.initial_time {
-                let vec_index = ((packet.electron_time()-offset) * 1.0e9) as usize / self.interval;
+                //let vec_index = ((packet.electron_time()-offset) * 1.0e9) as usize / self.interval;
+                let vec_index = ((corrected_el-offset) * 1.0e9) as usize / self.interval;
                 while self.spectra.len() < vec_index+1 {
                     self.spectra.push(vec![0; self.spimx*self.spimy]);
                     //self.spectra.push(vec![0; self.spimx*self.spimy*1024]);
                     self.counter.push(0);
                 }
-                match (packet.x(), self.spim_detector(packet.electron_time() - VIDEO_TIME)) {
+                //match (packet.x(), self.spim_detector(packet.electron_time() - VIDEO_TIME)) {
+                match (packet.x(), self.spim_detector(corrected_el - VIDEO_TIME)) {
                     (Some(x), Some(array_pos)) if x>self.min && x<self.max => {
                         self.spectra[vec_index][array_pos] += 1;
                         self.counter[vec_index] += 1;
@@ -436,6 +460,8 @@ pub mod time_resolved {
                 }
             }
 
+            //Synchronizing clocks using two different approaches. It is always better to use a
+            //multiple of 2 and use the FPGA counter.
             if packet.tdc_type() == self.tdc_type.associate_value() {
                 self.tdc_counter += 1;
                 //if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
@@ -494,6 +520,8 @@ pub mod time_resolved {
                 interval: interval,
                 counter: Vec::new(),
                 initial_time: None,
+                cycle_counter: 0.0,
+                cycle_trigger: true,
                 min: xmin,
                 max: xmax,
                 spimx: spimx,
@@ -517,7 +545,7 @@ pub mod time_resolved {
                 } else {
                     let line = ratio as usize % self.spimy;
                     let xpos = (self.spimx as f64 * ratio_inline / (interval / period)) as usize;
-                    let result = (line * self.spimx + xpos);
+                    let result = line * self.spimx + xpos;
                     //let result = (line * self.spimx + xpos) * 1024;
                     Some(result)
                 }

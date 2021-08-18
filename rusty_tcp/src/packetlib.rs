@@ -96,6 +96,11 @@ pub trait Packet {
         time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9
     }
 
+    fn electron_reset_time() -> f64 {
+        26843545600.0 * 1e-9
+    }
+
+
 }
 
 pub struct PacketEELS<'a> {
