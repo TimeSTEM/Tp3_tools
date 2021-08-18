@@ -264,6 +264,7 @@ pub mod time_resolved {
         OutOfBounds,
         FolderDoesNotExist,
         FolderNotCreated,
+        SpimScanDifferentOption,
     }
 
     const VIDEO_TIME: f64 = 0.000005;
@@ -394,6 +395,9 @@ pub mod time_resolved {
         pub folder: String,
         pub spimx: usize,
         pub spimy: usize,
+        pub scanx: Option<usize>,
+        pub scany: Option<usize>,
+        pub is_image: bool,
         pub tdc_start_frame: Option<f64>,
         pub tdc_period: Option<f64>,
         pub tdc_low_time: Option<f64>,
@@ -433,14 +437,26 @@ pub mod time_resolved {
                 //let vec_index = ((packet.electron_time()-offset) * 1.0e9) as usize / self.interval;
                 let vec_index = ((corrected_el-offset) * 1.0e9) as usize / self.interval;
                 while self.spectra.len() < vec_index+1 {
-                    self.spectra.push(vec![0; self.spimx*self.spimy]);
+                    self.expand_data();
+                    //if self.is_image {
+                    //    self.spectra.push(vec![0; self.spimx*self.spimy]);
+                    //} else {
+                    //    self.spectra.push(vec![0; 1024]);
+                    //}
                     //self.spectra.push(vec![0; self.spimx*self.spimy*1024]);
                     self.counter.push(0);
                 }
                 //match (packet.x(), self.spim_detector(packet.electron_time() - VIDEO_TIME)) {
                 match (packet.x(), self.spim_detector(corrected_el - VIDEO_TIME)) {
                     (Some(x), Some(array_pos)) if x>self.min && x<self.max => {
-                        self.spectra[vec_index][array_pos] += 1;
+                        self.append_electron(vec_index, array_pos, x);
+                        
+                            //if self.is_image {
+                        //    self.spectra[vec_index][array_pos] += 1;
+                        //} else {
+                        //    self.spectra[vec_index][x] += 1;
+                        //}
+                        
                         self.counter[vec_index] += 1;
                     },
                     _ => {},
@@ -464,8 +480,8 @@ pub mod time_resolved {
             //multiple of 2 and use the FPGA counter.
             if packet.tdc_type() == self.tdc_type.associate_value() {
                 self.tdc_counter += 1;
-                //if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
-                if self.tdc_counter % self.spimy == 0 {
+                //if self.tdc_counter % self.spimy == 0 {
+                if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
                     //self.tdc_start_frame = Some(packet.tdc_time_norm());
                 };
             }
@@ -513,8 +529,13 @@ pub mod time_resolved {
     
     impl TimeSpectralSpatial {
 
-        pub fn new(interval: usize, xmin: usize, xmax: usize, spimx: usize, spimy: usize, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
+        pub fn new(interval: usize, xmin: usize, xmax: usize, spimx: usize, spimy: usize, scanx: Option<usize>, scany: Option<usize>, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
             if xmax>1024 {return Err(ErrorType::OutOfBounds)}
+            let is_image = match (scanx, scany) {
+                (None, None) => true,
+                (Some(_), Some(_)) => false,
+                (Some(_), None) | (None, Some(_)) => {return Err(ErrorType::SpimScanDifferentOption)},
+            };
             Ok(Self {
                 spectra: Vec::new(),
                 interval: interval,
@@ -526,6 +547,9 @@ pub mod time_resolved {
                 max: xmax,
                 spimx: spimx,
                 spimy: spimy,
+                scanx: scanx,
+                scany: scany,
+                is_image: is_image,
                 folder: folder,
                 tdc_start_frame: None,
                 tdc_period: None,
@@ -550,6 +574,22 @@ pub mod time_resolved {
                     Some(result)
                 }
             } else {None}
+        }
+
+        fn expand_data(&mut self) {
+            if self.is_image {
+                self.spectra.push(vec![0; self.spimx*self.spimy]);
+            } else {
+                self.spectra.push(vec![0; 1024]);
+            }
+        }
+
+        fn append_electron(&mut self, vec_index: usize, array_pos: usize, x: usize) {
+            if self.is_image {
+                self.spectra[vec_index][array_pos] += 1;
+            } else {
+                self.spectra[vec_index][x] += 1;
+            }
         }
     }
 
