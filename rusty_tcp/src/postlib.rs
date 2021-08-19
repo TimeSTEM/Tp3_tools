@@ -264,7 +264,7 @@ pub mod time_resolved {
         OutOfBounds,
         FolderDoesNotExist,
         FolderNotCreated,
-        SpimScanDifferentOption,
+        ScanOutofBounds,
     }
 
     const VIDEO_TIME: f64 = 0.000005;
@@ -421,7 +421,6 @@ pub mod time_resolved {
             if el > 26.7 && self.cycle_trigger {
                 self.cycle_counter += 1.0;
                 self.cycle_trigger = false;
-                println!("new counter");
             }
             else if el > 0.1 && packet.electron_time() < 13.0 && !self.cycle_trigger {
                 self.cycle_trigger = true;
@@ -526,13 +525,25 @@ pub mod time_resolved {
     
     impl TimeSpectralSpatial {
 
-        pub fn new(interval: usize, xmin: usize, xmax: usize, spimx: usize, spimy: usize, scanx: Option<usize>, scany: Option<usize>, spec_bin: Option<usize>, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
+        pub fn new(interval: usize, xmin: usize, xmax: usize, spimx: usize, spimy: usize, scan_parameters: Option<(usize, usize, usize)>, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
             if xmax>1024 {return Err(ErrorType::OutOfBounds)}
-            let is_image = match (scanx, scany, spec_bin) {
-                (None, None, None) => true,
-                (Some(_), Some(_), Some(_)) => false,
-                _ => {return Err(ErrorType::SpimScanDifferentOption)},
+            let is_image = match scan_parameters {
+                None => true,
+                Some(_) => false,
             };
+            
+            let (scanx, scany, spec_bin) = match scan_parameters {
+                Some((x, y, bin)) => {
+                    if x>spimx || y>spimy {
+                        return Err(ErrorType::ScanOutofBounds)
+                    };
+                    (Some(x), Some(y), Some(bin))
+                },
+                None => {
+                    (None, None, None)
+                },
+            };
+
             Ok(Self {
                 spectra: Vec::new(),
                 interval: interval,

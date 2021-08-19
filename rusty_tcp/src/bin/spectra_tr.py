@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import os
 
-minimum = 0
-maximum = 1000
-step = 1
+minimum = 1
+maximum = 330
+step = 100
 
 directory = "TimeSpectral"
 directory = "SpimTimeSpectral02"
@@ -27,17 +27,19 @@ for filename in os.listdir(directory):
 
     fig, ax = plt.subplots(1, 1, dpi=180, sharex=True)
     
-    try:
-        assert maximum<number_spectra
-        spectra = [my_file[i*1024:(i+1)*1024] for i in numpy.arange(minimum, maximum, step)]
-    except:
-        print('Using the entire output.')
-        spectra = [my_file[i*1024:(i+1)*1024] for i in range(int(number_spectra/step))]
+    spectra = [my_file[i*1024:(i+1)*1024] for i in numpy.linspace(0, number_spectra-2, 3, dtype=int)]
 
     if "counter" in filename:
         print("Found counter in the current filename. Using different analysis.")
-        spectra = [numpy.divide(my_file, full_spectra)]
+        try:
+            spectra = [numpy.divide(my_file, full_spectra)]
+        except NameError:
+            spectra = [numpy.divide(my_file, 1)]
 
     [ax.plot(spectrum, label = str(index)) for (index, spectrum) in enumerate(spectra)]
-    #plt.legend(fontsize=4)
+    ax.set_xlabel("Energy (pixels)")
+    ax.set_ylabel("Counts")
+    ax.set_yticklabels([])
+    plt.legend(fontsize=4)
+    plt.tight_layout()
     plt.show()
