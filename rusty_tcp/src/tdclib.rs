@@ -6,14 +6,38 @@ use std::io::Read;
 
 pub mod tdcvec {
     use crate::tdclib::TdcType;
+    use crate::packetlib::{Packet, PacketEELS as Pack};
 
     pub struct TdcSearch {
         pub data: Vec<(f64, TdcType)>,
         pub how_many: usize,
         pub tdc_choosen: TdcType,
+        pub initial_counter: Option<usize>,
     }
 
     impl TdcSearch {
+
+        fn add_tdc(&mut self, packet: &Pack) {
+            let time = packet.tdc_time_norm();
+            if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
+                self.data.push( (time, tdc) );
+                if packet.tdc_type() == self.tdc_choosen.associate_value() {
+                    self.initial_counter = match self.initial_counter {
+                        None => Some(packet.tdc_counter() as usize),
+                        Some(val) => Some(val),
+                    };
+                }
+            }
+
+
+                            //let time = packet.tdc_time_norm();
+                           // if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
+                            //    tdc_vec.push( (time, tdc) );
+            //match initial_counter {
+            //    None if tdc.associate_value() == self.tdc_choosen.associate_value() => self.initial_counter = 
+        }
+
+
         fn check_tdc(&self) -> bool {
             let mut counter = 0;
             for (_time, tdc_type) in &self.data {
@@ -77,19 +101,27 @@ pub mod tdcvec {
         }
 
         fn get_lastime(&self) -> f64 {
-            0.0
+            let last_time = self.data.iter()
+                .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
+                .map(|(time, _tdct)| *time)
+                .last().unwrap();
+            last_time
         }
 
         fn get_begintime(&self) -> f64 {
-            0.0
+            let begin_time = self.data.iter()
+                .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
+                .map(|(time, _tdct)| *time)
+                .next().unwrap();
+            begin_time
         }
     }
 
 
     pub fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut usize) {
-        use crate::packetlib::{Packet, PacketEELS};
+        //use crate::packetlib::{Packet, PacketEELS};
 
-        let tdc_test = TdcSearch{data: Vec::new(), how_many: 5, tdc_choosen: TdcType::TdcOneRisingEdge};
+        let tdc_test = TdcSearch{data: Vec::new(), how_many: 5, tdc_choosen: TdcType::TdcOneRisingEdge, initial_counter: None};
         tdc_test.check_tdc();
         tdc_test.find_high_time();
         
@@ -100,7 +132,7 @@ pub mod tdcvec {
             match x {
                 &[84, 80, 88, 51, nci, _, _, _] => {*last_ci = nci as usize},
                 _ => {
-                    let packet = PacketEELS { chip_index: *last_ci, data: x};
+                    let packet = Pack { chip_index: *last_ci, data: x};
                     
                     match packet.id() {
                         6 => {
