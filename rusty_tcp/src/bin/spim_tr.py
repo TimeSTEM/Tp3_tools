@@ -4,7 +4,7 @@ import matplotlib.colors as mcolors
 from matplotlib.animation import FuncAnimation
 import os
 
-xspim = yspim = 48
+xspim = yspim = 512
 
 directory = "SpimTimeSpectral"
 
@@ -41,5 +41,5 @@ for filename in os.listdir(directory):
         return [im]
 
     anim = FuncAnimation(fig, animate_func, frames=len(spectra)-1, interval=100)
-    anim.save("my_animation.gif", fps = 10)
+    anim.save("my_animation.gif", fps = 5)
     plt.show()

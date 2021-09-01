@@ -7,8 +7,8 @@ minimum = 1
 maximum = 330
 step = 100
 
-directory = "TimeSpectral"
-directory = "SpimTimeSpectral02"
+#directory = "TimeSpectral_01"
+directory = "SpimTimeSpectral_position"
 
 for filename in os.listdir(directory):
     filename = os.path.join(directory, filename)
@@ -27,19 +27,21 @@ for filename in os.listdir(directory):
 
     fig, ax = plt.subplots(1, 1, dpi=180, sharex=True)
     
-    spectra = [my_file[i*1024:(i+1)*1024] for i in numpy.linspace(0, number_spectra-2, 3, dtype=int)]
+    spectra = [my_file[i*1024:(i+1)*1024] for i in numpy.linspace(0, number_spectra-2, 5, dtype=int)]
+    
+    ax.set_xlabel("Energy (pixels)")
+    ax.set_ylabel("Counts")
+    #ax.set_yticklabels([])
 
     if "counter" in filename:
         print("Found counter in the current filename. Using different analysis.")
+        ax.set_xlabel("Time (A.U.)")
         try:
             spectra = [numpy.divide(my_file, full_spectra)]
         except NameError:
             spectra = [numpy.divide(my_file, 1)]
 
     [ax.plot(spectrum, label = str(index)) for (index, spectrum) in enumerate(spectra)]
-    ax.set_xlabel("Energy (pixels)")
-    ax.set_ylabel("Counts")
-    ax.set_yticklabels([])
     plt.legend(fontsize=4)
     plt.tight_layout()
     plt.show()

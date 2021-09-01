@@ -265,6 +265,7 @@ pub mod time_resolved {
         FolderDoesNotExist,
         FolderNotCreated,
         ScanOutofBounds,
+        MinGreaterThanMax,
     }
 
     const VIDEO_TIME: f64 = 0.000005;
@@ -454,6 +455,7 @@ pub mod time_resolved {
         fn add_tdc(&mut self, packet: &Pack) {
             if let ( None, None, None, Some(tdc_found) ) = ( self.tdc_start_frame, self.tdc_period, self.tdc_low_time, TdcType::associate_value_to_enum(packet.tdc_type()) ) {
                 self.tdc_timelist.push( (packet.tdc_time_norm(), tdc_found) );
+                println!("{}", packet.tdc_counter());
                 if tdcvec::check_tdc(&self.tdc_timelist, &self.tdc_type) {
                     self.tdc_start_frame = Some(tdcvec::get_begintime(&self.tdc_timelist, &self.tdc_type));
                     self.tdc_period = Some(tdcvec::find_period(&self.tdc_timelist, &self.tdc_type));
@@ -469,7 +471,7 @@ pub mod time_resolved {
                 self.tdc_counter += 1;
                 //if self.tdc_counter % self.spimy == 0 {
                 if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
-                    //self.tdc_start_frame = Some(packet.tdc_time_norm());
+                    self.tdc_start_frame = Some(packet.tdc_time_norm());
                 };
             }
 
@@ -526,7 +528,8 @@ pub mod time_resolved {
     impl TimeSpectralSpatial {
 
         pub fn new(interval: usize, xmin: usize, xmax: usize, spimx: usize, spimy: usize, scan_parameters: Option<(usize, usize, usize)>, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
-            if xmax>1024 {return Err(ErrorType::OutOfBounds)}
+            if xmax>1024 {return Err(ErrorType::OutOfBounds)};
+            if xmin>xmax {return Err(ErrorType::MinGreaterThanMax)};
             let is_image = match scan_parameters {
                 None => true,
                 Some(_) => false,

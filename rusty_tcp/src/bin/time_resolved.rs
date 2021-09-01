@@ -3,7 +3,7 @@ use timepix3::tdclib::TdcType;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
-    let time = 1e9 as usize;
+    let time = 1e7 as usize;
     
     /*
     let mut specs = TimeSet {
@@ -22,15 +22,13 @@ fn main() -> Result<(), ErrorType> {
     };
     */
     
-    let min = 32;
-    let max = 81;
-    let spim_size = 48;
+    let spim_size = 512;
 
     let mut specs = TimeSet {
         set:
-            vec![Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?),
-            Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, Some((24, 24, 120)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral02"))?),
-            Box::new(TimeSpectralSpatial::new(time, 656, 694, spim_size, spim_size, Some((24, 24, 120)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral02"))?)],
+            vec![Box::new(TimeSpectralSpatial::new(time, 200, 300, spim_size, spim_size, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?),
+            Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, Some((256, 256, 256)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?)],
+            //Box::new(TimeSpectralSpatial::new(time, 656, 694, spim_size, spim_size, Some((24, 24, 120)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?)],
     };
 
     let mut entries = fs::read_dir("Data").expect("Could not read the directory.");
