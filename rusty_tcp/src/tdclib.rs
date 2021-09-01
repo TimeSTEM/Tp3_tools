@@ -17,6 +17,15 @@ pub mod tdcvec {
 
     impl TdcSearch {
 
+        pub fn new(tdc_choosen: TdcType, how_many: usize) -> Self {
+            TdcSearch{
+                data: Vec::new(),
+                how_many: how_many,
+                tdc_choosen: tdc_choosen,
+                initial_counter: None,
+            }
+        }
+
         fn add_tdc(&mut self, packet: &Pack) {
             let time = packet.tdc_time_norm();
             if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
@@ -28,17 +37,10 @@ pub mod tdcvec {
                     };
                 }
             }
-
-
-                            //let time = packet.tdc_time_norm();
-                           // if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
-                            //    tdc_vec.push( (time, tdc) );
-            //match initial_counter {
-            //    None if tdc.associate_value() == self.tdc_choosen.associate_value() => self.initial_counter = 
         }
 
 
-        fn check_tdc(&self) -> bool {
+        pub fn check_tdc(&self) -> bool {
             let mut counter = 0;
             for (_time, tdc_type) in &self.data {
                 if tdc_type.associate_value() == self.tdc_choosen.associate_value() {counter+=1;}
@@ -63,7 +65,7 @@ pub mod tdcvec {
         }
 
 
-        fn find_high_time(&self) -> f64 {
+        pub fn find_high_time(&self) -> f64 {
 
             let fal_tdc_type = match self.tdc_choosen {
                 TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
@@ -88,19 +90,19 @@ pub mod tdcvec {
             }
         }
         
-        fn find_periodic(&self) -> f64 {
+        pub fn find_period(&self) -> f64 {
             let mut tdc_time = self.get_auto_timelist();
             tdc_time.pop().expect("Please get at least 02 Tdc's") - tdc_time.pop().expect("Please get at least 02 Tdc's")
         }
         
-        fn get_counter(&self) -> usize {
+        pub fn get_counter(&self) -> usize {
             let counter = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
                 .count();
             counter
         }
 
-        fn get_lastime(&self) -> f64 {
+        pub fn get_lasttime(&self) -> f64 {
             let last_time = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
                 .map(|(time, _tdct)| *time)
@@ -108,7 +110,7 @@ pub mod tdcvec {
             last_time
         }
 
-        fn get_begintime(&self) -> f64 {
+        pub fn get_begintime(&self) -> f64 {
             let begin_time = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
                 .map(|(time, _tdct)| *time)
@@ -118,13 +120,9 @@ pub mod tdcvec {
     }
 
 
-    pub fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut usize) {
+    pub fn search_any_tdc(data: &[u8], tdc_struct: &mut TdcSearch, last_ci: &mut usize) {
         //use crate::packetlib::{Packet, PacketEELS};
 
-        let tdc_test = TdcSearch{data: Vec::new(), how_many: 5, tdc_choosen: TdcType::TdcOneRisingEdge, initial_counter: None};
-        tdc_test.check_tdc();
-        tdc_test.find_high_time();
-        
         let file_data = data;
         let mut packet_chunks = file_data.chunks_exact(8);
 
@@ -136,10 +134,7 @@ pub mod tdcvec {
                     
                     match packet.id() {
                         6 => {
-                            let time = packet.tdc_time_norm();
-                            if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
-                                tdc_vec.push( (time, tdc) );
-                            }
+                            tdc_struct.add_tdc(&packet);
                         },
                         _ => {},
                     };
@@ -222,6 +217,8 @@ pub mod tdcvec {
 
 
 ///The four types of TDC's.
+
+#[derive(Copy, Clone)]
 pub enum TdcType {
     TdcOneRisingEdge,
     TdcOneFallingEdge,
@@ -319,26 +316,35 @@ impl TdcControl for PeriodicTdcRef {
 
     fn new(tdc_type: TdcType, sock: &mut TcpStream) -> Self {
         let mut buffer_pack_data = vec![0; 16384];
-        let mut tdc_vec:Vec<(f64, TdcType)> = Vec::new();
         let mut ci = 0usize;
+        let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 5);
 
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
         loop {
             if let Ok(size) = sock.read(&mut buffer_pack_data) {
                 if size>0 {
                     let new_data = &buffer_pack_data[0..size];
-                    tdcvec::search_any_tdc(new_data, &mut tdc_vec, &mut ci);
-                    if tdcvec::check_tdc(&tdc_vec, &tdc_type)==true {break;}
+                    tdcvec::search_any_tdc(new_data, &mut tdc_search, &mut ci);
+                    if tdc_search.check_tdc()==true {break;}
                 }
             }
         }
         println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
-        let counter = tdcvec::get_counter(&tdc_vec, &tdc_type);
+        let counter = tdc_search.get_counter();
+        let begin_time = tdc_search.get_begintime();
+        let last_time = tdc_search.get_lasttime();
+        let high_time = tdc_search.find_high_time();
+        let period = tdc_search.find_period();
+        let low_time = period - high_time;
+        
+        /*
+        //let counter = tdcvec::get_counter(&tdc_vec, &tdc_type);
         let begin_time = tdcvec::get_begintime(&tdc_vec, &tdc_type);
         let last_time = tdcvec::get_lasttime(&tdc_vec, &tdc_type);
         let high_time = tdcvec::find_high_time(&tdc_vec, &tdc_type);
         let period = tdcvec::find_period(&tdc_vec, &tdc_type);
         let low_time = period - high_time;
+        */
         println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ms) is {}. ON interval (ms) is {}. Period (ms) is {}.", tdc_type.associate_str(), counter, last_time*1.0e3, high_time*1.0e3, period*1.0e3);
         Self {
             tdctype: tdc_type.associate_value(),
