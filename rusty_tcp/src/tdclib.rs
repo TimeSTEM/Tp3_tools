@@ -6,9 +6,92 @@ use std::io::Read;
 
 pub mod tdcvec {
     use crate::tdclib::TdcType;
-    
+
+    pub struct TdcSearch {
+        pub data: Vec<(f64, TdcType)>,
+        pub how_many: usize,
+        pub tdc_choosen: TdcType,
+    }
+
+    impl TdcSearch {
+        fn check_tdc(&self) -> bool {
+            let mut counter = 0;
+            for (_time, tdc_type) in &self.data {
+                if tdc_type.associate_value() == self.tdc_choosen.associate_value() {counter+=1;}
+            }
+            if counter>=5 {true} else {false}
+        }
+
+        fn get_timelist(&self, which: &TdcType) -> Vec<f64> {
+            let result: Vec<_> = self.data.iter()
+                .filter(|(_time, tdct)| tdct.associate_value() == which.associate_value())
+                .map(|(time, _tdct)| *time)
+                .collect();
+            result
+        }
+        
+        fn get_auto_timelist(&self) -> Vec<f64> {
+            let result: Vec<_> = self.data.iter()
+                .filter(|(_time, tdct)| tdct.associate_value() == self.tdc_choosen.associate_value())
+                .map(|(time, _tdct)| *time)
+                .collect();
+            result
+        }
+
+
+        fn find_high_time(&self) -> f64 {
+
+            let fal_tdc_type = match self.tdc_choosen {
+                TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
+                TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
+                TdcType::NoTdc => TdcType::NoTdc,
+            };
+
+            let ris_tdc_type = match self.tdc_choosen {
+                TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneRisingEdge,
+                TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoRisingEdge,
+                TdcType::NoTdc => TdcType::NoTdc,
+            };
+
+            let mut fal = self.get_timelist(&fal_tdc_type);
+            let mut ris = self.get_timelist(&ris_tdc_type);
+            let last_fal = fal.pop().expect("Please get at least 01 falling Tdc");
+            let last_ris = ris.pop().expect("Please get at least 01 rising Tdc");
+            if last_fal - last_ris > 0.0 {
+                last_fal - last_ris 
+            } else {
+                last_fal - ris.pop().expect("Please get at least 02 rising Tdc's.")
+            }
+        }
+        
+        fn find_periodic(&self) -> f64 {
+            let mut tdc_time = self.get_auto_timelist();
+            tdc_time.pop().expect("Please get at least 02 Tdc's") - tdc_time.pop().expect("Please get at least 02 Tdc's")
+        }
+        
+        fn get_counter(&self) -> usize {
+            let counter = self.data.iter()
+                .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
+                .count();
+            counter
+        }
+
+        fn get_lastime(&self) -> f64 {
+            0.0
+        }
+
+        fn get_begintime(&self) -> f64 {
+            0.0
+        }
+    }
+
+
     pub fn search_any_tdc(data: &[u8], tdc_vec: &mut Vec<(f64, TdcType)>, last_ci: &mut usize) {
         use crate::packetlib::{Packet, PacketEELS};
+
+        let tdc_test = TdcSearch{data: Vec::new(), how_many: 5, tdc_choosen: TdcType::TdcOneRisingEdge};
+        tdc_test.check_tdc();
+        tdc_test.find_high_time();
         
         let file_data = data;
         let mut packet_chunks = file_data.chunks_exact(8);
