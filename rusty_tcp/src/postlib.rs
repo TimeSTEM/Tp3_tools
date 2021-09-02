@@ -402,10 +402,9 @@ pub mod time_resolved {
         pub spec_bin: Option<usize>,
         pub tdc_search: tdcvec::TdcSearch,
         pub tdc_periodic: Option<PeriodicTdcRef>,
-        pub tdc_start_frame: Option<f64>,
-        pub tdc_period: Option<f64>,
-        pub tdc_low_time: Option<f64>,
-        pub tdc_timelist: Vec<(f64, TdcType)>,
+        //pub tdc_start_frame: Option<f64>,
+        //pub tdc_period: Option<f64>,
+        //pub tdc_low_time: Option<f64>,
         pub tdc_type: TdcType,
         pub tdc_counter: usize,
     }
@@ -455,20 +454,20 @@ pub mod time_resolved {
         }
 
         fn add_tdc(&mut self, packet: &Pack) {
-            if let ( None, None, None, Some(tdc_found) ) = ( self.tdc_start_frame, self.tdc_period, self.tdc_low_time, TdcType::associate_value_to_enum(packet.tdc_type()) ) {
-                self.tdc_timelist.push( (packet.tdc_time_norm(), tdc_found) );
+            //if let ( None, None, None, Some(tdc_found) ) = ( self.tdc_start_frame, self.tdc_period, self.tdc_low_time, TdcType::associate_value_to_enum(packet.tdc_type()) ) {
+            if let None = self.tdc_periodic {
                 self.tdc_search.add_tdc(packet);
                 if self.tdc_search.check_tdc() {
-                    if let None = self.tdc_periodic {
-                        self.tdc_periodic = PeriodicTdcRef::postprocessing_new(&self.tdc_search);
-                    }
+                    self.tdc_periodic = PeriodicTdcRef::postprocessing_new(&self.tdc_search);
+                    //if let None = self.tdc_periodic {
+                    //}
 
 
-                    self.tdc_start_frame = Some(self.tdc_search.get_begintime());
-                    self.tdc_period = Some(self.tdc_search.find_period());
-                    let tdc_high_time = self.tdc_search.find_high_time();
-                    self.tdc_low_time = Some(self.tdc_period.unwrap() - tdc_high_time);
-                    println!("Start frame (us) is {:?}. Period (us) is {:?} and low time (us) is {:?}", self.tdc_start_frame.unwrap()*1e6, self.tdc_period.unwrap()*1e6, self.tdc_low_time.unwrap()*1e6);
+                    //self.tdc_start_frame = Some(self.tdc_search.get_begintime());
+                    //self.tdc_period = Some(self.tdc_search.find_period());
+                    //let tdc_high_time = self.tdc_search.find_high_time();
+                    //self.tdc_low_time = Some(self.tdc_period.unwrap() - tdc_high_time);
+                    //println!("Start frame (us) is {:?}. Period (us) is {:?} and low time (us) is {:?}", self.tdc_start_frame.unwrap()*1e6, self.tdc_period.unwrap()*1e6, self.tdc_low_time.unwrap()*1e6);
                 }
             }
 
@@ -476,9 +475,12 @@ pub mod time_resolved {
             //multiple of 2 and use the FPGA counter.
             if packet.tdc_type() == self.tdc_type.associate_value() {
                 self.tdc_counter += 1;
-                //if self.tdc_counter % self.spimy == 0 {
                 if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
-                    self.tdc_start_frame = Some(packet.tdc_time_norm());
+                    match self.tdc_periodic {
+                        None => {},
+                        Some(mut val) => {val.begin = packet.tdc_time_norm()},
+                    }
+                    //self.tdc_start_frame = Some(packet.tdc_time_norm());
                 };
             }
 
@@ -527,7 +529,7 @@ pub mod time_resolved {
 
         fn display_info(&self) -> Result<(), ErrorType> {
             let number = self.counter.iter().sum::<usize>();
-            println!("Total number of spims are: {}. Total number of electrons are: {}. Electrons / spim are {}. First electron detected at {:?}. TDC period (us) is {}. TDC low time (us) is {}. Output is image: {}. Scanx, Scany and Spec_bin is {:?}, {:?} and {:?} (must be all None is is_image).", self.spectra.len(), number, number / self.spectra.len(), self.initial_time, self.tdc_period.unwrap()*1e6, self.tdc_low_time.unwrap()*1e6, self.is_image, self.scanx, self.scany, self.spec_bin);
+            println!("Total number of spims are: {}. Total number of electrons are: {}. Electrons / spim are {}. First electron detected at {:?}. TDC period (us) is {}. TDC low time (us) is {}. Output is image: {}. Scanx, Scany and Spec_bin is {:?}, {:?} and {:?} (must be all None is is_image).", self.spectra.len(), number, number / self.spectra.len(), self.initial_time, self.tdc_periodic.expect("TDC periodic is None during display_info.").period*1e6, self.tdc_periodic.expect("TDC periodic is None during display_info.").low_time*1e6, self.is_image, self.scanx, self.scany, self.spec_bin);
             Ok(())
         }
     }
@@ -572,17 +574,21 @@ pub mod time_resolved {
                 folder: folder,
                 tdc_search: tdcvec::TdcSearch::new(tdc_type, 5),
                 tdc_periodic: None,
-                tdc_start_frame: None,
-                tdc_period: None,
-                tdc_low_time: None,
-                tdc_timelist: Vec::new(),
+                //tdc_start_frame: None,
+                //tdc_period: None,
+                //tdc_low_time: None,
+                //tdc_timelist: Vec::new(),
                 tdc_type: tdc_type,
                 tdc_counter: 0,
             })
         }
 
         fn spim_detector(&self, ele_time: f64) -> Option<usize> {
-            if let (Some(begin), Some(interval), Some(period)) = (self.tdc_start_frame, self.tdc_low_time, self.tdc_period) {
+            //if let (Some(begin), Some(interval), Some(period)) = (self.tdc_start_frame, self.tdc_low_time, self.tdc_period) {
+            if let Some(tdc_periodic) = &self.tdc_periodic {
+                let begin = tdc_periodic.begin;
+                let interval = tdc_periodic.low_time;
+                let period = tdc_periodic.period;
                 let ratio = (ele_time - begin) / period;
                 let ratio_inline = ratio.fract();
                 if ratio_inline > interval / period || ratio_inline.is_sign_negative() {

@@ -281,6 +281,7 @@ pub trait TdcControl {
     fn new(tdc_type: TdcType, sock: &mut TcpStream) -> Self;
 }
 
+#[derive(Copy, Clone)]
 pub struct PeriodicTdcRef {
     pub tdctype: u8,
     pub counter: usize,
