@@ -400,6 +400,7 @@ pub mod time_resolved {
         pub scany: Option<usize>,
         pub is_image: bool,
         pub spec_bin: Option<usize>,
+        pub tdc_search: tdcvec::TdcSearch,
         pub tdc_start_frame: Option<f64>,
         pub tdc_period: Option<f64>,
         pub tdc_low_time: Option<f64>,
@@ -455,6 +456,7 @@ pub mod time_resolved {
         fn add_tdc(&mut self, packet: &Pack) {
             if let ( None, None, None, Some(tdc_found) ) = ( self.tdc_start_frame, self.tdc_period, self.tdc_low_time, TdcType::associate_value_to_enum(packet.tdc_type()) ) {
                 self.tdc_timelist.push( (packet.tdc_time_norm(), tdc_found) );
+                self.tdc_search.add_tdc(packet);
                 println!("{}", packet.tdc_counter());
                 if tdcvec::check_tdc(&self.tdc_timelist, &self.tdc_type) {
                     self.tdc_start_frame = Some(tdcvec::get_begintime(&self.tdc_timelist, &self.tdc_type));
@@ -563,6 +565,7 @@ pub mod time_resolved {
                 is_image: is_image,
                 spec_bin: spec_bin,
                 folder: folder,
+                tdc_search: tdcvec::TdcSearch::new(tdc_type, 5),
                 tdc_start_frame: None,
                 tdc_period: None,
                 tdc_low_time: None,

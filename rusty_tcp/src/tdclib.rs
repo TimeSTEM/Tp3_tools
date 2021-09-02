@@ -26,7 +26,7 @@ pub mod tdcvec {
             }
         }
 
-        fn add_tdc(&mut self, packet: &Pack) {
+        pub fn add_tdc(&mut self, packet: &Pack) {
             let time = packet.tdc_time_norm();
             if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
                 self.data.push( (time, tdc) );
@@ -66,7 +66,6 @@ pub mod tdcvec {
 
 
         pub fn find_high_time(&self) -> f64 {
-
             let fal_tdc_type = match self.tdc_choosen {
                 TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
                 TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
