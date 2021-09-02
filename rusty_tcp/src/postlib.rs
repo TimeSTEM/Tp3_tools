@@ -459,15 +459,7 @@ pub mod time_resolved {
                 self.tdc_search.add_tdc(packet);
                 if self.tdc_search.check_tdc() {
                     self.tdc_periodic = PeriodicTdcRef::postprocessing_new(&self.tdc_search);
-                    //if let None = self.tdc_periodic {
-                    //}
-
-
-                    //self.tdc_start_frame = Some(self.tdc_search.get_begintime());
-                    //self.tdc_period = Some(self.tdc_search.find_period());
-                    //let tdc_high_time = self.tdc_search.find_high_time();
-                    //self.tdc_low_time = Some(self.tdc_period.unwrap() - tdc_high_time);
-                    //println!("Start frame (us) is {:?}. Period (us) is {:?} and low time (us) is {:?}", self.tdc_start_frame.unwrap()*1e6, self.tdc_period.unwrap()*1e6, self.tdc_low_time.unwrap()*1e6);
+                    println!("Start frame (us) is {:?}. Period (us) is {:?} and low time (us) is {:?}", self.tdc_periodic.unwrap().begin*1e6, self.tdc_periodic.unwrap().period*1e6, self.tdc_periodic.unwrap().low_time*1e6);
                 }
             }
 
@@ -654,13 +646,5 @@ pub mod time_resolved {
                 },
             };
         };
-    }
-
-    #[cfg(test)]
-    mod tests {
-        #[test]
-        fn it_works() {
-            assert_eq!(2+2, 4);
-        }
     }
 }
