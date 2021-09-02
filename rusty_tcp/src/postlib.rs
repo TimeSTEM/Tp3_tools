@@ -457,11 +457,10 @@ pub mod time_resolved {
             if let ( None, None, None, Some(tdc_found) ) = ( self.tdc_start_frame, self.tdc_period, self.tdc_low_time, TdcType::associate_value_to_enum(packet.tdc_type()) ) {
                 self.tdc_timelist.push( (packet.tdc_time_norm(), tdc_found) );
                 self.tdc_search.add_tdc(packet);
-                println!("{}", packet.tdc_counter());
-                if tdcvec::check_tdc(&self.tdc_timelist, &self.tdc_type) {
-                    self.tdc_start_frame = Some(tdcvec::get_begintime(&self.tdc_timelist, &self.tdc_type));
-                    self.tdc_period = Some(tdcvec::find_period(&self.tdc_timelist, &self.tdc_type));
-                    let tdc_high_time = tdcvec::find_high_time(&self.tdc_timelist, &self.tdc_type);
+                if self.tdc_search.check_tdc() {
+                    self.tdc_start_frame = Some(self.tdc_search.get_begintime());
+                    self.tdc_period = Some(self.tdc_search.find_period());
+                    let tdc_high_time = self.tdc_search.find_high_time();
                     self.tdc_low_time = Some(self.tdc_period.unwrap() - tdc_high_time);
                     println!("Start frame (us) is {:?}. Period (us) is {:?} and low time (us) is {:?}", self.tdc_start_frame.unwrap()*1e6, self.tdc_period.unwrap()*1e6, self.tdc_low_time.unwrap()*1e6);
                 }
