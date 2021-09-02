@@ -313,6 +313,7 @@ impl TdcControl for PeriodicTdcRef {
         Some(self.period)
     }
 
+
     fn new(tdc_type: TdcType, sock: &mut TcpStream) -> Self {
         let mut buffer_pack_data = vec![0; 16384];
         let mut ci = 0usize;
@@ -355,9 +356,30 @@ impl TdcControl for PeriodicTdcRef {
             time: last_time,
         }
     }
-
-
 }
+
+impl PeriodicTdcRef {
+
+    pub fn postprocessing_new(tdc_search: &tdcvec::TdcSearch) -> Option<Self> {
+        let counter = tdc_search.get_counter();
+        let begin_time = tdc_search.get_begintime();
+        let last_time = tdc_search.get_lasttime();
+        let high_time = tdc_search.find_high_time();
+        let period = tdc_search.find_period();
+        let low_time = period - high_time;
+        Some(Self {
+            tdctype: tdc_search.tdc_choosen.associate_value(),
+            counter: counter,
+            begin: begin_time,
+            period: period,
+            high_time: high_time,
+            low_time: low_time,
+            time: last_time,
+        })
+    }
+}
+
+
 
 pub struct NonPeriodicTdcRef {
     pub tdctype: u8,

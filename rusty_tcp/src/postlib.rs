@@ -255,7 +255,7 @@ pub mod coincidence {
 
 pub mod time_resolved {
     use crate::packetlib::{Packet, PacketEELS as Pack};
-    use crate::tdclib::{tdcvec, TdcType};
+    use crate::tdclib::{tdcvec, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
     use std::fs;
 
@@ -401,6 +401,7 @@ pub mod time_resolved {
         pub is_image: bool,
         pub spec_bin: Option<usize>,
         pub tdc_search: tdcvec::TdcSearch,
+        pub tdc_periodic: Option<PeriodicTdcRef>,
         pub tdc_start_frame: Option<f64>,
         pub tdc_period: Option<f64>,
         pub tdc_low_time: Option<f64>,
@@ -458,6 +459,11 @@ pub mod time_resolved {
                 self.tdc_timelist.push( (packet.tdc_time_norm(), tdc_found) );
                 self.tdc_search.add_tdc(packet);
                 if self.tdc_search.check_tdc() {
+                    if let None = self.tdc_periodic {
+                        self.tdc_periodic = PeriodicTdcRef::postprocessing_new(&self.tdc_search);
+                    }
+
+
                     self.tdc_start_frame = Some(self.tdc_search.get_begintime());
                     self.tdc_period = Some(self.tdc_search.find_period());
                     let tdc_high_time = self.tdc_search.find_high_time();
@@ -565,6 +571,7 @@ pub mod time_resolved {
                 spec_bin: spec_bin,
                 folder: folder,
                 tdc_search: tdcvec::TdcSearch::new(tdc_type, 5),
+                tdc_periodic: None,
                 tdc_start_frame: None,
                 tdc_period: None,
                 tdc_low_time: None,
