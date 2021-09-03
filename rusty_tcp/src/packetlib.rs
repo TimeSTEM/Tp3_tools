@@ -1,36 +1,28 @@
 //!`packetlib` is a collection of tools to facilitate manipulation of individual TP3 packets. Module is built
 //!in around `Packet` struct.
 
-const DEAD_PIXELS: usize = 5;
-
 pub trait Packet {
     fn ci(&self) -> usize;
     fn data(&self) -> &[u8];
-    fn x(&self) -> Option<usize> {
+    fn x(&self) -> usize {
         let temp = ((((self.data()[6] & 224))>>4 | ((self.data()[7] & 15))<<4) | (((self.data()[5] & 112)>>4)>>2)) as usize;
-        if temp<DEAD_PIXELS || temp>255-DEAD_PIXELS {
-            return None
-        }
         match self.ci() {
-            0 => Some(255 - temp),
-            1 => Some(256 * 4 - 1 - temp),
-            2 => Some(256 * 3 - 1 - temp),
-            3 => Some(256 * 2 - 1 - temp),
-            _ => None,
+            0 => 255 - temp,
+            1 => 256 * 4 - 1 - temp,
+            2 => 256 * 3 - 1 - temp,
+            3 => 256 * 2 - 1 - temp,
+            _ => panic!("More than four CI."),
         }
     }
     
-    fn x_raw(&self) -> Option<usize> {
+    fn x_raw(&self) -> usize {
         let x = ((((self.data()[6] & 224))>>4 | ((self.data()[7] & 15))<<4) | ((self.data()[5] & 64)>>6)) as usize;
-        if x<DEAD_PIXELS || x>255-DEAD_PIXELS {
-            return None
-        }
-        Some(x)
+        x
     }
     
-    fn y(&self) -> Option<usize> {
+    fn y(&self) -> usize {
         let y = (   ( ((self.data()[5] & 128))>>5 | ((self.data()[6] & 31))<<3 ) | ( (((self.data()[5] & 112)>>4)) & 3 )   ) as usize;
-        Some(y)
+        y
     }
 
     fn id(&self) -> u8 {
@@ -136,31 +128,25 @@ impl<'a> Packet for PacketDiffraction<'a> {
     fn data(&self) -> &[u8] {
         self.data
     }
-    fn x(&self) -> Option<usize> {
+    fn x(&self) -> usize {
         let temp = ((((self.data[6] & 224))>>4 | ((self.data[7] & 15))<<4) | (((self.data[5] & 112)>>4)>>2)) as usize;
-        if temp<DEAD_PIXELS || temp>255-DEAD_PIXELS {
-            return None
-        }
         match self.chip_index {
-            0 => Some(255 - temp),
-            1 => Some(temp),
-            2 => Some(temp + 256),
-            3 => Some(256 * 2 - 1 - temp),
-            _ => None,
+            0 => 255 - temp,
+            1 => temp,
+            2 => temp + 256,
+            3 => 256 * 2 - 1 - temp,
+            _ => panic!("More than four CI."),
         }
     }
 
-    fn y(&self) -> Option<usize> {
+    fn y(&self) -> usize {
         let temp = (   ( ((self.data[5] & 128))>>5 | ((self.data[6] & 31))<<3 ) | ( (((self.data[5] & 112)>>4)) & 3 )   ) as usize;
-        if temp<DEAD_PIXELS || temp>255-DEAD_PIXELS {
-            return None
-        }
         match self.chip_index {
-            0 => Some(temp),
-            1 => Some(256 * 2 - 1 - temp),
-            2 => Some(256 * 2 - 1 - temp),
-            3 => Some(temp),
-            _ => None,
+            0 => temp,
+            1 => 256 * 2 - 1 - temp,
+            2 => 256 * 2 - 1 - temp,
+            3 => temp,
+            _ => panic!("More than four CI."),
         }
     }
 }

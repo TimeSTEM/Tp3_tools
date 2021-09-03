@@ -207,7 +207,7 @@ pub mod coincidence {
 
 
         fn add_electron(&mut self, my_pack: &Pack) {
-            self.electron.push((my_pack.electron_time(), my_pack.x().unwrap(), my_pack.y().unwrap(), my_pack.tot()));
+            self.electron.push((my_pack.electron_time(), my_pack.x(), my_pack.y(), my_pack.tot()));
         }
 
         fn sort(&mut self) {
@@ -239,9 +239,7 @@ pub mod coincidence {
                             temp_tdc.add_tdc(&packet);
                         },
                         11 => {
-                            if let (Some(_), Some(_)) = (packet.x(), packet.y()) {
-                                temp_edata.add_electron(&packet);
-                            }
+                            temp_edata.add_electron(&packet);
                         },
                         _ => {},
                     };
@@ -309,12 +307,9 @@ pub mod time_resolved {
                     self.spectra.push([0; 1024]);
                     self.counter.push(0);
                 }
-                match packet.x() {
-                    Some(x) if x>self.min && x<self.max => {
-                        self.spectra[vec_index][x] += 1;
-                        self.counter[vec_index] += 1;
-                    },
-                    _ => {},
+                if packet.x()>self.min && packet.x()<self.max {
+                    self.spectra[vec_index][packet.x()] += 1;
+                    self.counter[vec_index] += 1;
                 };
             }
         }
@@ -450,10 +445,9 @@ pub mod time_resolved {
                     self.expand_data();
                     self.counter.push(0);
                 }
-                //match (packet.x(), self.spim_detector(packet.electron_time() - VIDEO_TIME)) {
-                match (packet.x(), self.spim_detector(corrected_el - VIDEO_TIME)) {
-                    (Some(x), Some(array_pos)) if x>self.min && x<self.max => {
-                        self.append_electron(vec_index, array_pos, x);
+                match self.spim_detector(corrected_el - VIDEO_TIME) {
+                    Some(array_pos) if packet.x()>self.min && packet.x()<self.max => {
+                        self.append_electron(vec_index, array_pos, packet.x());
                         self.counter[vec_index] += 1;
                     },
                     _ => {},

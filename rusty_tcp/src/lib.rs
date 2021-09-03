@@ -150,26 +150,23 @@ pub mod modes {
                     let id = packet.id();
                     match id {
                         11 if ref_tdc.period().is_none() => {
-                            if let Some(x) = packet.x() {
-                                let ele_time = packet.electron_time() - VIDEO_TIME;
-                                if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings) {
-                                    //list.upt((ele_time, x, array_pos+x, id));
-                                    list.upt(array_pos+x);
-                                }
+                            let ele_time = packet.electron_time() - VIDEO_TIME;
+                            if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings) {
+                                //list.upt((ele_time, x, array_pos+x, id));
+                                list.upt(array_pos+packet.x());
                             }
                         },
                         11 if ref_tdc.period().is_some() => {
-                            if let Some(x) = packet.x() {
-                                let mut ele_time = packet.electron_time();
-                                if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
-                                    ele_time -= VIDEO_TIME;
-                                    if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
-                                        let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
-                                        let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
-                                        let array_pos = x + line + xpos;
-                                        //list.upt((ele_time, x, array_pos, id));
-                                        list.upt(array_pos+x);
-                                    }
+                            let mut ele_time = packet.electron_time();
+                            if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
+                                ele_time -= VIDEO_TIME;
+                                if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
+                                    let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
+                                    let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
+                                    let array_pos = packet.x() + line + xpos;
+                                    // This is OUTDATED
+                                    //list.upt((ele_time, packet.x(), array_pos, id));
+                                    list.upt(array_pos+packet.x());
                                 }
                             }
                         },
@@ -277,24 +274,19 @@ pub mod modes {
                     
                     match packet.id() {
                         11 if ref_tdc.period().is_none() => {
-                            if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
-                                let array_pos = match settings.bin {
-                                    false => x + CAM_DESIGN.0*y,
-                                    true => x
-                                };
-                                append_to_array(final_data, array_pos, settings.bytedepth);
-                                
-                            }
+                            let array_pos = match settings.bin {
+                                false => packet.x() + CAM_DESIGN.0*packet.y(),
+                                true => packet.x()
+                            };
+                            append_to_array(final_data, array_pos, settings.bytedepth);
                         },
                         11 if ref_tdc.period().is_some() => {
-                            if let (Some(x), Some(y)) = (packet.x(), packet.y()) {
-                                if let Some(_backtdc) = tr_check_if_in(packet.electron_time(), ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
-                                    let array_pos = match settings.bin {
-                                        false => x + CAM_DESIGN.0*y,
-                                        true => x
-                                    };
-                                    append_to_array(final_data, array_pos, settings.bytedepth);
-                                }
+                            if let Some(_backtdc) = tr_check_if_in(packet.electron_time(), ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
+                                let array_pos = match settings.bin {
+                                    false => packet.x() + CAM_DESIGN.0*packet.y(),
+                                    true => packet.x()
+                                };
+                                append_to_array(final_data, array_pos, settings.bytedepth);
                             }
                         },
                         6 if packet.tdc_type() == frame_tdc.id() => {
