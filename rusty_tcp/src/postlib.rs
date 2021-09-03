@@ -255,7 +255,7 @@ pub mod coincidence {
 
 pub mod time_resolved {
     use crate::packetlib::{Packet, PacketEELS as Pack};
-    use crate::tdclib::{tdcvec, TdcType, PeriodicTdcRef};
+    use crate::tdclib::{tdcvec, TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
     use std::fs;
 
@@ -271,6 +271,7 @@ pub mod time_resolved {
     const VIDEO_TIME: f64 = 0.000005;
 
     pub trait TimeTypes {
+        fn prepare(&mut self, file: &mut fs::File);
         fn add_packet(&mut self, packet: &Pack);
         fn add_tdc(&mut self, packet: &Pack);
         fn output(&self) -> Result<(), ErrorType>;
@@ -293,6 +294,9 @@ pub mod time_resolved {
     }
 
     impl TimeTypes for TimeSpectral {
+        fn prepare(&mut self, file: &mut fs::File) {
+        }
+
         fn add_packet(&mut self, packet: &Pack) {
             self.initial_time = match self.initial_time {
                 Some(t) => {Some(t)},
@@ -402,14 +406,16 @@ pub mod time_resolved {
         pub spec_bin: Option<usize>,
         pub tdc_search: tdcvec::TdcSearch,
         pub tdc_periodic: Option<PeriodicTdcRef>,
-        //pub tdc_start_frame: Option<f64>,
-        //pub tdc_period: Option<f64>,
-        //pub tdc_low_time: Option<f64>,
         pub tdc_type: TdcType,
         pub tdc_counter: usize,
     }
     
     impl TimeTypes for TimeSpectralSpatial {
+        fn prepare(&mut self, file: &mut fs::File) {
+            self.tdc_periodic = Some(PeriodicTdcRef::new(self.tdc_type, file));
+            println!("Start frame (us) is {:?}. Period (us) is {:?} and low time (us) is {:?}", self.tdc_periodic.unwrap().begin*1e6, self.tdc_periodic.unwrap().period*1e6, self.tdc_periodic.unwrap().low_time*1e6);
+        }
+        
         fn add_packet(&mut self, packet: &Pack) {
 
             //Getting Initial Time
@@ -454,7 +460,6 @@ pub mod time_resolved {
         }
 
         fn add_tdc(&mut self, packet: &Pack) {
-            //if let ( None, None, None, Some(tdc_found) ) = ( self.tdc_start_frame, self.tdc_period, self.tdc_low_time, TdcType::associate_value_to_enum(packet.tdc_type()) ) {
             if let None = self.tdc_periodic {
                 self.tdc_search.add_tdc(packet);
                 if self.tdc_search.check_tdc() {
@@ -576,11 +581,11 @@ pub mod time_resolved {
         }
 
         fn spim_detector(&self, ele_time: f64) -> Option<usize> {
-            //if let (Some(begin), Some(interval), Some(period)) = (self.tdc_start_frame, self.tdc_low_time, self.tdc_period) {
-            if let Some(tdc_periodic) = &self.tdc_periodic {
+            if let Some(tdc_periodic) = self.tdc_periodic {
                 let begin = tdc_periodic.begin;
                 let interval = tdc_periodic.low_time;
                 let period = tdc_periodic.period;
+               
                 let ratio = (ele_time - begin) / period;
                 let ratio_inline = ratio.fract();
                 if ratio_inline > interval / period || ratio_inline.is_sign_negative() {
@@ -619,6 +624,12 @@ pub mod time_resolved {
 
     pub fn analyze_data(file: &str, data: &mut TimeSet) {
         let mut file = fs::File::open(file).expect("Could not open desired file.");
+
+        for each in data.set.iter_mut() {
+            //each.prepare(file);
+        }
+
+
         let mut buffer: Vec<u8> = Vec::new();
         file.read_to_end(&mut buffer).expect("Could not write file on buffer.");
 

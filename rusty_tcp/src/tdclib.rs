@@ -278,7 +278,7 @@ pub trait TdcControl {
     fn counter(&self) -> usize;
     fn time(&self) -> f64;
     fn period(&self) -> Option<f64>;
-    fn new(tdc_type: TdcType, sock: &mut TcpStream) -> Self;
+    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Self;
 }
 
 #[derive(Copy, Clone)]
@@ -315,7 +315,7 @@ impl TdcControl for PeriodicTdcRef {
     }
 
 
-    fn new(tdc_type: TdcType, sock: &mut TcpStream) -> Self {
+    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Self {
         let mut buffer_pack_data = vec![0; 16384];
         let mut ci = 0usize;
         let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 5);
@@ -378,6 +378,7 @@ impl PeriodicTdcRef {
             time: last_time,
         })
     }
+    
 }
 
 
@@ -411,7 +412,7 @@ impl TdcControl for NonPeriodicTdcRef {
         None
     }
     
-    fn new(tdc_type: TdcType, _sock: &mut TcpStream) -> Self {
+    fn new<T: Read>(tdc_type: TdcType, _sock: &mut T) -> Self {
         Self {
             tdctype: tdc_type.associate_value(),
             counter: 0,
@@ -452,7 +453,7 @@ impl TdcControl for NonPeriodicTdcRefMonitor {
     fn period(&self) -> Option<f64> {
         None
     }
-    fn new(tdc_type: TdcType, _sock: &mut TcpStream) -> Self {
+    fn new<T: Read>(tdc_type: TdcType, _sock: &mut T) -> Self {
         Self {
             tdctype: tdc_type.associate_value(),
             counter: 0,
@@ -486,7 +487,7 @@ impl TdcControl for NoTdcRef {
         None
     }
 
-    fn new(_tdc_type: TdcType, _sock: &mut TcpStream) -> Self {
+    fn new<T: Read>(_tdc_type: TdcType, _sock: &mut T) -> Self {
         Self {}
     }
 }
