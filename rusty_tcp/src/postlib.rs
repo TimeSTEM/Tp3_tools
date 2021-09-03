@@ -255,7 +255,7 @@ pub mod coincidence {
 
 pub mod time_resolved {
     use crate::packetlib::{Packet, PacketEELS as Pack};
-    use crate::tdclib::{tdcvec, TdcControl, TdcType, PeriodicTdcRef};
+    use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
     use std::fs;
 
@@ -294,7 +294,7 @@ pub mod time_resolved {
     }
 
     impl TimeTypes for TimeSpectral {
-        fn prepare(&mut self, file: &mut fs::File) {
+        fn prepare(&mut self, _file: &mut fs::File) {
         }
 
         fn add_packet(&mut self, packet: &Pack) {
@@ -404,7 +404,6 @@ pub mod time_resolved {
         pub scany: Option<usize>,
         pub is_image: bool,
         pub spec_bin: Option<usize>,
-        pub tdc_search: tdcvec::TdcSearch,
         pub tdc_periodic: Option<PeriodicTdcRef>,
         pub tdc_type: TdcType,
         pub tdc_counter: usize,
@@ -412,7 +411,10 @@ pub mod time_resolved {
     
     impl TimeTypes for TimeSpectralSpatial {
         fn prepare(&mut self, file: &mut fs::File) {
-            self.tdc_periodic = Some(PeriodicTdcRef::new(self.tdc_type, file));
+            self.tdc_periodic = match self.tdc_periodic {
+                None => Some(PeriodicTdcRef::new(self.tdc_type, file)),
+                Some(val) => Some(val),
+            };
             println!("Start frame (us) is {:?}. Period (us) is {:?} and low time (us) is {:?}", self.tdc_periodic.unwrap().begin*1e6, self.tdc_periodic.unwrap().period*1e6, self.tdc_periodic.unwrap().low_time*1e6);
         }
         
@@ -460,14 +462,6 @@ pub mod time_resolved {
         }
 
         fn add_tdc(&mut self, packet: &Pack) {
-            if let None = self.tdc_periodic {
-                self.tdc_search.add_tdc(packet);
-                if self.tdc_search.check_tdc() {
-                    self.tdc_periodic = PeriodicTdcRef::postprocessing_new(&self.tdc_search);
-                    println!("Start frame (us) is {:?}. Period (us) is {:?} and low time (us) is {:?}", self.tdc_periodic.unwrap().begin*1e6, self.tdc_periodic.unwrap().period*1e6, self.tdc_periodic.unwrap().low_time*1e6);
-                }
-            }
-
             //Synchronizing clocks using two different approaches. It is always better to use a
             //multiple of 2 and use the FPGA counter.
             if packet.tdc_type() == self.tdc_type.associate_value() {
@@ -569,12 +563,7 @@ pub mod time_resolved {
                 is_image: is_image,
                 spec_bin: spec_bin,
                 folder: folder,
-                tdc_search: tdcvec::TdcSearch::new(tdc_type, 5),
                 tdc_periodic: None,
-                //tdc_start_frame: None,
-                //tdc_period: None,
-                //tdc_low_time: None,
-                //tdc_timelist: Vec::new(),
                 tdc_type: tdc_type,
                 tdc_counter: 0,
             })
@@ -626,7 +615,7 @@ pub mod time_resolved {
         let mut file = fs::File::open(file).expect("Could not open desired file.");
 
         for each in data.set.iter_mut() {
-            //each.prepare(file);
+            each.prepare(&mut file);
         }
 
 

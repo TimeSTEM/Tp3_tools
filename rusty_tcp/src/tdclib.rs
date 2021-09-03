@@ -1,7 +1,6 @@
 //!`tdclib` is a collection of tools to facilitate manipulation and choice of tdcs. Module is built
 //!in around `TdcType` enum.
 
-use std::net::TcpStream;
 use std::io::Read;
 
 pub mod tdcvec {
@@ -26,7 +25,7 @@ pub mod tdcvec {
             }
         }
 
-        pub fn add_tdc(&mut self, packet: &Pack) {
+        fn add_tdc(&mut self, packet: &Pack) {
             let time = packet.tdc_time_norm();
             if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
                 self.data.push( (time, tdc) );
@@ -38,6 +37,7 @@ pub mod tdcvec {
                 }
             }
         }
+        
 
 
         pub fn check_tdc(&self) -> bool {
