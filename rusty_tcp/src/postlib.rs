@@ -407,10 +407,12 @@ pub mod time_resolved {
     impl TimeTypes for TimeSpectralSpatial {
         fn prepare(&mut self, file: &mut fs::File) {
             self.tdc_periodic = match self.tdc_periodic {
-                None => Some(PeriodicTdcRef::new(self.tdc_type, file)),
+                None => {
+                    let val = Some(PeriodicTdcRef::new(self.tdc_type, file));
+                    val
+                },
                 Some(val) => Some(val),
             };
-            println!("Start frame (us) is {:?}. Period (us) is {:?} and low time (us) is {:?}", self.tdc_periodic.unwrap().begin*1e6, self.tdc_periodic.unwrap().period*1e6, self.tdc_periodic.unwrap().low_time*1e6);
         }
         
         fn add_packet(&mut self, packet: &Pack) {
@@ -490,6 +492,8 @@ pub mod time_resolved {
                 folder.push_str(&self.scanx.unwrap().to_string());
                 folder.push_str("_");
                 folder.push_str(&self.scany.unwrap().to_string());
+                folder.push_str("_");
+                folder.push_str(&self.spec_bin.unwrap().to_string());
             } else {
                 folder.push_str("_spim");
             }

@@ -3,7 +3,7 @@ use timepix3::tdclib::TdcType;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
-    let time = 1e7 as usize;
+    let time = 1e8 as usize;
     
     /*
     let mut specs = TimeSet {
@@ -22,12 +22,21 @@ fn main() -> Result<(), ErrorType> {
     };
     */
     
-    let spim_size = 512;
+    let spim_size = 32;
+    let first = 54;
+    let second = 103;
+    let carbon = 670;
+    let calcium = 801;
 
     let mut specs = TimeSet {
         set:
-            vec![Box::new(TimeSpectralSpatial::new(time, 200, 300, spim_size, spim_size, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?),
-            Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, Some((256, 256, 256)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?)],
+            vec![Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?),
+            Box::new(TimeSpectralSpatial::new(time, first-5, first+5, spim_size, spim_size, Some((16, 16, 256)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?),
+            Box::new(TimeSpectralSpatial::new(time, first-5, first+5, spim_size, spim_size, Some((16, 16, 3)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?),
+            Box::new(TimeSpectralSpatial::new(time, second-5, second+5, spim_size, spim_size, Some((16, 16, 256)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?),
+            Box::new(TimeSpectralSpatial::new(time, carbon-5, carbon+30, spim_size, spim_size, Some((16, 16, 256)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?),
+            Box::new(TimeSpectralSpatial::new(time, calcium-5, calcium+12, spim_size, spim_size, Some((16, 16, 256)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?),
+            Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, Some((16, 16, 256)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?)],
             //Box::new(TimeSpectralSpatial::new(time, 656, 694, spim_size, spim_size, Some((24, 24, 120)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?)],
     };
 

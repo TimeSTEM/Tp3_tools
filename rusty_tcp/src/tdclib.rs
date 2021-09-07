@@ -346,7 +346,7 @@ impl TdcControl for PeriodicTdcRef {
         let period = tdcvec::find_period(&tdc_vec, &tdc_type);
         let low_time = period - high_time;
         */
-        println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ms) is {}. ON interval (ms) is {}. Period (ms) is {}.", tdc_type.associate_str(), counter, last_time*1.0e3, high_time*1.0e3, period*1.0e3);
+        println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ms) is {}. ON interval (us) is {}. Period (us) is {}. Low time (us) is {}.", tdc_type.associate_str(), counter, last_time*1.0e3, high_time*1.0e6, period*1.0e6, low_time*1.0e6);
         Self {
             tdctype: tdc_type.associate_value(),
             counter: counter,

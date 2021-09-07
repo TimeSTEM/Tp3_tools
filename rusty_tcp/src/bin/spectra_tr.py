@@ -3,11 +3,6 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import os
 
-minimum = 1
-maximum = 330
-step = 100
-
-#directory = "TimeSpectral_01"
 directory = "SpimTimeSpectral_position"
 
 for filename in os.listdir(directory):
@@ -27,7 +22,7 @@ for filename in os.listdir(directory):
 
     fig, ax = plt.subplots(1, 1, dpi=180, sharex=True)
     
-    spectra = [my_file[i*1024:(i+1)*1024] for i in numpy.linspace(0, number_spectra-2, 5, dtype=int)]
+    spectra = [my_file[i*1024:(i+1)*1024] for i in numpy.linspace(0, number_spectra, min(int(number_spectra/8), 25), dtype=int)]
     
     ax.set_xlabel("Energy (pixels)")
     ax.set_ylabel("Counts")
@@ -42,6 +37,6 @@ for filename in os.listdir(directory):
             spectra = [numpy.divide(my_file, 1)]
 
     [ax.plot(spectrum, label = str(index)) for (index, spectrum) in enumerate(spectra)]
-    plt.legend(fontsize=4)
+    plt.legend(fontsize=1)
     plt.tight_layout()
     plt.show()

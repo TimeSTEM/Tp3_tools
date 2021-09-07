@@ -4,7 +4,7 @@ import matplotlib.colors as mcolors
 from matplotlib.animation import FuncAnimation
 import os
 
-xspim = yspim = 512
+xspim = yspim = 32
 
 directory = "SpimTimeSpectral"
 
