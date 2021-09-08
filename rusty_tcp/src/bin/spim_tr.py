@@ -33,13 +33,15 @@ for filename in os.listdir(directory):
         spectra = [numpy.divide(my_file, full_spectra)]
     """
 
+    vmax = numpy.max(spectra)
+
     fig, ax = plt.subplots(1, 1, dpi=180, sharex=True, figsize=(8, 8))
-    im = ax.imshow(spectra[0])
+    im = ax.imshow(spectra[0], vmax=numpy.max(spectra), vmin=numpy.min(spectra))
 
     def animate_func(i):
-        im.set_array(spectra[i])
+        im.set_data(spectra[i])
         return [im]
 
     anim = FuncAnimation(fig, animate_func, frames=len(spectra)-1, interval=100)
-    anim.save("my_animation.gif", fps = 5)
+    anim.save(filename+".gif", fps = 5)
     plt.show()

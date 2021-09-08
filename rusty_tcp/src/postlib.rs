@@ -462,12 +462,17 @@ pub mod time_resolved {
             //multiple of 2 and use the FPGA counter.
             if packet.tdc_type() == self.tdc_type.associate_value() {
                 self.tdc_counter += 1;
-                if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
-                    match self.tdc_periodic {
+                //if let Some(my_tdc_periodic) = &mut self.tdc_periodic {
+                //    my_tdc_periodic.upt(packet.tdc_time_norm());
+                //};
+                //if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
+                if ((self.tdc_counter / 2) % self.spimy) == 0 {
+                    match &mut self.tdc_periodic {
                         None => {},
-                        Some(mut val) => {val.begin = packet.tdc_time_norm()},
+                        Some(my_tdc_periodic) => {
+                            my_tdc_periodic.begin = packet.tdc_time_norm();
+                        },
                     }
-                    //self.tdc_start_frame = Some(packet.tdc_time_norm());
                 };
             }
 
@@ -610,13 +615,13 @@ pub mod time_resolved {
 
 
     pub fn analyze_data(file: &str, data: &mut TimeSet) {
-        let mut file = fs::File::open(file).expect("Could not open desired file.");
 
         for each in data.set.iter_mut() {
+            let mut file = fs::File::open(file).expect("Could not open desired file.");
             each.prepare(&mut file);
         }
 
-
+        let mut file = fs::File::open(file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = Vec::new();
         file.read_to_end(&mut buffer).expect("Could not write file on buffer.");
 

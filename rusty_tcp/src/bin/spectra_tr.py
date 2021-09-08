@@ -13,7 +13,7 @@ for filename in os.listdir(directory):
         print("Full spectra counter found. Will be used to normalized other counters.")
 
 
-for filename in os.listdir(directory):
+for fignumber, filename in enumerate(os.listdir(directory)):
 
     filename = os.path.join(directory, filename)
     my_file = numpy.loadtxt(filename, delimiter=',')
@@ -39,4 +39,5 @@ for filename in os.listdir(directory):
     [ax.plot(spectrum, label = str(index)) for (index, spectrum) in enumerate(spectra)]
     plt.legend(fontsize=1)
     plt.tight_layout()
+    plt.savefig(str(fignumber)+'.svg')
     plt.show()
