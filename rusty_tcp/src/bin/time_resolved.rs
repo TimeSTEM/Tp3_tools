@@ -22,6 +22,7 @@ fn main() -> Result<(), ErrorType> {
     };
     */
     
+    let line_offset = 22;
     let offset = 27;
     let spim_size = 32;
     let first = 54+offset;
@@ -35,8 +36,8 @@ fn main() -> Result<(), ErrorType> {
     let mut my_vec: Vec<Box<dyn TimeTypes>> = Vec::new();
     
     
-    my_vec.push(Box::new(TimeSpectralSpatial::new(1e9 as usize, 0, 1024, spim_size, spim_size, Some((spim_size/2, spim_size/2, spim_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/complete"))?));
-    my_vec.push(Box::new(TimeSpectralSpatial::new(1e9 as usize, 0, 1024, spim_size, spim_size, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?));
+    my_vec.push(Box::new(TimeSpectralSpatial::new(1e9 as usize, 0, 1024, spim_size, spim_size, line_offset, Some((spim_size/2, spim_size/2, spim_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/complete"))?));
+    my_vec.push(Box::new(TimeSpectralSpatial::new(1e9 as usize, 0, 1024, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?));
     
 
     /*

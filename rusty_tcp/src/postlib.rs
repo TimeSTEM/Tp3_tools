@@ -397,6 +397,7 @@ pub mod time_resolved {
         pub spimy: usize,
         pub scanx: Option<usize>,
         pub scany: Option<usize>,
+        pub line_offset: usize,
         pub is_image: bool,
         pub spec_bin: Option<usize>,
         pub tdc_periodic: Option<PeriodicTdcRef>,
@@ -416,40 +417,20 @@ pub mod time_resolved {
         }
         
         fn add_packet(&mut self, packet: &Pack) {
-
             //Getting Initial Time
             self.initial_time = match self.initial_time {
                 Some(t) => {Some(t)},
                 None => {Some(packet.electron_time())},
             };
 
-            /*
-            //Correcting Electron Time;
-            let el = packet.electron_time();
-            if el > 26.7 && self.cycle_trigger {
-                self.cycle_counter += 1.0;
-                self.cycle_trigger = false;
-            }
-            else if el > 0.1 && packet.electron_time() < 13.0 && !self.cycle_trigger {
-                self.cycle_trigger = true;
-            }
-            let corrected_el = if !self.cycle_trigger && (el + self.cycle_counter * Pack::electron_reset_time()) > ((0.5 + self.cycle_counter) * Pack::electron_reset_time()) {
-                el
-            } else {
-                el + self.cycle_counter * Pack::electron_reset_time()
-            };
-            */
-
             //Creating the array using the electron corrected time. Note that you dont need to use
             //it in the 'spim_detector' if you synchronize the clocks.
             if let Some(offset) = self.initial_time {
                 let vec_index = ((packet.electron_time()-offset) * 1.0e9) as usize / self.interval;
-                //let vec_index = ((corrected_el-offset) * 1.0e9) as usize / self.interval;
                 while self.spectra.len() < vec_index+1 {
                     self.expand_data();
                     self.counter.push(0);
                 }
-                //match self.spim_detector(corrected_el - VIDEO_TIME) {
                 match self.spim_detector(packet.electron_time() - VIDEO_TIME) {
                     Some(array_pos) if packet.x()>self.min && packet.x()<self.max => {
                         self.append_electron(vec_index, array_pos, packet.x());
@@ -465,25 +446,13 @@ pub mod time_resolved {
             //multiple of 2 and use the FPGA counter.
             if packet.tdc_type() == self.tdc_type.associate_value() {
                 self.tdc_counter += 1;
-                //if let Some(my_tdc_periodic) = &mut self.tdc_periodic {
-                //    my_tdc_periodic.upt(packet.tdc_time_norm());
-                //};
-                //if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
                 if ((self.tdc_counter) % self.spimy) == 0 {
                     match &mut self.tdc_periodic {
                         None => {},
-                        Some(my_tdc_periodic) => {
-                            //println!("{} and {} and {} and {}", packet.tdc_time_norm() - my_tdc_periodic.begin, packet.tdc_counter(), self.tdc_counter, self.spimy);
-                            let dif = packet.tdc_time_norm() - my_tdc_periodic.begin;
-                            if (dif - 0.00501).abs() > 0.1 {
-                                //println!("{} and {} and {} and {} and {} and {}", packet.tdc_time_norm() - my_tdc_periodic.begin, packet.tdc_counter(), self.tdc_counter, self.spimy, packet.tdc_time_norm(), my_tdc_periodic.begin);
-                            }
-                            my_tdc_periodic.begin = packet.tdc_time();
-                        },
+                        Some(my_tdc_periodic) => my_tdc_periodic.begin = packet.tdc_time(),
                     }
                 };
             }
-
         }
 
         fn output(&self) -> Result<(), ErrorType> {
@@ -538,7 +507,7 @@ pub mod time_resolved {
     
     impl TimeSpectralSpatial {
 
-        pub fn new(interval: usize, xmin: usize, xmax: usize, spimx: usize, spimy: usize, scan_parameters: Option<(usize, usize, usize)>, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
+        pub fn new(interval: usize, xmin: usize, xmax: usize, spimx: usize, spimy: usize, lineoffset: usize, scan_parameters: Option<(usize, usize, usize)>, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
             if xmax>1024 {return Err(ErrorType::OutOfBounds)};
             if xmin>xmax {return Err(ErrorType::MinGreaterThanMax)};
             let is_image = match scan_parameters {
@@ -571,6 +540,7 @@ pub mod time_resolved {
                 spimy: spimy,
                 scanx: scanx,
                 scany: scany,
+                line_offset: lineoffset,
                 is_image: is_image,
                 spec_bin: spec_bin,
                 folder: folder,
@@ -591,7 +561,7 @@ pub mod time_resolved {
                 if ratio_inline > interval / period || ratio_inline.is_sign_negative() {
                     None
                 } else {
-                    let line = ratio as usize % self.spimy;
+                    let line = (ratio as usize + self.line_offset) % self.spimy;
                     let xpos = (self.spimx as f64 * ratio_inline / (interval / period)) as usize;
                     let result = line * self.spimx + xpos;
                     match (self.scanx, self.scany, self.spec_bin) {
