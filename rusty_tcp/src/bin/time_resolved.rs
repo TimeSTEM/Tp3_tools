@@ -22,26 +22,56 @@ fn main() -> Result<(), ErrorType> {
     };
     */
     
+    let offset = 27;
     let spim_size = 32;
-    let first = 54;
-    let second = 103;
-    let carbon = 670;
-    let calcium = 801;
-    let cell_size = 5;
-    let posx = 13;
-    let posy = 13;
+    let first = 54+offset;
+    let second = 103+offset;
+    let carbon = 670+offset;
+    let calcium = 801+offset;
+    let cell_size = 8;
+    let posx = 25;
+    let posy = 25;
+
+    let mut my_vec: Vec<Box<dyn TimeTypes>> = Vec::new();
+    
+    
+    my_vec.push(Box::new(TimeSpectralSpatial::new(1e9 as usize, 0, 1024, spim_size, spim_size, Some((spim_size/2, spim_size/2, spim_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/complete"))?));
+    my_vec.push(Box::new(TimeSpectralSpatial::new(1e9 as usize, 0, 1024, spim_size, spim_size, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?));
+    
+
+    /*
+    for x in (0..spim_size+1).step_by(cell_size) {
+        my_vec.push(
+            Box::new(TimeSpectralSpatial::new(time, first-5, first+5, spim_size, spim_size, Some((x, x, cell_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/first"))?)
+            );
+        my_vec.push(
+            Box::new(TimeSpectralSpatial::new(time, second-5, second+5, spim_size, spim_size, Some((x, x, cell_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/second"))?)
+            );
+        my_vec.push(
+            Box::new(TimeSpectralSpatial::new(time, carbon-5, carbon+30, spim_size, spim_size, Some((x, x, cell_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/carbon"))?)
+            );
+        my_vec.push(
+            Box::new(TimeSpectralSpatial::new(time, calcium-5, calcium+15, spim_size, spim_size, Some((x, x, cell_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/calcium"))?)
+            );
+    }
+    my_vec.push(
+        Box::new(TimeSpectralSpatial::new(time, first-5, first+5, spim_size, spim_size, Some((spim_size/2, spim_size/2, spim_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/first"))?)
+        );
+    my_vec.push(
+        Box::new(TimeSpectralSpatial::new(time, second-5, second+5, spim_size, spim_size, Some((spim_size/2, spim_size/2, spim_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/second"))?)
+        );
+    my_vec.push(
+        Box::new(TimeSpectralSpatial::new(time, carbon-5, carbon+30, spim_size, spim_size, Some((spim_size/2, spim_size/2, spim_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/carbon"))?)
+        );
+    my_vec.push(
+        Box::new(TimeSpectralSpatial::new(time, calcium-5, calcium+15, spim_size, spim_size, Some((spim_size/2, spim_size/2, spim_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/calcium"))?)
+        );
+    */
+
+    
 
     let mut specs = TimeSet {
-        set:
-            vec![Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?),
-            Box::new(TimeSpectralSpatial::new(time, first-5, first+5, spim_size, spim_size, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?),
-            Box::new(TimeSpectralSpatial::new(time, second-5, second+5, spim_size, spim_size, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?),
-            Box::new(TimeSpectralSpatial::new(time, first-5, first+5, spim_size, spim_size, Some((posx, posy, cell_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?),
-            Box::new(TimeSpectralSpatial::new(time, second-5, second+5, spim_size, spim_size, Some((posx, posy, cell_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?),
-            Box::new(TimeSpectralSpatial::new(time, carbon-5, carbon+30, spim_size, spim_size, Some((posx, posy, cell_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?),
-            Box::new(TimeSpectralSpatial::new(time, calcium-5, calcium+12, spim_size, spim_size, Some((posx, posy, cell_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?),
-            Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, Some((16, 16, cell_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?)],
-            //Box::new(TimeSpectralSpatial::new(time, 656, 694, spim_size, spim_size, Some((24, 24, 120)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position"))?)],
+        set: my_vec,
     };
 
     let mut entries = fs::read_dir("Data").expect("Could not read the directory.");

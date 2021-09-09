@@ -423,6 +423,7 @@ pub mod time_resolved {
                 None => {Some(packet.electron_time())},
             };
 
+            /*
             //Correcting Electron Time;
             let el = packet.electron_time();
             if el > 26.7 && self.cycle_trigger {
@@ -437,17 +438,19 @@ pub mod time_resolved {
             } else {
                 el + self.cycle_counter * Pack::electron_reset_time()
             };
+            */
 
             //Creating the array using the electron corrected time. Note that you dont need to use
             //it in the 'spim_detector' if you synchronize the clocks.
             if let Some(offset) = self.initial_time {
-                //let vec_index = ((packet.electron_time()-offset) * 1.0e9) as usize / self.interval;
-                let vec_index = ((corrected_el-offset) * 1.0e9) as usize / self.interval;
+                let vec_index = ((packet.electron_time()-offset) * 1.0e9) as usize / self.interval;
+                //let vec_index = ((corrected_el-offset) * 1.0e9) as usize / self.interval;
                 while self.spectra.len() < vec_index+1 {
                     self.expand_data();
                     self.counter.push(0);
                 }
-                match self.spim_detector(corrected_el - VIDEO_TIME) {
+                //match self.spim_detector(corrected_el - VIDEO_TIME) {
+                match self.spim_detector(packet.electron_time() - VIDEO_TIME) {
                     Some(array_pos) if packet.x()>self.min && packet.x()<self.max => {
                         self.append_electron(vec_index, array_pos, packet.x());
                         self.counter[vec_index] += 1;
@@ -466,11 +469,16 @@ pub mod time_resolved {
                 //    my_tdc_periodic.upt(packet.tdc_time_norm());
                 //};
                 //if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
-                if ((self.tdc_counter / 2) % self.spimy) == 0 {
+                if ((self.tdc_counter) % self.spimy) == 0 {
                     match &mut self.tdc_periodic {
                         None => {},
                         Some(my_tdc_periodic) => {
-                            my_tdc_periodic.begin = packet.tdc_time_norm();
+                            //println!("{} and {} and {} and {}", packet.tdc_time_norm() - my_tdc_periodic.begin, packet.tdc_counter(), self.tdc_counter, self.spimy);
+                            let dif = packet.tdc_time_norm() - my_tdc_periodic.begin;
+                            if (dif - 0.00501).abs() > 0.1 {
+                                //println!("{} and {} and {} and {} and {} and {}", packet.tdc_time_norm() - my_tdc_periodic.begin, packet.tdc_counter(), self.tdc_counter, self.spimy, packet.tdc_time_norm(), my_tdc_periodic.begin);
+                            }
+                            my_tdc_periodic.begin = packet.tdc_time();
                         },
                     }
                 };
