@@ -462,6 +462,7 @@ pub mod time_resolved {
             if packet.tdc_type() == self.tdc_type.associate_value() {
                 self.tdc_counter += 1;
                 if ((self.tdc_counter) % self.spimy) == 0 {
+                //if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
                     match &mut self.tdc_periodic {
                         None => {},
                         Some(my_tdc_periodic) => my_tdc_periodic.begin = packet.tdc_time_norm(),
