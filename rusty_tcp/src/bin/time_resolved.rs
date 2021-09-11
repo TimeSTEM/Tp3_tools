@@ -35,17 +35,19 @@ fn main() -> Result<(), ErrorType> {
 
     let mut my_vec: Vec<Box<dyn TimeTypes>> = Vec::new();
     
-    
-    //my_vec.push(Box::new(TimeSpectralSpatial::new(4e8 as usize, carbon-5, calcium+15, spim_size, spim_size, line_offset, Some((spim_size/2, spim_size/2, spim_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/complete"))?));
+    my_vec.push(Box::new(TimeSpectralSpatial::new(1e10 as usize, 0, 1024, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("testSpim"))?));
+
+
     //my_vec.push(Box::new(TimeSpectralSpatial::new(1e9 as usize, 0, 1024, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?));
     //my_vec.push(Box::new(TimeSpectralSpatial::new(1e9 as usize, first-5, first+5, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?));
     //my_vec.push(Box::new(TimeSpectralSpatial::new(1e9 as usize, second-5, second+5, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?));
     //my_vec.push(Box::new(TimeSpectralSpatial::new(1e9 as usize, carbon-5, carbon+30, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?));
     //my_vec.push(Box::new(TimeSpectralSpatial::new(1e9 as usize, calcium-5, calcium+15, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?));
-    
 
+
+    //my_vec.push(Box::new(TimeSpectralSpatial::new(4e8 as usize, carbon-5, calcium+15, spim_size, spim_size, line_offset, Some((spim_size/2, spim_size/2, spim_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/complete"))?));
     let xx = vec![8, 20];
-    ///*
+    /*
     for x in xx {
         my_vec.push(
             Box::new(TimeSpectralSpatial::new(time, first-5, first+5, spim_size, spim_size, line_offset, Some((x, x, cell_size)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_position/first"))?)
@@ -76,7 +78,7 @@ fn main() -> Result<(), ErrorType> {
         );
     */
     
-    //*/
+    */
 
     
 

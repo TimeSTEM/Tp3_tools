@@ -399,6 +399,7 @@ pub mod time_resolved {
         pub scany: Option<usize>,
         pub line_offset: usize,
         pub is_image: bool,
+        pub is_spim: bool,
         pub spec_bin: Option<usize>,
         pub tdc_periodic: Option<PeriodicTdcRef>,
         pub tdc_type: TdcType,
@@ -485,7 +486,7 @@ pub mod time_resolved {
             folder.push_str(&self.min.to_string());
             folder.push_str("_");
             folder.push_str(&self.max.to_string());
-            if !self.is_image {
+            if !self.is_image && !self.is_spim {
                 folder.push_str("_");
                 folder.push_str(&self.scanx.unwrap().to_string());
                 folder.push_str("_");
@@ -493,7 +494,8 @@ pub mod time_resolved {
                 folder.push_str("_");
                 folder.push_str(&self.spec_bin.unwrap().to_string());
             } else {
-                folder.push_str("_spim");
+                if self.is_image {folder.push_str("_spim");}
+                else {folder.push_str("_spimComplete");}
             }
 
 
@@ -502,7 +504,7 @@ pub mod time_resolved {
                 return Err(ErrorType::FolderDoesNotExist);
             }
          
-            if !self.is_image {
+            if !self.is_image && !self.is_spim {
                 folder.push_str("_");
                 folder.push_str("counter");
                 let out = self.counter.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
@@ -516,7 +518,7 @@ pub mod time_resolved {
 
         fn display_info(&self) -> Result<(), ErrorType> {
             let number = self.counter.iter().sum::<usize>();
-            println!("Total number of spims are: {}. Total number of electrons are: {}. Electrons / spim are {}. First electron detected at {:?}. TDC period (us) is {}. TDC low time (us) is {}. Output is image: {}. Scanx, Scany and Spec_bin is {:?}, {:?} and {:?} (must be all None is is_image).", self.spectra.len(), number, number / self.spectra.len(), self.initial_time, self.tdc_periodic.expect("TDC periodic is None during display_info.").period*1e6, self.tdc_periodic.expect("TDC periodic is None during display_info.").low_time*1e6, self.is_image, self.scanx, self.scany, self.spec_bin);
+            println!("Total number of spims are: {}. Total number of electrons are: {}. Electrons / spim are {}. First electron detected at {:?}. TDC period (us) is {}. TDC low time (us) is {}. Output is image: {}. Scanx, Scany and Spec_bin is {:?}, {:?} and {:?} (must be all None is is_image). Is a complete spim: {}.", self.spectra.len(), number, number / self.spectra.len(), self.initial_time, self.tdc_periodic.expect("TDC periodic is None during display_info.").period*1e6, self.tdc_periodic.expect("TDC periodic is None during display_info.").low_time*1e6, self.is_image, self.scanx, self.scany, self.spec_bin, self.is_spim);
             Ok(())
         }
     }
@@ -526,9 +528,10 @@ pub mod time_resolved {
         pub fn new(interval: usize, xmin: usize, xmax: usize, spimx: usize, spimy: usize, lineoffset: usize, scan_parameters: Option<(usize, usize, usize)>, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
             if xmax>1024 {return Err(ErrorType::OutOfBounds)};
             if xmin>xmax {return Err(ErrorType::MinGreaterThanMax)};
-            let is_image = match scan_parameters {
-                None => true,
-                Some(_) => false,
+            let (is_image, is_spim) = match scan_parameters {
+                None if (xmin==0 && xmax==1024)  => (false, true),
+                Some(_) => (false, false),
+                _ => (true, false),
             };
             
             let (scanx, scany, spec_bin) = match scan_parameters {
@@ -558,6 +561,7 @@ pub mod time_resolved {
                 scany: scany,
                 line_offset: lineoffset,
                 is_image: is_image,
+                is_spim: is_spim,
                 spec_bin: spec_bin,
                 folder: folder,
                 tdc_periodic: None,
@@ -590,18 +594,26 @@ pub mod time_resolved {
         }
 
         fn expand_data(&mut self) {
-            if self.is_image {
-                self.spectra.push(vec![0; self.spimx*self.spimy]);
+            if self.is_spim {
+                self.spectra.push(vec![0; self.spimx*self.spimy*1024]);
             } else {
-                self.spectra.push(vec![0; 1024]);
+                if self.is_image {
+                    self.spectra.push(vec![0; self.spimx*self.spimy]);
+                } else {
+                    self.spectra.push(vec![0; 1024]);
+                }
             }
         }
 
         fn append_electron(&mut self, vec_index: usize, array_pos: usize, x: usize) {
-            if self.is_image {
-                self.spectra[vec_index][array_pos] += 1;
+            if self.is_spim {
+                self.spectra[vec_index][array_pos*1024+x] += 1;
             } else {
-                self.spectra[vec_index][x] += 1;
+                if self.is_image {
+                    self.spectra[vec_index][array_pos] += 1;
+                } else {
+                    self.spectra[vec_index][x] += 1;
+                }
             }
         }
     }
