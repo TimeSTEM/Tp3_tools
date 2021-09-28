@@ -101,6 +101,10 @@ pub mod tdcvec {
             counter
         }
 
+        pub fn get_counter_offset(&self) -> usize {
+            self.initial_counter.expect("***Tdc Lib***: Tdc initial counter offset was not found.")
+        }
+
         pub fn get_lasttime(&self) -> f64 {
             let last_time = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
@@ -285,7 +289,9 @@ pub trait TdcControl {
 pub struct PeriodicTdcRef {
     pub tdctype: u8,
     pub counter: usize,
+    pub counter_offset: usize,
     pub begin: f64,
+    pub begin_frame: f64,
     pub period: f64,
     pub high_time: f64,
     pub low_time: f64,
@@ -332,25 +338,21 @@ impl TdcControl for PeriodicTdcRef {
         }
         println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
         let counter = tdc_search.get_counter();
+        let counter_offset = tdc_search.get_counter_offset();
+        println!("***Tdc Lib***: Counter offset is {:?}", counter_offset);
         let begin_time = tdc_search.get_begintime();
         let last_time = tdc_search.get_lasttime();
         let high_time = tdc_search.find_high_time();
         let period = tdc_search.find_period();
         let low_time = period - high_time;
         
-        /*
-        //let counter = tdcvec::get_counter(&tdc_vec, &tdc_type);
-        let begin_time = tdcvec::get_begintime(&tdc_vec, &tdc_type);
-        let last_time = tdcvec::get_lasttime(&tdc_vec, &tdc_type);
-        let high_time = tdcvec::find_high_time(&tdc_vec, &tdc_type);
-        let period = tdcvec::find_period(&tdc_vec, &tdc_type);
-        let low_time = period - high_time;
-        */
         println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ms) is {}. ON interval (us) is {}. Period (us) is {}. Low time (us) is {}.", tdc_type.associate_str(), counter, last_time*1.0e3, high_time*1.0e6, period*1.0e6, low_time*1.0e6);
         Self {
             tdctype: tdc_type.associate_value(),
             counter: counter,
+            counter_offset: counter_offset,
             begin: begin_time,
+            begin_frame: begin_time,
             period: period,
             high_time: high_time,
             low_time: low_time,
@@ -363,6 +365,7 @@ impl PeriodicTdcRef {
 
     pub fn postprocessing_new(tdc_search: &tdcvec::TdcSearch) -> Option<Self> {
         let counter = tdc_search.get_counter();
+        let counter_offset = tdc_search.get_counter_offset();
         let begin_time = tdc_search.get_begintime();
         let last_time = tdc_search.get_lasttime();
         let high_time = tdc_search.find_high_time();
@@ -371,7 +374,9 @@ impl PeriodicTdcRef {
         Some(Self {
             tdctype: tdc_search.tdc_choosen.associate_value(),
             counter: counter,
+            counter_offset: counter_offset,
             begin: begin_time,
+            begin_frame: begin_time,
             period: period,
             high_time: high_time,
             low_time: low_time,
