@@ -138,7 +138,7 @@ pub mod modes {
         let mut packet_chunks = data.chunks_exact(8);
         let mut list = Output{ data: Vec::new() };
         let interval = line_tdc.low_time;
-        let begin = line_tdc.begin;
+        let begin_frame = line_tdc.begin_frame;
         let period = line_tdc.period;
 
         while let Some(x) = packet_chunks.next() {
@@ -151,7 +151,7 @@ pub mod modes {
                     match id {
                         11 if ref_tdc.period().is_none() => {
                             let ele_time = packet.electron_time() - VIDEO_TIME;
-                            if let Some(array_pos) = spim_detector(ele_time, begin, interval, period, settings) {
+                            if let Some(array_pos) = spim_detector(ele_time, begin_frame, interval, period, settings) {
                                 //list.upt((ele_time, x, array_pos+x, id));
                                 list.upt(array_pos+packet.x());
                             }
@@ -172,8 +172,8 @@ pub mod modes {
                         },
                         6 if packet.tdc_type() == line_tdc.id() => {
                             line_tdc.upt(packet.tdc_time_norm());
-                            if (packet.tdc_counter() as usize / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
-                                line_tdc.begin = line_tdc.time();
+                            if ( (packet.tdc_counter() as usize + 4096 - line_tdc.counter_offset) / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
+                                line_tdc.begin_frame = line_tdc.time();
                             }
                         },
                         6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.period().is_some())=> {
@@ -183,7 +183,7 @@ pub mod modes {
                             let tdc_time = packet.tdc_time_norm();
                             ref_tdc.upt(tdc_time);
                             let tdc_time = tdc_time - VIDEO_TIME;
-                            if let Some(array_pos) = spim_detector(tdc_time, begin, interval, period, settings) {
+                            if let Some(array_pos) = spim_detector(tdc_time, begin_frame, interval, period, settings) {
                                 //list.upt((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
                                 list.upt(array_pos+SPIM_PIXELS-1);
                             }
