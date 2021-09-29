@@ -361,9 +361,10 @@ impl TdcControl for PeriodicTdcRef {
     }
 }
 
+/*
 impl PeriodicTdcRef {
 
-    pub fn postprocessing_new(tdc_search: &tdcvec::TdcSearch) -> Option<Self> {
+    fn postprocessing_new(tdc_search: &tdcvec::TdcSearch) -> Option<Self> {
         let counter = tdc_search.get_counter();
         let counter_offset = tdc_search.get_counter_offset();
         let begin_time = tdc_search.get_begintime();
@@ -382,9 +383,9 @@ impl PeriodicTdcRef {
             low_time: low_time,
             time: last_time,
         })
-    }
-    
+    }  
 }
+*/
 
 
 
