@@ -313,8 +313,12 @@ impl TdcControl for PeriodicTdcRef {
     }
 
     fn upt(&mut self, time: f64, hard_counter: u16) {
+        if hard_counter < self.last_hard_counter {
+            self.counter_overflow += 1;
+        }
+        self.last_hard_counter = hard_counter;
         self.time = time;
-        self.counter+=1;
+        self.counter = self.last_hard_counter as usize + self.counter_overflow * 4096 - self.counter_offset;
     }
 
     fn counter(&self) -> usize {
