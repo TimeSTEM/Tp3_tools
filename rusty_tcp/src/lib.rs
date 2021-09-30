@@ -171,17 +171,17 @@ pub mod modes {
                             }
                         },
                         6 if packet.tdc_type() == line_tdc.id() => {
-                            line_tdc.upt(packet.tdc_time_norm());
+                            line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
                             if ( (packet.tdc_counter() as usize + 4096 - line_tdc.counter_offset) / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
                                 line_tdc.begin_frame = line_tdc.time();
                             }
                         },
                         6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.period().is_some())=> {
-                            ref_tdc.upt(packet.tdc_time_norm());
+                            ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
                         },
                         6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.period().is_none())=> {
                             let tdc_time = packet.tdc_time_norm();
-                            ref_tdc.upt(tdc_time);
+                            ref_tdc.upt(tdc_time, packet.tdc_counter());
                             let tdc_time = tdc_time - VIDEO_TIME;
                             if let Some(array_pos) = spim_detector(tdc_time, begin_frame, interval, period, settings) {
                                 //list.upt((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
@@ -290,11 +290,11 @@ pub mod modes {
                             }
                         },
                         6 if packet.tdc_type() == frame_tdc.id() => {
-                            frame_tdc.upt(packet.tdc_time());
+                            frame_tdc.upt(packet.tdc_time(), packet.tdc_counter());
                             has = true;
                         },
                         6 if packet.tdc_type() == ref_tdc.id() => {
-                            ref_tdc.upt(packet.tdc_time_norm());
+                            ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
                         },
                         _ => {},
                     };

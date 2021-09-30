@@ -12,6 +12,7 @@ pub mod tdcvec {
         pub how_many: usize,
         pub tdc_choosen: TdcType,
         pub initial_counter: Option<usize>,
+        pub last_counter: u16,
     }
 
     impl TdcSearch {
@@ -22,6 +23,7 @@ pub mod tdcvec {
                 how_many: how_many,
                 tdc_choosen: tdc_choosen,
                 initial_counter: None,
+                last_counter: 0,
             }
         }
 
@@ -30,6 +32,7 @@ pub mod tdcvec {
             if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
                 self.data.push( (time, tdc) );
                 if packet.tdc_type() == self.tdc_choosen.associate_value() {
+                    self.last_counter = packet.tdc_counter();
                     self.initial_counter = match self.initial_counter {
                         None => Some(packet.tdc_counter() as usize),
                         Some(val) => Some(val),
@@ -103,6 +106,10 @@ pub mod tdcvec {
 
         pub fn get_counter_offset(&self) -> usize {
             self.initial_counter.expect("***Tdc Lib***: Tdc initial counter offset was not found.")
+        }
+
+        pub fn get_last_hardware_counter(&self) -> u16 {
+            self.last_counter
         }
 
         pub fn get_lasttime(&self) -> f64 {
@@ -278,7 +285,7 @@ impl TdcType {
 
 pub trait TdcControl {
     fn id(&self) -> u8;
-    fn upt(&mut self, time: f64);
+    fn upt(&mut self, time: f64, hard_counter: u16);
     fn counter(&self) -> usize;
     fn time(&self) -> f64;
     fn period(&self) -> Option<f64>;
@@ -290,6 +297,8 @@ pub struct PeriodicTdcRef {
     pub tdctype: u8,
     pub counter: usize,
     pub counter_offset: usize,
+    pub last_hard_counter: u16,
+    pub counter_overflow: usize,
     pub begin: f64,
     pub begin_frame: f64,
     pub period: f64,
@@ -303,7 +312,7 @@ impl TdcControl for PeriodicTdcRef {
         self.tdctype
     }
 
-    fn upt(&mut self, time: f64) {
+    fn upt(&mut self, time: f64, hard_counter: u16) {
         self.time = time;
         self.counter+=1;
     }
@@ -339,6 +348,7 @@ impl TdcControl for PeriodicTdcRef {
         println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
         let counter = tdc_search.get_counter();
         let counter_offset = tdc_search.get_counter_offset();
+        let last_hard_counter = tdc_search.get_last_hardware_counter();
         println!("***Tdc Lib***: Counter offset is {:?}", counter_offset);
         let begin_time = tdc_search.get_begintime();
         let last_time = tdc_search.get_lasttime();
@@ -351,6 +361,8 @@ impl TdcControl for PeriodicTdcRef {
             tdctype: tdc_type.associate_value(),
             counter: counter,
             counter_offset: counter_offset,
+            last_hard_counter: last_hard_counter,
+            counter_overflow: 0,
             begin: begin_time,
             begin_frame: begin_time,
             period: period,
@@ -400,7 +412,7 @@ impl TdcControl for NonPeriodicTdcRef {
         self.tdctype
     }
 
-    fn upt(&mut self, time: f64) {
+    fn upt(&mut self, time: f64, _: u16) {
         self.time.pop().expect("***Tdc Lib***: There is no element to exclude from NonPeriodicTDC.");
         self.time.insert(0, time);
         self.counter+=1;
@@ -440,7 +452,7 @@ impl TdcControl for NonPeriodicTdcRefMonitor {
         self.tdctype
     }
 
-    fn upt(&mut self, time: f64) {
+    fn upt(&mut self, time: f64, _: u16) {
         self.time.pop().expect("***Tdc Lib***: There is no element to exclude from NonPeriodicTDC.");
         self.time.insert(0, time);
         self.counter+=1;
@@ -478,7 +490,7 @@ impl TdcControl for NoTdcRef {
         0
     }
 
-    fn upt(&mut self, _: f64) {
+    fn upt(&mut self, _: f64, _: u16) {
     }
 
     fn counter(&self) -> usize {
