@@ -377,34 +377,6 @@ impl TdcControl for PeriodicTdcRef {
     }
 }
 
-/*
-impl PeriodicTdcRef {
-
-    fn postprocessing_new(tdc_search: &tdcvec::TdcSearch) -> Option<Self> {
-        let counter = tdc_search.get_counter();
-        let counter_offset = tdc_search.get_counter_offset();
-        let begin_time = tdc_search.get_begintime();
-        let last_time = tdc_search.get_lasttime();
-        let high_time = tdc_search.find_high_time();
-        let period = tdc_search.find_period();
-        let low_time = period - high_time;
-        Some(Self {
-            tdctype: tdc_search.tdc_choosen.associate_value(),
-            counter: counter,
-            counter_offset: counter_offset,
-            begin: begin_time,
-            begin_frame: begin_time,
-            period: period,
-            high_time: high_time,
-            low_time: low_time,
-            time: last_time,
-        })
-    }  
-}
-*/
-
-
-
 pub struct NonPeriodicTdcRef {
     pub tdctype: u8,
     pub counter: usize,
