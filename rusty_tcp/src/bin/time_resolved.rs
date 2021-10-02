@@ -3,7 +3,7 @@ use timepix3::tdclib::TdcType;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
-    let time = 8e8 as usize;
+    let time = 1e11 as usize;
     
     /*
     let mut specs = TimeSet {
@@ -22,20 +22,27 @@ fn main() -> Result<(), ErrorType> {
     };
     */
     
-    let line_offset = 32 - 10;
-    let offset = 28;
-    let spim_size = 32;
-    let first = 54+offset;
-    let second = 103+offset;
-    let carbon = 670+offset;
-    let calcium = 801+offset;
-    let cell_size = 2;
-    let posx = 25;
-    let posy = 25;
+    
+    let line_offset = 0;
+    //let offset = 28;
+    let spim_size = 512;
+    //let first = 54+offset;
+    //let second = 103+offset;
+    //let carbon = 670+offset;
+    //let calcium = 801+offset;
+    //let cell_size = 2;
+    //let posx = 25;
+    //let posy = 25;
+    
 
     let mut my_vec: Vec<Box<dyn TimeTypes>> = Vec::new();
     
-    my_vec.push(Box::new(TimeSpectralSpatial::new(1e10 as usize, 0, 1024, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("testSpim"))?));
+    my_vec.push(Box::new(TimeSpectralSpatial::new(time, 0, 1024, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("testSpim_new"))?));
+    my_vec.push(Box::new(TimeSpectralSpatial::new(time, 30, 45, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("testSpim_new_snapshot"))?));
+    my_vec.push(Box::new(TimeSpectralSpatial::new(time, 45, 60, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("testSpim_new_snapshot"))?));
+    my_vec.push(Box::new(TimeSpectralSpatial::new(time, 60, 75, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("testSpim_new_snapshot"))?));
+    my_vec.push(Box::new(TimeSpectralSpatial::new(time, 200, 260, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("testSpim_new_snapshot"))?));
+    my_vec.push(Box::new(TimeSpectralSpatial::new(time as usize, 1, 1024, spim_size, spim_size, line_offset, Some((385, 180, 25)), TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral_new"))?));
 
 
     //my_vec.push(Box::new(TimeSpectralSpatial::new(1e9 as usize, 0, 1024, spim_size, spim_size, line_offset, None, TdcType::TdcOneFallingEdge, String::from("SpimTimeSpectral"))?));
