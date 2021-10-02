@@ -111,7 +111,7 @@ impl<'a> Packet for PacketEELS<'a> {
 
 impl<'a> PacketEELS<'a> {
     pub const fn chip_array() -> (usize, usize) {
-        (1024, 256)
+        (1025, 256)
     }
 }
 

@@ -296,6 +296,9 @@ pub mod modes {
                         },
                         6 if packet.tdc_type() == ref_tdc.id() => {
                             ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+                            if ref_tdc.period().is_none() {
+                                append_to_array(final_data, 1024, settings.bytedepth);
+                            }   
                         },
                         _ => {},
                     };
