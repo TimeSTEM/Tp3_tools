@@ -23,14 +23,10 @@ pub fn build_chrono<T: TdcControl>(mut pack_sock: TcpStream, mut vec_ns_sock: Ve
     while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
         if size == 0 {println!("Timepix3 sent zero bytes."); break;}
         let new_data = &buffer_pack_data[0..size];
-        if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
+        if build_chrono_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc);
             if let Err(_) = vec_ns_sock[0].write(&msg) {println!("Client disconnected on header."); break;}
             if let Err(_) = vec_ns_sock[0].write(&data_array) {println!("Client disconnected on data."); break;}
-            if my_settings.cumul == false {
-                data_array:Vec<u8> = vec![0; my_settings.xspim_size*my_settings.bytedepth*CAM_DESIGN.0];
-                data_array.push(10);
-            };
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
         }
     }
@@ -49,20 +45,9 @@ fn build_chrono_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci:
                 
                 match packet.id() {
                     11 if ref_tdc.period().is_none() => {
-                        let array_pos = match settings.bin {
-                            false => packet.x() + CAM_DESIGN.0*packet.y(),
-                            true => packet.x()
-                        };
+                        let line = frame_tdc.counter() % settings.xspim_size;
+                        let array_pos = packet.x() + line * CAM_DESIGN.1;
                         append_to_array(final_data, array_pos, settings.bytedepth);
-                    },
-                    11 if ref_tdc.period().is_some() => {
-                        if let Some(_backtdc) = tr_check_if_in(packet.electron_time(), ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
-                            let array_pos = match settings.bin {
-                                false => packet.x() + CAM_DESIGN.0*packet.y(),
-                                true => packet.x()
-                            };
-                            append_to_array(final_data, array_pos, settings.bytedepth);
-                        }
                     },
                     6 if packet.tdc_type() == frame_tdc.id() => {
                         frame_tdc.upt(packet.tdc_time(), packet.tdc_counter());
@@ -140,10 +125,7 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
     msg.push_str(",\"width\":");
     msg.push_str(&(CAM_DESIGN.0.to_string()));
     msg.push_str(",\"height\":");
-    match set.bin {
-        true=>{msg.push_str(&(1.to_string()))},
-        false=>{msg.push_str(&(CAM_DESIGN.1.to_string()))},
-    }
+    msg.push_str(&(set.xspim_size.to_string()));
     msg.push_str("}\n");
 
     let s: Vec<u8> = msg.into_bytes();

@@ -2,6 +2,7 @@ use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef, NonPeriodicTdcRefMonitor};
 use timepix3::speclib;
 use timepix3::spimlib;
+//use timepix3::chronolib;
 
 fn connect_and_loop() {
     
