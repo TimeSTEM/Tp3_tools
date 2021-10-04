@@ -5,8 +5,6 @@ use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use std::time::Instant;
 use std::net::TcpStream;
 use std::io::{Read, Write};
-use std::sync::mpsc;
-use std::thread;
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 3;
@@ -51,14 +49,16 @@ fn build_chrono_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci:
                     },
                     6 if packet.tdc_type() == frame_tdc.id() => {
                         frame_tdc.upt(packet.tdc_time(), packet.tdc_counter());
-                        //if frame_tdc.counter() % 100 == 0 {
-                        has = true;
-                        //}
+                        if frame_tdc.counter() % 5 == 0 {
+                            has = true;
+                        }
                     },
                     6 if packet.tdc_type() == ref_tdc.id() => {
                         ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
                         if ref_tdc.period().is_none() {
-                            append_to_array(final_data, CAM_DESIGN.0-1, settings.bytedepth);
+                            let line = frame_tdc.counter() % settings.xspim_size;
+                            let array_pos = CAM_DESIGN.0-1 + line * CAM_DESIGN.0;
+                            append_to_array(final_data, array_pos, settings.bytedepth);
                         }   
                     },
                     _ => {},
@@ -67,21 +67,6 @@ fn build_chrono_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci:
         };
     };
     has
-}
-
-fn tr_check_if_in(ele_time: f64, tdc: f64, period: f64, settings: &Settings) -> Option<usize> {
-    let mut eff_tdc = tdc;
-    let mut counter = 0;
-    while ele_time < eff_tdc {
-        counter+=1;
-        eff_tdc = eff_tdc - period;
-    }
-    
-    if ele_time > eff_tdc + settings.time_delay && ele_time < eff_tdc + settings.time_delay + settings.time_width {
-        Some(counter)
-    } else {
-        None
-    }
 }
 
 fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
