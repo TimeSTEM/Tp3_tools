@@ -251,7 +251,7 @@ fn append_to_index_array(data: &mut Vec<u8>, index: usize, bytedepth: usize) {
 
 
 pub fn debug_build_spim_data(my_pack: &[u8; 8]) {
-    //Electron Packets (0 and 500 ms)
+    //Electron Packets (0 and >500 ms)
     //[2, 0, 109, 131, 230, 16, 101, 178]
     //[197, 4, 199, 0, 51, 167, 17, 180]
     //
@@ -293,7 +293,6 @@ pub fn debug_build_spim_data(my_pack: &[u8; 8]) {
                     let tdc_time = packet.tdc_time_norm();
                     let tdc_time = tdc_time - VIDEO_TIME;
                     if let Some(array_pos) = spim_detector(tdc_time, begin_frame, interval, period, &settings) {
-                        //list.upt((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
                         list.upt(array_pos+SPIM_PIXELS-1);
                     }
                 },
@@ -301,7 +300,6 @@ pub fn debug_build_spim_data(my_pack: &[u8; 8]) {
             };
         },
     };
-    //if list.check() {Some(list)}
-    ////else {None}
+    if list.check() {Some(list);}
 }
 

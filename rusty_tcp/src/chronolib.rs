@@ -11,51 +11,13 @@ use std::thread;
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 3;
 
-pub fn build_spectrum_thread<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
-    
-    let (tx, rx) = mpsc::channel();
-    let start = Instant::now();
-    let mut last_ci = 0usize;
-    let mut buffer_pack_data = vec![0; BUFFER_SIZE];
-    let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
-    data_array.push(10);
-
-    thread::spawn(move || {
-        loop {
-            if let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                if size>0 {
-                    let new_data = &buffer_pack_data[0..size];
-                        if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
-                            let msg = create_header(&my_settings, &frame_tdc);
-                            tx.send((data_array.clone(), msg)).expect("could not send data in the thread channel.");
-                            if my_settings.cumul == false {
-                                data_array = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
-                                data_array.push(10);
-                            };
-                            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
-                        }
-                }
-            }
-        }
-    });
-
-    loop {
-        if let Ok((result, msg)) = rx.recv() {
-            if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on data."); break;}
-            if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-        } else {break;}
-    }
-}
-
-
-
-///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
-pub fn build_spectrum<T: TdcControl>(mut pack_sock: TcpStream, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
+///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time. Chrono Mode.
+pub fn build_chrono<T: TdcControl>(mut pack_sock: TcpStream, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
 
     let start = Instant::now();
     let mut last_ci = 0usize;
     let mut buffer_pack_data = vec![0; BUFFER_SIZE];
-    let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
+    let mut data_array:Vec<u8> = vec![0; my_settings.xspim_size*my_settings.bytedepth*CAM_DESIGN.0];
     data_array.push(10);
 
     while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -66,7 +28,7 @@ pub fn build_spectrum<T: TdcControl>(mut pack_sock: TcpStream, mut vec_ns_sock: 
             if let Err(_) = vec_ns_sock[0].write(&msg) {println!("Client disconnected on header."); break;}
             if let Err(_) = vec_ns_sock[0].write(&data_array) {println!("Client disconnected on data."); break;}
             if my_settings.cumul == false {
-                data_array = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
+                data_array:Vec<u8> = vec![0; my_settings.xspim_size*my_settings.bytedepth*CAM_DESIGN.0];
                 data_array.push(10);
             };
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
@@ -74,7 +36,7 @@ pub fn build_spectrum<T: TdcControl>(mut pack_sock: TcpStream, mut vec_ns_sock: 
     }
 }
 
-fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
+fn build_chrono_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
 
     let mut packet_chunks = data.chunks_exact(8);
     let mut has = false;
