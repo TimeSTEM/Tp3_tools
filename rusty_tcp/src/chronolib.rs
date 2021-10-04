@@ -46,12 +46,14 @@ fn build_chrono_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci:
                 match packet.id() {
                     11 if ref_tdc.period().is_none() => {
                         let line = frame_tdc.counter() % settings.xspim_size;
-                        let array_pos = packet.x() + line * CAM_DESIGN.1;
+                        let array_pos = packet.x() + line * CAM_DESIGN.0;
                         append_to_array(final_data, array_pos, settings.bytedepth);
                     },
                     6 if packet.tdc_type() == frame_tdc.id() => {
                         frame_tdc.upt(packet.tdc_time(), packet.tdc_counter());
+                        //if frame_tdc.counter() % 100 == 0 {
                         has = true;
+                        //}
                     },
                     6 if packet.tdc_type() == ref_tdc.id() => {
                         ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
@@ -116,10 +118,7 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
     msg.push_str(",\"frameNumber\":");
     msg.push_str(&(tdc.counter().to_string()));
     msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
-    match set.bin {
-        true => { msg.push_str(&((set.bytedepth*CAM_DESIGN.0).to_string()))},
-        false => { msg.push_str(&((set.bytedepth*CAM_DESIGN.0*CAM_DESIGN.1).to_string()))},
-    }
+    msg.push_str(&((set.xspim_size*set.bytedepth*CAM_DESIGN.0).to_string()));
     msg.push_str(",\"bitDepth\":");
     msg.push_str(&((set.bytedepth<<3).to_string()));
     msg.push_str(",\"width\":");

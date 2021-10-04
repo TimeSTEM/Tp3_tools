@@ -14,7 +14,6 @@ fn connect_and_loop() {
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
             
             speclib::build_spectrum(pack_sock, vec_ns_sock, my_settings, frame_tdc, np_tdc);
-            //chronolib::build_chrono(pack_sock, vec_ns_sock, my_settings, frame_tdc, np_tdc);
         },
         1 => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock);
@@ -39,6 +38,12 @@ fn connect_and_loop() {
             let pmt_tdc = NonPeriodicTdcRefMonitor::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
             
             spimlib::build_spim(pack_sock, vec_ns_sock, my_settings, spim_tdc, pmt_tdc);
+        },
+        6 => {
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock);
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
+            
+            chronolib::build_chrono(pack_sock, vec_ns_sock, my_settings, frame_tdc, np_tdc);
         },
         _ => panic!("Unknown mode received."),
     }

@@ -100,9 +100,14 @@ impl BytesConfig {
                 println!("Entering in Spectral Image [Save Locally] (SpimTP).");
                 Ok(self.data[3])
             },
+            6 => {
+                println!("Entering in Chrono Mode.");
+                Ok(self.data[3])
+            },
             _ => Err(BytesConfigError::Mode),
         }
     }
+
 
     ///X spim size. Must be sent with 2 bytes in big-endian mode. Byte[4..6]
     fn xspim_size(&self) -> usize {
@@ -153,6 +158,14 @@ impl BytesConfig {
         let val = f64::from_be_bytes(array);
         println!("Time width is (ns): {}.", val);
         val / 1.0e9
+    }
+    
+    ///Counter for general use. Can be used to finish accumulation automatically or to create a
+    ///Chrono measurement for example. Must be sent with 2 bytes in big-endian mode. Byte[28..30]
+    fn counter(&self) -> usize {
+        let counter = (self.data[28] as usize)<<8 | (self.data[29] as usize);
+        println!("Counter value is: {}.", counter);
+        counter
     }
     
     ///Convenience method. Returns the ratio between scan and spim size in X.
@@ -212,6 +225,7 @@ impl BytesConfig {
             yscan_size: self.yscan_size(),
             time_delay: self.time_delay(),
             time_width: self.time_width(),
+            counter: self.counter(),
             spimoverscanx: self.spimoverscanx()?,
             spimoverscany: self.spimoverscany()?,
             number_sockets: self.nsockets()?,
@@ -236,6 +250,7 @@ pub struct Settings {
     pub yscan_size: usize,
     pub time_delay: f64,
     pub time_width: f64,
+    pub counter: usize,
     pub spimoverscanx: usize,
     pub spimoverscany: usize,
     pub number_sockets: usize,
@@ -301,6 +316,7 @@ impl Settings {
             yscan_size: 512,
             time_delay: 0.0,
             time_width: 1000.0,
+            counter: 128,
             spimoverscanx: 1,
             spimoverscany: 1,
             number_sockets: 1,
