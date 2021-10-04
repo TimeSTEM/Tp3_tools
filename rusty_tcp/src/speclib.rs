@@ -1,5 +1,5 @@
 ///`modes` is a module containing tools to live acquire frames and spectral images.
-use crate::packetlib::{Packet, PacketEELS as Pack, PacketDiffraction};
+use crate::packetlib::{Packet, PacketEELS as Pack};
 use crate::auxiliar::Settings;
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use std::time::Instant;

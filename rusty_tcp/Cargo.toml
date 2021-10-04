@@ -7,10 +7,18 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
+#[dependencies]
 #plotters = "^0.3.0"
 
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "my_benchmark"
+harness = false
+
 [profile.dev]
+debug = 1
 opt-level = 3
 
 [profile.release]

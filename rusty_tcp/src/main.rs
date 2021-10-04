@@ -1,9 +1,10 @@
 use timepix3::auxiliar::Settings;
-use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef, NonPeriodicTdcRefMonitor, NoTdcRef};
+use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef, NonPeriodicTdcRefMonitor};
 use timepix3::speclib;
 use timepix3::spimlib;
 
 fn connect_and_loop() {
+    spimlib::debug_build_spim_data(&[2, 0, 109, 131, 230, 16, 101, 178]);
 
     let (my_settings, mut pack_sock, vec_ns_sock) = Settings::create_settings([192, 168, 199, 11], 8088).unwrap();
 

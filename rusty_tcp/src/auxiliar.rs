@@ -288,4 +288,23 @@ impl Settings {
         println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
         Ok((my_settings, pack_sock, sock_vec))
     }
+
+    pub fn create_debug_settings() -> Settings {
+        Settings {
+            bin: false,
+            bytedepth: 4,
+            cumul: false,
+            mode: 02,
+            xspim_size: 512,
+            yspim_size: 512,
+            xscan_size: 512,
+            yscan_size: 512,
+            time_delay: 0.0,
+            time_width: 1000.0,
+            spimoverscanx: 1,
+            spimoverscany: 1,
+            number_sockets: 1,
+        }
+    }
+
 }

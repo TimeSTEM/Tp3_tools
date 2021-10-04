@@ -1,4 +1,4 @@
-use crate::packetlib::{Packet, PacketEELS as Pack, PacketDiffraction};
+use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::Settings;
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use std::net::TcpStream;
@@ -131,7 +131,7 @@ fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &S
         match x {
             &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
             _ => {
-                let packet = Pack { chip_index: *last_ci, data: x};
+                let packet = PacketEELS { chip_index: *last_ci, data: x};
                 
                 let id = packet.id();
                 match id {
@@ -247,3 +247,61 @@ fn append_to_index_array(data: &mut Vec<u8>, index: usize, bytedepth: usize) {
         _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
     }
 }
+
+
+
+pub fn debug_build_spim_data(my_pack: &[u8; 8]) {
+    //Electron Packets (0 and 500 ms)
+    //[2, 0, 109, 131, 230, 16, 101, 178]
+    //[197, 4, 199, 0, 51, 167, 17, 180]
+    //
+    //Tdc Packets (0 and >500 ms)
+    //[64, 188, 207, 130, 5, 128, 200, 111]
+    //[96, 70, 153, 115, 31, 32, 120, 111]
+
+    let mut list = Output{ data: Vec::new() };
+    let interval:f64 = 61.45651;// * 10.0e-6;
+    let mut begin_frame = 0.0;
+    let period:f64 = 90.080465;// * 10.0-6;
+    let mut tdc_counter = 0;
+
+    let ref_tdc_period:Option<f64> = None;
+    let mut last_ci = 0;
+
+    let settings = Settings::create_debug_settings();
+
+    match my_pack {
+        &[84, 80, 88, 51, nci, _, _, _] => last_ci = nci as usize,
+        _ => {
+            let packet = PacketEELS { chip_index: last_ci, data: my_pack};
+            
+            let id = packet.id();
+            match id {
+                11 if ref_tdc_period.is_none() => {
+                    let ele_time = packet.electron_time() - VIDEO_TIME;
+                    if let Some(array_pos) = spim_detector(ele_time, begin_frame, interval, period, &settings) {
+                        list.upt(array_pos+packet.x());
+                    }
+                },
+                6 if packet.tdc_type() == 15 => {
+                    tdc_counter += 1;
+                    if  (tdc_counter / 2) % (512) == 0 {
+                        begin_frame = packet.tdc_time_norm()
+                    }
+                },
+                6 if (packet.tdc_type() == 11 && ref_tdc_period.is_none())=> {
+                    let tdc_time = packet.tdc_time_norm();
+                    let tdc_time = tdc_time - VIDEO_TIME;
+                    if let Some(array_pos) = spim_detector(tdc_time, begin_frame, interval, period, &settings) {
+                        //list.upt((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
+                        list.upt(array_pos+SPIM_PIXELS-1);
+                    }
+                },
+                _ => {},
+            };
+        },
+    };
+    //if list.check() {Some(list)}
+    ////else {None}
+}
+
