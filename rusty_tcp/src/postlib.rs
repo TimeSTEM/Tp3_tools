@@ -386,9 +386,9 @@ pub mod time_resolved {
     pub struct TimeSpectralSpatial {
         pub spectra: Vec<Vec<usize>>,
         pub initial_time: Option<f64>,
-        pub cycle_counter: f64,
-        pub cycle_trigger: bool,
-        pub interval: usize,
+        pub cycle_counter: f64, //Electron overflow counter
+        pub cycle_trigger: bool, //Electron overflow control
+        pub interval: usize, //time interval you want to form spims
         pub counter: Vec<usize>,
         pub min: usize,
         pub max: usize,
@@ -403,7 +403,6 @@ pub mod time_resolved {
         pub spec_bin: Option<usize>,
         pub tdc_periodic: Option<PeriodicTdcRef>,
         pub tdc_type: TdcType,
-        pub tdc_counter: usize,
     }
     
     impl TimeTypes for TimeSpectralSpatial {
@@ -460,16 +459,15 @@ pub mod time_resolved {
         fn add_tdc(&mut self, packet: &Pack) {
             //Synchronizing clocks using two different approaches. It is always better to use a
             //multiple of 2 and use the FPGA counter.
-            if packet.tdc_type() == self.tdc_type.associate_value() {
-                self.tdc_counter += 1;
-                if ((self.tdc_counter) % self.spimy) == 0 {
-                //if ((packet.tdc_counter() as usize / 2) % self.spimy) == 0 {
-                    match &mut self.tdc_periodic {
-                        None => {},
-                        Some(my_tdc_periodic) => my_tdc_periodic.begin = packet.tdc_time_norm(),
+            match &mut self.tdc_periodic {
+                Some(my_tdc_periodic) if packet.tdc_type() == self.tdc_type.associate_value() => {
+                    my_tdc_periodic.upt(packet.tdc_time_norm(), packet.tdc_counter());
+                    if  (my_tdc_periodic.counter / 2) % (self.spimy) == 0 {
+                        my_tdc_periodic.begin_frame = my_tdc_periodic.time();
                     }
-                };
-            }
+                },
+                _ => {},
+            };
         }
 
         fn output(&self) -> Result<(), ErrorType> {
@@ -566,7 +564,6 @@ pub mod time_resolved {
                 folder: folder,
                 tdc_periodic: None,
                 tdc_type: tdc_type,
-                tdc_counter: 0,
             })
         }
 
