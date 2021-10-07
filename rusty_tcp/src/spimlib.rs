@@ -6,6 +6,7 @@ use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
+use rayon::prelude::*;
 
 const VIDEO_TIME: f64 = 0.000005;
 const CLUSTER_TIME: f64 = 50.0e-09;
@@ -124,7 +125,7 @@ pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
 }
 
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc. This is a single thread function.
-pub fn st_build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T)
+pub fn stbuild_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T)
     where T: 'static + Send + TdcControl,
           V: 'static + Send + Read
 {
@@ -147,11 +148,15 @@ pub fn st_build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my
 
     
 fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<usize>> {
+    //let first_index = data.chunks_exact(8).enumerate().filter(|(i, x)| x[0..4] == [84, 80, 88, 51] && i>&(0)).map(|(i, _)| 8*i).next().unwrap();
+    //let half_index = data.chunks_exact(8).enumerate().filter(|(i, x)| x[0..4] == [84, 80, 88, 51] && i>&(data.len()/16)).map(|(i, _)| 8*i).next().unwrap();
+
     let mut packet_chunks = data.chunks_exact(8);
     let mut list = Output{ data: Vec::new() };
     let interval = line_tdc.low_time;
     let begin_frame = line_tdc.begin_frame;
     let period = line_tdc.period;
+
 
     while let Some(x) = packet_chunks.next() {
         match x {
