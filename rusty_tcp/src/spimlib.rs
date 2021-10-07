@@ -2,6 +2,7 @@ use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::Settings;
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use std::net::TcpStream;
+use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
@@ -98,25 +99,27 @@ fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
 pub fn build_spim<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T) {
     let (tx, rx) = mpsc::channel();
     let mut last_ci = 0usize;
-    let mut buffer_pack_data = vec![0; BUFFER_SIZE];
+    let mut buffer_pack_data = [0; BUFFER_SIZE];
+    let mut counter = 0;
 
     thread::spawn( move || {
         while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-            let new_data = &buffer_pack_data[0..size];
-            if let Some(result) = build_spim_data(new_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
+            //let new_data = &buffer_pack_data[0..size];
+            if let Some(result) = build_spim_data(&buffer_pack_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
                 if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
             }
         }
     });
 
-    thread::spawn( move || {
-        let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
-        for tl in rx {
-            let result = tl.build_output();
-            if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-        }
-    });
+    let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
+    let start = Instant::now();
+    for tl in rx {
+        let result = tl.build_output();
+        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+        counter += 1;
+        if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
+    }
 }
 
     
@@ -250,7 +253,15 @@ fn append_to_index_array(data: &mut Vec<u8>, index: usize, bytedepth: usize) {
 
 
 
-pub fn debug_build_spim_data(my_pack: &[u8; 8]) {
+pub fn debug_multithread(my_pack: [u8; 24]) {
+    thread::spawn( move || {
+    //    let size = my_pack.len();
+        debug_build_spim_data(&my_pack);
+    });
+}
+
+
+pub fn debug_build_spim_data(my_pack: &[u8]) {
     //Electron Packets (0 and >500 ms)
     //[2, 0, 109, 131, 230, 16, 101, 178]
     //[197, 4, 199, 0, 51, 167, 17, 180]
@@ -259,6 +270,7 @@ pub fn debug_build_spim_data(my_pack: &[u8; 8]) {
     //[64, 188, 207, 130, 5, 128, 200, 111]
     //[96, 70, 153, 115, 31, 32, 120, 111]
 
+    let mut packet_chunks = my_pack.chunks_exact(8);
     let mut list = Output{ data: Vec::new() };
     let interval:f64 = 61.45651;// * 10.0e-6;
     let mut begin_frame = 0.0;
@@ -270,36 +282,38 @@ pub fn debug_build_spim_data(my_pack: &[u8; 8]) {
 
     let settings = Settings::create_debug_settings();
 
-    match my_pack {
-        &[84, 80, 88, 51, nci, _, _, _] => last_ci = nci as usize,
-        _ => {
-            let packet = PacketEELS { chip_index: last_ci, data: my_pack};
-            
-            let id = packet.id();
-            match id {
-                11 if ref_tdc_period.is_none() => {
-                    let ele_time = packet.electron_time() - VIDEO_TIME;
-                    if let Some(array_pos) = spim_detector(ele_time, begin_frame, interval, period, &settings) {
-                        list.upt(array_pos+packet.x());
-                    }
-                },
-                6 if packet.tdc_type() == 15 => {
-                    tdc_counter += 1;
-                    if  (tdc_counter / 2) % (512) == 0 {
-                        begin_frame = packet.tdc_time_norm()
-                    }
-                },
-                6 if (packet.tdc_type() == 11 && ref_tdc_period.is_none())=> {
-                    let tdc_time = packet.tdc_time_norm();
-                    let tdc_time = tdc_time - VIDEO_TIME;
-                    if let Some(array_pos) = spim_detector(tdc_time, begin_frame, interval, period, &settings) {
-                        list.upt(array_pos+SPIM_PIXELS-1);
-                    }
-                },
-                _ => {},
-            };
-        },
-    };
+    while let Some(x) = packet_chunks.next() {
+        match x {
+            &[84, 80, 88, 51, nci, _, _, _] => last_ci = nci as usize,
+            _ => {
+                let packet = PacketEELS { chip_index: last_ci, data: x};
+                
+                let id = packet.id();
+                match id {
+                    11 if ref_tdc_period.is_none() => {
+                        let ele_time = packet.electron_time() - VIDEO_TIME;
+                        if let Some(array_pos) = spim_detector(ele_time, begin_frame, interval, period, &settings) {
+                            list.upt(array_pos+packet.x());
+                        }
+                    },
+                    6 if packet.tdc_type() == 15 => {
+                        tdc_counter += 1;
+                        if  (tdc_counter / 2) % (512) == 0 {
+                            begin_frame = packet.tdc_time_norm()
+                        }
+                    },
+                    6 if (packet.tdc_type() == 11 && ref_tdc_period.is_none())=> {
+                        let tdc_time = packet.tdc_time_norm();
+                        let tdc_time = tdc_time - VIDEO_TIME;
+                        if let Some(array_pos) = spim_detector(tdc_time, begin_frame, interval, period, &settings) {
+                            list.upt(array_pos+SPIM_PIXELS-1);
+                        }
+                    },
+                    _ => {},
+                };
+            },
+        };
+    }
     if list.check() {Some(list);}
 }
 

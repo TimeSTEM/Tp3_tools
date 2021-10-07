@@ -259,7 +259,7 @@ pub struct Settings {
 impl Settings {
 
     ///Create Settings structure reading from a TCP.
-    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, TcpStream, Vec<TcpStream>), BytesConfigError> {
+    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Self, TcpStream, Vec<TcpStream>), BytesConfigError> {
     
         let mut sock_vec: Vec<TcpStream> = Vec::new();
         
@@ -273,10 +273,10 @@ impl Settings {
         println!("Packet Tcp socket connected at: {:?}", pack_listener);
         println!("Nionswift Tcp socket connected at: {:?}", ns_listener);
         
-        let (pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
-        println!("Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
         let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
         println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
+        let (pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
+        println!("Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
  
         let mut cam_settings = [0 as u8; CONFIG_SIZE];
         

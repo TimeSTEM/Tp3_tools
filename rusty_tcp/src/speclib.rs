@@ -9,14 +9,14 @@ use std::sync::mpsc;
 use std::thread;
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
-const BUFFER_SIZE: usize = 16384 * 3;
+const BUFFER_SIZE: usize = 16384 * 4;
 
 pub fn build_spectrum_thread<T: 'static + TdcControl + Send>(mut pack_sock: TcpStream, mut ns_sock: TcpStream, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
     
     let (tx, rx) = mpsc::channel();
     let start = Instant::now();
     let mut last_ci = 0usize;
-    let mut buffer_pack_data = vec![0; BUFFER_SIZE];
+    let mut buffer_pack_data = [0; BUFFER_SIZE];
     let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
     data_array.push(10);
 
@@ -54,7 +54,7 @@ pub fn build_spectrum<T: TdcControl>(mut pack_sock: TcpStream, mut vec_ns_sock: 
 
     let start = Instant::now();
     let mut last_ci = 0usize;
-    let mut buffer_pack_data = vec![0; BUFFER_SIZE];
+    let mut buffer_pack_data = [0; BUFFER_SIZE];
     let mut data_array:Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
     data_array.push(10);
 
