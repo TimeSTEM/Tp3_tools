@@ -94,7 +94,6 @@ fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
     vec
 }
     
-
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
 pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T)
     where T: 'static + Send + TdcControl,
@@ -108,8 +107,7 @@ pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
     thread::spawn( move || {
         while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-            //let new_data = &buffer_pack_data[0..size];
-            if let Some(result) = build_spim_data(&buffer_pack_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
+            if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
                 if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
             }
         }
@@ -122,6 +120,28 @@ pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
         counter += 1;
         if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
+    }
+}
+
+///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc. This is a single thread function.
+pub fn st_build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T)
+    where T: 'static + Send + TdcControl,
+          V: 'static + Send + Read
+{
+    let mut last_ci = 0usize;
+    let mut buffer_pack_data = [0; BUFFER_SIZE];
+    let mut counter = 0;
+
+    let start = Instant::now();
+    let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
+    while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+        if size == 0 {println!("Timepix3 sent zero bytes."); break;}
+        if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
+            let result = result.build_output();
+            if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+            counter += 1;
+            if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
+        }
     }
 }
 
