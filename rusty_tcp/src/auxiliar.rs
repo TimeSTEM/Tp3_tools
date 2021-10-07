@@ -259,7 +259,7 @@ pub struct Settings {
 impl Settings {
 
     ///Create Settings structure reading from a TCP.
-    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Self, TcpStream, Vec<TcpStream>), BytesConfigError> {
+    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, Box<dyn Read + Send>, Vec<TcpStream>), BytesConfigError> {
     
         let mut sock_vec: Vec<TcpStream> = Vec::new();
         
@@ -272,7 +272,13 @@ impl Settings {
         let ns_listener = TcpListener::bind(&addrs[..]).expect("Could not bind to NS.");
         println!("Packet Tcp socket connected at: {:?}", pack_listener);
         println!("Nionswift Tcp socket connected at: {:?}", ns_listener);
-        
+
+        let debug: bool = match ns_listener.local_addr() {
+            Ok(val) if val == addrs[1] => true,
+            _ => false,
+        };
+
+
         let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
         println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
         let (pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
@@ -301,7 +307,7 @@ impl Settings {
         }
 
         println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
-        Ok((my_settings, pack_sock, sock_vec))
+        Ok((my_settings, Box::new(pack_sock), sock_vec))
     }
 
     pub fn create_debug_settings() -> Settings {

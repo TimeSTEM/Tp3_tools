@@ -50,7 +50,7 @@ pub fn build_spectrum_thread<T: 'static + TdcControl + Send>(mut pack_sock: TcpS
 
 
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
-pub fn build_spectrum<T: TdcControl>(mut pack_sock: TcpStream, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
+pub fn build_spectrum<T: TdcControl, V: Read>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
 
     let start = Instant::now();
     let mut last_ci = 0usize;
