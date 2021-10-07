@@ -6,7 +6,6 @@ use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
-use rayon::prelude::*;
 
 const VIDEO_TIME: f64 = 0.000005;
 const CLUSTER_TIME: f64 = 50.0e-09;
@@ -122,6 +121,38 @@ pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
         counter += 1;
         if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
     }
+    
+}
+
+///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
+pub fn dtbuild_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T)
+    where T: 'static + Send + TdcControl,
+          V: 'static + Send + Read
+{
+    let (tx, rx):(std::sync::mpsc::Sender<Output<usize>>, std::sync::mpsc::Receiver<Output<usize>>) = mpsc::channel();
+    let mut last_ci = 0usize;
+    let mut buffer_pack_data = [0; BUFFER_SIZE];
+    let mut counter = 0;
+    
+    thread::spawn( move || {
+        let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
+        let start = Instant::now();
+        for tl in rx {
+            let result = tl.build_output();
+            if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+            counter += 1;
+            if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
+        }
+    });
+
+    while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+        if size == 0 {println!("Timepix3 sent zero bytes."); break;}
+        if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
+            if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
+        }
+    }
+
+
 }
 
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc. This is a single thread function.
@@ -157,13 +188,11 @@ fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &S
     let begin_frame = line_tdc.begin_frame;
     let period = line_tdc.period;
 
-
     while let Some(x) = packet_chunks.next() {
         match x {
             &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
             _ => {
                 let packet = PacketEELS { chip_index: *last_ci, data: x};
-                
                 let id = packet.id();
                 match id {
                     11 if ref_tdc.period().is_none() => {
