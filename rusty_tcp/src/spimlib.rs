@@ -63,8 +63,7 @@ impl Output<(usize, f64, f64)> {
                  let ratio = (t - tframe) / spim_tdc.period;
                  (x, ratio as usize, ratio.fract())
             })
-            .filter(|&(x, r, rin)| rin>0.0 && rin < spim_tdc.low_time / spim_tdc.period)
-            //.filter(|&(x, r, rin)| rin < spim_tdc.low_time / spim_tdc.period && rin.is_sign_positive())
+            .filter(|&(x, r, rin)| rin < spim_tdc.low_time / spim_tdc.period && rin.is_sign_positive())
             .map(|(x, r, rin)| ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size as f64 * rin * (spim_tdc.period / spim_tdc.low_time)) as usize) * SPIM_PIXELS + x )
             .collect::<Vec<usize>>();
 
@@ -89,6 +88,7 @@ impl Output<(usize, f64, f64)> {
 
 fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
     my_vec.sort_unstable();
+    //my_vec.par_sort();
     let mut unique:Vec<u8> = Vec::new();
     let mut index:Vec<u8> = Vec::new();
     let mut counter:usize = 1;
