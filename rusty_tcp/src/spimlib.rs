@@ -6,6 +6,7 @@ use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
+use rayon::prelude::*;
 
 const VIDEO_TIME: f64 = 0.000005;
 const CLUSTER_TIME: f64 = 50.0e-09;
@@ -57,7 +58,17 @@ impl Output<usize> {
 
 impl Output<(usize, f64, f64)> {
     fn build_output(self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
-        let mut posvec: Vec<usize> = Vec::new();
+        let my_iter = self.data.into_iter()
+            .map(|(x, t, tframe)| {
+                 let ratio = (t - tframe) / spim_tdc.period;
+                 (x, ratio as usize, ratio.fract())
+            })
+            .filter(|&(x, r, rin)| rin>0.0 && rin < spim_tdc.low_time / spim_tdc.period)
+            //.filter(|&(x, r, rin)| rin < spim_tdc.low_time / spim_tdc.period && rin.is_sign_positive())
+            .map(|(x, r, rin)| ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size as f64 * rin * (spim_tdc.period / spim_tdc.low_time)) as usize) * SPIM_PIXELS + x )
+            .collect::<Vec<usize>>();
+
+        /*
         for (x, t, tframe) in self.data {
             let ratio = (t - tframe) / spim_tdc.period; //0 to next complete frame
             let ratio_inline = ratio.fract(); //from 0.0 to 1.0
@@ -69,7 +80,8 @@ impl Output<(usize, f64, f64)> {
                 posvec.push(result);
             }
         }
-    event_counter(posvec)
+            */
+    event_counter(my_iter)
     }
 }
 
@@ -141,8 +153,8 @@ pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
         let result = tl.build_output(&my_settings, &spim_tdc);
         //let result = tl.build_output();
         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-        counter += 1;
-        if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
+        //counter += 1;
+        //if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
     }
 
     let elapsed = start.elapsed(); 

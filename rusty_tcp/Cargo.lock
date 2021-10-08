@@ -466,6 +466,7 @@ name = "timepix3"
 version = "0.8.3"
 dependencies = [
  "criterion",
+ "rayon",
 ]
 
 [[package]]
