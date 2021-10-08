@@ -240,6 +240,7 @@ use std::io::Read;
 use std::fs;
 
 ///Settings contains all relevant parameters for a given acquistion
+#[derive(Copy, Clone)]
 pub struct Settings {
     pub bin: bool,
     pub bytedepth: usize,

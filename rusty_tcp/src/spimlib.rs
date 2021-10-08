@@ -10,7 +10,7 @@ use std::thread;
 const VIDEO_TIME: f64 = 0.000005;
 const CLUSTER_TIME: f64 = 50.0e-09;
 const SPIM_PIXELS: usize = 1025;
-const BUFFER_SIZE: usize = 16384 * 3;
+const BUFFER_SIZE: usize = 16384 * 4;
 const UNIQUE_BYTE: usize = 1;
 const INDEX_BYTE: usize = 4;
 
@@ -54,6 +54,26 @@ impl Output<usize> {
         event_counter(self.data)
     }
 }
+
+impl Output<(usize, f64, f64)> {
+    fn build_output(self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
+        let mut posvec: Vec<usize> = Vec::new();
+        for (x, t, tframe) in self.data {
+            let ratio = (t - tframe) / spim_tdc.period; //0 to next complete frame
+            let ratio_inline = ratio.fract(); //from 0.0 to 1.0
+            if ratio_inline < spim_tdc.low_time / spim_tdc.period && ratio_inline.is_sign_positive() { //Removes electrons in line return or before last tdc
+                let line = (ratio as usize / set.spimoverscany) % set.yspim_size; //multiple of yspim_size
+                let xpos = (set.xspim_size as f64 * ratio_inline / (spim_tdc.low_time / spim_tdc.period)) as usize; //absolute position in the horizontal line. Division by interval/period re-escales the X.
+                let result = (line * set.xspim_size + xpos) * SPIM_PIXELS; //total array position
+                let result = result + x;
+                posvec.push(result);
+            }
+        }
+    event_counter(posvec)
+    }
+}
+
+
 
 fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
     my_vec.sort_unstable();
@@ -99,59 +119,34 @@ pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
     where T: 'static + Send + TdcControl,
           V: 'static + Send + Read
 {
+    //let (tx, rx):(std::sync::mpsc::Sender<Output<usize>>, std::sync::mpsc::Receiver<Output<usize>>) = mpsc::channel();
     let (tx, rx) = mpsc::channel();
     let mut last_ci = 0usize;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     let mut counter = 0;
+    
 
-    thread::spawn( move || {
+    thread::spawn(move || {
         while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-            if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
+            if let Some(result) = test_build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
                 if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
             }
         }
     });
-
-    let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
+    
     let start = Instant::now();
+    let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
     for tl in rx {
-        let result = tl.build_output();
+        let result = tl.build_output(&my_settings, &spim_tdc);
+        //let result = tl.build_output();
         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
         counter += 1;
         if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
     }
-    
-}
 
-///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
-pub fn dtbuild_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T)
-    where T: 'static + Send + TdcControl,
-          V: 'static + Send + Read
-{
-    let (tx, rx):(std::sync::mpsc::Sender<Output<usize>>, std::sync::mpsc::Receiver<Output<usize>>) = mpsc::channel();
-    let mut last_ci = 0usize;
-    let mut buffer_pack_data = [0; BUFFER_SIZE];
-    let mut counter = 0;
-    
-    thread::spawn( move || {
-        let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
-        let start = Instant::now();
-        for tl in rx {
-            let result = tl.build_output();
-            if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-            counter += 1;
-            if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
-        }
-    });
-
-    while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-        if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-        if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
-            if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
-        }
-    }
-
+    let elapsed = start.elapsed(); 
+    println!("Total elapsed time is: {:?}.", elapsed);
 
 }
 
@@ -175,6 +170,43 @@ pub fn stbuild_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_
             if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
         }
     }
+}
+
+fn test_build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<(usize, f64, f64)>> {
+
+    let mut packet_chunks = data.chunks_exact(8);
+    let mut list = Output{ data: Vec::new() };
+
+    while let Some(x) = packet_chunks.next() {
+        match x {
+            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
+            _ => {
+                let packet = PacketEELS { chip_index: *last_ci, data: x};
+                let id = packet.id();
+                match id {
+                    11 if ref_tdc.period().is_none() => {
+                        let ele_time = packet.electron_time() - VIDEO_TIME;
+                        list.upt((packet.x(), ele_time, line_tdc.begin_frame))
+                    },
+                    6 if packet.tdc_type() == line_tdc.id() => {
+                        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+                        if  (line_tdc.counter / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
+                            line_tdc.begin_frame = line_tdc.time();
+                        }
+                    },
+                    6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.period().is_none())=> {
+                        let tdc_time = packet.tdc_time_norm();
+                        ref_tdc.upt(tdc_time, packet.tdc_counter());
+                        let tdc_time = tdc_time - VIDEO_TIME;
+                        list.upt((SPIM_PIXELS-1, tdc_time, line_tdc.begin_frame))
+                    },
+                    _ => {},
+                };
+            },
+        };
+    };
+    if list.check() {Some(list)}
+    else {None}
 }
 
     
