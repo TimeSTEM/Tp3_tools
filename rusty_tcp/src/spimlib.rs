@@ -6,7 +6,7 @@ use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
-use rayon::prelude::*;
+//use rayon::prelude::*;
 
 const VIDEO_TIME: f64 = 0.000005;
 const CLUSTER_TIME: f64 = 50.0e-09;
@@ -64,18 +64,22 @@ impl Output<(usize, f64)> {
                  let ratio = dt / spim_tdc.period;
                  (x, ratio as usize, ratio.fract())
             })
-            .map(|(x, r, rin)| ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size as f64 * rin * (spim_tdc.period / spim_tdc.low_time)) as usize) * SPIM_PIXELS + x )
-            .collect::<Vec<usize>>();
+            .map(|(x, r, rin)| {
+                let val = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size as f64 * rin * (spim_tdc.period / spim_tdc.low_time)) as usize) * SPIM_PIXELS + x;
+                vec![val, 0]
+            })
+            .flatten();
+            //.collect::<Vec<usize>>();
 
-    event_counter(my_iter)
+    //event_counter(my_iter)
+    vec![0]
     }
 }
 
 
 
 fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
-    //my_vec.sort_unstable();
-    //my_vec.par_sort();
+    my_vec.sort_unstable();
     let mut unique:Vec<u8> = Vec::new();
     let mut index:Vec<u8> = Vec::new();
     let mut counter:usize = 1;
@@ -109,7 +113,7 @@ fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
         .chain(header_indexes.into_iter())
         .chain(index.into_iter())
         .collect::<Vec<u8>>();
-    //println!("Total len with unique: {}. Total len only indexes (older): {}. Max unique is {}. Improvement is {}", vec.len(), sum_unique * indexes_len, mmax_unique, sum_unique * indexes_len / vec.len());
+    //println!("Total len with unique: {}. Total len only indexes (older): {}. Max unique is {}. Improvement is {}", vec.len(), sum_unique * 4, mmax_unique, sum_unique as f64 * 4.0 / vec.len() as f64);
     vec
 }
     
@@ -338,6 +342,10 @@ fn append_to_index_array(data: &mut Vec<u8>, index: usize, bytedepth: usize) {
         _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
     }
 }
+
+fn transform_32index(index: usize) -> Vec<u8> {
+    vec![ ((index & 4_278_190_080)>>24) as u8, ((index & 16_711_680)>>16) as u8, ((index & 65_280)>>8) as u8, (index & 255) as u8]
+    }
 
 
 
