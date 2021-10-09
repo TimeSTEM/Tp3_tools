@@ -56,30 +56,17 @@ impl Output<usize> {
     }
 }
 
-impl Output<(usize, f64, f64)> {
+impl Output<(usize, f64)> {
     fn build_output(self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
         let my_iter = self.data.into_iter()
-            .map(|(x, t, tframe)| {
-                 let ratio = (t - tframe) / spim_tdc.period;
+            .filter(|&(x, dt)| {(dt / spim_tdc.period).fract() < spim_tdc.low_time / spim_tdc.period && dt > 0.0})
+            .map(|(x, dt)| {
+                 let ratio = dt / spim_tdc.period;
                  (x, ratio as usize, ratio.fract())
             })
-            .filter(|&(x, r, rin)| rin < spim_tdc.low_time / spim_tdc.period && rin.is_sign_positive())
             .map(|(x, r, rin)| ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size as f64 * rin * (spim_tdc.period / spim_tdc.low_time)) as usize) * SPIM_PIXELS + x )
             .collect::<Vec<usize>>();
 
-        /*
-        for (x, t, tframe) in self.data {
-            let ratio = (t - tframe) / spim_tdc.period; //0 to next complete frame
-            let ratio_inline = ratio.fract(); //from 0.0 to 1.0
-            if ratio_inline < spim_tdc.low_time / spim_tdc.period && ratio_inline.is_sign_positive() { //Removes electrons in line return or before last tdc
-                let line = (ratio as usize / set.spimoverscany) % set.yspim_size; //multiple of yspim_size
-                let xpos = (set.xspim_size as f64 * ratio_inline / (spim_tdc.low_time / spim_tdc.period)) as usize; //absolute position in the horizontal line. Division by interval/period re-escales the X.
-                let result = (line * set.xspim_size + xpos) * SPIM_PIXELS; //total array position
-                let result = result + x;
-                posvec.push(result);
-            }
-        }
-            */
     event_counter(my_iter)
     }
 }
@@ -87,7 +74,7 @@ impl Output<(usize, f64, f64)> {
 
 
 fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
-    my_vec.sort_unstable();
+    //my_vec.sort_unstable();
     //my_vec.par_sort();
     let mut unique:Vec<u8> = Vec::new();
     let mut index:Vec<u8> = Vec::new();
@@ -122,7 +109,7 @@ fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
         .chain(header_indexes.into_iter())
         .chain(index.into_iter())
         .collect::<Vec<u8>>();
-    //println!("Total len with unique: {}. Total len only indexes (older): {}. Max unique is {}.", vec.len(), sum_unique * indexes_len, mmax_unique);
+    //println!("Total len with unique: {}. Total len only indexes (older): {}. Max unique is {}. Improvement is {}", vec.len(), sum_unique * indexes_len, mmax_unique, sum_unique * indexes_len / vec.len());
     vec
 }
     
@@ -152,7 +139,7 @@ pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
         //let result = tl.build_output();
-        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+        //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
         //counter += 1;
         //if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
     }
@@ -184,7 +171,7 @@ pub fn stbuild_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_
     }
 }
 
-fn test_build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<(usize, f64, f64)>> {
+fn test_build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<(usize, f64)>> {
 
     let mut packet_chunks = data.chunks_exact(8);
     let mut list = Output{ data: Vec::new() };
@@ -198,7 +185,7 @@ fn test_build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, setting
                 match id {
                     11 if ref_tdc.period().is_none() => {
                         let ele_time = packet.electron_time() - VIDEO_TIME;
-                        list.upt((packet.x(), ele_time, line_tdc.begin_frame))
+                        list.upt((packet.x(), ele_time - line_tdc.begin_frame))
                     },
                     6 if packet.tdc_type() == line_tdc.id() => {
                         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
@@ -210,7 +197,7 @@ fn test_build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, setting
                         let tdc_time = packet.tdc_time_norm();
                         ref_tdc.upt(tdc_time, packet.tdc_counter());
                         let tdc_time = tdc_time - VIDEO_TIME;
-                        list.upt((SPIM_PIXELS-1, tdc_time, line_tdc.begin_frame))
+                        list.upt((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame))
                     },
                     _ => {},
                 };
