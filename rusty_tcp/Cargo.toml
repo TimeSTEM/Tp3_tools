@@ -19,7 +19,6 @@ name = "my_benchmark"
 harness = false
 
 [profile.dev]
-debug = 1
 opt-level = 3
 
 [profile.release]
