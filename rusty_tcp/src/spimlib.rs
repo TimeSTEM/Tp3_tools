@@ -6,7 +6,7 @@ use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
-//use rayon::prelude::*;
+use rayon::prelude::*;
 
 const VIDEO_TIME: f64 = 0.000005;
 const CLUSTER_TIME: f64 = 50.0e-09;
@@ -58,18 +58,19 @@ impl Output<usize> {
 
 impl Output<(usize, f64)> {
     fn build_output(self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
-        let my_iter = self.data.into_iter()
-            .filter(|&(x, dt)| {(dt / spim_tdc.period).fract() < spim_tdc.low_time / spim_tdc.period && dt > 0.0})
+        let my_iter = self.data.iter()
+            .filter(|&&(x, dt)| {(dt / spim_tdc.period).fract() < spim_tdc.low_time / spim_tdc.period && dt > 0.0})
             .map(|(x, dt)| {
                  let ratio = dt / spim_tdc.period;
                  (x, ratio as usize, ratio.fract())
             })
-            .map(|(x, r, rin)| {
+            .flat_map(|(x, r, rin)| {
                 let val = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size as f64 * rin * (spim_tdc.period / spim_tdc.low_time)) as usize) * SPIM_PIXELS + x;
-                vec![val, 0]
+                &[0, 1, 2]
+                //val
             })
-            .flatten();
-            //.collect::<Vec<usize>>();
+            .map(|&x| x)
+            .collect::<Vec<u8>>();
 
     //event_counter(my_iter)
     vec![0]
