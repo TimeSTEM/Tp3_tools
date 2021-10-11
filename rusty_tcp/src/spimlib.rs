@@ -6,7 +6,7 @@ use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
-//use rayon::prelude::*;
+use rayon::prelude::*;
 //use std::sync::{Arc, Mutex};
 
 const VIDEO_TIME: f64 = 0.000005;
@@ -128,7 +128,6 @@ pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
     let (tx, rx) = mpsc::channel();
     let mut last_ci = 0usize;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
-    let mut counter = 0;
     
 
     thread::spawn(move || {
@@ -144,7 +143,7 @@ pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
     let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
-        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+        //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
         //counter += 1;
         //if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
     }
