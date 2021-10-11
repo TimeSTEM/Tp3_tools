@@ -5,9 +5,9 @@ use std::net::TcpStream;
 use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
-use core::array;
 use std::thread;
-use rayon::prelude::*;
+//use rayon::prelude::*;
+//use std::sync::{Arc, Mutex};
 
 const VIDEO_TIME: f64 = 0.000005;
 const CLUSTER_TIME: f64 = 50.0e-09;
@@ -59,8 +59,8 @@ impl Output<usize> {
 
 impl Output<(usize, f64)> {
     fn build_output(self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
-        let mut my_vec: Vec<u8> = Vec::new();    
-        let my_iter = self.data.iter()
+        let mut my_vec: Vec<u8> = Vec::new();
+        self.data.iter()
             .filter_map(|&(x, dt)|  if (dt / spim_tdc.period).fract() < spim_tdc.low_time / spim_tdc.period && dt > 0.0 {
                 let ratio = dt / spim_tdc.period;
                 Some((x, ratio as usize, ratio.fract())) 
@@ -134,7 +134,7 @@ pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-            if let Some(result) = test_build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
+            if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
                 if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
             }
         }
@@ -144,8 +144,7 @@ pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
     let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
-        //let result = tl.build_output();
-        //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
         //counter += 1;
         //if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
     }
@@ -168,7 +167,7 @@ pub fn stbuild_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_
     let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
     while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
         if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-        if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
+        if let Some(result) = legacy_build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
             let result = result.build_output();
             if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
             counter += 1;
@@ -177,12 +176,11 @@ pub fn stbuild_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_
     }
 }
 
-fn test_build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<(usize, f64)>> {
+fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<(usize, f64)>> {
 
-    let mut packet_chunks = data.chunks_exact(8);
     let mut list = Output{ data: Vec::new() };
 
-    while let Some(x) = packet_chunks.next() {
+    data.chunks_exact(8).for_each(|x| {
         match x {
             &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
             _ => {
@@ -209,13 +207,13 @@ fn test_build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, setting
                 };
             },
         };
-    };
+    });
     if list.check() {Some(list)}
     else {None}
 }
 
     
-fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<usize>> {
+fn legacy_build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<usize>> {
     //let first_index = data.chunks_exact(8).enumerate().filter(|(i, x)| x[0..4] == [84, 80, 88, 51] && i>&(0)).map(|(i, _)| 8*i).next().unwrap();
     //let half_index = data.chunks_exact(8).enumerate().filter(|(i, x)| x[0..4] == [84, 80, 88, 51] && i>&(data.len()/16)).map(|(i, _)| 8*i).next().unwrap();
 
@@ -344,12 +342,6 @@ fn append_to_index_array(data: &mut Vec<u8>, index: usize, bytedepth: usize) {
         _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
     }
 }
-
-fn transform_32index(index: usize) -> [u8; 4] {
-    [ ((index & 4_278_190_080)>>24) as u8, ((index & 16_711_680)>>16) as u8, ((index & 65_280)>>8) as u8, (index & 255) as u8]
-    }
-
-
 
 pub fn debug_multithread(my_pack: [u8; 24]) {
     thread::spawn( move || {
