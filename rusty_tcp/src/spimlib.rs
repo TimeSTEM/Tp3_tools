@@ -5,8 +5,10 @@ use std::net::TcpStream;
 use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
+use core::array;
 use std::thread;
 use rayon::prelude::*;
+use arrayvec::ArrayVec;
 
 const VIDEO_TIME: f64 = 0.000005;
 const CLUSTER_TIME: f64 = 50.0e-09;
@@ -59,18 +61,26 @@ impl Output<usize> {
 impl Output<(usize, f64)> {
     fn build_output(self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
         let my_iter = self.data.iter()
-            .filter(|&&(x, dt)| {(dt / spim_tdc.period).fract() < spim_tdc.low_time / spim_tdc.period && dt > 0.0})
-            .map(|(x, dt)| {
-                 let ratio = dt / spim_tdc.period;
-                 (x, ratio as usize, ratio.fract())
-            })
-            .flat_map(|(x, r, rin)| {
-                let val = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size as f64 * rin * (spim_tdc.period / spim_tdc.low_time)) as usize) * SPIM_PIXELS + x;
-                &[0, 1, 2]
-                //val
-            })
-            .map(|&x| x)
-            .collect::<Vec<u8>>();
+            .filter_map(|&(x, dt)|  if (dt / spim_tdc.period).fract() < spim_tdc.low_time / spim_tdc.period && dt > 0.0 {
+                let ratio = dt / spim_tdc.period;
+                Some((x, ratio as usize, ratio.fract())) 
+            } else {None}
+            )
+            .map(|(x, r, rin)| {
+                let index = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size as f64 * rin * (spim_tdc.period / spim_tdc.low_time)) as usize) * SPIM_PIXELS + x;
+                //ArrayVec::from([ ((index & 4_278_190_080)>>24) as u8, ((index & 16_711_680)>>16) as u8, ((index & 65_280)>>8) as u8, (index & 255) as u8])
+                index
+            });
+            //.map(|&x| x)
+            //.collect::<Vec<usize>>();
+        
+        let mut my_vec: Vec<u8> = Vec::new();    
+        for val in my_iter {
+            my_vec.push(val as u8);
+            my_vec.push(val as u8);
+            my_vec.push(val as u8);
+            my_vec.push(val as u8);
+        }
 
     //event_counter(my_iter)
     vec![0]
@@ -344,8 +354,8 @@ fn append_to_index_array(data: &mut Vec<u8>, index: usize, bytedepth: usize) {
     }
 }
 
-fn transform_32index(index: usize) -> Vec<u8> {
-    vec![ ((index & 4_278_190_080)>>24) as u8, ((index & 16_711_680)>>16) as u8, ((index & 65_280)>>8) as u8, (index & 255) as u8]
+fn transform_32index(index: usize) -> [u8; 4] {
+    [ ((index & 4_278_190_080)>>24) as u8, ((index & 16_711_680)>>16) as u8, ((index & 65_280)>>8) as u8, (index & 255) as u8]
     }
 
 
