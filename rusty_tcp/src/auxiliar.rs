@@ -310,7 +310,7 @@ impl Settings {
                 Ok((my_settings, Box::new(pack_sock), sock_vec))
             },
             true => {
-                let file = fs::File::open("bin/Data/raw000001.tpx3").expect("could not open file");
+                let file = fs::File::open("bin/Data/raw000000.tpx3").expect("could not open file");
                 println!("Debug mode. Will one file a single time.");
                 Ok((my_settings, Box::new(file), sock_vec))
             },
