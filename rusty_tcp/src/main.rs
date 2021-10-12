@@ -31,13 +31,13 @@ fn connect_and_loop() {
             let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack_sock);
             let laser_tdc = PeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
             
-            spimlib::build_spim(pack_sock, vec_ns_sock, my_settings, spim_tdc, laser_tdc);
+            //spimlib::build_spim(pack_sock, vec_ns_sock, my_settings, spim_tdc, laser_tdc);
         },
         4 => {
             let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack_sock);
             let pmt_tdc = NonPeriodicTdcRefMonitor::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
             
-            spimlib::build_spim(pack_sock, vec_ns_sock, my_settings, spim_tdc, pmt_tdc);
+            //spimlib::build_spim(pack_sock, vec_ns_sock, my_settings, spim_tdc, pmt_tdc);
         },
         6 => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock);

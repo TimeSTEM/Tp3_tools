@@ -1,13 +1,14 @@
 use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::Settings;
-use crate::tdclib::{TdcControl, PeriodicTdcRef};
+use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
 use std::net::TcpStream;
 use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
 use rayon::prelude::*;
-//use std::sync::{Arc, Mutex};
+use core::array;
+use std::sync::{Arc, Mutex};
 
 const VIDEO_TIME: f64 = 0.000005;
 const CLUSTER_TIME: f64 = 50.0e-09;
@@ -60,7 +61,8 @@ impl Output<usize> {
 impl Output<(usize, f64)> {
     fn build_output(self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
         let mut my_vec: Vec<u8> = Vec::new();
-        self.data.iter()
+
+        let test = self.data.iter()
             .filter_map(|&(x, dt)|  if (dt / spim_tdc.period).fract() < spim_tdc.low_time / spim_tdc.period && dt > 0.0 {
                 let ratio = dt / spim_tdc.period;
                 Some((x, ratio as usize, ratio.fract())) 
@@ -120,9 +122,8 @@ fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
 }
     
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
-pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T)
-    where T: 'static + Send + TdcControl,
-          V: 'static + Send + Read
+pub fn build_spim<V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: NonPeriodicTdcRef)
+    where V: 'static + Send + Read
 {
     let (tx, rx) = mpsc::channel();
     let mut last_ci = 0usize;
@@ -132,8 +133,8 @@ pub fn build_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-            //if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
-            if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc) {
+            if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
+            //if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc) {
                 if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
             }
         }
@@ -175,8 +176,8 @@ pub fn stbuild_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_
     }
 }
 
-//fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<(usize, f64)>> {
-fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Option<Output<(usize, f64)>> {
+fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut NonPeriodicTdcRef) -> Option<Output<(usize, f64)>> {
+//fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Option<Output<(usize, f64)>> {
 
     let mut list = Output{ data: Vec::new() };
 
@@ -187,7 +188,6 @@ fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_t
                 let packet = PacketEELS { chip_index: *last_ci, data: x};
                 let id = packet.id();
                 match id {
-                    //11 if ref_tdc.period().is_none() => {
                     11 => {
                         let ele_time = packet.electron_time() - VIDEO_TIME;
                         list.upt((packet.x(), ele_time - line_tdc.begin_frame))
@@ -198,14 +198,12 @@ fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_t
                             line_tdc.begin_frame = line_tdc.time();
                         }
                     },
-                    /*
-                    6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.period().is_none())=> {
+                    6 if packet.tdc_type() == ref_tdc.id()=> {
                         let tdc_time = packet.tdc_time_norm();
                         ref_tdc.upt(tdc_time, packet.tdc_counter());
                         let tdc_time = tdc_time - VIDEO_TIME;
                         list.upt((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame))
                     },
-                    */
                     _ => {},
                 };
             },
