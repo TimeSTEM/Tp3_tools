@@ -1,14 +1,12 @@
 use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::Settings;
 use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
-use std::net::{Shutdown, TcpStream};
+use std::net::TcpStream;
 use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
 use rayon::prelude::*;
-use core::array;
-use std::sync::{Arc, Mutex};
 
 const VIDEO_TIME: f64 = 0.000005;
 const CLUSTER_TIME: f64 = 50.0e-09;
@@ -62,7 +60,7 @@ impl Output<(usize, f64)> {
     fn build_output(self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
         let mut my_vec: Vec<u8> = Vec::new();
 
-        let test = self.data.iter()
+        self.data.iter()
             .filter_map(|&(x, dt)|  if (dt / spim_tdc.period).fract() < spim_tdc.low_time / spim_tdc.period && dt > 0.0 {
                 let ratio = dt / spim_tdc.period;
                 Some((x, ratio as usize, ratio.fract())) 
@@ -144,11 +142,9 @@ pub fn build_spim<V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_setti
         let result = tl.build_output(&my_settings, &spim_tdc);
         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
     }
-    //ns_sock.shutdown(Shutdown::Both).unwrap();
 
     let elapsed = start.elapsed(); 
     println!("Total elapsed time is: {:?}.", elapsed);
-
 }
 
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc. This is a single thread function.
@@ -174,10 +170,8 @@ pub fn stbuild_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_
 }
 
 fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut NonPeriodicTdcRef) -> Option<Output<(usize, f64)>> {
-//fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef) -> Option<Output<(usize, f64)>> {
 
     let mut list = Output{ data: Vec::new() };
-
     data.chunks_exact(8).for_each(|x| {
         match x {
             &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
