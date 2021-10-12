@@ -69,13 +69,11 @@ pub fn build_spectrum<T: TdcControl, V: Read>(mut pack_sock: V, mut vec_ns_sock:
         let new_data = &buffer_pack_data[0..size];
         if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc);
-            //if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
-            //if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
+            if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
+            if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
             if my_settings.cumul == false {
                 data_array.iter_mut().for_each(|x| *x = 0);
                 data_array[len] = 10;
-                //data_array = vec![0; len + 1];
-                //data_array[len] = 10;
             };
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
         }
