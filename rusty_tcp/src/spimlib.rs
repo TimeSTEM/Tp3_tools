@@ -1,7 +1,7 @@
 use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::Settings;
 use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
-use std::net::TcpStream;
+use std::net::{Shutdown, TcpStream};
 use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
@@ -129,12 +129,10 @@ pub fn build_spim<V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_setti
     let mut last_ci = 0usize;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     
-
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size == 0 {println!("Timepix3 sent zero bytes."); break;}
             if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
-            //if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc) {
                 if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
             }
         }
@@ -144,10 +142,9 @@ pub fn build_spim<V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_setti
     let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
-        //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-        //counter += 1;
-        //if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
+        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
     }
+    //ns_sock.shutdown(Shutdown::Both).unwrap();
 
     let elapsed = start.elapsed(); 
     println!("Total elapsed time is: {:?}.", elapsed);
