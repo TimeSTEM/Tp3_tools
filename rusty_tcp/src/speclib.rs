@@ -44,8 +44,8 @@ pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStr
 
     let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
     for (result, msg) in rx {
-        //if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on data."); break;}
-        //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+        if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on data."); break;}
+        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
     }
     println!("Total elapsed time is: {:?}.", start.elapsed());
 }
@@ -63,14 +63,14 @@ pub fn build_spectrum<T: TdcControl, V: Read>(mut pack_sock: V, mut vec_ns_sock:
     data_array[len] = 10;
 
 
-    //let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
+    let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
     while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
         if size == 0 {println!("Timepix3 sent zero bytes."); break;}
         let new_data = &buffer_pack_data[0..size];
         if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc);
-            if let Err(_) = vec_ns_sock[0].write(&msg) {println!("Client disconnected on header."); break;}
-            if let Err(_) = vec_ns_sock[0].write(&data_array) {println!("Client disconnected on data."); break;}
+            if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
+            if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
             if my_settings.cumul == false {
                 data_array.iter_mut().for_each(|x| *x = 0);
                 data_array[len] = 10;
