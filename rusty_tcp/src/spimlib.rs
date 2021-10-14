@@ -6,7 +6,6 @@ use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
-use rayon::prelude::*;
 
 const VIDEO_TIME: f64 = 0.000005;
 const CLUSTER_TIME: f64 = 50.0e-09;

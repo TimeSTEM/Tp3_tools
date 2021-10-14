@@ -7,7 +7,6 @@ use std::net::TcpStream;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
-use rayon::prelude::*;
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 4;
@@ -97,11 +96,8 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u
                         append_to_array(final_data, array_pos, settings.bytedepth);
                     },
                     11 if ref_tdc.period().is_some() => {
-                        if let Some(_backtdc) = tr_check_if_in(packet.electron_time(), ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
-                            let array_pos = match settings.bin {
-                                false => packet.x() + CAM_DESIGN.0*packet.y(),
-                                true => packet.x()
-                            };
+                        if tr_check_if_in(packet.electron_time(), ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
+                            let array_pos = packet.x() + !settings.bin as usize * CAM_DESIGN.0 * packet.y();
                             append_to_array(final_data, array_pos, settings.bytedepth);
                         }
                     },
@@ -115,6 +111,7 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u
                             append_to_array(final_data, CAM_DESIGN.0-1, settings.bytedepth);
                         }   
                     },
+                    4 => {},
                     _ => {},
                 };
             },
@@ -123,18 +120,18 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u
     has
 }
 
-fn tr_check_if_in(ele_time: f64, tdc: f64, period: f64, settings: &Settings) -> Option<usize> {
-    let mut eff_tdc = tdc;
-    let mut counter = 0;
-    while ele_time < eff_tdc {
-        counter+=1;
-        eff_tdc = eff_tdc - period;
-    }
-    
-    if ele_time > eff_tdc + settings.time_delay && ele_time < eff_tdc + settings.time_delay + settings.time_width {
-        Some(counter)
+fn tr_check_if_in(ele_time: f64, tdc: f64, period: f64, settings: &Settings) -> bool {
+    let xper = ((tdc - ele_time)/period).ceil();
+    let eff_tdc = if xper > 0.0 {
+        tdc - xper * period
     } else {
-        None
+        tdc
+    };
+
+    if ele_time > eff_tdc + settings.time_delay && ele_time < eff_tdc + settings.time_delay + settings.time_width {
+        true
+    } else {
+        false
     }
 }
 
