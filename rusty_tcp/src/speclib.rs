@@ -92,12 +92,18 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u
                 
                 match packet.id() {
                     11 if ref_tdc.period().is_none() => {
-                        let array_pos = packet.x() + !settings.bin as usize * CAM_DESIGN.0 * packet.y();
+                        let array_pos = match settings.bin {
+                            true => packet.x(),
+                            false => packet.x() + CAM_DESIGN.0 * packet.y(),
+                        };
                         append_to_array(final_data, array_pos, settings.bytedepth);
                     },
                     11 if ref_tdc.period().is_some() => {
                         if tr_check_if_in(packet.electron_time(), ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
-                            let array_pos = packet.x() + !settings.bin as usize * CAM_DESIGN.0 * packet.y();
+                            let array_pos = match settings.bin {
+                                true => packet.x(),
+                                false => packet.x() + CAM_DESIGN.0 * packet.y(),
+                            };
                             append_to_array(final_data, array_pos, settings.bytedepth);
                         }
                     },
@@ -111,7 +117,6 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u
                             append_to_array(final_data, CAM_DESIGN.0-1, settings.bytedepth);
                         }   
                     },
-                    4 => {},
                     _ => {},
                 };
             },
