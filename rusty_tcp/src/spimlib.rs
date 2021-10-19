@@ -10,7 +10,7 @@ use std::thread;
 const VIDEO_TIME: f64 = 0.000005;
 const CLUSTER_TIME: f64 = 50.0e-09;
 const SPIM_PIXELS: usize = 1025;
-const BUFFER_SIZE: usize = 16384 * 4;
+const BUFFER_SIZE: usize = 16384 * 2;
 const UNIQUE_BYTE: usize = 1;
 const INDEX_BYTE: usize = 4;
 
@@ -169,6 +169,11 @@ pub fn stbuild_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_
 }
 
 fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut NonPeriodicTdcRef) -> Option<Output<(usize, f64)>> {
+
+    if data.len() % 8 != 0 {
+        println!("Data was not multiple of 8. Rejecting lenght of: {}", data.len());
+        return None
+    }
 
     let mut list = Output{ data: Vec::new() };
     data.chunks_exact(8).for_each(|x| {

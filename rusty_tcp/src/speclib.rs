@@ -9,7 +9,7 @@ use std::sync::mpsc;
 use std::thread;
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
-const BUFFER_SIZE: usize = 16384 * 4;
+const BUFFER_SIZE: usize = 16384 * 2;
 
 pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) 
     where T: 'static + Send + TdcControl,
@@ -83,7 +83,12 @@ pub fn build_spectrum<T: TdcControl, V: Read>(mut pack_sock: V, mut vec_ns_sock:
 fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
 
     let mut has = false;
-    
+
+    if data.len() % 8 != 0 {
+        println!("Data was not multiple of 8. Rejecting lenght of: {}", data.len());
+        return false
+    }
+
     data.chunks_exact(8).for_each( |x| {
         match x {
             &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,

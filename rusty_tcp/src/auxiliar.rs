@@ -238,6 +238,7 @@ impl BytesConfig {
 use std::net::{TcpListener, TcpStream, SocketAddr};
 use std::io::Read;
 use std::fs;
+use std::time::Duration;
 
 ///Settings contains all relevant parameters for a given acquistion
 #[derive(Copy, Clone)]
@@ -307,6 +308,7 @@ impl Settings {
             false => {
                 let (pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
                 println!("Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
+                pack_sock.set_read_timeout(Some(Duration::from_millis(100))).expect("Could not set read timeout.");
                 Ok((my_settings, Box::new(pack_sock), sock_vec))
             },
             true => {
