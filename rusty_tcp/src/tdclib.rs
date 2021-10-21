@@ -28,7 +28,7 @@ pub mod tdcvec {
         }
 
         fn add_tdc(&mut self, packet: &Pack) {
-            let time = packet.tdc_time_norm2();
+            let time = packet.tdc_time_norm();
             if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
                 self.data.push( (time, tdc) );
                 if packet.tdc_type() == self.tdc_choosen.associate_value() {
@@ -85,7 +85,7 @@ pub mod tdcvec {
             let mut ris = self.get_timelist(&ris_tdc_type);
             let last_fal = fal.pop().expect("Please get at least 01 falling Tdc");
             let last_ris = ris.pop().expect("Please get at least 01 rising Tdc");
-            if last_fal - last_ris > 0 {
+            if last_fal > last_ris {
                 last_fal - last_ris 
             } else {
                 last_fal - ris.pop().expect("Please get at least 02 rising Tdc's.")

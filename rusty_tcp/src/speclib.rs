@@ -130,15 +130,23 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u
     has
 }
 
-fn tr_check_if_in(ele_time: f64, tdc: f64, period: f64, settings: &Settings) -> bool {
-    let xper = ((tdc - ele_time)/period).ceil();
-    let eff_tdc = if xper > 0.0 {
+fn tr_check_if_in(ele_time: usize, tdc: usize, period: usize, settings: &Settings) -> bool {
+    let eff_tdc = if tdc > ele_time {
+        let xper = (tdc - ele_time) / period + 1;
         tdc - xper * period
     } else {
         tdc
     };
 
-    if ele_time > eff_tdc + settings.time_delay && ele_time < eff_tdc + settings.time_delay + settings.time_width {
+
+    //let xper = ((tdc - ele_time)/period).ceil();
+    //let eff_tdc = if xper > 0.0 {
+    //    tdc - xper * period
+    //} else {
+    //    tdc
+    //};
+
+    if ele_time > eff_tdc + settings.time_delay as usize && ele_time < eff_tdc + settings.time_delay as usize + settings.time_width as usize {
         true
     } else {
         false

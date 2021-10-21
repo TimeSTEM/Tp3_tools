@@ -185,19 +185,19 @@ fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_t
                 let id = packet.id();
                 match id {
                     11 => {
-                        let ele_time = packet.electron_time2() - VIDEO_TIME;
+                        let ele_time = packet.electron_time() - VIDEO_TIME;
                         if ele_time > line_tdc.begin_frame {
                             list.upt((packet.x(), ele_time - line_tdc.begin_frame))
                         }
                     },
                     6 if packet.tdc_type() == line_tdc.id() => {
-                        line_tdc.upt(packet.tdc_time_norm2(), packet.tdc_counter());
+                        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
                         if  (line_tdc.counter / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
                             line_tdc.begin_frame = line_tdc.time();
                         }
                     },
                     6 if packet.tdc_type() == ref_tdc.id()=> {
-                        let tdc_time = packet.tdc_time_norm2();
+                        let tdc_time = packet.tdc_time_norm();
                         ref_tdc.upt(tdc_time, packet.tdc_counter());
                         let tdc_time = tdc_time - VIDEO_TIME;
                         list.upt((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame))
@@ -210,75 +210,6 @@ fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_t
     if list.check() {Some(list)}
     else {None}
 }
-
-    
-/*
-fn legacy_build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<usize>> {
-    //let first_index = data.chunks_exact(8).enumerate().filter(|(i, x)| x[0..4] == [84, 80, 88, 51] && i>&(0)).map(|(i, _)| 8*i).next().unwrap();
-    //let half_index = data.chunks_exact(8).enumerate().filter(|(i, x)| x[0..4] == [84, 80, 88, 51] && i>&(data.len()/16)).map(|(i, _)| 8*i).next().unwrap();
-
-    let mut packet_chunks = data.chunks_exact(8);
-    let mut list = Output{ data: Vec::new() };
-    let interval = line_tdc.low_time;
-    let begin_frame = line_tdc.begin_frame;
-    let period = line_tdc.period;
-
-    while let Some(x) = packet_chunks.next() {
-        match x {
-            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
-            _ => {
-                let packet = PacketEELS { chip_index: *last_ci, data: x};
-                let id = packet.id();
-                match id {
-                    11 if ref_tdc.period().is_none() => {
-                        let ele_time = packet.electron_time() - VIDEO_TIME;
-                        if let Some(array_pos) = spim_detector(ele_time, begin_frame, interval, period, settings) {
-                            //list.upt((ele_time, x, array_pos+x, id));
-                            list.upt(array_pos+packet.x());
-                        }
-                    },
-                    11 if ref_tdc.period().is_some() => {
-                        let mut ele_time = packet.electron_time();
-                        if let Some(_backtdc) = tr_check_if_in(ele_time, ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
-                            ele_time -= VIDEO_TIME;
-                            if let Some(backline) = spim_check_if_in(ele_time, line_tdc.time(), interval, period) {
-                                let line = (((line_tdc.counter() as isize - backline) as usize / settings.spimoverscany) % settings.yspim_size) * SPIM_PIXELS * settings.xspim_size;
-                                let xpos = (settings.xspim_size as f64 * ((ele_time - (line_tdc.time() - (backline as f64)*period))/interval)) as usize * SPIM_PIXELS;
-                                let array_pos = packet.x() + line + xpos;
-                                // This is OUTDATED
-                                //list.upt((ele_time, packet.x(), array_pos, id));
-                                list.upt(array_pos+packet.x());
-                            }
-                        }
-                    },
-                    6 if packet.tdc_type() == line_tdc.id() => {
-                        line_tdc.upt(packet.tdc_time_norm2(), packet.tdc_counter());
-                        //if ( (packet.tdc_counter() as usize + 4096 - line_tdc.counter_offset) / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
-                        if  (line_tdc.counter / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
-                            line_tdc.begin_frame = line_tdc.time();
-                        }
-                    },
-                    6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.period().is_some())=> {
-                        ref_tdc.upt(packet.tdc_time_norm2(), packet.tdc_counter());
-                    },
-                    6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.period().is_none())=> {
-                        let tdc_time = packet.tdc_time_norm2();
-                        ref_tdc.upt(tdc_time, packet.tdc_counter());
-                        let tdc_time = tdc_time - VIDEO_TIME;
-                        if let Some(array_pos) = spim_detector(tdc_time, begin_frame, interval, period, settings) {
-                            //list.upt((tdc_time, SPIM_PIXELS-1, array_pos+SPIM_PIXELS-1, id));
-                            list.upt(array_pos+SPIM_PIXELS-1);
-                        }
-                    },
-                    _ => {},
-                };
-            },
-        };
-    };
-    if list.check() {Some(list)}
-    else {None}
-}
-*/
 
 fn tr_check_if_in(ele_time: f64, tdc: f64, period: f64, settings: &Settings) -> Option<usize> {
     let mut eff_tdc = tdc;

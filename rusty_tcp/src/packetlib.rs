@@ -51,15 +51,7 @@ pub trait Packet {
         (toa << 4) | (!ftoa & 15)
     }
     
-    fn electron_time(&self) -> f64 {
-        let spidr = (self.data()[0] as usize) | (self.data()[1] as usize)<<8;
-        let toa = ((self.data()[3] & 192) as usize)>>6 | (self.data()[4] as usize)<<2 | ((self.data()[5] & 15) as usize)<<10;
-        let ftoa = (self.data()[2] & 15) as usize;
-        let ctoa = (toa << 4) | (!ftoa & 15);
-        ((spidr as f64) * 25.0 * 16384.0 + (ctoa as f64) * 25.0 / 16.0) / 1e9
-    }
-    
-    fn electron_time2(&self) -> usize {
+    fn electron_time(&self) -> usize {
         let spidr = (self.data()[0] as usize) | (self.data()[1] as usize)<<8;
         let toa = ((self.data()[3] & 192) as usize)>>6 | (self.data()[4] as usize)<<2 | ((self.data()[5] & 15) as usize)<<10;
         let ftoa = (self.data()[2] & 15) as usize;
@@ -83,22 +75,13 @@ pub trait Packet {
         self.data()[7] & 15 
     }
 
-    fn tdc_time(&self) -> f64 {
-        let coarse = ((self.data()[1] & 254) as u64)>>1 | ((self.data()[2]) as u64)<<7 | ((self.data()[3]) as u64)<<15 | ((self.data()[4]) as u64)<<23 | ((self.data()[5] & 15) as u64)<<31;
-        let fine = (self.data()[0] & 224)>>5 | (self.data()[1] & 1)<<3;
-        (coarse as f64) * (1.0/320.0e6) + (fine as f64) * 260.0e-12
+    fn tdc_time(&self) -> usize {
+        let coarse = ((self.data()[1] & 254) as usize)>>1 | ((self.data()[2]) as usize)<<7 | ((self.data()[3]) as usize)<<15 | ((self.data()[4]) as usize)<<23 | ((self.data()[5] & 15) as usize)<<31;
+        let fine = ((self.data()[0] & 224) as usize >> 5) | ((self.data()[1] & 1) as usize) << 3;
+        coarse * 1_000 / 320 + fine * 260 / 1_000
     }
     
-    fn tdc_time_norm(&self) -> f64 {
-        let coarse = ((self.data()[1] & 254) as u64)>>1 | ((self.data()[2]) as u64)<<7 | ((self.data()[3]) as u64)<<15 | ((self.data()[4]) as u64)<<23 | ((self.data()[5] & 15) as u64)<<31;
-        let fine = ((self.data()[0] & 224) as u64) >> 5 | ((self.data()[1] & 1) as u64) << 3;
-        let time = (coarse * 1_000 / 320 + fine * 260 / 1_000) as f64 / 1e9;
-        //let time2 = (coarse as f64) * (1.0/320e6) + (fine as f64) * 260e-12;
-        //println!("{} and {}", time, time2);
-        time - (time / (26843545600.0 * 1e-9)).floor() * 26843545600.0 * 1e-9
-    }
-    
-    fn tdc_time_norm2(&self) -> usize {
+    fn tdc_time_norm(&self) -> usize {
         let coarse = ((self.data()[1] & 254) as usize)>>1 | ((self.data()[2]) as usize)<<7 | ((self.data()[3]) as usize)<<15 | ((self.data()[4]) as usize)<<23 | ((self.data()[5] & 15) as usize)<<31;
         let fine = ((self.data()[0] & 224) as usize) >> 5 | ((self.data()[1] & 1) as usize) << 3;
         let time = (coarse * 1_000 / 320 + fine * 260 / 1_000);
