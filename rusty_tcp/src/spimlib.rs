@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
 
-const VIDEO_TIME: f64 = 0.000005;
+const VIDEO_TIME: usize = 5000;
 const CLUSTER_TIME: f64 = 50.0e-09;
 const SPIM_PIXELS: usize = 1025;
 const BUFFER_SIZE: usize = 16384 * 2;
@@ -55,41 +55,18 @@ impl Output<usize> {
     }
 }
 
-impl Output<(usize, f64)> {
-    fn build_output(self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
-        let mut my_vec: Vec<u8> = Vec::new();
-
-        self.data.iter()
-            .filter_map(|&(x, dt)|  if (dt / spim_tdc.period).fract() < spim_tdc.low_time / spim_tdc.period && dt > 0.0 {
-                let ratio = dt / spim_tdc.period;
-                Some((x, ratio as usize, ratio.fract())) 
-            } else {None}
-            )
-            .map(|(x, r, rin)| {
-                let index = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size as f64 * rin * (spim_tdc.period / spim_tdc.low_time)) as usize) * SPIM_PIXELS + x;
-                index
-            })
-            .for_each(|index| {
-                append_to_index_array(&mut my_vec, index, set.bytedepth);
-            });
-
-    my_vec
-    }
-}
-
-/*
 impl Output<(usize, usize)> {
     fn build_output(self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
         let mut my_vec: Vec<u8> = Vec::new();
 
         self.data.iter()
-            .filter_map(|&(x, dt)|  if (dt / spim_tdc.period).fract() < spim_tdc.low_time / spim_tdc.period && dt > 0.0 {
+            .filter_map(|&(x, dt)|  if (dt % spim_tdc.period) < spim_tdc.low_time {
                 let ratio = dt / spim_tdc.period;
-                Some((x, ratio as usize, ratio.fract())) 
+                Some((x, ratio, dt % spim_tdc.period)) 
             } else {None}
             )
             .map(|(x, r, rin)| {
-                let index = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size as f64 * rin * (spim_tdc.period / spim_tdc.low_time)) as usize) * SPIM_PIXELS + x;
+                let index = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size * rin / spim_tdc.low_time)) * SPIM_PIXELS + x;
                 index
             })
             .for_each(|index| {
@@ -99,7 +76,6 @@ impl Output<(usize, usize)> {
     my_vec
     }
 }
-*/
 
 
 fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
@@ -162,13 +138,14 @@ pub fn build_spim<V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_setti
     let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
-        //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
     }
 
     let elapsed = start.elapsed(); 
     println!("Total elapsed time is: {:?}.", elapsed);
 }
 
+/*
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc. This is a single thread function.
 pub fn stbuild_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T)
     where T: 'static + Send + TdcControl,
@@ -190,8 +167,9 @@ pub fn stbuild_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_
         }
     }
 }
+*/
 
-fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut NonPeriodicTdcRef) -> Option<Output<(usize, f64)>> {
+fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut NonPeriodicTdcRef) -> Option<Output<(usize, usize)>> {
 
     if data.len() % 8 != 0 {
         println!("Data was not multiple of 8. Rejecting lenght of: {}", data.len());
@@ -207,17 +185,19 @@ fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_t
                 let id = packet.id();
                 match id {
                     11 => {
-                        let ele_time = packet.electron_time() - VIDEO_TIME;
-                        list.upt((packet.x(), ele_time - line_tdc.begin_frame))
+                        let ele_time = packet.electron_time2() - VIDEO_TIME;
+                        if ele_time > line_tdc.begin_frame {
+                            list.upt((packet.x(), ele_time - line_tdc.begin_frame))
+                        }
                     },
                     6 if packet.tdc_type() == line_tdc.id() => {
-                        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+                        line_tdc.upt(packet.tdc_time_norm2(), packet.tdc_counter());
                         if  (line_tdc.counter / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
                             line_tdc.begin_frame = line_tdc.time();
                         }
                     },
                     6 if packet.tdc_type() == ref_tdc.id()=> {
-                        let tdc_time = packet.tdc_time_norm();
+                        let tdc_time = packet.tdc_time_norm2();
                         ref_tdc.upt(tdc_time, packet.tdc_counter());
                         let tdc_time = tdc_time - VIDEO_TIME;
                         list.upt((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame))
@@ -232,6 +212,7 @@ fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_t
 }
 
     
+/*
 fn legacy_build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<usize>> {
     //let first_index = data.chunks_exact(8).enumerate().filter(|(i, x)| x[0..4] == [84, 80, 88, 51] && i>&(0)).map(|(i, _)| 8*i).next().unwrap();
     //let half_index = data.chunks_exact(8).enumerate().filter(|(i, x)| x[0..4] == [84, 80, 88, 51] && i>&(data.len()/16)).map(|(i, _)| 8*i).next().unwrap();
@@ -271,17 +252,17 @@ fn legacy_build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, setti
                         }
                     },
                     6 if packet.tdc_type() == line_tdc.id() => {
-                        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+                        line_tdc.upt(packet.tdc_time_norm2(), packet.tdc_counter());
                         //if ( (packet.tdc_counter() as usize + 4096 - line_tdc.counter_offset) / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
                         if  (line_tdc.counter / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
                             line_tdc.begin_frame = line_tdc.time();
                         }
                     },
                     6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.period().is_some())=> {
-                        ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+                        ref_tdc.upt(packet.tdc_time_norm2(), packet.tdc_counter());
                     },
                     6 if (packet.tdc_type() == ref_tdc.id() && ref_tdc.period().is_none())=> {
-                        let tdc_time = packet.tdc_time_norm();
+                        let tdc_time = packet.tdc_time_norm2();
                         ref_tdc.upt(tdc_time, packet.tdc_counter());
                         let tdc_time = tdc_time - VIDEO_TIME;
                         if let Some(array_pos) = spim_detector(tdc_time, begin_frame, interval, period, settings) {
@@ -297,7 +278,7 @@ fn legacy_build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, setti
     if list.check() {Some(list)}
     else {None}
 }
-
+*/
 
 fn tr_check_if_in(ele_time: f64, tdc: f64, period: f64, settings: &Settings) -> Option<usize> {
     let mut eff_tdc = tdc;
@@ -314,14 +295,14 @@ fn tr_check_if_in(ele_time: f64, tdc: f64, period: f64, settings: &Settings) -> 
     }
 }
 
-fn spim_detector(ele_time: f64, begin: f64, interval: f64, period: f64, set: &Settings) -> Option<usize>{
+fn spim_detector(ele_time: usize, begin: usize, interval: usize, period: usize, set: &Settings) -> Option<usize>{
     let ratio = (ele_time - begin) / period; //0 to next complete frame
-    let ratio_inline = ratio.fract(); //from 0.0 to 1.0
-    if ratio_inline > interval / period || ratio_inline.is_sign_negative() { //Removes electrons in line return or before last tdc
+    let ratio_inline = (ele_time - begin) % period; //from 0 to period
+    if ratio_inline > interval / period { //Removes electrons in line return or before last tdc
         None
     } else {
-        let line = (ratio as usize / set.spimoverscany) % set.yspim_size; //multiple of yspim_size
-        let xpos = (set.xspim_size as f64 * ratio_inline / (interval / period)) as usize; //absolute position in the horizontal line. Division by interval/period re-escales the X.
+        let line = (ratio / set.spimoverscany) % set.yspim_size; //multiple of yspim_size
+        let xpos = (set.xspim_size * ratio_inline / (interval / period)) as usize; //absolute position in the horizontal line. Division by interval/period re-escales the X.
         let result = (line * set.xspim_size + xpos) * SPIM_PIXELS; //total array position
         Some(result)
     }
@@ -362,13 +343,13 @@ fn append_to_index_array(data: &mut Vec<u8>, index: usize, bytedepth: usize) {
     }
 }
 
+/*
 pub fn debug_multithread(my_pack: [u8; 24]) {
     thread::spawn( move || {
     //    let size = my_pack.len();
         debug_build_spim_data(&my_pack);
     });
 }
-
 
 pub fn debug_build_spim_data(my_pack: &[u8]) {
     //Electron Packets (0 and >500 ms)
@@ -425,4 +406,4 @@ pub fn debug_build_spim_data(my_pack: &[u8]) {
     }
     if list.check() {Some(list);}
 }
-
+*/

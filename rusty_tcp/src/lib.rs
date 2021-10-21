@@ -6,10 +6,10 @@
 pub mod auxiliar;
 pub mod tdclib;
 pub mod packetlib;
-pub mod postlib;
-pub mod speclib;
+//pub mod postlib;
+//pub mod speclib;
 pub mod spimlib;
-pub mod chronolib;
+//pub mod chronolib;
 
 /*
 ///`message_board` is a module containing tools to display HTTP based informations about the

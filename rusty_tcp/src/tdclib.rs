@@ -8,7 +8,7 @@ pub mod tdcvec {
     use crate::packetlib::{Packet, PacketEELS as Pack};
 
     pub struct TdcSearch {
-        pub data: Vec<(f64, TdcType)>,
+        pub data: Vec<(usize, TdcType)>,
         pub how_many: usize,
         pub tdc_choosen: TdcType,
         pub initial_counter: Option<usize>,
@@ -28,7 +28,7 @@ pub mod tdcvec {
         }
 
         fn add_tdc(&mut self, packet: &Pack) {
-            let time = packet.tdc_time_norm();
+            let time = packet.tdc_time_norm2();
             if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
                 self.data.push( (time, tdc) );
                 if packet.tdc_type() == self.tdc_choosen.associate_value() {
@@ -51,7 +51,7 @@ pub mod tdcvec {
             if counter>=5 {true} else {false}
         }
 
-        fn get_timelist(&self, which: &TdcType) -> Vec<f64> {
+        fn get_timelist(&self, which: &TdcType) -> Vec<usize> {
             let result: Vec<_> = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value() == which.associate_value())
                 .map(|(time, _tdct)| *time)
@@ -59,7 +59,7 @@ pub mod tdcvec {
             result
         }
         
-        fn get_auto_timelist(&self) -> Vec<f64> {
+        fn get_auto_timelist(&self) -> Vec<usize> {
             let result: Vec<_> = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value() == self.tdc_choosen.associate_value())
                 .map(|(time, _tdct)| *time)
@@ -68,7 +68,7 @@ pub mod tdcvec {
         }
 
 
-        pub fn find_high_time(&self) -> f64 {
+        pub fn find_high_time(&self) -> usize {
             let fal_tdc_type = match self.tdc_choosen {
                 TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
                 TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
@@ -85,14 +85,14 @@ pub mod tdcvec {
             let mut ris = self.get_timelist(&ris_tdc_type);
             let last_fal = fal.pop().expect("Please get at least 01 falling Tdc");
             let last_ris = ris.pop().expect("Please get at least 01 rising Tdc");
-            if last_fal - last_ris > 0.0 {
+            if last_fal - last_ris > 0 {
                 last_fal - last_ris 
             } else {
                 last_fal - ris.pop().expect("Please get at least 02 rising Tdc's.")
             }
         }
         
-        pub fn find_period(&self) -> f64 {
+        pub fn find_period(&self) -> usize {
             let mut tdc_time = self.get_auto_timelist();
             tdc_time.pop().expect("Please get at least 02 Tdc's") - tdc_time.pop().expect("Please get at least 02 Tdc's")
         }
@@ -112,7 +112,7 @@ pub mod tdcvec {
             self.last_counter
         }
 
-        pub fn get_lasttime(&self) -> f64 {
+        pub fn get_lasttime(&self) -> usize {
             let last_time = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
                 .map(|(time, _tdct)| *time)
@@ -120,7 +120,7 @@ pub mod tdcvec {
             last_time
         }
 
-        pub fn get_begintime(&self) -> f64 {
+        pub fn get_begintime(&self) -> usize {
             let begin_time = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
                 .map(|(time, _tdct)| *time)
@@ -153,7 +153,7 @@ pub mod tdcvec {
         };
     }
 
-    pub fn check_tdc(tdc_vec: &Vec<(f64, TdcType)>, tdc_choosen: &TdcType) -> bool {
+    pub fn check_tdc(tdc_vec: &Vec<(usize, TdcType)>, tdc_choosen: &TdcType) -> bool {
         let mut counter = 0;
         for (_time, tdc_type) in tdc_vec {
             if tdc_type.associate_value() == tdc_choosen.associate_value() {counter+=1;}
@@ -162,7 +162,7 @@ pub mod tdcvec {
     }
     
     ///Outputs the time list for a specific TDC.
-    fn get_timelist(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> Vec<f64> {
+    fn get_timelist(tdc_vec: &Vec<(usize, TdcType)>, tdc_type: &TdcType) -> Vec<usize> {
         let result: Vec<_> = tdc_vec.iter()
             .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
             .map(|(time, _tdct)| *time)
@@ -171,7 +171,7 @@ pub mod tdcvec {
     }
     
     ///Returns the + time of a periodic TDC.
-    pub fn find_high_time(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
+    pub fn find_high_time(tdc_vec: &Vec<(usize, TdcType)>, tdc_type: &TdcType) -> usize {
         let fal_tdc_type = match tdc_type {
             TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
             TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
@@ -188,7 +188,7 @@ pub mod tdcvec {
         let mut ris = get_timelist(tdc_vec, &ris_tdc_type);
         let last_fal = fal.pop().expect("Please get at least 01 falling Tdc");
         let last_ris = ris.pop().expect("Please get at least 01 rising Tdc");
-        if last_fal - last_ris > 0.0 {
+        if last_fal - last_ris > 0 {
             last_fal - last_ris 
         } else {
             last_fal - ris.pop().expect("Please get at least 02 rising Tdc's.")
@@ -196,19 +196,19 @@ pub mod tdcvec {
     }
     
     ///Returns the period time interval between lines.
-    pub fn find_period(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
+    pub fn find_period(tdc_vec: &Vec<(usize, TdcType)>, tdc_type: &TdcType) -> usize {
         let mut tdc_time = get_timelist(tdc_vec, tdc_type);
         tdc_time.pop().expect("Please get at least 02 Tdc's") - tdc_time.pop().expect("Please get at least 02 Tdc's")
     }
     
-    pub fn get_counter(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> usize {
+    pub fn get_counter(tdc_vec: &Vec<(usize, TdcType)>, tdc_type: &TdcType) -> usize {
         let counter = tdc_vec.iter()
             .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
             .count();
         counter
     }
     
-    pub fn get_lasttime(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
+    pub fn get_lasttime(tdc_vec: &Vec<(usize, TdcType)>, tdc_type: &TdcType) -> usize {
         let last_time = tdc_vec.iter()
             .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
             .map(|(time, _tdct)| *time)
@@ -216,7 +216,7 @@ pub mod tdcvec {
         last_time
     }
     
-    pub fn get_begintime(tdc_vec: &Vec<(f64, TdcType)>, tdc_type: &TdcType) -> f64 {
+    pub fn get_begintime(tdc_vec: &Vec<(usize, TdcType)>, tdc_type: &TdcType) -> usize {
         let begin_time = tdc_vec.iter()
             .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
             .map(|(time, _tdct)| *time)
@@ -285,10 +285,10 @@ impl TdcType {
 
 pub trait TdcControl {
     fn id(&self) -> u8;
-    fn upt(&mut self, time: f64, hard_counter: u16);
+    fn upt(&mut self, time: usize, hard_counter: u16);
     fn counter(&self) -> usize;
-    fn time(&self) -> f64;
-    fn period(&self) -> Option<f64>;
+    fn time(&self) -> usize;
+    fn period(&self) -> Option<usize>;
     fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Self;
 }
 
@@ -299,12 +299,12 @@ pub struct PeriodicTdcRef {
     pub counter_offset: usize,
     pub last_hard_counter: u16,
     pub counter_overflow: usize,
-    pub begin: f64,
-    pub begin_frame: f64,
-    pub period: f64,
-    pub high_time: f64,
-    pub low_time: f64,
-    pub time: f64,
+    pub begin: usize,
+    pub begin_frame: usize,
+    pub period: usize,
+    pub high_time: usize,
+    pub low_time: usize,
+    pub time: usize,
 }
 
 impl TdcControl for PeriodicTdcRef {
@@ -312,7 +312,7 @@ impl TdcControl for PeriodicTdcRef {
         self.tdctype
     }
 
-    fn upt(&mut self, time: f64, hard_counter: u16) {
+    fn upt(&mut self, time: usize, hard_counter: u16) {
         if hard_counter < self.last_hard_counter {
             self.counter_overflow += 1;
         }
@@ -325,11 +325,11 @@ impl TdcControl for PeriodicTdcRef {
         self.counter
     }
 
-    fn time(&self) -> f64 {
+    fn time(&self) -> usize {
         self.time
     }
 
-    fn period(&self) -> Option<f64> {
+    fn period(&self) -> Option<usize> {
         Some(self.period)
     }
 
@@ -360,7 +360,7 @@ impl TdcControl for PeriodicTdcRef {
         let period = tdc_search.find_period();
         let low_time = period - high_time;
         
-        println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ms) is {}. ON interval (us) is {}. Period (us) is {}. Low time (us) is {}.", tdc_type.associate_str(), counter, last_time*1.0e3, high_time*1.0e6, period*1.0e6, low_time*1.0e6);
+        println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ns) is {}. ON interval (ns) is {}. Period (ns) is {}. Low time (ns) is {}.", tdc_type.associate_str(), counter, last_time, high_time, period, low_time);
         Self {
             tdctype: tdc_type.associate_value(),
             counter: counter,
@@ -380,7 +380,7 @@ impl TdcControl for PeriodicTdcRef {
 pub struct NonPeriodicTdcRef {
     pub tdctype: u8,
     pub counter: usize,
-    pub time: Vec<f64>,
+    pub time: Vec<usize>,
 }
 
 impl TdcControl for NonPeriodicTdcRef {
@@ -388,7 +388,7 @@ impl TdcControl for NonPeriodicTdcRef {
         self.tdctype
     }
 
-    fn upt(&mut self, time: f64, _: u16) {
+    fn upt(&mut self, time: usize, _: u16) {
         self.time.pop().expect("***Tdc Lib***: There is no element to exclude from NonPeriodicTDC.");
         self.time.insert(0, time);
         self.counter+=1;
@@ -398,11 +398,11 @@ impl TdcControl for NonPeriodicTdcRef {
         self.counter
     }
 
-    fn time(&self) -> f64 {
+    fn time(&self) -> usize {
         self.time[0]
     }
 
-    fn period(&self) -> Option<f64> {
+    fn period(&self) -> Option<usize> {
         None
     }
     
@@ -410,7 +410,7 @@ impl TdcControl for NonPeriodicTdcRef {
         Self {
             tdctype: tdc_type.associate_value(),
             counter: 0,
-            time: vec![0.0; 5],
+            time: vec![0; 5],
         }
     }
     
