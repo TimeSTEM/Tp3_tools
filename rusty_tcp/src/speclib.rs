@@ -73,6 +73,7 @@ pub fn build_spectrum<T: TdcControl, V: Read>(mut pack_sock: V, mut vec_ns_sock:
             if my_settings.cumul == false {
                 data_array.iter_mut().for_each(|x| *x = 0);
                 data_array[len] = 10;
+            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
             };
         }
     }

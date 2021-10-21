@@ -129,7 +129,6 @@ pub mod tdcvec {
         }
     }
 
-
     pub fn search_any_tdc(data: &[u8], tdc_struct: &mut TdcSearch, last_ci: &mut usize) {
         //use crate::packetlib::{Packet, PacketEELS};
 
@@ -160,69 +159,7 @@ pub mod tdcvec {
         }
         if counter>=5 {true} else {false}
     }
-    
-    ///Outputs the time list for a specific TDC.
-    fn get_timelist(tdc_vec: &Vec<(usize, TdcType)>, tdc_type: &TdcType) -> Vec<usize> {
-        let result: Vec<_> = tdc_vec.iter()
-            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
-            .map(|(time, _tdct)| *time)
-            .collect();
-        result
-    }
-    
-    ///Returns the + time of a periodic TDC.
-    pub fn find_high_time(tdc_vec: &Vec<(usize, TdcType)>, tdc_type: &TdcType) -> usize {
-        let fal_tdc_type = match tdc_type {
-            TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
-            TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
-            TdcType::NoTdc => TdcType::NoTdc,
-        };
-        
-        let ris_tdc_type = match tdc_type {
-            TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneRisingEdge,
-            TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoRisingEdge,
-            TdcType::NoTdc => TdcType::NoTdc,
-        };
 
-        let mut fal = get_timelist(tdc_vec, &fal_tdc_type);
-        let mut ris = get_timelist(tdc_vec, &ris_tdc_type);
-        let last_fal = fal.pop().expect("Please get at least 01 falling Tdc");
-        let last_ris = ris.pop().expect("Please get at least 01 rising Tdc");
-        if last_fal - last_ris > 0 {
-            last_fal - last_ris 
-        } else {
-            last_fal - ris.pop().expect("Please get at least 02 rising Tdc's.")
-        }
-    }
-    
-    ///Returns the period time interval between lines.
-    pub fn find_period(tdc_vec: &Vec<(usize, TdcType)>, tdc_type: &TdcType) -> usize {
-        let mut tdc_time = get_timelist(tdc_vec, tdc_type);
-        tdc_time.pop().expect("Please get at least 02 Tdc's") - tdc_time.pop().expect("Please get at least 02 Tdc's")
-    }
-    
-    pub fn get_counter(tdc_vec: &Vec<(usize, TdcType)>, tdc_type: &TdcType) -> usize {
-        let counter = tdc_vec.iter()
-            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
-            .count();
-        counter
-    }
-    
-    pub fn get_lasttime(tdc_vec: &Vec<(usize, TdcType)>, tdc_type: &TdcType) -> usize {
-        let last_time = tdc_vec.iter()
-            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
-            .map(|(time, _tdct)| *time)
-            .last().unwrap();
-        last_time
-    }
-    
-    pub fn get_begintime(tdc_vec: &Vec<(usize, TdcType)>, tdc_type: &TdcType) -> usize {
-        let begin_time = tdc_vec.iter()
-            .filter(|(_time, tdct)| tdct.associate_value()==tdc_type.associate_value())
-            .map(|(time, _tdct)| *time)
-            .next().unwrap();
-        begin_time
-    }
 }
 
 
