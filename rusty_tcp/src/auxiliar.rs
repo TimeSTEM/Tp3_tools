@@ -1,6 +1,6 @@
 //!`auxiliar` is a collection of tools to set acquisition conditions.
 
-const CONFIG_SIZE: usize = 30;
+const CONFIG_SIZE: usize = 20;
 
 #[derive(Debug)]
 pub enum BytesConfigError {
@@ -13,7 +13,7 @@ pub enum BytesConfigError {
     NbSockets,
 }
 
-///Configures the detector for acquisition. Each new measurement must send 28 bytes
+///Configures the detector for acquisition. Each new measurement must send 20 bytes
 ///containing instructions.
 struct BytesConfig {
     pub data: [u8; CONFIG_SIZE],
@@ -137,35 +137,36 @@ impl BytesConfig {
         y
     }
     
-    ///Time delay. Must be sent with 8 bytes in big-endian mode. Similar to double in C.
-    ///Byte[12..20]
-    fn time_delay(&self) -> f64 {
-        let mut array: [u8; 8] = [0; 8];
-        for (i, val) in array.iter_mut().enumerate() {
-            *val = self.data[i+12]
-        }
-        let val = f64::from_be_bytes(array);
-        println!("Time delay is (ns): {}.", val);
-        val / 1.0e9
+    ///Time delay. Must be sent with 2 bytes in big-endian mode. Byte[12..14]
+    fn time_delay(&self) -> usize {
+        let td = (self.data[12] as usize)<<8 | (self.data[13] as usize);
+        println!("Time delay is (ns): {}.", td);
+        td
     }
     
-    ///Time width. Must be sent with 8 bytes in big-endian mode. Similar to double in C. Byte[20..28].
-    fn time_width(&self) -> f64 {
-        let mut array: [u8; 8] = [0; 8];
-        for (i, val) in array.iter_mut().enumerate() {
-            *val = self.data[i+20]
-        }
-        let val = f64::from_be_bytes(array);
-        println!("Time width is (ns): {}.", val);
-        val / 1.0e9
+    ///Time width. Must be sent with 2 bytes in big-endian mode. Byte[14..16].
+    fn time_width(&self) -> usize {
+        let tw = (self.data[14] as usize)<<8 | (self.data[15] as usize);
+        println!("Time delay is (ns): {}.", tw);
+        tw
     }
     
     ///Counter for general use. Can be used to finish accumulation automatically or to create a
-    ///Chrono measurement for example. Must be sent with 2 bytes in big-endian mode. Byte[28..30]
+    ///Chrono measurement for example. Must be sent with 2 bytes in big-endian mode. Byte[16..18]
     fn counter(&self) -> usize {
-        let counter = (self.data[28] as usize)<<8 | (self.data[29] as usize);
+        let counter = (self.data[16] as usize)<<8 | (self.data[17] as usize);
         println!("Counter value is: {}.", counter);
         counter
+    }
+    
+    ///Number of sockets. Must be sent with 2 bytes in big-endian mode. Byte[18..20].
+    fn nsockets(&self) -> Result<usize, BytesConfigError> {
+        let number_sockets = (self.data[18] as usize)<<8 | (self.data[19] as usize);
+        println!("{}", number_sockets);
+        if number_sockets == 1 || number_sockets % 4 == 0{
+            println!("Number of sockets is: {}", number_sockets);
+            Ok(number_sockets)
+        } else {Err(BytesConfigError::NbSockets)}
     }
     
     ///Convenience method. Returns the ratio between scan and spim size in X.
@@ -204,13 +205,6 @@ impl BytesConfig {
         }
     }
 
-    fn nsockets(&self) -> Result<usize, BytesConfigError> {
-        let number_sockets = (self.data[28] as usize)<<8 | (self.data[29] as usize);
-        if number_sockets == 1 || number_sockets % 4 == 0{
-            println!("Number of sockets is: {}", number_sockets);
-            Ok(number_sockets)
-        } else {Err(BytesConfigError::NbSockets)}
-    }
 
     ///Create Settings struct from BytesConfig
     fn create_settings(&self) -> Result<Settings, BytesConfigError> {
@@ -251,8 +245,8 @@ pub struct Settings {
     pub yspim_size: usize,
     pub xscan_size: usize,
     pub yscan_size: usize,
-    pub time_delay: f64,
-    pub time_width: f64,
+    pub time_delay: usize,
+    pub time_width: usize,
     pub counter: usize,
     pub spimoverscanx: usize,
     pub spimoverscany: usize,
@@ -330,8 +324,8 @@ impl Settings {
             yspim_size: 512,
             xscan_size: 512,
             yscan_size: 512,
-            time_delay: 0.0,
-            time_width: 1000.0,
+            time_delay: 0,
+            time_width: 1000,
             counter: 128,
             spimoverscanx: 1,
             spimoverscany: 1,

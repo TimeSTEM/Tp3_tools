@@ -56,7 +56,7 @@ pub trait Packet {
         let toa = ((self.data()[3] & 192) as usize)>>6 | (self.data()[4] as usize)<<2 | ((self.data()[5] & 15) as usize)<<10;
         let ftoa = (self.data()[2] & 15) as usize;
         let ctoa = (toa << 4) | (!ftoa & 15);
-        (spidr * 25 * 16384 + ctoa * 25 / 16)
+        spidr * 25 * 16384 + ctoa * 25 / 16
     }
 
     fn tdc_coarse(&self) -> u64 {
@@ -84,7 +84,7 @@ pub trait Packet {
     fn tdc_time_norm(&self) -> usize {
         let coarse = ((self.data()[1] & 254) as usize)>>1 | ((self.data()[2]) as usize)<<7 | ((self.data()[3]) as usize)<<15 | ((self.data()[4]) as usize)<<23 | ((self.data()[5] & 15) as usize)<<31;
         let fine = ((self.data()[0] & 224) as usize) >> 5 | ((self.data()[1] & 1) as usize) << 3;
-        let time = (coarse * 1_000 / 320 + fine * 260 / 1_000);
+        let time = coarse * 1_000 / 320 + fine * 260 / 1_000;
         time - (time / (26843545600)) * 26843545600
     }
 

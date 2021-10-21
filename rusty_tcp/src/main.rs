@@ -1,6 +1,6 @@
 use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
-//use timepix3::speclib;
+use timepix3::speclib;
 use timepix3::spimlib;
 //use timepix3::chronolib;
 
@@ -13,13 +13,13 @@ fn connect_and_loop() {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock);
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
             
-            //speclib::build_spectrum(pack_sock, vec_ns_sock, my_settings, frame_tdc, np_tdc);
+            speclib::build_spectrum(pack_sock, vec_ns_sock, my_settings, frame_tdc, np_tdc);
         },
         1 => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock);
             let laser_tdc = PeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
      
-            //speclib::build_spectrum(pack_sock, vec_ns_sock, my_settings, frame_tdc, laser_tdc);
+            speclib::build_spectrum(pack_sock, vec_ns_sock, my_settings, frame_tdc, laser_tdc);
         },
         2 => {
             let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack_sock);

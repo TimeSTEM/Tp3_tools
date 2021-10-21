@@ -138,15 +138,7 @@ fn tr_check_if_in(ele_time: usize, tdc: usize, period: usize, settings: &Setting
         tdc
     };
 
-
-    //let xper = ((tdc - ele_time)/period).ceil();
-    //let eff_tdc = if xper > 0.0 {
-    //    tdc - xper * period
-    //} else {
-    //    tdc
-    //};
-
-    if ele_time > eff_tdc + settings.time_delay as usize && ele_time < eff_tdc + settings.time_delay as usize + settings.time_width as usize {
+    if ele_time > eff_tdc + settings.time_delay && ele_time < eff_tdc + settings.time_delay + settings.time_width {
         true
     } else {
         false
