@@ -6,13 +6,11 @@ use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
+use rayon::prelude::*;
 
 const VIDEO_TIME: usize = 5000;
-const CLUSTER_TIME: f64 = 50.0e-09;
 const SPIM_PIXELS: usize = 1025;
 const BUFFER_SIZE: usize = 16384 * 2;
-const UNIQUE_BYTE: usize = 1;
-const INDEX_BYTE: usize = 4;
 
 /// Possible outputs to build spim data. `usize` does not implement cluster detection. `(f64,
 /// usize, usize, u8)` performs cluster detection. This could reduce the data flux but will
@@ -30,6 +28,11 @@ impl<T> Output<T> {
         self.data.iter().next().is_some()
     }
 }
+
+/*
+const CLUSTER_TIME: f64 = 50.0e-09;
+const UNIQUE_BYTE: usize = 1;
+const INDEX_BYTE: usize = 4;
 
 impl Output<(f64, usize, usize, u8)> {
     fn build_output(mut self) -> Vec<u8> {
@@ -54,21 +57,20 @@ impl Output<usize> {
         event_counter(self.data)
     }
 }
+*/
 
 impl Output<(usize, usize)> {
     fn build_output(self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
         let mut my_vec: Vec<u8> = Vec::new();
 
         self.data.iter()
-            .filter_map(|&(x, dt)|  if (dt % spim_tdc.period) < spim_tdc.low_time {
-                let ratio = dt / spim_tdc.period;
-                Some((x, ratio, dt % spim_tdc.period)) 
+            .filter_map(|&(x, dt)| if dt % spim_tdc.period < spim_tdc.low_time {
+                let r = dt / spim_tdc.period;
+                let rin = dt % spim_tdc.period;
+                let index = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size * rin / spim_tdc.low_time)) * SPIM_PIXELS + x;
+                Some(index) 
             } else {None}
             )
-            .map(|(x, r, rin)| {
-                let index = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size * rin / spim_tdc.low_time)) * SPIM_PIXELS + x;
-                index
-            })
             .for_each(|index| {
                 append_to_index_array(&mut my_vec, index, set.bytedepth);
             });
@@ -77,7 +79,7 @@ impl Output<(usize, usize)> {
     }
 }
 
-
+/*
 fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
     my_vec.sort_unstable();
     let mut unique:Vec<u8> = Vec::new();
@@ -116,6 +118,7 @@ fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
     //println!("Total len with unique: {}. Total len only indexes (older): {}. Max unique is {}. Improvement is {}", vec.len(), sum_unique * 4, mmax_unique, sum_unique as f64 * 4.0 / vec.len() as f64);
     vec
 }
+*/
     
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
 pub fn build_spim<V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: NonPeriodicTdcRef)
@@ -145,32 +148,8 @@ pub fn build_spim<V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_setti
     println!("Total elapsed time is: {:?}.", elapsed);
 }
 
-/*
-///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc. This is a single thread function.
-pub fn stbuild_spim<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T)
-    where T: 'static + Send + TdcControl,
-          V: 'static + Send + Read
-{
-    let mut last_ci = 0usize;
-    let mut buffer_pack_data = [0; BUFFER_SIZE];
-    let mut counter = 0;
-
-    let start = Instant::now();
-    let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
-    while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-        if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-        if let Some(result) = legacy_build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
-            let result = result.build_output();
-            if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-            counter += 1;
-            if counter % 100 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, counter)}
-        }
-    }
-}
-*/
 
 fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut NonPeriodicTdcRef) -> Option<Output<(usize, usize)>> {
-
     if data.len() % 8 != 0 {
         println!("Data was not multiple of 8. Rejecting lenght of: {}", data.len());
         return None

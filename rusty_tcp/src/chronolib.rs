@@ -7,7 +7,7 @@ use std::net::TcpStream;
 use std::io::{Read, Write};
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
-const BUFFER_SIZE: usize = 16384 * 3;
+const BUFFER_SIZE: usize = 16384 * 2;
 
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time. Chrono Mode.
 pub fn build_chrono<T: TdcControl, V: Read>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {

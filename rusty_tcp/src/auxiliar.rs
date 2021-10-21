@@ -159,10 +159,10 @@ impl BytesConfig {
         counter
     }
     
+    
     ///Number of sockets. Must be sent with 2 bytes in big-endian mode. Byte[18..20].
     fn nsockets(&self) -> Result<usize, BytesConfigError> {
         let number_sockets = (self.data[18] as usize)<<8 | (self.data[19] as usize);
-        println!("{}", number_sockets);
         if number_sockets == 1 || number_sockets % 4 == 0{
             println!("Number of sockets is: {}", number_sockets);
             Ok(number_sockets)
