@@ -77,6 +77,29 @@ impl Output<(usize, f64)> {
     }
 }
 
+/*
+impl Output<(usize, usize)> {
+    fn build_output(self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
+        let mut my_vec: Vec<u8> = Vec::new();
+
+        self.data.iter()
+            .filter_map(|&(x, dt)|  if (dt / spim_tdc.period).fract() < spim_tdc.low_time / spim_tdc.period && dt > 0.0 {
+                let ratio = dt / spim_tdc.period;
+                Some((x, ratio as usize, ratio.fract())) 
+            } else {None}
+            )
+            .map(|(x, r, rin)| {
+                let index = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size as f64 * rin * (spim_tdc.period / spim_tdc.low_time)) as usize) * SPIM_PIXELS + x;
+                index
+            })
+            .for_each(|index| {
+                append_to_index_array(&mut my_vec, index, set.bytedepth);
+            });
+
+    my_vec
+    }
+}
+*/
 
 
 fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
@@ -139,7 +162,7 @@ pub fn build_spim<V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_setti
     let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
-        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+        //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
     }
 
     let elapsed = start.elapsed(); 
