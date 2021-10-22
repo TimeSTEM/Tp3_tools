@@ -11,6 +11,7 @@ use std::thread;
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
 
+/*
 pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) 
     where T: 'static + Send + TdcControl,
           V: 'static + Send + Read
@@ -48,6 +49,7 @@ pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStr
     }
     println!("Total elapsed time is: {:?}.", start.elapsed());
 }
+*/
 
 
 
@@ -61,7 +63,6 @@ pub fn build_spectrum<T: TdcControl, V: Read>(mut pack_sock: V, mut vec_ns_sock:
     let mut data_array:Vec<u8> = vec![0; len + 1];
     data_array[len] = 10;
 
-
     let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
     while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
         if size == 0 {println!("Timepix3 sent zero bytes."); break;}
@@ -73,7 +74,8 @@ pub fn build_spectrum<T: TdcControl, V: Read>(mut pack_sock: V, mut vec_ns_sock:
             if my_settings.cumul == false {
                 data_array.iter_mut().for_each(|x| *x = 0);
                 data_array[len] = 10;
-            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
+            }
+            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());
             };
         }
     }
