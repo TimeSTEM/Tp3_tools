@@ -72,7 +72,7 @@ impl Output<(usize, usize)> {
             } else {None}
             )
             .for_each(|index| {
-                append_to_index_array(&mut my_vec, index, set.bytedepth);
+                append_to_index_array(&mut my_vec, index);
             });
 
     my_vec
@@ -190,21 +190,9 @@ fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_t
     else {None}
 }
 
-fn append_to_index_array(data: &mut Vec<u8>, index: usize, bytedepth: usize) {
-    match bytedepth {
-        4 => {
-            data.push(((index & 4_278_190_080)>>24) as u8);
-            data.push(((index & 16_711_680)>>16) as u8);
-            data.push(((index & 65_280)>>8) as u8);
-            data.push((index & 255) as u8);
-        },
-        2 => {
-            data.push(((index & 65_280)>>8) as u8);
-            data.push((index & 255) as u8);
-        },
-        1 => {
-            data.push((index & 255) as u8);
-        },
-        _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
-    }
+fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
+    data.push(((index & 4_278_190_080)>>24) as u8);
+    data.push(((index & 16_711_680)>>16) as u8);
+    data.push(((index & 65_280)>>8) as u8);
+    data.push((index & 255) as u8);
 }
