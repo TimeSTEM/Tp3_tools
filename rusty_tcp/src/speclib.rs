@@ -5,8 +5,6 @@ use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use std::time::Instant;
 use std::net::TcpStream;
 use std::io::{Read, Write};
-use std::sync::mpsc;
-use std::thread;
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
@@ -91,6 +89,13 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u
         return false
     }
 
+    let array_pos = |pack: &Pack| {
+        match settings.bin {
+            true => pack.x(),
+            false => pack.x() + CAM_DESIGN.0 * pack.y(),
+        }
+    };
+
     data.chunks_exact(8).for_each( |x| {
         match x {
             &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
@@ -98,20 +103,13 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut u
                 let packet = Pack { chip_index: *last_ci, data: x};
                 
                 match packet.id() {
-                    11 if ref_tdc.period().is_none() => {
-                        let array_pos = match settings.bin {
-                            true => packet.x(),
-                            false => packet.x() + CAM_DESIGN.0 * packet.y(),
-                        };
-                        append_to_array(final_data, array_pos, settings.bytedepth);
-                    },
-                    11 if ref_tdc.period().is_some() => {
-                        if tr_check_if_in(packet.electron_time(), ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
-                            let array_pos = match settings.bin {
-                                true => packet.x(),
-                                false => packet.x() + CAM_DESIGN.0 * packet.y(),
-                            };
-                            append_to_array(final_data, array_pos, settings.bytedepth);
+                    11 => {
+                        if ref_tdc.period().is_none() {
+                            append_to_array(final_data, array_pos(&packet), settings.bytedepth);
+                        } else {
+                            if tr_check_if_in(packet.electron_time(), ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
+                                append_to_array(final_data, array_pos(&packet), settings.bytedepth);
+                            }
                         }
                     },
                     6 if packet.tdc_type() == frame_tdc.id() => {

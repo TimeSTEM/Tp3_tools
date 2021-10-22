@@ -1,12 +1,11 @@
 use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::Settings;
-use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
+use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use std::net::TcpStream;
 use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
-use rayon::prelude::*;
 
 const VIDEO_TIME: usize = 5000;
 const SPIM_PIXELS: usize = 1025;
@@ -121,8 +120,9 @@ fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
 */
     
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
-pub fn build_spim<V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: NonPeriodicTdcRef)
-    where V: 'static + Send + Read
+pub fn build_spim<V, T>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T)
+    where V: 'static + Send + Read,
+          T: 'static + Send + TdcControl
 {
     let (tx, rx) = mpsc::channel();
     let mut last_ci = 0usize;
@@ -149,7 +149,7 @@ pub fn build_spim<V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_setti
 }
 
 
-fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut NonPeriodicTdcRef) -> Option<Output<(usize, usize)>> {
+fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<(usize, usize)>> {
     if data.len() % 8 != 0 {
         println!("Data was not multiple of 8. Rejecting lenght of: {}", data.len());
         return None
@@ -171,7 +171,7 @@ fn build_spim_data(data: &[u8], last_ci: &mut usize, settings: &Settings, line_t
                     },
                     6 if packet.tdc_type() == line_tdc.id() => {
                         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
-                        if  (line_tdc.counter / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
+                        if (line_tdc.counter / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
                             line_tdc.begin_frame = line_tdc.time();
                         }
                     },
