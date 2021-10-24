@@ -1,16 +1,67 @@
 use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::Settings;
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
-use std::net::TcpStream;
+use std::net::{TcpStream};
 use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
+use rayon::prelude::*;
 
 const VIDEO_TIME: usize = 5000;
 const SPIM_PIXELS: usize = 1025;
 const BUFFER_SIZE: usize = 16384 * 2;
 
+pub trait SpimKind {
+    type MyOutput;
+
+    fn upt(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef);
+    fn check(&self) -> bool;
+    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8>;
+}
+
+
+pub struct Live {
+    data: Vec<(usize, usize)>,
+}
+
+impl SpimKind for Live {
+    type MyOutput = (usize, usize);
+
+    fn upt(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
+        let ele_time = packet.electron_time() - VIDEO_TIME;
+        if ele_time > line_tdc.begin_frame {
+            self.data.push((packet.x(), ele_time - line_tdc.begin_frame))
+        }
+    }
+
+    fn check(&self) -> bool {
+        self.data.iter().next().is_some()
+    }
+
+    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
+        let mut my_vec: Vec<u8> = Vec::new();
+
+        self.data.iter()
+            .filter_map(|&(x, dt)| if dt % spim_tdc.period < spim_tdc.low_time {
+                let r = dt / spim_tdc.period;
+                let rin = dt % spim_tdc.period;
+                let index = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size * rin / spim_tdc.low_time)) * SPIM_PIXELS + x;
+                Some(index) 
+            } else {None}
+            )
+            .for_each(|index| {
+                append_to_index_array(&mut my_vec, index);
+            });
+
+    my_vec
+    }
+}
+
+
+
+
+/*
 /// Possible outputs to build spim data. `usize` does not implement cluster detection. `(f64,
 /// usize, usize, u8)` performs cluster detection. This could reduce the data flux but will
 /// cost processing time.
@@ -27,6 +78,7 @@ impl<T> Output<T> {
         self.data.iter().next().is_some()
     }
 }
+*/
 
 /*
 const CLUSTER_TIME: f64 = 50.0e-09;
@@ -58,6 +110,7 @@ impl Output<usize> {
 }
 */
 
+/*
 impl Output<(usize, usize)> {
     fn build_output(self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
         let mut my_vec: Vec<u8> = Vec::new();
@@ -77,6 +130,7 @@ impl Output<(usize, usize)> {
     my_vec
     }
 }
+*/
 
 /*
 fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
@@ -127,13 +181,15 @@ pub fn build_spim<V, T>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
     let (tx, rx) = mpsc::channel();
     let mut last_ci = 0usize;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
+    let mut list = Live{ data: Vec::new() };
     
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-            if let Some(result) = build_spim_data(&buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
-                if let Err(_) = tx.send(result) {println!("Cannot send data over the thread channel."); break;}
-            }
+            //if let Some(result) = build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
+            build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+            if let Err(_) = tx.send(list) {println!("Cannot send data over the thread channel."); break;}
+            list = Live{ data: Vec::new() };
         }
     });
     
@@ -141,7 +197,7 @@ pub fn build_spim<V, T>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
     let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
-        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+        //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
     }
 
     let elapsed = start.elapsed(); 
@@ -149,13 +205,13 @@ pub fn build_spim<V, T>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
 }
 
 
-fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<(usize, usize)>> {
-    if data.len() % 8 != 0 {
-        println!("Data was not multiple of 8. Rejecting lenght of: {}", data.len());
-        return None
-    }
+//fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<(usize, usize)>> {
+fn build_spim_data<T: TdcControl>(list: &mut Live, data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) {//-> Option<impl SpimKind> {
+    //if data.len() % 8 != 0 {
+    //    println!("Data was not multiple of 8. Rejecting lenght of: {}", data.len());
+    //    return None
+    //}
 
-    let mut list = Output{ data: Vec::new() };
     data.chunks_exact(8).for_each(|x| {
         match x {
             &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
@@ -164,10 +220,11 @@ fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &S
                 let id = packet.id();
                 match id {
                     11 => {
-                        let ele_time = packet.electron_time() - VIDEO_TIME;
-                        if ele_time > line_tdc.begin_frame {
-                            list.upt((packet.x(), ele_time - line_tdc.begin_frame))
-                        }
+                        list.upt(&packet, &line_tdc)
+                        //let ele_time = packet.electron_time() - VIDEO_TIME;
+                        //if ele_time > line_tdc.begin_frame {
+                        //    list.upt((packet.x(), ele_time - line_tdc.begin_frame))
+                        //}
                     },
                     6 if packet.tdc_type() == line_tdc.id() => {
                         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
@@ -179,15 +236,15 @@ fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &S
                         let tdc_time = packet.tdc_time_norm();
                         ref_tdc.upt(tdc_time, packet.tdc_counter());
                         let tdc_time = tdc_time - VIDEO_TIME;
-                        list.upt((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame))
+                        //list.upt((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame))
                     },
                     _ => {},
                 };
             },
         };
     });
-    if list.check() {Some(list)}
-    else {None}
+    //if list.check() {Some(list)}
+    //else {None}
 }
 
 fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
