@@ -1,6 +1,6 @@
 use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::Settings;
-use crate::tdclib::{TdcControl, PeriodicTdcRef};
+use crate::tdclib::{TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
 use std::net::{TcpStream};
 use std::time::Instant;
 use std::io::{Read, Write};
@@ -15,9 +15,13 @@ const BUFFER_SIZE: usize = 16384 * 2;
 pub trait SpimKind {
     type MyOutput;
 
-    fn upt(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef);
+    fn data(&self) -> &Vec<Self::MyOutput>;
+    fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef);
+    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T);
+    fn upt_line(&self, packet: &PacketEELS, settings: &Settings, line_tdc: &mut PeriodicTdcRef);
     fn check(&self) -> bool;
     fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8>;
+    fn new() -> Self;
 }
 
 
@@ -28,10 +32,28 @@ pub struct Live {
 impl SpimKind for Live {
     type MyOutput = (usize, usize);
 
-    fn upt(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
+    fn data(&self) -> &Vec<(usize, usize)> {
+        &self.data
+    }
+
+    fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
         let ele_time = packet.electron_time() - VIDEO_TIME;
         if ele_time > line_tdc.begin_frame {
             self.data.push((packet.x(), ele_time - line_tdc.begin_frame))
+        }
+    }
+    
+    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
+        let tdc_time = packet.tdc_time_norm();
+        ref_tdc.upt(tdc_time, packet.tdc_counter());
+        let tdc_time = tdc_time - VIDEO_TIME;
+        self.data.push((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame))
+    }
+
+    fn upt_line(&self, packet: &PacketEELS, settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
+        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+        if (line_tdc.counter / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
+            line_tdc.begin_frame = line_tdc.time();
         }
     }
 
@@ -55,6 +77,10 @@ impl SpimKind for Live {
             });
 
     my_vec
+    }
+
+    fn new() -> Self {
+        Live{ data: Vec::new() }
     }
 }
 
@@ -181,7 +207,7 @@ pub fn build_spim<V, T>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
     let (tx, rx) = mpsc::channel();
     let mut last_ci = 0usize;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
-    let mut list = Live{ data: Vec::new() };
+    let mut list = Live::new();
     
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -189,7 +215,7 @@ pub fn build_spim<V, T>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_se
             //if let Some(result) = build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc) {
             build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
             if let Err(_) = tx.send(list) {println!("Cannot send data over the thread channel."); break;}
-            list = Live{ data: Vec::new() };
+            list = Live::new();
         }
     });
     
@@ -220,23 +246,13 @@ fn build_spim_data<T: TdcControl>(list: &mut Live, data: &[u8], last_ci: &mut us
                 let id = packet.id();
                 match id {
                     11 => {
-                        list.upt(&packet, &line_tdc)
-                        //let ele_time = packet.electron_time() - VIDEO_TIME;
-                        //if ele_time > line_tdc.begin_frame {
-                        //    list.upt((packet.x(), ele_time - line_tdc.begin_frame))
-                        //}
+                        list.add_electron_hit(&packet, line_tdc)
                     },
                     6 if packet.tdc_type() == line_tdc.id() => {
-                        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
-                        if (line_tdc.counter / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
-                            line_tdc.begin_frame = line_tdc.time();
-                        }
+                        list.upt_line(&packet, settings, line_tdc);
                     },
                     6 if packet.tdc_type() == ref_tdc.id()=> {
-                        let tdc_time = packet.tdc_time_norm();
-                        ref_tdc.upt(tdc_time, packet.tdc_counter());
-                        let tdc_time = tdc_time - VIDEO_TIME;
-                        //list.upt((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame))
+                        list.add_tdc_hit(&packet, line_tdc, ref_tdc);
                     },
                     _ => {},
                 };
