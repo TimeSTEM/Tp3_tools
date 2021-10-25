@@ -1,7 +1,6 @@
 use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::Settings;
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
-use std::net::{TcpStream};
 use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
@@ -21,7 +20,7 @@ pub trait SpimKind {
     fn upt_line(&self, packet: &PacketEELS, settings: &Settings, line_tdc: &mut PeriodicTdcRef);
     fn check(&self) -> bool;
     fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8>;
-    fn restart(&self) -> Self;
+    fn copy_empty(&self) -> Self;
     fn new() -> Self;
 }
 
@@ -80,7 +79,7 @@ impl SpimKind for Live {
     my_vec
     }
 
-    fn restart(&self) -> Self {
+    fn copy_empty(&self) -> Self {
         Live{ data: Vec::new() }
     }
 
@@ -204,22 +203,23 @@ fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
 */
     
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
-pub fn build_spim<V, T, W>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, meas_type: W)
+pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut vec_ns_sock: Vec<U>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, meas_type: W)
     where V: 'static + Send + Read,
           T: 'static + Send + TdcControl,
-          W: 'static + Send + SpimKind
+          W: 'static + Send + SpimKind,
+          U: 'static + Send + Write,
 {
     let (tx, rx) = mpsc::channel();
     let mut last_ci = 0usize;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
-    let mut list = meas_type.restart();
+    let mut list = meas_type.copy_empty();
     
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-            build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+            build_spim_data(&mut list, &buffer_pack_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
             if let Err(_) = tx.send(list) {println!("Cannot send data over the thread channel."); break;}
-            list = meas_type.restart();
+            list = meas_type.copy_empty();
         }
     });
     
@@ -235,12 +235,7 @@ pub fn build_spim<V, T, W>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my
 }
 
 
-//fn build_spim_data<T: TdcControl>(data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> Option<Output<(usize, usize)>> {
-fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) {//-> Option<impl SpimKind> {
-    //if data.len() % 8 != 0 {
-    //    println!("Data was not multiple of 8. Rejecting lenght of: {}", data.len());
-    //    return None
-    //}
+fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) {
 
     data.chunks_exact(8).for_each(|x| {
         match x {
@@ -263,8 +258,6 @@ fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_c
             },
         };
     });
-    //if list.check() {Some(list)}
-    //else {None}
 }
 
 fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
