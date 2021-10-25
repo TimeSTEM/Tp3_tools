@@ -37,17 +37,18 @@ impl SpimKind for Live {
     }
 
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
-        let ele_time = packet.electron_time() - VIDEO_TIME;
-        if ele_time > line_tdc.begin_frame {
-            self.data.push((packet.x(), ele_time - line_tdc.begin_frame))
+        let ele_time = packet.electron_time();
+        if ele_time > line_tdc.begin_frame + VIDEO_TIME {
+            self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME))
         }
     }
     
     fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
         let tdc_time = packet.tdc_time_norm();
         ref_tdc.upt(tdc_time, packet.tdc_counter());
-        let tdc_time = tdc_time - VIDEO_TIME;
-        self.data.push((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame))
+        if tdc_time > line_tdc.begin_frame + VIDEO_TIME {
+            self.data.push((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame - VIDEO_TIME))
+        }
     }
 
     fn upt_line(&self, packet: &PacketEELS, settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
@@ -217,7 +218,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut vec_ns_sock: Vec<U>, my_sett
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
             if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-            build_spim_data(&mut list, &buffer_pack_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+            build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
             if let Err(_) = tx.send(list) {println!("Cannot send data over the thread channel."); break;}
             list = meas_type.copy_empty();
         }
