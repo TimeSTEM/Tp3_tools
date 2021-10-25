@@ -1,7 +1,7 @@
 use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
 use timepix3::speclib;
-use timepix3::spimlib;
+use timepix3::spimlib; use timepix3::spimlib::SpimKind;
 use timepix3::chronolib;
 
 fn connect_and_loop() {
@@ -24,8 +24,10 @@ fn connect_and_loop() {
         2 => {
             let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack_sock);
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
+            //let measurement = spimlib::Live {data: Vec::new() };
+            let measurement = spimlib::Live::new();
 
-            spimlib::build_spim(pack_sock, vec_ns_sock, my_settings, spim_tdc, np_tdc);
+            spimlib::build_spim(pack_sock, vec_ns_sock, my_settings, spim_tdc, np_tdc, measurement);
         },
         3 => {
             println!("Mode 3 is empty. No action is taken.");
