@@ -11,51 +11,58 @@ const BUFFER_SIZE: usize = 16384 * 2;
 pub trait SpecKind {
     //type MyOutput;
 
-    fn add_electron_hit(&mut self, index: usize, pack: &Pack, settings: &Settings) -> bool;
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) -> bool;
-    fn upt_frame(&self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef) -> bool;
+    fn add_electron_hit(&mut self, index: usize, pack: &Pack, settings: &Settings);
+    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T);
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef);
+    fn is_ready(&self) -> bool;
     fn build_output(&self) -> &[u8];
-    fn reset_or_else(&mut self);
+    fn reset_or_else(&mut self, settings: &Settings);
     fn new(settings: &Settings) -> Self;
 }
 
 pub struct Live {
     pub data: Vec<u8>,
     pub len: usize,
+    pub is_ready: bool,
 }
 
 impl SpecKind for Live {
     
-    fn add_electron_hit(&mut self, index: usize, pack: &Pack, settings: &Settings) -> bool {
+    fn add_electron_hit(&mut self, index: usize, _pack: &Pack, settings: &Settings) {
         append_to_array(&mut self.data, index, settings.bytedepth);
-        false
     }
 
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) -> bool {
+    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
-        false
     }
 
-    fn upt_frame(&self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef) -> bool {
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        true
+        self.is_ready = true;
+    }
+
+    fn is_ready(&self) -> bool {
+        self.is_ready
     }
 
     fn build_output(&self) -> &[u8] {
         &self.data
     }
 
-    fn reset_or_else(&mut self) {
-        self.data.iter_mut().for_each(|x| *x = 0);
-        self.data[self.len] = 10;
+    fn reset_or_else(&mut self, settings: &Settings) {
+        self.is_ready = false;
+        if settings.cumul == false {
+            self.data.iter_mut().for_each(|x| *x = 0);
+            self.data[self.len] = 10;
+        }
     }
 
     fn new(settings: &Settings) -> Self {
         let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        Live{ data: temp_vec, len: len}
+        Live{ data: temp_vec, len: len, is_ready: false}
     }
 }
 
@@ -118,9 +125,7 @@ pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns
             let msg = create_header(&my_settings, &frame_tdc);
             //if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
             //if let Err(_) = ns_sock.write(list.build_output()) {println!("Client disconnected on data."); break;}
-            if my_settings.cumul == false {
-                list.reset_or_else();
-            }
+            list.reset_or_else(&my_settings);
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());
             };
         }
@@ -150,7 +155,8 @@ fn build_data<T: TdcControl, K: SpecKind>(data: &[u8], final_data: &mut K, last_
                         final_data.add_electron_hit(array_pos(&packet), &packet, settings);
                     },
                     6 if packet.tdc_type() == frame_tdc.id() => {
-                        has = final_data.upt_frame(&packet, frame_tdc);
+                        final_data.upt_frame(&packet, frame_tdc);
+                        has = true;
                     },
                     6 if packet.tdc_type() == ref_tdc.id() => {
                         final_data.add_tdc_hit(&packet, settings, ref_tdc);

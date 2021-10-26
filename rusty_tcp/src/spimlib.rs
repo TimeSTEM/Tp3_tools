@@ -1,6 +1,6 @@
 use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::Settings;
-use crate::tdclib::{TdcType, TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
+use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
@@ -226,7 +226,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     let start = Instant::now();
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
-        //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
     }
 
     let elapsed = start.elapsed(); 
