@@ -11,9 +11,10 @@ const BUFFER_SIZE: usize = 16384 * 2;
 pub trait SpecKind {
     //type MyOutput;
 
-    fn add_electron_hit(&mut self, index: usize, settings: &Settings);
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T);
-    fn upt_frame(&self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef);
+    fn add_electron_hit(&mut self, index: usize, pack: &Pack, settings: &Settings) -> bool;
+    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) -> bool;
+    fn upt_frame(&self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef) -> bool;
+    fn build_output(&self) -> &[u8];
     fn reset_or_else(&mut self);
     fn new(settings: &Settings) -> Self;
 }
@@ -25,21 +26,24 @@ pub struct Live {
 
 impl SpecKind for Live {
     
-    fn add_electron_hit(&mut self, index: usize, settings: &Settings) {
-        //let array_pos = match settings.bin {
-        //    true => pack.x(),
-        //    false => pack.x() + CAM_DESIGN.0 * pack.y(),
-        //};
+    fn add_electron_hit(&mut self, index: usize, pack: &Pack, settings: &Settings) -> bool {
         append_to_array(&mut self.data, index, settings.bytedepth);
+        false
     }
 
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
+    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) -> bool {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
+        false
     }
 
-    fn upt_frame(&self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef) {
+    fn upt_frame(&self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef) -> bool {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        true
+    }
+
+    fn build_output(&self) -> &[u8] {
+        &self.data
     }
 
     fn reset_or_else(&mut self) {
@@ -106,12 +110,6 @@ pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     
     let mut list = Live::new(&my_settings);
-
-    //let len: usize = ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0;
-    //let mut data_array:Vec<u8> = vec![0; len + 1];
-    //data_array[len] = 10;
-    
-
     let start = Instant::now();
 
     while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
@@ -119,11 +117,9 @@ pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns
         if build_data(&buffer_pack_data[0..size], &mut list, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc);
             //if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
-            //if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
+            //if let Err(_) = ns_sock.write(list.build_output()) {println!("Client disconnected on data."); break;}
             if my_settings.cumul == false {
                 list.reset_or_else();
-                //data_array.iter_mut().for_each(|x| *x = 0);
-                //data_array[len] = 10;
             }
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());
             };
@@ -135,11 +131,6 @@ pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns
 fn build_data<T: TdcControl, K: SpecKind>(data: &[u8], final_data: &mut K, last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
 
     let mut has = false;
-
-    //if data.len() % 8 != 0 {
-    //    println!("Data was not multiple of 8. Rejecting lenght of: {}", data.len());
-    //    return false
-    //}
 
     let array_pos = |pack: &Pack| {
         match settings.bin {
@@ -156,36 +147,13 @@ fn build_data<T: TdcControl, K: SpecKind>(data: &[u8], final_data: &mut K, last_
                 
                 match packet.id() {
                     11 => {
-                        
-                        //let array_pos = match settings.bin {
-                        //    true => packet.x(),
-                        //    false => packet.x() + CAM_DESIGN.0 * packet.y(),
-                        //};
-                        //append_to_array(final_data, array_pos, settings.bytedepth);
-
-                        
-                        final_data.add_electron_hit(array_pos(&packet), settings);
-                        
-                        
-                        //if ref_tdc.period().is_none() {
-                        //    append_to_array(final_data, array_pos(&packet), settings.bytedepth);
-                        //} else {
-                        //    if tr_check_if_in(packet.electron_time(), ref_tdc.time(), ref_tdc.period().unwrap(), settings) {
-                        //        append_to_array(final_data, array_pos(&packet), settings.bytedepth);
-                        //    }
-                        //}
+                        final_data.add_electron_hit(array_pos(&packet), &packet, settings);
                     },
                     6 if packet.tdc_type() == frame_tdc.id() => {
-                        final_data.upt_frame(&packet, frame_tdc);
-                        //frame_tdc.upt(packet.tdc_time(), packet.tdc_counter());
-                        has = true;
+                        has = final_data.upt_frame(&packet, frame_tdc);
                     },
                     6 if packet.tdc_type() == ref_tdc.id() => {
-                        //final_data.add_tdc_hit(&packet, settings, ref_tdc);
-                        //ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
-                        //if ref_tdc.period().is_none() {
-                        //    append_to_array(final_data, CAM_DESIGN.0-1, settings.bytedepth);
-                        //}   
+                        final_data.add_tdc_hit(&packet, settings, ref_tdc);
                     },
                     _ => {},
                 };
