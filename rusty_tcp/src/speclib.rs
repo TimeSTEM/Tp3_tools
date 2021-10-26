@@ -3,7 +3,6 @@ use crate::packetlib::{Packet, PacketEELS as Pack};
 use crate::auxiliar::Settings;
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use std::time::Instant;
-use std::net::TcpStream;
 use std::io::{Read, Write};
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
@@ -52,7 +51,7 @@ pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStr
 
 
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
-pub fn build_spectrum<T: TdcControl, V: Read>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
+pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
 
     let start = Instant::now();
     let mut last_ci = 0usize;
@@ -61,7 +60,6 @@ pub fn build_spectrum<T: TdcControl, V: Read>(mut pack_sock: V, mut vec_ns_sock:
     let mut data_array:Vec<u8> = vec![0; len + 1];
     data_array[len] = 10;
 
-    let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
     while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
         if size == 0 {println!("Timepix3 sent zero bytes."); break;}
         let new_data = &buffer_pack_data[0..size];

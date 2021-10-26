@@ -226,7 +226,7 @@ pub trait TdcControl {
     fn counter(&self) -> usize;
     fn time(&self) -> usize;
     fn period(&self) -> Option<usize>;
-    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Self;
+    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Self where Self: Sized;
 }
 
 #[derive(Copy, Clone)]

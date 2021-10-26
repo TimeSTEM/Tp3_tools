@@ -230,7 +230,7 @@ impl BytesConfig {
 }
 
 use std::net::{TcpListener, TcpStream, SocketAddr};
-use std::io::Read;
+use std::io::{Read, Write};
 use std::fs;
 use std::time::Duration;
 
@@ -256,9 +256,9 @@ pub struct Settings {
 impl Settings {
 
     ///Create Settings structure reading from a TCP.
-    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, Box<dyn Read + Send>, Vec<TcpStream>), BytesConfigError> {
+    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, Box<dyn Read + Send>, Box<dyn Write + Send>), BytesConfigError> {
     
-        let mut sock_vec: Vec<TcpStream> = Vec::new();
+        let mut _sock_vec: Vec<TcpStream> = Vec::new();
         
         let addrs = [
             SocketAddr::from((host_computer, port)),
@@ -289,12 +289,12 @@ impl Settings {
             }
         };
         let my_settings = my_config.create_settings()?;
-        sock_vec.push(ns_sock);
-        println!("Connecting auxiliar sockets...");
+        //sock_vec.push(ns_sock);
+        println!("Connecting auxiliar sockets...***VEC IS NOT CREATED***");
         for i in 0..my_settings.number_sockets-1 {
             let (ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
             println!("Nionswift ({}) connected at {:?} and {:?}.", i, ns_addr, ns_sock);
-            sock_vec.push(ns_sock);
+            //sock_vec.push(ns_sock);
         }
         println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
 
@@ -303,12 +303,12 @@ impl Settings {
                 let (pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
                 println!("Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
                 pack_sock.set_read_timeout(Some(Duration::from_millis(100))).expect("Could not set read timeout.");
-                Ok((my_settings, Box::new(pack_sock), sock_vec))
+                Ok((my_settings, Box::new(pack_sock), Box::new(ns_sock)))
             },
             true => {
                 let file = fs::File::open("bin/Data/raw000000.tpx3").expect("could not open file");
                 println!("Debug mode. Will one file a single time.");
-                Ok((my_settings, Box::new(file), sock_vec))
+                Ok((my_settings, Box::new(file), Box::new(ns_sock)))
             },
         }
 

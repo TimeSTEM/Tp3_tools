@@ -3,14 +3,13 @@ use crate::packetlib::{Packet, PacketEELS as Pack};
 use crate::auxiliar::Settings;
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use std::time::Instant;
-use std::net::TcpStream;
 use std::io::{Read, Write};
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
 
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time. Chrono Mode.
-pub fn build_chrono<T: TdcControl, V: Read>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
+pub fn build_chrono<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
 
     let start = Instant::now();
     let mut last_ci = 0usize;
@@ -23,8 +22,8 @@ pub fn build_chrono<T: TdcControl, V: Read>(mut pack_sock: V, mut vec_ns_sock: V
         let new_data = &buffer_pack_data[0..size];
         if build_chrono_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc);
-            if let Err(_) = vec_ns_sock[0].write(&msg) {println!("Client disconnected on header."); break;}
-            if let Err(_) = vec_ns_sock[0].write(&data_array) {println!("Client disconnected on data."); break;}
+            if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
+            if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
         }
     }

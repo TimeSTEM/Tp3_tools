@@ -1,6 +1,6 @@
 use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::Settings;
-use crate::tdclib::{TdcControl, PeriodicTdcRef};
+use crate::tdclib::{TdcType, TdcControl, PeriodicTdcRef, NonPeriodicTdcRef};
 use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
@@ -23,7 +23,6 @@ pub trait SpimKind {
     fn copy_empty(&self) -> Self;
     fn new() -> Self;
 }
-
 
 pub struct Live {
     pub data: Vec<(usize, usize)>,
@@ -204,7 +203,7 @@ fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
 */
     
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
-pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut vec_ns_sock: Vec<U>, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, meas_type: W)
+pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, meas_type: W)
     where V: 'static + Send + Read,
           T: 'static + Send + TdcControl,
           W: 'static + Send + SpimKind,
@@ -225,10 +224,9 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut vec_ns_sock: Vec<U>, my_sett
     });
     
     let start = Instant::now();
-    let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
-        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+        //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
     }
 
     let elapsed = start.elapsed(); 
