@@ -7,6 +7,7 @@ use std::io::{Read, Write};
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
+const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
 
 pub trait SpecKind {
     
@@ -119,10 +120,20 @@ impl SpecKind for Correlation {
 
 impl Correlation {
 
-    fn check(&mut self, value: usize) -> bool {
+    fn check(&mut self, value: usize) -> Option<usize> {
         let veclen = self.tphoton.len().min(200);
-        let result = self.tphoton[0..veclen].iter().clone().enumerate().filter(|(_, t)| **t < value + 50).next();
-        true
+        let result = self.tphoton[0..veclen].iter().map(|&x| x).enumerate().filter(|(_, t)| *t < value + 50).next();
+        match result {
+            Some((index, pht)) => {
+                if index>EXC.0 && self.tphoton.len() > index + 100 {
+                    self.tphoton = self.tphoton.iter().map(|&x| x).skip(index - EXC.1).collect();
+                }
+                Some(pht)
+            },
+            None => None,
+        }
+    }
+}
         /*
         let veclen = self.tdc.len().min(2*MIN_LEN);
         let result = self.tdc[0..veclen].iter().cloned().enumerate().filter(|(_, x)| (x-value).abs()<TIME_WIDTH).next();
@@ -136,8 +147,6 @@ impl Correlation {
             None => None,
         }
         */
-    }
-}
 
 
 /*

@@ -8,7 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
  
     let start = Instant::now();
 
-    let mut entries = fs::read_dir("Data")?;
+    let mut entries = fs::read_dir("DataCoinc")?;
     while let Some(x) = entries.next() {
         let path = x?.path();
         let dir = path.to_str().unwrap();
@@ -19,7 +19,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
     coinc_data.output_spectrum(true);
-    coinc_data.output_corr_spectrum(false);
+    coinc_data.output_corr_spectrum(true);
+    coinc_data.output_relative_time();
 
 
     /*

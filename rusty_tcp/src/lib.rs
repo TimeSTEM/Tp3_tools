@@ -6,7 +6,7 @@
 pub mod auxiliar;
 pub mod tdclib;
 pub mod packetlib;
-//pub mod postlib;
+pub mod postlib;
 pub mod speclib;
 pub mod spimlib;
 pub mod chronolib;

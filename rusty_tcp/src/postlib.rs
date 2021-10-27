@@ -7,15 +7,15 @@ pub mod coincidence {
     use std::fs;
     //use std::time::Instant;
 
-    const TIME_WIDTH: f64 = 50.0e-9;
-    const TIME_DELAY: f64 = 165.0e-9;
+    const TIME_WIDTH: usize = 50;
+    const TIME_DELAY: usize = 160;
     const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
     const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
-    const CLUSTER_DET:f64 = 50.0e-09;
+    const CLUSTER_DET:usize = 50;
 
     pub struct ElectronData {
-        pub time: Vec<f64>,
-        pub rel_time: Vec<f64>,
+        pub time: Vec<usize>,
+        pub rel_time: Vec<isize>,
         pub x: Vec<usize>,
         pub y: Vec<usize>,
         pub tot: Vec<u16>,
@@ -25,14 +25,14 @@ pub mod coincidence {
     }
 
     impl ElectronData {
-        fn add_electron(&mut self, val: (f64, usize, usize, u16)) {
+        fn add_electron(&mut self, val: (usize, usize, usize, u16)) {
             self.spectrum[val.1 + 1024 * val.2] += 1;
         }
 
-        fn add_coincident_electron(&mut self, val: (f64, usize, usize, u16), photon_time: f64) {
+        fn add_coincident_electron(&mut self, val: (usize, usize, usize, u16), photon_time: usize) {
             self.corr_spectrum[val.1 + 1024*val.2] += 1;
             self.time.push(val.0);
-            self.rel_time.push(val.0-photon_time);
+            self.rel_time.push(val.0 as isize - photon_time as isize);
             self.x.push(val.1);
             self.y.push(val.2);
             self.tot.push(val.3);
@@ -84,7 +84,7 @@ pub mod coincidence {
                     self.corr_spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
                 },
             };
-            fs::write("xyH.txt", out).unwrap();
+            fs::write("cspec.txt", out).unwrap();
         }
         
         pub fn output_spectrum(&self, bin: bool) {
@@ -100,10 +100,11 @@ pub mod coincidence {
                     self.spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
                 },
             };
-            fs::write("xHT.txt", out).unwrap();
+            fs::write("spec.txt", out).unwrap();
         }
 
         pub fn output_relative_time(&self) {
+            println!("Outputting relative time under tH name. Vector len is {}", self.rel_time.len());
             let out: String = self.rel_time.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
             fs::write("tH.txt", out).unwrap();
         }
@@ -129,7 +130,7 @@ pub mod coincidence {
     }
 
     pub struct TempTdcData {
-        pub tdc: Vec<f64>,
+        pub tdc: Vec<usize>,
     }
 
     impl TempTdcData {
@@ -147,9 +148,9 @@ pub mod coincidence {
             self.tdc.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         }
 
-        fn check(&mut self, value: f64) -> Option<f64> {
+        fn check(&mut self, value: usize) -> Option<usize> {
             let veclen = self.tdc.len().min(2*MIN_LEN);
-            let result = self.tdc[0..veclen].iter().cloned().enumerate().filter(|(_, x)| (x-value).abs()<TIME_WIDTH).next();
+            let result = self.tdc[0..veclen].iter().cloned().enumerate().filter(|(_, x)| ((*x as isize - value as isize).abs() as usize) < TIME_WIDTH).next();
             match result {
                 Some((index, pht)) => {
                     if index>EXC.0 && self.tdc.len()>index+MIN_LEN{
@@ -165,11 +166,8 @@ pub mod coincidence {
 
 
     pub struct TempElectronData {
-        pub electron: Vec<(f64, usize, usize, u16)>,
+        pub electron: Vec<(usize, usize, usize, u16)>,
     }
-
-    //impl Iterator for TempElectronData {
-        
 
     impl TempElectronData {
         fn new() -> Self {
@@ -181,15 +179,15 @@ pub mod coincidence {
 
 
         fn remove_clusters(&mut self) -> Vec<usize> {
-            let mut nelist:Vec<(f64, usize, usize, u16)> = Vec::new();
+            let mut nelist:Vec<(usize, usize, usize, u16)> = Vec::new();
             let mut cs_list: Vec<usize> = Vec::new();
 
-            let mut last: (f64, usize, usize, u16) = self.electron[0];
-            let mut cluster_vec: Vec<(f64, usize, usize, u16)> = Vec::new();
+            let mut last: (usize, usize, usize, u16) = self.electron[0];
+            let mut cluster_vec: Vec<(usize, usize, usize, u16)> = Vec::new();
             for x in &self.electron {
                 if x.0 > last.0 + CLUSTER_DET || (x.1 as isize - last.1 as isize).abs() > 2 || (x.2 as isize - last.2 as isize).abs() > 2 {
                     let cluster_size: usize = cluster_vec.len();
-                    let t_mean:f64 = cluster_vec.iter().map(|&(t, _, _, _)| t).sum::<f64>() / cluster_size as f64;
+                    let t_mean:usize = cluster_vec.iter().map(|&(t, _, _, _)| t).sum::<usize>() / cluster_size as usize;
                     let x_mean:usize = cluster_vec.iter().map(|&(_, x, _, _)| x).sum::<usize>() / cluster_size;
                     let y_mean:usize = cluster_vec.iter().map(|&(_, _, y, _)| y).sum::<usize>() / cluster_size;
                     let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum::<usize>() / cluster_size) as u16;
@@ -251,6 +249,7 @@ pub mod coincidence {
     }
 }
 
+/*
 pub mod time_resolved {
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
@@ -654,3 +653,4 @@ pub mod time_resolved {
         };
     }
 }
+*/
