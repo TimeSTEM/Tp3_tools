@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
-const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
+//const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
 
 pub trait SpecKind {
     
@@ -118,6 +118,7 @@ impl SpecKind for Correlation {
     }
 }
 
+/*
 impl Correlation {
 
     fn check(&mut self, value: usize) -> Option<usize> {
@@ -147,7 +148,7 @@ impl Correlation {
             None => None,
         }
         */
-
+*/
 
 /*
 pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) 
@@ -204,8 +205,8 @@ pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns
         if size == 0 {println!("Timepix3 sent zero bytes."); break;}
         if build_data(&buffer_pack_data[0..size], &mut list, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc);
-            //if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
-            //if let Err(_) = ns_sock.write(list.build_output()) {println!("Client disconnected on data."); break;}
+            if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
+            if let Err(_) = ns_sock.write(list.build_output()) {println!("Client disconnected on data."); break;}
             list.reset_or_else(&my_settings);
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());
             };
