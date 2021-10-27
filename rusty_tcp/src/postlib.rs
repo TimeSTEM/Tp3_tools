@@ -219,22 +219,17 @@ pub mod coincidence {
         let mytdc = TdcType::TdcTwoRisingEdge;
         let mut ci = 0;
 
-        let mut temp_edata = TempElectronData::new();
-        let mut temp_tdc = TempTdcData::new();
-        
         let mut file = fs::File::open(file)?;
-        //let mut buffer:Vec<u8> = Vec::new();
-        let mut buffer:Vec<u8> = vec![0; 12800000];
-        //let total_size = file.read_to_end(&mut buffer)?;
-        //
+        let mut buffer: Vec<u8> = vec![0; 256_000_000];
         let mut total_size = 0;
         
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
+            println!("MB Read: {}", total_size / 1_000_000 );
             let mut temp_edata = TempElectronData::new();
             let mut temp_tdc = TempTdcData::new();
-            let mut packet_chunks = buffer.chunks_exact(8);
+            let mut packet_chunks = buffer[0..size].chunks_exact(8);
             while let Some(pack_oct) = packet_chunks.next() {
                 match pack_oct {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci=nci as usize;},
