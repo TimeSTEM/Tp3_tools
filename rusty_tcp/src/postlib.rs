@@ -216,35 +216,45 @@ pub mod coincidence {
 
     pub fn search_coincidence(file: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
         
-        let mut file = fs::File::open(file)?;
-        let mut buffer:Vec<u8> = Vec::new();
-        file.read_to_end(&mut buffer)?;
-        
         let mytdc = TdcType::TdcTwoRisingEdge;
         let mut ci = 0;
 
         let mut temp_edata = TempElectronData::new();
         let mut temp_tdc = TempTdcData::new();
         
-        let mut packet_chunks = buffer.chunks_exact(8);
-        while let Some(pack_oct) = packet_chunks.next() {
-            match pack_oct {
-                &[84, 80, 88, 51, nci, _, _, _] => {ci=nci as usize;},
-                _ => {
-                    let packet = Pack { chip_index: ci, data: pack_oct };
-                    match packet.id() {
-                        6 if packet.tdc_type() == mytdc.associate_value() => {
-                            temp_tdc.add_tdc(&packet);
-                        },
-                        11 => {
-                            temp_edata.add_electron(&packet);
-                        },
-                        _ => {},
-                    };
-                },
-            };
-        }
+        let mut file = fs::File::open(file)?;
+        //let mut buffer:Vec<u8> = Vec::new();
+        let mut buffer:Vec<u8> = vec![0; 12800000];
+        //let total_size = file.read_to_end(&mut buffer)?;
+        //
+        let mut total_size = 0;
+        
+        while let Ok(size) = file.read(&mut buffer) {
+            if size == 0 {println!("Finished Reading."); break;}
+            total_size += size;
+            let mut temp_edata = TempElectronData::new();
+            let mut temp_tdc = TempTdcData::new();
+            let mut packet_chunks = buffer.chunks_exact(8);
+            while let Some(pack_oct) = packet_chunks.next() {
+                match pack_oct {
+                    &[84, 80, 88, 51, nci, _, _, _] => {ci=nci as usize;},
+                    _ => {
+                        let packet = Pack { chip_index: ci, data: pack_oct };
+                        match packet.id() {
+                            6 if packet.tdc_type() == mytdc.associate_value() => {
+                                temp_tdc.add_tdc(&packet);
+                            },
+                            11 => {
+                                temp_edata.add_electron(&packet);
+                            },
+                            _ => {},
+                        };
+                    },
+                };
+            }
         coinc_data.add_events(temp_edata, temp_tdc);
+        }
+        println!("Total number of bytes read {}", total_size);
         Ok(())
     }
 }
