@@ -5,12 +5,13 @@ pub mod coincidence {
     use std::io;
     use std::io::prelude::*;
     use std::fs;
+    use rayon::prelude::*;
     //use std::time::Instant;
 
     const TIME_WIDTH: usize = 50;
     const TIME_DELAY: usize = 160;
-    const MIN_LEN: usize = 25; // This is the minimal TDC vec size. It reduces over time.
-    const EXC: (usize, usize) = (5, 3); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
+    const MIN_LEN: usize = 50; // This is the minimal TDC vec size. It reduces over time.
+    //const EXC: (usize, usize) = (5, 3); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
     const CLUSTER_DET:usize = 50;
 
     pub struct ElectronData {
@@ -56,6 +57,17 @@ pub mod coincidence {
                     self.add_coincident_electron(val, pht);
                 }
             }
+            
+            /*
+            for val in temp_tdc.tdc {
+                //self.add_electron(val);
+                if let Some(ele) = temp_edata.check(val) {
+                    self.add_coincident_electron(ele, val);
+                }
+            }
+            */
+
+            println!("Number of coincident electrons: {:?}", self.x.len());
         }
 
         pub fn new() -> Self {
@@ -151,12 +163,6 @@ pub mod coincidence {
         }
 
         fn check(&mut self, value: usize) -> Option<usize> {
-            //let veclen = self.tdc.len().min(2*MIN_LEN);
-            
-            //let result = self.tdc[0..veclen].iter()
-            //    .map(|&x| x)
-             //   .enumerate()
-             //   .filter(|(_, x)| ((*x as isize - value as isize).abs() as usize) < TIME_WIDTH).next();
             
             let result = self.tdc[self.min_index..self.min_index+MIN_LEN].iter()
                 .enumerate()
@@ -165,13 +171,9 @@ pub mod coincidence {
 
             match result {
                 Some((index, pht_value)) => {
-                    //if index>EXC.0 && self.tdc.len()>self.min_index + MIN_LEN + index - EXC.1{
-                    if index > 5 && self.tdc.len()>self.min_index + MIN_LEN + index {
-                        self.min_index += index - 5 ;
+                    if index > MIN_LEN/10  && self.tdc.len()>self.min_index + MIN_LEN + index {
+                        self.min_index += index/2;
                     }
-                    //if index>EXC.0 && self.tdc.len()>index+MIN_LEN{
-                    //    self.tdc = self.tdc.iter().skip(index-EXC.1).map(|&x| x).collect();
-                    //}
                     Some(*pht_value)
                 },
                 None => None,
@@ -183,16 +185,16 @@ pub mod coincidence {
 
     pub struct TempElectronData {
         pub electron: Vec<(usize, usize, usize, u16)>,
+        pub min_index: usize,
     }
 
     impl TempElectronData {
         fn new() -> Self {
             Self {
                 electron: Vec::new(),
+                min_index: 0,
             }
         }
-
-
 
         fn remove_clusters(&mut self) -> Vec<usize> {
             let mut nelist:Vec<(usize, usize, usize, u16)> = Vec::new();
@@ -226,6 +228,24 @@ pub mod coincidence {
 
         fn sort(&mut self) {
             self.electron.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+        }
+        
+        fn check(&mut self, value: usize) -> Option<(usize, usize, usize, u16)> {
+            
+            let result = self.electron[self.min_index..self.min_index+MIN_LEN].iter()
+                .enumerate()
+                .find(|(_, val)| ((val.0 as isize - value as isize).abs() as usize) < TIME_WIDTH);
+
+
+            match result {
+                Some((index, ele_value)) => {
+                    if index > MIN_LEN/10  && self.electron.len()>self.min_index + MIN_LEN + index {
+                        self.min_index += index/2; // - MIN_LEN/10 ;
+                    }
+                    Some(*ele_value)
+                },
+                None => None,
+            }
         }
     }
             
