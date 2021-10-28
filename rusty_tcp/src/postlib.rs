@@ -9,8 +9,8 @@ pub mod coincidence {
 
     const TIME_WIDTH: usize = 50;
     const TIME_DELAY: usize = 160;
-    const MIN_LEN: usize = 100; // This is the minimal TDC vec size. It reduces over time.
-    const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
+    const MIN_LEN: usize = 25; // This is the minimal TDC vec size. It reduces over time.
+    const EXC: (usize, usize) = (5, 3); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
     const CLUSTER_DET:usize = 50;
 
     pub struct ElectronData {
@@ -131,12 +131,14 @@ pub mod coincidence {
 
     pub struct TempTdcData {
         pub tdc: Vec<usize>,
+        pub min_index: usize,
     }
 
     impl TempTdcData {
         fn new() -> Self {
             Self {
                 tdc: Vec::new(),
+                min_index: 0,
             }
         }
 
@@ -149,14 +151,28 @@ pub mod coincidence {
         }
 
         fn check(&mut self, value: usize) -> Option<usize> {
-            let veclen = self.tdc.len().min(2*MIN_LEN);
-            let result = self.tdc[0..veclen].iter().cloned().enumerate().filter(|(_, x)| ((*x as isize - value as isize).abs() as usize) < TIME_WIDTH).next();
+            //let veclen = self.tdc.len().min(2*MIN_LEN);
+            
+            //let result = self.tdc[0..veclen].iter()
+            //    .map(|&x| x)
+             //   .enumerate()
+             //   .filter(|(_, x)| ((*x as isize - value as isize).abs() as usize) < TIME_WIDTH).next();
+            
+            let result = self.tdc[self.min_index..self.min_index+MIN_LEN].iter()
+                .enumerate()
+                .find(|(_, x)| ((**x as isize - value as isize).abs() as usize) < TIME_WIDTH);
+
+
             match result {
-                Some((index, pht)) => {
-                    if index>EXC.0 && self.tdc.len()>index+MIN_LEN{
-                        self.tdc = self.tdc.iter().cloned().skip(index-EXC.1).collect();
+                Some((index, pht_value)) => {
+                    //if index>EXC.0 && self.tdc.len()>self.min_index + MIN_LEN + index - EXC.1{
+                    if index > 5 && self.tdc.len()>self.min_index + MIN_LEN + index {
+                        self.min_index += index - 5 ;
                     }
-                    Some(pht)
+                    //if index>EXC.0 && self.tdc.len()>index+MIN_LEN{
+                    //    self.tdc = self.tdc.iter().skip(index-EXC.1).map(|&x| x).collect();
+                    //}
+                    Some(*pht_value)
                 },
                 None => None,
             }
