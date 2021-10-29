@@ -94,7 +94,14 @@ pub mod tdcvec {
         
         pub fn find_period(&self) -> usize {
             let mut tdc_time = self.get_auto_timelist();
-            tdc_time.pop().expect("Please get at least 02 Tdc's") - tdc_time.pop().expect("Please get at least 02 Tdc's")
+            let last = tdc_time.pop().expect("Please get at least 02 Tdc's");
+            let before_last = tdc_time.pop().expect("Please get at least 02 Tdc's");
+            if last > before_last {
+                last - before_last
+            } else {
+                before_last - tdc_time.pop().expect("Please get at least 03 Tdc's")
+            }
+            //tdc_time.pop().expect("Please get at least 02 Tdc's") - tdc_time.pop().expect("Please get at least 02 Tdc's")
         }
         
         pub fn get_counter(&self) -> usize {
@@ -219,6 +226,11 @@ impl TdcType {
     
 }
 
+#[derive(Debug)]
+pub enum TdcError {
+    NoTdcReceived,
+    BadPeriod,
+}
 
 pub trait TdcControl {
     fn id(&self) -> u8;
@@ -226,7 +238,7 @@ pub trait TdcControl {
     fn counter(&self) -> usize;
     fn time(&self) -> usize;
     fn period(&self) -> Option<usize>;
-    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Self where Self: Sized;
+    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Result<Self, TdcError> where Self: Sized;
 }
 
 #[derive(Copy, Clone)]
@@ -271,7 +283,7 @@ impl TdcControl for PeriodicTdcRef {
     }
 
 
-    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Self {
+    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Result<Self, TdcError> {
         let mut buffer_pack_data = vec![0; 16384];
         let mut ci = 0usize;
         let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 5);
@@ -298,7 +310,7 @@ impl TdcControl for PeriodicTdcRef {
         let low_time = period - high_time;
         
         println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ns) is {}. ON interval (ns) is {}. Period (ns) is {}. Low time (ns) is {}.", tdc_type.associate_str(), counter, last_time, high_time, period, low_time);
-        Self {
+        Ok(Self {
             tdctype: tdc_type.associate_value(),
             counter: counter,
             counter_offset: counter_offset,
@@ -310,7 +322,7 @@ impl TdcControl for PeriodicTdcRef {
             high_time: high_time,
             low_time: low_time,
             time: last_time,
-        }
+        })
     }
 }
 
@@ -343,12 +355,12 @@ impl TdcControl for NonPeriodicTdcRef {
         None
     }
     
-    fn new<T: Read>(tdc_type: TdcType, _sock: &mut T) -> Self {
-        Self {
+    fn new<T: Read>(tdc_type: TdcType, _sock: &mut T) -> Result<Self, TdcError> {
+        Ok(Self {
             tdctype: tdc_type.associate_value(),
             counter: 0,
             time: vec![0; 5],
-        }
+        })
     }
     
 }

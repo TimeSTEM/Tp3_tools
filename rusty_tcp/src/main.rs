@@ -10,20 +10,19 @@ fn connect_and_loop() {
 
     match my_settings.mode {
         0 => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock);
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
-            
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock).unwrap();
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock).unwrap();
             speclib::build_spectrum(pack_sock, ns_sock, my_settings, frame_tdc, np_tdc);
         },
         1 => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock);
-            let laser_tdc = PeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock).unwrap();
+            let laser_tdc = PeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock).unwrap();
      
             speclib::build_spectrum(pack_sock, ns_sock, my_settings, frame_tdc, laser_tdc);
         },
         2 => {
-            let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack_sock);
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
+            let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack_sock).unwrap();
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock).unwrap();
             let measurement = spimlib::Live::new();
 
             spimlib::build_spim(pack_sock, ns_sock, my_settings, spim_tdc, np_tdc, measurement);
@@ -35,8 +34,8 @@ fn connect_and_loop() {
             println!("Mode 4 is empty. No action is taken.");
         },
         6 => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock);
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock).unwrap();
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock).unwrap();
             
             chronolib::build_chrono(pack_sock, ns_sock, my_settings, frame_tdc, np_tdc);
         },
