@@ -4,18 +4,16 @@
 use std::io::Read;
 use std::time::{Duration, Instant};
 
-
-
-pub mod tdcvec {
+mod tdcvec {
     use crate::tdclib::{TdcType, TdcError};
     use crate::packetlib::{Packet, PacketEELS as Pack};
 
     pub struct TdcSearch {
-        pub data: Vec<(usize, TdcType)>,
-        pub how_many: usize,
-        pub tdc_choosen: TdcType,
-        pub initial_counter: Option<usize>,
-        pub last_counter: u16,
+        data: Vec<(usize, TdcType)>,
+        how_many: usize,
+        tdc_choosen: TdcType,
+        initial_counter: Option<usize>,
+        last_counter: u16,
     }
 
     impl TdcSearch {
@@ -43,8 +41,6 @@ pub mod tdcvec {
                 }
             }
         }
-        
-
 
         pub fn check_tdc(&self) -> Result<bool, TdcError> {
             let mut counter = 0;
@@ -79,8 +75,6 @@ pub mod tdcvec {
             if result.is_some() {Err(TdcError::NotAscendingOrder)}
             else {Ok(())}
         }
-
-
 
         pub fn find_high_time(&self) -> usize {
             let fal_tdc_type = match self.tdc_choosen {
@@ -231,14 +225,13 @@ impl TdcType {
 }
 
 
-
 #[derive(Debug)]
 pub enum TdcError {
     NoTdcReceived,
     BadPeriod,
     NotAscendingOrder,
+    TimepixZeroBytes,
 }
-
 
 pub trait TdcControl {
     fn id(&self) -> u8;
@@ -251,12 +244,12 @@ pub trait TdcControl {
 
 #[derive(Copy, Clone)]
 pub struct PeriodicTdcRef {
-    pub tdctype: u8,
-    pub counter: usize,
-    pub counter_offset: usize,
-    pub last_hard_counter: u16,
-    pub counter_overflow: usize,
-    pub begin: usize,
+    tdctype: u8,
+    counter: usize,
+    counter_offset: usize,
+    last_hard_counter: u16,
+    counter_overflow: usize,
+    begin: usize,
     pub begin_frame: usize,
     pub period: usize,
     pub high_time: usize,
@@ -290,30 +283,27 @@ impl TdcControl for PeriodicTdcRef {
         Some(self.period)
     }
 
-
     fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Result<Self, TdcError> {
         let mut buffer_pack_data = vec![0; 16384];
         let mut ci = 0usize;
         let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 5);
         let start = Instant::now();
-        println!("Total elapsed time is: {:?}.", start.elapsed());
 
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
         loop {
             if start.elapsed() > Duration::from_secs(10) {return Err(TdcError::NoTdcReceived)}
             if let Ok(size) = sock.read(&mut buffer_pack_data) {
-                if size == 0 {println!("Timepix3 sent zero bytes."); break;}
+                if size == 0 {println!("Timepix3 sent zero bytes."); return Err(TdcError::TimepixZeroBytes)}
                 if size % 8 == 0 {
                     tdcvec::search_any_tdc(&buffer_pack_data[0..size], &mut tdc_search, &mut ci);
                 }
-                if tdc_search.check_tdc()?==true {break;}
+                if tdc_search.check_tdc()? {break;}
             }
         }
         println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
         let counter = tdc_search.get_counter()?;
         let counter_offset = tdc_search.get_counter_offset();
         let last_hard_counter = tdc_search.get_last_hardware_counter();
-        println!("***Tdc Lib***: Counter offset is {:?}", counter_offset);
         let begin_time = tdc_search.get_begintime();
         let last_time = tdc_search.get_lasttime();
         let high_time = tdc_search.find_high_time();

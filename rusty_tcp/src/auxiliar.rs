@@ -50,10 +50,6 @@ impl BytesConfig {
                 println!("Bitdepth is 32.");
                 Ok(4)
             },
-            3 => {
-                println!("Bitdepth is 32.");
-                Ok(8)
-            },
             _ => Err(BytesConfigError::ByteDepth),
         }
     }
