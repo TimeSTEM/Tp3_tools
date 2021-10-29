@@ -46,12 +46,15 @@ pub mod tdcvec {
         
 
 
-        pub fn check_tdc(&self) -> bool {
+        pub fn check_tdc(&self) -> Result<bool, TdcError> {
             let mut counter = 0;
             for (_time, tdc_type) in &self.data {
                 if tdc_type.associate_value() == self.tdc_choosen.associate_value() {counter+=1;}
             }
-            if counter>=5 {true} else {false}
+            if counter>self.how_many {
+                self.check_ascending_order()?;
+                Ok(true)
+            } else {Ok(false)}
         }
 
         fn get_timelist(&self, which: &TdcType) -> Vec<usize> {
@@ -69,6 +72,14 @@ pub mod tdcvec {
                 .collect();
             result
         }
+
+        pub fn check_ascending_order(&self) -> Result<(), TdcError> {
+            let time_list = self.get_auto_timelist();
+            let result = time_list.iter().zip(time_list.iter().skip(1)).find(|(a, b)| a>b);
+            if result.is_some() {Err(TdcError::NotAscendingOrder)}
+            else {Ok(())}
+        }
+
 
 
         pub fn find_high_time(&self) -> usize {
@@ -95,16 +106,15 @@ pub mod tdcvec {
             }
         }
         
-        pub fn find_period(&self) -> usize {
+        pub fn find_period(&self) -> Result<usize, TdcError> {
             let mut tdc_time = self.get_auto_timelist();
             let last = tdc_time.pop().expect("Please get at least 02 Tdc's");
             let before_last = tdc_time.pop().expect("Please get at least 02 Tdc's");
             if last > before_last {
-                last - before_last
+                Ok(last - before_last)
             } else {
-                before_last - tdc_time.pop().expect("Please get at least 03 Tdc's")
+                Err(TdcError::BadPeriod)
             }
-            //tdc_time.pop().expect("Please get at least 02 Tdc's") - tdc_time.pop().expect("Please get at least 02 Tdc's")
         }
         
         pub fn get_counter(&self) -> Result<usize, TdcError> {
@@ -226,6 +236,7 @@ impl TdcType {
 pub enum TdcError {
     NoTdcReceived,
     BadPeriod,
+    NotAscendingOrder,
 }
 
 
@@ -292,8 +303,10 @@ impl TdcControl for PeriodicTdcRef {
             if start.elapsed() > Duration::from_secs(10) {return Err(TdcError::NoTdcReceived)}
             if let Ok(size) = sock.read(&mut buffer_pack_data) {
                 if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-                tdcvec::search_any_tdc(&buffer_pack_data[0..size], &mut tdc_search, &mut ci);
-                if tdc_search.check_tdc()==true {break;}
+                if size % 8 == 0 {
+                    tdcvec::search_any_tdc(&buffer_pack_data[0..size], &mut tdc_search, &mut ci);
+                }
+                if tdc_search.check_tdc()?==true {break;}
             }
         }
         println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
@@ -304,7 +317,7 @@ impl TdcControl for PeriodicTdcRef {
         let begin_time = tdc_search.get_begintime();
         let last_time = tdc_search.get_lasttime();
         let high_time = tdc_search.find_high_time();
-        let period = tdc_search.find_period();
+        let period = tdc_search.find_period()?;
         let low_time = period - high_time;
         
         println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ns) is {}. ON interval (ns) is {}. Period (ns) is {}. Low time (ns) is {}.", tdc_type.associate_str(), counter, last_time, high_time, period, low_time);
