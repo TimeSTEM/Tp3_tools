@@ -2,9 +2,12 @@
 //!in around `TdcType` enum.
 
 use std::io::Read;
+use std::time::{Duration, Instant};
+
+
 
 pub mod tdcvec {
-    use crate::tdclib::TdcType;
+    use crate::tdclib::{TdcType, TdcError};
     use crate::packetlib::{Packet, PacketEELS as Pack};
 
     pub struct TdcSearch {
@@ -104,11 +107,11 @@ pub mod tdcvec {
             //tdc_time.pop().expect("Please get at least 02 Tdc's") - tdc_time.pop().expect("Please get at least 02 Tdc's")
         }
         
-        pub fn get_counter(&self) -> usize {
+        pub fn get_counter(&self) -> Result<usize, TdcError> {
             let counter = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
                 .count();
-            counter
+            Ok(counter)
         }
 
         pub fn get_counter_offset(&self) -> usize {
@@ -137,7 +140,6 @@ pub mod tdcvec {
     }
 
     pub fn search_any_tdc(data: &[u8], tdc_struct: &mut TdcSearch, last_ci: &mut usize) {
-        //use crate::packetlib::{Packet, PacketEELS};
 
         let file_data = data;
         let mut packet_chunks = file_data.chunks_exact(8);
@@ -157,14 +159,6 @@ pub mod tdcvec {
                 },
             };
         };
-    }
-
-    pub fn check_tdc(tdc_vec: &Vec<(usize, TdcType)>, tdc_choosen: &TdcType) -> bool {
-        let mut counter = 0;
-        for (_time, tdc_type) in tdc_vec {
-            if tdc_type.associate_value() == tdc_choosen.associate_value() {counter+=1;}
-        }
-        if counter>=5 {true} else {false}
     }
 
 }
@@ -226,11 +220,14 @@ impl TdcType {
     
 }
 
+
+
 #[derive(Debug)]
 pub enum TdcError {
     NoTdcReceived,
     BadPeriod,
 }
+
 
 pub trait TdcControl {
     fn id(&self) -> u8;
@@ -287,19 +284,20 @@ impl TdcControl for PeriodicTdcRef {
         let mut buffer_pack_data = vec![0; 16384];
         let mut ci = 0usize;
         let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 5);
+        let start = Instant::now();
+        println!("Total elapsed time is: {:?}.", start.elapsed());
 
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
         loop {
+            if start.elapsed() > Duration::from_secs(10) {return Err(TdcError::NoTdcReceived)}
             if let Ok(size) = sock.read(&mut buffer_pack_data) {
-                if size>0 {
-                    let new_data = &buffer_pack_data[0..size];
-                    tdcvec::search_any_tdc(new_data, &mut tdc_search, &mut ci);
-                    if tdc_search.check_tdc()==true {break;}
-                }
+                if size == 0 {println!("Timepix3 sent zero bytes."); break;}
+                tdcvec::search_any_tdc(&buffer_pack_data[0..size], &mut tdc_search, &mut ci);
+                if tdc_search.check_tdc()==true {break;}
             }
         }
         println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
-        let counter = tdc_search.get_counter();
+        let counter = tdc_search.get_counter()?;
         let counter_offset = tdc_search.get_counter_offset();
         let last_hard_counter = tdc_search.get_last_hardware_counter();
         println!("***Tdc Lib***: Counter offset is {:?}", counter_offset);
