@@ -9,7 +9,7 @@ edition = "2018"
 
 [dependencies]
 rayon = "1.5"
-#plotters = "^0.3.0"
+chrono = "0.4"
 
 [dev-dependencies]
 criterion = "0.3"
