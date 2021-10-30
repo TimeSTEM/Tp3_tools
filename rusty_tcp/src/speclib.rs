@@ -194,12 +194,13 @@ pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStr
 
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
 pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
-
+    
     let mut last_ci = 0usize;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     
     let mut list = Live::new(&my_settings);
     let start = Instant::now();
+    
 
     while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
         if size == 0 {println!("Timepix3 sent zero bytes."); break;}
@@ -215,9 +216,11 @@ pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns
     println!("Total elapsed time is: {:?}.", start.elapsed());
 }
 
-fn build_data<T: TdcControl, K: SpecKind>(data: &[u8], final_data: &mut K, last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
+fn build_data<T: TdcControl>(data: &[u8], final_data: &mut Live, last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
 
     let mut has = false;
+    
+
 
     let array_pos = |pack: &Pack| {
         match settings.bin {

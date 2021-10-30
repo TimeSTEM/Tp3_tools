@@ -5,7 +5,7 @@ use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
-use rayon::prelude::*;
+//use rayon::prelude::*;
 
 const VIDEO_TIME: usize = 5000;
 const SPIM_PIXELS: usize = 1025;
@@ -52,7 +52,7 @@ impl SpimKind for Live {
 
     fn upt_line(&self, packet: &PacketEELS, settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
-        if (line_tdc.counter / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
+        if (line_tdc.counter() / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
             line_tdc.begin_frame = line_tdc.time();
         }
     }
