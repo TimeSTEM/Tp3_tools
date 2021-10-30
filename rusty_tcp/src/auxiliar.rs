@@ -320,3 +320,44 @@ impl Settings {
     }
 
 }
+
+
+pub mod simple_log {
+    use chrono::prelude::*;
+    use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
+    use std::io::Write;
+    use crate::errorlib::Tp3ErrorKind;
+
+    pub fn start() -> Result<File, Tp3ErrorKind> {
+        let dir = Path::new("/Microscope/Log/");
+        if let Err(_) = create_dir_all(&dir) {return Err(Tp3ErrorKind::LogCreateDir)};
+        let date = Local::now().format("%Y-%m-%d").to_string() + ".txt";
+        let file_path = dir.join(&date);
+        let mut file = match OpenOptions::new().write(true).truncate(false).create(true).append(true).open(file_path) {
+            Ok(file) => file,
+            Err(_) => return Err(Tp3ErrorKind::LogCreateFile)
+        };
+        let date = Local::now().to_string();
+        if let Err(_) = file.write(date.as_bytes()) {return Err(Tp3ErrorKind::LogWrite)};
+        if let Err(_) = file.write(b" - Starting new loop\n") {return Err(Tp3ErrorKind::LogWrite)};
+        //Err(_) => {return Err(Tp3ErrorKind::LogCreateFile)},
+        Ok(file)
+    }
+
+    pub fn ok(file: &mut File) -> Result<(), Tp3ErrorKind> {
+        let date = Local::now().to_string();
+        if let Err(_) = file.write(date.as_bytes()) {return Err(Tp3ErrorKind::LogWrite)};
+        if let Err(_) = file.write(b" - OK\n") {return Err(Tp3ErrorKind::LogWrite)};
+        Ok(())
+    }
+
+    pub fn error(file: &mut File, error: Tp3ErrorKind) -> Result<(), Tp3ErrorKind> {
+        let date = Local::now().to_string();
+        file.write(date.as_bytes()).unwrap();
+        file.write(b" - ERROR ").unwrap();
+        let error = format!("{:?}", error);
+        file.write(error.as_bytes()).unwrap();
+        file.write(b"\n").unwrap();
+        Ok(())
+    }
+}
