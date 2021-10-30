@@ -29,8 +29,8 @@ mod tdcvec {
         }
 
         fn add_tdc(&mut self, packet: &Pack) {
-            let time = packet.tdc_time_norm();
             if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
+                let time = packet.tdc_time_norm();
                 self.data.push( (time, tdc) );
                 if packet.tdc_type() == self.tdc_choosen.associate_value() {
                     self.last_counter = packet.tdc_counter();
@@ -69,7 +69,7 @@ mod tdcvec {
             result
         }
 
-        pub fn check_ascending_order(&self) -> Result<(), TdcError> {
+        fn check_ascending_order(&self) -> Result<(), TdcError> {
             let time_list = self.get_auto_timelist();
             let result = time_list.iter().zip(time_list.iter().skip(1)).find(|(a, b)| a>b);
             if result.is_some() {Err(TdcError::NotAscendingOrder)}
@@ -169,7 +169,6 @@ mod tdcvec {
 
 
 ///The four types of TDC's.
-
 #[derive(Copy, Clone)]
 pub enum TdcType {
     TdcOneRisingEdge,
@@ -220,8 +219,6 @@ impl TdcType {
             _ => false,
         }
     }
-
-    
 }
 
 
@@ -292,11 +289,12 @@ impl TdcControl for PeriodicTdcRef {
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
         loop {
             if start.elapsed() > Duration::from_secs(10) {return Err(TdcError::NoTdcReceived)}
-            if let Ok(size) = sock.read(&mut buffer_pack_data) {
-                if size == 0 {println!("Timepix3 sent zero bytes."); return Err(TdcError::TimepixZeroBytes)}
-                if size % 8 == 0 {
-                    tdcvec::search_any_tdc(&buffer_pack_data[0..size], &mut tdc_search, &mut ci);
-                }
+            //if let Ok(size) = sock.read(&mut buffer_pack_data) {
+            if let Ok(()) = sock.read_exact(&mut buffer_pack_data) {
+                //if size == 0 {println!("Timepix3 sent zero bytes."); return Err(TdcError::TimepixZeroBytes)}
+                //if size % 8 == 0 {
+                tdcvec::search_any_tdc(&buffer_pack_data, &mut tdc_search, &mut ci);
+                //}
                 if tdc_search.check_tdc()? {break;}
             }
         }
