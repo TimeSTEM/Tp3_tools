@@ -5,7 +5,7 @@ pub mod coincidence {
     use std::io;
     use std::io::prelude::*;
     use std::fs;
-    use rayon::prelude::*;
+    //use rayon::prelude::*;
     //use std::time::Instant;
 
     const TIME_WIDTH: usize = 50;
@@ -120,6 +120,12 @@ pub mod coincidence {
             let out: String = self.rel_time.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
             fs::write("tH.txt", out).unwrap();
         }
+        
+        pub fn output_dispersive(&self) {
+            println!("Outputting each dispersive value under xH name. Vector len is {}", self.rel_time.len());
+            let out: String = self.x.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            fs::write("xH.txt", out).unwrap();
+        }
 
         pub fn output_cluster_size(&self) {
             let out: String = self.cluster_size.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
@@ -229,7 +235,8 @@ pub mod coincidence {
         fn sort(&mut self) {
             self.electron.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         }
-        
+ 
+        /*
         fn check(&mut self, value: usize) -> Option<(usize, usize, usize, u16)> {
             
             let result = self.electron[self.min_index..self.min_index+MIN_LEN].iter()
@@ -247,6 +254,7 @@ pub mod coincidence {
                 None => None,
             }
         }
+        */
     }
             
 

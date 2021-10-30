@@ -10,9 +10,14 @@ fn connect_and_loop() {
 
     match my_settings.mode {
         0 => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock).unwrap();
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock).unwrap();
-            speclib::build_spectrum(pack_sock, ns_sock, my_settings, frame_tdc, np_tdc);
+            let tdc1 = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock);
+            let tdc2 = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
+            match (tdc1, tdc2) {
+                (Ok(frame_tdc), Ok(np_tdc)) => {speclib::build_spectrum(pack_sock, ns_sock, my_settings, frame_tdc, np_tdc)},
+                (Ok(_), Err(_)) => {},
+                (Err(_), Ok(_)) => {},
+                (Err(_), Err(_)) => {},
+            };
         },
         1 => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock).unwrap();
