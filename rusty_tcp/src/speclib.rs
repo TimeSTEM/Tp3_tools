@@ -222,8 +222,6 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut Live, last_ci: &mut u
 
     let mut has = false;
     
-
-
     let array_pos = |pack: &Pack| {
         match settings.bin {
             true => pack.x(),

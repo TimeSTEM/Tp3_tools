@@ -11,4 +11,5 @@ pub enum Tp3ErrorKind {
     TdcBadPeriod,
     TdcNotAscendingOrder,
     TdcZeroBytes,
+    MiscModeNotImplemented(u8),
 }
