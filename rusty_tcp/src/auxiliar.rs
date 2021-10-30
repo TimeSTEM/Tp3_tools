@@ -1,17 +1,7 @@
 //!`auxiliar` is a collection of tools to set acquisition conditions.
+use crate::errorlib::Tp3ErrorKind;
 
 const CONFIG_SIZE: usize = 20;
-
-#[derive(Debug)]
-pub enum BytesConfigError {
-    Bin,
-    ByteDepth,
-    Cumul,
-    Mode,
-    XSize,
-    YSize,
-    NbSockets,
-}
 
 ///Configures the detector for acquisition. Each new measurement must send 20 bytes
 ///containing instructions.
@@ -21,7 +11,7 @@ struct BytesConfig {
 
 impl BytesConfig {
     ///Set binning mode for 1x4 detector. `\x00` for unbinned and `\x01` for binned. Panics otherwise. Byte[0].
-    fn bin(&self) -> Result<bool, BytesConfigError> {
+    fn bin(&self) -> Result<bool, Tp3ErrorKind> {
         match self.data[0] {
             0 => {
                 println!("Bin is False.");
@@ -31,12 +21,12 @@ impl BytesConfig {
                 println!("Bin is True.");
                 Ok(true)
             },
-            _ => Err(BytesConfigError::Bin),
+            _ => Err(Tp3ErrorKind::SetBin),
         }
     }
 
     ///Set bytedepth. `\x00` for 1, `\x01` for 2 and `\x02` for 4. Panics otherwise. Byte[1].
-    fn bytedepth(&self) -> Result<usize, BytesConfigError> {
+    fn bytedepth(&self) -> Result<usize, Tp3ErrorKind> {
         match self.data[1] {
             0 => {
                 println!("Bitdepth is 8.");
@@ -50,12 +40,12 @@ impl BytesConfig {
                 println!("Bitdepth is 32.");
                 Ok(4)
             },
-            _ => Err(BytesConfigError::ByteDepth),
+            _ => Err(Tp3ErrorKind::SetByteDepth),
         }
     }
 
     ///Sums all arriving data. `\x00` for False, `\x01` for True. Panics otherwise. Byte[2].
-    fn cumul(&self) -> Result<bool, BytesConfigError> {
+    fn cumul(&self) -> Result<bool, Tp3ErrorKind> {
         match self.data[2] {
             0 => {
                 println!("Cumulation mode is OFF.");
@@ -65,12 +55,12 @@ impl BytesConfig {
                 println!("Cumulation mode is ON.");
                 Ok(true)
             },
-            _ => Err(BytesConfigError::Cumul),
+            _ => Err(Tp3ErrorKind::SetCumul),
         }
     }
 
     ///Acquisition Mode. `\x00` for normal, `\x01` for spectral image and `\x02` for time-resolved. Panics otherwise. Byte[2..4].
-    fn mode(&self) -> Result<u8, BytesConfigError> {
+    fn mode(&self) -> Result<u8, Tp3ErrorKind> {
         match self.data[3] {
             0 => {
                 println!("Mode is Focus/Cumul.");
@@ -100,7 +90,7 @@ impl BytesConfig {
                 println!("Entering in Chrono Mode.");
                 Ok(self.data[3])
             },
-            _ => Err(BytesConfigError::Mode),
+            _ => Err(Tp3ErrorKind::SetMode),
         }
     }
 
@@ -157,19 +147,19 @@ impl BytesConfig {
     
     
     ///Number of sockets. Must be sent with 2 bytes in big-endian mode. Byte[18..20].
-    fn nsockets(&self) -> Result<usize, BytesConfigError> {
+    fn nsockets(&self) -> Result<usize, Tp3ErrorKind> {
         let number_sockets = (self.data[18] as usize)<<8 | (self.data[19] as usize);
         if number_sockets == 1 || number_sockets % 4 == 0{
             println!("Number of sockets is: {}", number_sockets);
             Ok(number_sockets)
-        } else {Err(BytesConfigError::NbSockets)}
+        } else {Err(Tp3ErrorKind::SetNbSockets)}
     }
     
     ///Convenience method. Returns the ratio between scan and spim size in X.
-    fn spimoverscanx(&self) -> Result<usize, BytesConfigError> {
+    fn spimoverscanx(&self) -> Result<usize, Tp3ErrorKind> {
         let xspim = self.xspim_size();
         let xscan = self.xscan_size();
-        if xspim == 0 {return Err(BytesConfigError::XSize);}
+        if xspim == 0 {return Err(Tp3ErrorKind::SetXSize);}
         let var = xscan / xspim;
         match var {
             0 => {
@@ -184,10 +174,10 @@ impl BytesConfig {
     }
     
     ///Convenience method. Returns the ratio between scan and spim size in Y.
-    fn spimoverscany(&self) -> Result<usize, BytesConfigError> {
+    fn spimoverscany(&self) -> Result<usize, Tp3ErrorKind> {
         let yspim = self.yspim_size();
         let yscan = self.yscan_size();
-        if yspim == 0 {return Err(BytesConfigError::YSize);}
+        if yspim == 0 {return Err(Tp3ErrorKind::SetYSize);}
         let var = yscan / yspim;
         match var {
             0 => {
@@ -203,7 +193,7 @@ impl BytesConfig {
 
 
     ///Create Settings struct from BytesConfig
-    fn create_settings(&self) -> Result<Settings, BytesConfigError> {
+    fn create_settings(&self) -> Result<Settings, Tp3ErrorKind> {
         let my_set = Settings {
             bin: self.bin()?,
             bytedepth: self.bytedepth()?,
@@ -252,7 +242,7 @@ pub struct Settings {
 impl Settings {
 
     ///Create Settings structure reading from a TCP.
-    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, Box<dyn Read + Send>, Box<dyn Write + Send>), BytesConfigError> {
+    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, Box<dyn Read + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
     
         let mut _sock_vec: Vec<TcpStream> = Vec::new();
         

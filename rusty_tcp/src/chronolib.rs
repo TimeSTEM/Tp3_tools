@@ -2,6 +2,7 @@
 use crate::packetlib::{Packet, PacketEELS as Pack};
 use crate::auxiliar::Settings;
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
+use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::{Read, Write};
 
@@ -9,7 +10,7 @@ const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
 
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time. Chrono Mode.
-pub fn build_chrono<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
+pub fn build_chrono<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) -> Result<(), Tp3ErrorKind> {
 
     let start = Instant::now();
     let mut last_ci = 0usize;
@@ -27,6 +28,7 @@ pub fn build_chrono<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns_s
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
         }
     }
+    Ok(())
 }
 
 fn build_chrono_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {

@@ -1,6 +1,7 @@
 use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::Settings;
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
+use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
@@ -203,7 +204,7 @@ fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
 */
     
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
-pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, meas_type: W)
+pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, meas_type: W) -> Result<(), Tp3ErrorKind>
     where V: 'static + Send + Read,
           T: 'static + Send + TdcControl,
           W: 'static + Send + SpimKind,
@@ -231,6 +232,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
 
     let elapsed = start.elapsed(); 
     println!("Total elapsed time is: {:?}.", elapsed);
+    Ok(())
 }
 
 

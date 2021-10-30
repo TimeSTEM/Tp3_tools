@@ -2,6 +2,7 @@
 use crate::packetlib::{Packet, PacketEELS as Pack};
 use crate::auxiliar::Settings;
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
+use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::{Read, Write};
 
@@ -193,7 +194,7 @@ pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStr
 
 
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
-pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) {
+pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) -> Result<(), Tp3ErrorKind> {
     
     let mut last_ci = 0usize;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
@@ -214,6 +215,7 @@ pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns
         }
     }
     println!("Total elapsed time is: {:?}.", start.elapsed());
+    Ok(())
 }
 
 fn build_data<T: TdcControl>(data: &[u8], final_data: &mut Live, last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {

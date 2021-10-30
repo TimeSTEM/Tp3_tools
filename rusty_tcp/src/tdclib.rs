@@ -1,11 +1,10 @@
 //!`tdclib` is a collection of tools to facilitate manipulation and choice of tdcs. Module is built
 //!in around `TdcType` enum.
 
-use std::io::Read;
-use std::time::{Duration, Instant};
 
 mod tdcvec {
-    use crate::tdclib::{TdcType, TdcError};
+    use crate::errorlib::Tp3ErrorKind;
+    use crate::tdclib::TdcType;
     use crate::packetlib::{Packet, PacketEELS as Pack};
 
     pub struct TdcSearch {
@@ -42,7 +41,7 @@ mod tdcvec {
             }
         }
 
-        pub fn check_tdc(&self) -> Result<bool, TdcError> {
+        pub fn check_tdc(&self) -> Result<bool, Tp3ErrorKind> {
             let mut counter = 0;
             for (_time, tdc_type) in &self.data {
                 if tdc_type.associate_value() == self.tdc_choosen.associate_value() {counter+=1;}
@@ -69,10 +68,10 @@ mod tdcvec {
             result
         }
 
-        fn check_ascending_order(&self) -> Result<(), TdcError> {
+        fn check_ascending_order(&self) -> Result<(), Tp3ErrorKind> {
             let time_list = self.get_auto_timelist();
             let result = time_list.iter().zip(time_list.iter().skip(1)).find(|(a, b)| a>b);
-            if result.is_some() {Err(TdcError::NotAscendingOrder)}
+            if result.is_some() {Err(Tp3ErrorKind::TdcNotAscendingOrder)}
             else {Ok(())}
         }
 
@@ -100,18 +99,18 @@ mod tdcvec {
             }
         }
         
-        pub fn find_period(&self) -> Result<usize, TdcError> {
+        pub fn find_period(&self) -> Result<usize, Tp3ErrorKind> {
             let mut tdc_time = self.get_auto_timelist();
             let last = tdc_time.pop().expect("Please get at least 02 Tdc's");
             let before_last = tdc_time.pop().expect("Please get at least 02 Tdc's");
             if last > before_last {
                 Ok(last - before_last)
             } else {
-                Err(TdcError::BadPeriod)
+                Err(Tp3ErrorKind::TdcBadPeriod)
             }
         }
         
-        pub fn get_counter(&self) -> Result<usize, TdcError> {
+        pub fn get_counter(&self) -> Result<usize, Tp3ErrorKind> {
             let counter = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
                 .count();
@@ -221,14 +220,10 @@ impl TdcType {
     }
 }
 
+use std::io::Read;
+use std::time::{Duration, Instant};
+use crate::errorlib::Tp3ErrorKind;
 
-#[derive(Debug)]
-pub enum TdcError {
-    NoTdcReceived,
-    BadPeriod,
-    NotAscendingOrder,
-    TimepixZeroBytes,
-}
 
 pub trait TdcControl {
     fn id(&self) -> u8;
@@ -236,10 +231,10 @@ pub trait TdcControl {
     fn counter(&self) -> usize;
     fn time(&self) -> usize;
     fn period(&self) -> Option<usize>;
-    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Result<Self, TdcError> where Self: Sized;
+    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Result<Self, Tp3ErrorKind> where Self: Sized;
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct PeriodicTdcRef {
     tdctype: u8,
     counter: usize,
@@ -279,7 +274,7 @@ impl TdcControl for PeriodicTdcRef {
         Some(self.period)
     }
 
-    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Result<Self, TdcError> {
+    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
         let mut ci = 0usize;
         let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 5);
@@ -287,7 +282,7 @@ impl TdcControl for PeriodicTdcRef {
 
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
         loop {
-            if start.elapsed() > Duration::from_secs(10) {return Err(TdcError::NoTdcReceived)}
+            if start.elapsed() > Duration::from_secs(10) {return Err(Tp3ErrorKind::TdcNoReceived)}
             //if let Ok(size) = sock.read(&mut buffer_pack_data) {
             if let Ok(()) = sock.read_exact(&mut buffer_pack_data) {
                 //if size == 0 {println!("Timepix3 sent zero bytes."); return Err(TdcError::TimepixZeroBytes)}
@@ -323,10 +318,11 @@ impl TdcControl for PeriodicTdcRef {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct NonPeriodicTdcRef {
     pub tdctype: u8,
     pub counter: usize,
-    pub time: Vec<usize>,
+    pub time: usize,
 }
 
 impl TdcControl for NonPeriodicTdcRef {
@@ -335,8 +331,9 @@ impl TdcControl for NonPeriodicTdcRef {
     }
 
     fn upt(&mut self, time: usize, _: u16) {
-        self.time.pop().expect("***Tdc Lib***: There is no element to exclude from NonPeriodicTDC.");
-        self.time.insert(0, time);
+        //self.time.pop().expect("***Tdc Lib***: There is no element to exclude from NonPeriodicTDC.");
+        //self.time.insert(0, time);
+        self.time = time;
         self.counter+=1;
     }
 
@@ -345,18 +342,19 @@ impl TdcControl for NonPeriodicTdcRef {
     }
 
     fn time(&self) -> usize {
-        self.time[0]
+        self.time
     }
 
     fn period(&self) -> Option<usize> {
         None
     }
     
-    fn new<T: Read>(tdc_type: TdcType, _sock: &mut T) -> Result<Self, TdcError> {
+    fn new<T: Read>(tdc_type: TdcType, _sock: &mut T) -> Result<Self, Tp3ErrorKind> {
         Ok(Self {
             tdctype: tdc_type.associate_value(),
             counter: 0,
-            time: vec![0; 5],
+            //time: vec![0; 5],
+            time: 0,
         })
     }
     

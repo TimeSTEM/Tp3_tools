@@ -1,48 +1,46 @@
+use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
 use timepix3::speclib;
 use timepix3::spimlib; use timepix3::spimlib::SpimKind;
 use timepix3::chronolib;
 
-fn connect_and_loop() {
+fn connect_and_loop() -> Result<(), Tp3ErrorKind> {
     
-    let (my_settings, mut pack_sock, ns_sock) = Settings::create_settings([192, 168, 199, 11], 8088).unwrap();
+    let (my_settings, mut pack, ns) = Settings::create_settings([192, 168, 199, 11], 8088)?;
 
     match my_settings.mode {
         0 => {
-            let tdc1 = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock);
-            let tdc2 = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock);
-            match (tdc1, tdc2) {
-                (Ok(frame_tdc), Ok(np_tdc)) => {speclib::build_spectrum(pack_sock, ns_sock, my_settings, frame_tdc, np_tdc)},
-                (Ok(_), Err(_)) => {},
-                (Err(_), Ok(_)) => {},
-                (Err(_), Err(_)) => {},
-            };
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc)
+            
         },
         1 => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock).unwrap();
-            let laser_tdc = PeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock).unwrap();
-     
-            speclib::build_spectrum(pack_sock, ns_sock, my_settings, frame_tdc, laser_tdc);
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
+            let laser_tdc = PeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, laser_tdc)
         },
         2 => {
-            let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack_sock).unwrap();
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock).unwrap();
+            let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack)?;
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
             let measurement = spimlib::Live::new();
 
-            spimlib::build_spim(pack_sock, ns_sock, my_settings, spim_tdc, np_tdc, measurement);
+            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement)
         },
         3 => {
             println!("Mode 3 is empty. No action is taken.");
+            Ok(())
         },
         4 => {
             println!("Mode 4 is empty. No action is taken.");
+            Ok(())
         },
         6 => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack_sock).unwrap();
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack_sock).unwrap();
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
             
-            chronolib::build_chrono(pack_sock, ns_sock, my_settings, frame_tdc, np_tdc);
+            chronolib::build_chrono(pack, ns, my_settings, frame_tdc, np_tdc)
         },
         _ => panic!("Unknown mode received."),
     }
@@ -52,6 +50,9 @@ fn main() {
     loop {
         println!{"Waiting for a new client"};
         //message_board::start_message_board();
-        connect_and_loop();
+        match connect_and_loop() {
+            Ok(()) => {},
+            Err(e) => {println!("{:?}", e);},
+        }
     }
 }
