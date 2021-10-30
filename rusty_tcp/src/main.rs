@@ -5,7 +5,7 @@ use timepix3::speclib;
 use timepix3::spimlib; use timepix3::spimlib::SpimKind;
 use timepix3::chronolib;
 use chrono::prelude::*;
-use std::{fs::{OpenOptions, File, create_dir_all}, path::Path};
+use std::{fs::{OpenOptions, create_dir_all}, path::Path};
 use std::io::Write;
 
 
@@ -45,26 +45,24 @@ fn main() {
     
     let date = Local::now().format("%Y-%m-%d").to_string() + ".txt";
     let file_path = dir.join(&date);
-    println!("{:?}", file_path);
     let mut file = OpenOptions::new().write(true).truncate(false).create(true).append(true).open(file_path).expect("Could not create log file.");
     let date = Local::now().to_string();
-    file.write(date.as_bytes());
-    file.write(b" - Starting new loop\n");
+    file.write(date.as_bytes()).unwrap();
+    file.write(b" - Starting new loop\n").unwrap();
     loop {
-        println!{"Waiting for a new client"};
         match connect_and_loop() {
             Ok(()) => {
                 let date = Local::now().to_string();
-                file.write(date.as_bytes());
-                file.write(b" - OK\n");
+                file.write(date.as_bytes()).unwrap();
+                file.write(b" - OK\n").unwrap();
             },
             Err(e) => {
                 let date = Local::now().to_string();
-                file.write(date.as_bytes());
-                file.write(b" - ERROR ");
+                file.write(date.as_bytes()).unwrap();
+                file.write(b" - ERROR ").unwrap();
                 let error = format!("{:?}", e);
-                file.write(error.as_bytes());
-                file.write(b"\n");
+                file.write(error.as_bytes()).unwrap();
+                file.write(b"\n").unwrap();
             },
         }
     }
