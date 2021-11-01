@@ -330,7 +330,7 @@ pub mod simple_log {
     use crate::errorlib::Tp3ErrorKind;
 
     pub fn start() -> io::Result<File> {
-        let dir = Path::new("/Microscope/Log/");
+        let dir = Path::new("Microscope/Log/");
         create_dir_all(&dir)?;
         let date = Local::now().format("%Y-%m-%d").to_string() + ".txt";
         let file_path = dir.join(&date);
