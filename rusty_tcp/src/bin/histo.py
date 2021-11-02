@@ -9,7 +9,11 @@ x = numpy.loadtxt("cspec.txt", delimiter=',')
 x = numpy.reshape(x, (256, 1024))
 x = numpy.sum(x, axis=0)
 xH = numpy.loadtxt("xH.txt", delimiter=',')
-print(len(xH), len(t))
+yH = numpy.loadtxt("yH.txt", delimiter=',')
+indexes = numpy.where(yH>160)[0]
+xH = xH[indexes]
+t = t[indexes]
+
 #cs = numpy.loadtxt("cs.txt", delimiter=',')
 #stot = numpy.loadtxt("stot.txt", delimiter=',')
 #print('CS mean is: ', numpy.mean(cs))
@@ -75,4 +79,9 @@ ax[0].legend(loc='upper center')
 #fig.legend()
 plt.tight_layout()
 plt.savefig('coinc.svg')
+plt.show()
+
+fig, ax = plt.subplots(1, 1, dpi=180, sharex = False)
+ax.hist2d(xH, t, bins=[1024, 100], range = [[0, 1024], [-50, 50]])
+plt.tight_layout()
 plt.show()

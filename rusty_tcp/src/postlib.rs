@@ -126,6 +126,12 @@ pub mod coincidence {
             let out: String = self.x.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
             fs::write("xH.txt", out).unwrap();
         }
+        
+        pub fn output_non_dispersive(&self) {
+            println!("Outputting each dispersive value under xH name. Vector len is {}", self.rel_time.len());
+            let out: String = self.y.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            fs::write("yH.txt", out).unwrap();
+        }
 
         pub fn output_cluster_size(&self) {
             let out: String = self.cluster_size.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");

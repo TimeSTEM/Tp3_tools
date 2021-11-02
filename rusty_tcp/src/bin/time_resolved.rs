@@ -1,3 +1,7 @@
+fn main() {
+}
+
+/*
 use timepix3::postlib::time_resolved::*;
 use timepix3::tdclib::TdcType;
 use std::fs;
@@ -108,3 +112,4 @@ fn main() -> Result<(), ErrorType> {
 
     Ok(())
 }
+*/
