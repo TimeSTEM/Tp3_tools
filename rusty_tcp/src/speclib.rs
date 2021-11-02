@@ -22,9 +22,9 @@ pub trait SpecKind {
 }
 
 pub struct Live {
-    pub data: Vec<u8>,
-    pub len: usize,
-    pub is_ready: bool,
+    data: Vec<u8>,
+    len: usize,
+    is_ready: bool,
 }
 
 impl SpecKind for Live {

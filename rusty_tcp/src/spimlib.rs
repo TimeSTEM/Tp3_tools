@@ -26,7 +26,7 @@ pub trait SpimKind {
 }
 
 pub struct Live {
-    pub data: Vec<(usize, usize)>,
+    data: Vec<(usize, usize)>,
 }
 
 impl SpimKind for Live {
