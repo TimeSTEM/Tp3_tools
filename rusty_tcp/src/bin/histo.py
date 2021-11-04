@@ -10,7 +10,7 @@ x = numpy.reshape(x, (256, 1024))
 x = numpy.sum(x, axis=0)
 xH = numpy.loadtxt("xH.txt", delimiter=',')
 yH = numpy.loadtxt("yH.txt", delimiter=',')
-indexes = numpy.where(yH>160)[0]
+indexes = numpy.where(yH>=0)[0]
 xH = xH[indexes]
 t = t[indexes]
 
@@ -28,7 +28,7 @@ ax2 = ax[0].twinx()
 ax[0].plot(x, label='Correlated Data')
 ax[0].plot(xT, alpha=0.8, ls='--', color='red', lw=2, label='Total Data')
 ax2.scatter(numpy.arange(0, 1024, 1), cRatio, c='green', s=5, marker='x', label='Ratio')
-ax[1].hist(t, bins=100, range = (-50, 50))
+ax[1].hist(t, bins=200, range = (-100, 100))
 ax[2].hist(xH, bins=1024, range = (0, 1024))
 
 ax[0].set_xlabel('Energy (pxs)')

@@ -50,5 +50,6 @@ fn main() {
                 simple_log::error(&mut log_file, e).unwrap();
             },
         }
+        //break
     }
 }

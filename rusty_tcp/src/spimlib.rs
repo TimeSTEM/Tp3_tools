@@ -6,7 +6,7 @@ use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
-//use rayon::prelude::*;
+use rayon::prelude::*;
 
 const VIDEO_TIME: usize = 5000;
 const SPIM_PIXELS: usize = 1025;
@@ -69,15 +69,18 @@ impl SpimKind for Live {
             .filter_map(|&(x, dt)| if dt % spim_tdc.period < spim_tdc.low_time {
                 let r = dt / spim_tdc.period;
                 let rin = dt % spim_tdc.period;
-                let index = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size * rin / spim_tdc.low_time)) * SPIM_PIXELS + x;
+                //let index = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size * rin / spim_tdc.low_time)) * SPIM_PIXELS + x;
+                let index = set.xspim_size * ((r/set.spimoverscany) % set.yspim_size + rin / spim_tdc.low_time) * SPIM_PIXELS + x;
                 Some(index) 
-            } else {None}
-            )
+                //Some([index, index, index, index]) 
+            } else {None})
+            //.collect::<Vec<([usize; 4])>>();
             .for_each(|index| {
                 append_to_index_array(&mut my_vec, index);
             });
 
     my_vec
+    //vec![1]
     }
 
     fn copy_empty(&self) -> Self {
