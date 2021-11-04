@@ -12,4 +12,6 @@ pub enum Tp3ErrorKind {
     TdcNotAscendingOrder,
     TdcZeroBytes,
     MiscModeNotImplemented(u8),
+    SetNoReadFile,
+    SetNoWriteFile,
 }
