@@ -63,7 +63,7 @@ impl SpimKind for Live {
     }
 
     fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
-        let mut my_vec: Vec<u8> = Vec::new();
+        let mut my_vec: Vec<u8> = Vec::with_capacity(16384);
 
         self.data.iter()
             .filter_map(|&(x, dt)| if dt % spim_tdc.period < spim_tdc.low_time {
@@ -81,11 +81,11 @@ impl SpimKind for Live {
     }
 
     fn copy_empty(&self) -> Self {
-        Live{ data: Vec::new() }
+        Live{ data: Vec::with_capacity(4096) }
     }
 
     fn new() -> Self {
-        Live{ data: Vec::new() }
+        Live{ data: Vec::with_capacity(4096) }
     }
 }
 
