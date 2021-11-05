@@ -83,7 +83,6 @@ impl SpimKind for Live {
         
 
         let line = |val: usize| {
-            //(val / spim_tdc.period) % set.yspim_size
             (val / spim_tdc.period)
         };
 
@@ -95,23 +94,16 @@ impl SpimKind for Live {
 
         self.data.iter()
             .filter_map(|&(x, dt)| if dt % spim_tdc.period < spim_tdc.low_time {
-            //.filter_map(|&(x, dt)| {
-                let r1 = dt / spim_tdc.period; //how many periods -> which line to put.
                 
-                let rin1 = dt % spim_tdc.period; //Between 0 and period. Where to put in line.
-                let rin = column(dt); //Between 0 and period. Where to put in line.
+                let rin = column(dt); //Which column to put
                 
                 let mut r = line(dt); //how many periods -> which line to put.
                 if r > (set.yspim_size-1) {
                     r = r % set.yspim_size;
                     }
                 
-                let index1 = ((r1/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size * rin1 / spim_tdc.low_time)) * SPIM_PIXELS + x;
                 let index = (r * set.xspim_size + rin) * SPIM_PIXELS + x;
                 
-                if index1 != index {
-                    println!("hi");
-                }
                 
                 Some(index)
             } else {
