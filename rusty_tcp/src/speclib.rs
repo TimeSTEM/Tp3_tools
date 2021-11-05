@@ -5,6 +5,7 @@ use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::{Read, Write};
+//use rayon::prelude::*;
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
@@ -201,7 +202,6 @@ pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns
     
     let mut list = Live::new(&my_settings);
     let start = Instant::now();
-    
 
     while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
         if size == 0 {println!("Timepix3 sent zero bytes."); break;}
@@ -210,12 +210,12 @@ pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns
             if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
             if let Err(_) = ns_sock.write(list.build_output()) {println!("Client disconnected on data."); break;}
             list.reset_or_else(&my_settings);
-            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());
-            };
+            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
         }
     }
     println!("Total elapsed time is: {:?}.", start.elapsed());
     Ok(())
+
 }
 
 fn build_data<T: TdcControl>(data: &[u8], final_data: &mut Live, last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
@@ -271,6 +271,30 @@ fn tr_check_if_in(ele_time: usize, tdc: usize, period: usize, settings: &Setting
 
 fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
     let index = index * bytedepth;
+    
+    if bytedepth == 4 {
+        data[index+3] = data[index+3].wrapping_add(1);
+        if data[index+3]==0 {
+            data[index+2] = data[index+2].wrapping_add(1);
+            if data[index+2]==0 {
+                data[index+1] = data[index+1].wrapping_add(1);
+                if data[index+1]==0 {
+                    data[index] = data[index].wrapping_add(1);
+                };
+            };
+        };
+    } else if bytedepth == 2 {
+        data[index+1] = data[index+1].wrapping_add(1);
+        if data[index+1]==0 {
+            data[index] = data[index].wrapping_add(1);
+        }
+    } else if bytedepth == 1 {
+        data[index] = data[index].wrapping_add(1);
+    }
+    
+    
+
+    /*
     match bytedepth {
         4 => {
             data[index+3] = data[index+3].wrapping_add(1);
@@ -295,6 +319,9 @@ fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
         },
         _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
     }
+    */
+    
+
 }
 
 fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {

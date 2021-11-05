@@ -360,7 +360,7 @@ impl Settings {
         create_dir_all(&out_dir).unwrap();
         let out_file_name = "out.txt";
         let file_path = out_dir.join(&out_file_name);
-        let out_file = OpenOptions::new().write(true).create(true).open(file_path).unwrap();
+        let out_file = OpenOptions::new().write(true).create(true).truncate(true).open(file_path).unwrap();
 
         println!("Spectra Debug mode. Will one file a single time.");
         Ok((my_settings, Box::new(in_file), Box::new(out_file)))

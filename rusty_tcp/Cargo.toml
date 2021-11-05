@@ -8,7 +8,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rayon = "1.5"
+#rayon = "1.5"
 chrono = "0.4"
 
 [dev-dependencies]
@@ -25,4 +25,5 @@ opt-level = 1
 opt-level = 3
 debug = true
 debuginfo-level=1
-#lto = "fat"
+lto = "thin"
+codegen-units=1
