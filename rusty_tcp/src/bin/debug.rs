@@ -1,12 +1,12 @@
 use timepix3::errorlib::Tp3ErrorKind;
-use timepix3::auxiliar::{Settings, simple_log};
+use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
 use timepix3::{speclib, spimlib, chronolib, spimlib::SpimKind};
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
     
-    let (my_settings, mut pack, ns) = Settings::create_settings([192, 168, 199, 11], 8088)?;
+    let (my_settings, mut pack, ns) = Settings::create_debug_settings(true)?;
 
     match my_settings.mode {
         0 => {
@@ -39,15 +39,8 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
 }
 
 fn main() {
-    let mut log_file = simple_log::start().unwrap();
-    loop {
-        match connect_and_loop() {
-            Ok(val) => {
-                simple_log::ok(&mut log_file, val).unwrap();
-            },
-            Err(e) => {
-                simple_log::error(&mut log_file, e).unwrap();
-            },
-        }
+    match connect_and_loop() {
+        Ok(val) => {println!("Measurement Over. Type is {}.", val);},
+        Err(_e) => {},
     }
 }

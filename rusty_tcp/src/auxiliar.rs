@@ -2,7 +2,8 @@
 use crate::errorlib::Tp3ErrorKind;
 use std::net::{TcpListener, TcpStream, SocketAddr};
 use std::io::{Read, Write};
-use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
+use std::fs::File;
+//use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
 use std::time::Duration;
 
 const CONFIG_SIZE: usize = 20;
@@ -220,6 +221,17 @@ impl BytesConfig {
 }
 
 
+struct DebugOut {}
+impl Write for DebugOut {
+    fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+        Ok(0)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+
 ///Settings contains all relevant parameters for a given acquistion
 #[derive(Copy, Clone, Debug)]
 pub struct Settings {
@@ -351,19 +363,21 @@ impl Settings {
         
         println!("Received settings is {:?}. Mode is {}.", my_settings, my_settings.mode);
 
-        let in_file = match File::open("bin/Data/raw000000.tpx3") {
+        let in_file = match File::open("Data/raw000000.tpx3") {
             Ok(file) => file,
             Err(_) => return Err(Tp3ErrorKind::SetNoReadFile),
         };
         
+        /*
         let out_dir = Path::new("Microscope/Output/");
         create_dir_all(&out_dir).unwrap();
         let out_file_name = "out.txt";
         let file_path = out_dir.join(&out_file_name);
         let out_file = OpenOptions::new().write(true).create(true).truncate(true).open(file_path).unwrap();
+        */
 
         println!("Spectra Debug mode. Will one file a single time.");
-        Ok((my_settings, Box::new(in_file), Box::new(out_file)))
+        Ok((my_settings, Box::new(in_file), Box::new(DebugOut{})))
     }
 
 }

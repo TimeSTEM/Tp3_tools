@@ -255,7 +255,6 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
         }
     });
  
-
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
         if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
