@@ -63,32 +63,74 @@ impl SpimKind for Live {
     }
 
     fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
-        let mut my_vec: Vec<u8> = Vec::with_capacity(16384);
+        let mut my_vec: Vec<u8> = Vec::with_capacity(BUFFER_SIZE / 2);
+
+        //First step is to find the index of the (X, Y) of the spectral image in a flattened way
+        //(last index is X*Y). The line value is thus multiplied by the spim size in the X
+        //direction. The column must be between [0, X]. So we have, for the position:
+        //
+        //index = line * xspim + column
+        //
+        //To find the actuall index value, one multiply this value by the number of signal pixels
+        //(the spectra) because every spatial point has SPIM_PIXELS channels.
+        //
+        //index = index * SPIM_PIXELS
+        //
+        //With this, we place every electron in the first channel of the signal dimension. We must
+        //thus add the pixel address to correct reconstruct the spectral image
+        //
+        //index = index + x
+        
+
+        let line = |val: usize| {
+            //(val / spim_tdc.period) % set.yspim_size
+            (val / spim_tdc.period)
+        };
+
+
+        let column = |val: usize| {
+            set.xspim_size * (val % spim_tdc.period) / spim_tdc.low_time
+        };
+
 
         self.data.iter()
             .filter_map(|&(x, dt)| if dt % spim_tdc.period < spim_tdc.low_time {
-                let r = dt / spim_tdc.period;
-                let rin = dt % spim_tdc.period;
-                //let index = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size * rin / spim_tdc.low_time)) * SPIM_PIXELS + x;
-                let index = set.xspim_size * ((r/set.spimoverscany) % set.yspim_size + rin / spim_tdc.low_time) * SPIM_PIXELS + x;
-                Some(index) 
-                //Some([index, index, index, index]) 
-            } else {None})
-            //.collect::<Vec<([usize; 4])>>();
+            //.filter_map(|&(x, dt)| {
+                let r1 = dt / spim_tdc.period; //how many periods -> which line to put.
+                
+                let rin1 = dt % spim_tdc.period; //Between 0 and period. Where to put in line.
+                let rin = column(dt); //Between 0 and period. Where to put in line.
+                
+                let mut r = line(dt); //how many periods -> which line to put.
+                if r > (set.yspim_size-1) {
+                    r = r % set.yspim_size;
+                    }
+                
+                let index1 = ((r1/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size * rin1 / spim_tdc.low_time)) * SPIM_PIXELS + x;
+                let index = (r * set.xspim_size + rin) * SPIM_PIXELS + x;
+                
+                if index1 != index {
+                    println!("hi");
+                }
+                
+                Some(index)
+            } else {
+                None
+            })
+            //.collect::<Vec<(usize)>>();
             .for_each(|index| {
                 append_to_index_array(&mut my_vec, index);
             });
 
     my_vec
-    //vec![1]
     }
 
     fn copy_empty(&self) -> Self {
-        Live{ data: Vec::with_capacity(4096) }
+        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) }
     }
 
     fn new() -> Self {
-        Live{ data: Vec::with_capacity(4096) }
+        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) }
     }
 }
 
@@ -226,11 +268,12 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
             list = meas_type.copy_empty();
         }
     });
-    
+ 
+
     let start = Instant::now();
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
-        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+        //if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
     }
 
     let elapsed = start.elapsed(); 
@@ -239,8 +282,9 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
 }
 
 
-fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) {
+fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> usize {
 
+    let mut hit_counter = 0;
     data.chunks_exact(8).for_each(|x| {
         match x {
             &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
@@ -249,24 +293,31 @@ fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_c
                 let id = packet.id();
                 match id {
                     11 => {
-                        list.add_electron_hit(&packet, line_tdc)
+                        list.add_electron_hit(&packet, line_tdc);
+                        hit_counter+=1;
                     },
                     6 if packet.tdc_type() == line_tdc.id() => {
                         list.upt_line(&packet, settings, line_tdc);
                     },
                     6 if packet.tdc_type() == ref_tdc.id()=> {
                         list.add_tdc_hit(&packet, line_tdc, ref_tdc);
+                        hit_counter+=1;
                     },
                     _ => {},
                 };
             },
         };
     });
+    hit_counter
 }
 
 fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
-    data.push(((index & 4_278_190_080)>>24) as u8);
-    data.push(((index & 16_711_680)>>16) as u8);
-    data.push(((index & 65_280)>>8) as u8);
-    data.push((index & 255) as u8);
+    //data.push(((index & 4_278_190_080)>>24) as u8);
+    //data.push(((index & 16_711_680)>>16) as u8);
+    //data.push(((index & 65_280)>>8) as u8);
+    //data.push((index & 255) as u8);
+    data.push(((index >> 24 ) & 0xff) as u8);
+    data.push(((index >> 16 ) & 0xff) as u8);
+    data.push(((index >> 8 ) & 0xff) as u8);
+    data.push((index & 0xff) as u8);
 }
