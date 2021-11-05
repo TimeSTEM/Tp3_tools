@@ -221,8 +221,8 @@ impl BytesConfig {
 }
 
 
-struct DebugOut {}
-impl Write for DebugOut {
+struct DebugIO {}
+impl Write for DebugIO {
     fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
         Ok(0)
     }
@@ -377,7 +377,7 @@ impl Settings {
         */
 
         println!("Spectra Debug mode. Will one file a single time.");
-        Ok((my_settings, Box::new(in_file), Box::new(DebugOut{})))
+        Ok((my_settings, Box::new(in_file), Box::new(DebugIO{})))
     }
 
 }

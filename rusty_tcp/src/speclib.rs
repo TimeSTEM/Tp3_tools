@@ -203,9 +203,11 @@ pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns
     let mut list = Live::new(&my_settings);
     let start = Instant::now();
 
-    while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-        if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-        if build_data(&buffer_pack_data[0..size], &mut list, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
+    //while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+    while let Ok(()) = pack_sock.read_exact(&mut buffer_pack_data) {
+        //if size == 0 {println!("Timepix3 sent zero bytes."); break;}
+        //if build_data(&buffer_pack_data[0..size], &mut list, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
+        if build_data(&buffer_pack_data, &mut list, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc);
             if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
             if let Err(_) = ns_sock.write(list.build_output()) {println!("Client disconnected on data."); break;}
