@@ -45,6 +45,7 @@ pub mod coincidence {
                     self.add_coincident_electron(val, pht);
                 }
             }
+            println!("Number of coincident electrons: {:?}", self.x.len());
         }
 
         fn add_events(&mut self, mut temp_edata: TempElectronData, mut temp_tdc: TempTdcData) {
