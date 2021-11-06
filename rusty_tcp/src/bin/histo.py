@@ -10,9 +10,9 @@ x = numpy.reshape(x, (256, 1024))
 x = numpy.sum(x, axis=0)
 xH = numpy.loadtxt("xH.txt", delimiter=',')
 yH = numpy.loadtxt("yH.txt", delimiter=',')
-indexes = numpy.where(yH>=0)[0]
-xH = xH[indexes]
-t = t[indexes]
+#indexes = numpy.where(yH>=0)[0]
+#xH = xH[indexes]
+#t = t[indexes]
 
 #cs = numpy.loadtxt("cs.txt", delimiter=',')
 #stot = numpy.loadtxt("stot.txt", delimiter=',')

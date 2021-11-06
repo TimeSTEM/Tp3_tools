@@ -1,13 +1,10 @@
 use timepix3::postlib::coincidence::*;
 use std::fs;
-use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut coinc_data = ElectronData::new();
- 
-    let start = Instant::now();
-
+    
     let mut entries = fs::read_dir("DataCoinc")?;
     while let Some(x) = entries.next() {
         let path = x?.path();
@@ -15,7 +12,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Looping over file {:?}", dir);
         search_coincidence(dir, &mut coinc_data)?;
     }
-    println!("Total time elapsed is: {:?}", start.elapsed());
 
 
     coinc_data.output_spectrum(true);

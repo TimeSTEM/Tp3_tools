@@ -5,14 +5,13 @@ pub mod coincidence {
     use std::io;
     use std::io::prelude::*;
     use std::fs;
-    //use rayon::prelude::*;
-    //use std::time::Instant;
+    use rayon::prelude::*;
+    use std::time::Instant;
 
-    const TIME_WIDTH: usize = 50;
-    const TIME_DELAY: usize = 160;
-    const MIN_LEN: usize = 50; // This is the minimal TDC vec size. It reduces over time.
-    //const EXC: (usize, usize) = (5, 3); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
-    const CLUSTER_DET:usize = 50;
+    const TIME_WIDTH: usize = 50; //Time width to correlate (ns).
+    const TIME_DELAY: usize = 160; //Time delay to correlate (ns).
+    const MIN_LEN: usize = 100; // Sliding time window size.
+    const CLUSTER_DET:usize = 50; //Cluster time window (ns).
 
     pub struct ElectronData {
         pub time: Vec<usize>,
@@ -39,6 +38,15 @@ pub mod coincidence {
             self.tot.push(val.3);
         }
 
+        fn add_events_light(&mut self, temp_edata: TempElectronData, mut temp_tdc: TempTdcData) {
+            for val in temp_edata.electron {
+                self.add_electron(val);
+                if let Some(pht) = temp_tdc.check(val.0) {
+                    self.add_coincident_electron(val, pht);
+                }
+            }
+        }
+
         fn add_events(&mut self, mut temp_edata: TempElectronData, mut temp_tdc: TempTdcData) {
             temp_edata.sort();
             temp_tdc.sort();
@@ -58,15 +66,6 @@ pub mod coincidence {
                 }
             }
             
-            /*
-            for val in temp_tdc.tdc {
-                //self.add_electron(val);
-                if let Some(ele) = temp_edata.check(val) {
-                    self.add_coincident_electron(ele, val);
-                }
-            }
-            */
-
             println!("Number of coincident electrons: {:?}", self.x.len());
         }
 
@@ -128,7 +127,7 @@ pub mod coincidence {
         }
         
         pub fn output_non_dispersive(&self) {
-            println!("Outputting each dispersive value under xH name. Vector len is {}", self.rel_time.len());
+            println!("Outputting each non-dispersive value under yH name. Vector len is {}", self.rel_time.len());
             let out: String = self.y.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
             fs::write("yH.txt", out).unwrap();
         }
@@ -179,12 +178,11 @@ pub mod coincidence {
             let result = self.tdc[self.min_index..self.min_index+MIN_LEN].iter()
                 .enumerate()
                 .find(|(_, x)| ((**x as isize - value as isize).abs() as usize) < TIME_WIDTH);
-
-
+            
             match result {
                 Some((index, pht_value)) => {
-                    if index > MIN_LEN/10  && self.tdc.len()>self.min_index + MIN_LEN + index {
-                        self.min_index += index/2;
+                    if index > MIN_LEN/10 && self.tdc.len()>self.min_index + MIN_LEN + index {
+                       self.min_index += index/2;
                     }
                     Some(*pht_value)
                 },
@@ -221,7 +219,6 @@ pub mod coincidence {
                     let x_mean:usize = cluster_vec.iter().map(|&(_, x, _, _)| x).sum::<usize>() / cluster_size;
                     let y_mean:usize = cluster_vec.iter().map(|&(_, _, y, _)| y).sum::<usize>() / cluster_size;
                     let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum::<usize>() / cluster_size) as u16;
-                    //println!("{:?} and {}", cluster_vec, t_mean);
                     nelist.push((t_mean, x_mean, y_mean, tot_mean));
                     cs_list.push(cluster_size);
                     cluster_vec = Vec::new();
@@ -239,28 +236,8 @@ pub mod coincidence {
         }
 
         fn sort(&mut self) {
-            self.electron.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+            self.electron.par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         }
- 
-        /*
-        fn check(&mut self, value: usize) -> Option<(usize, usize, usize, u16)> {
-            
-            let result = self.electron[self.min_index..self.min_index+MIN_LEN].iter()
-                .enumerate()
-                .find(|(_, val)| ((val.0 as isize - value as isize).abs() as usize) < TIME_WIDTH);
-
-
-            match result {
-                Some((index, ele_value)) => {
-                    if index > MIN_LEN/10  && self.electron.len()>self.min_index + MIN_LEN + index {
-                        self.min_index += index/2; // - MIN_LEN/10 ;
-                    }
-                    Some(*ele_value)
-                },
-                None => None,
-            }
-        }
-        */
     }
             
 
@@ -270,8 +247,9 @@ pub mod coincidence {
         let mut ci = 0;
 
         let mut file = fs::File::open(file)?;
-        let mut buffer: Vec<u8> = vec![0; 256_000_000];
+        let mut buffer: Vec<u8> = vec![0; 512_000_000];
         let mut total_size = 0;
+        let start = Instant::now();
         
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
@@ -298,6 +276,8 @@ pub mod coincidence {
                 };
             }
         coinc_data.add_events(temp_edata, temp_tdc);
+        println!("Time elapsed: {:?}", start.elapsed());
+
         }
         println!("Total number of bytes read {}", total_size);
         Ok(())
