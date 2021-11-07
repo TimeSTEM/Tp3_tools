@@ -248,7 +248,7 @@ pub mod coincidence {
         let mut ci = 0;
 
         let mut file = fs::File::open(file)?;
-        let mut buffer: Vec<u8> = vec![0; 512_000_000];
+        let mut buffer: Vec<u8> = vec![0; 256_000_000];
         let mut total_size = 0;
         let start = Instant::now();
         

@@ -9,7 +9,9 @@ use std::io::{Read, Write};
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
-//const EXC: (usize, usize) = (20, 5); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
+const MIN_LEN: usize = 100;
+const TIME_WIDTH: usize = 50;
+const TIME_DELAY: usize = 160;
 
 pub trait SpecKind {
     
@@ -75,6 +77,7 @@ pub struct Correlation {
     pub tphoton: Vec<usize>,
     pub len: usize,
     pub is_ready: bool,
+    pub min_index: usize,
 }
 
 impl SpecKind for Correlation {
@@ -116,41 +119,30 @@ impl SpecKind for Correlation {
         let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        Correlation { data: temp_vec, xdata: Vec::new(), tdata: Vec::new(), tphoton: Vec::new(), len: len, is_ready: false}
+        Correlation { data: temp_vec, xdata: Vec::new(), tdata: Vec::new(), tphoton: Vec::new(), len: len, is_ready: false, min_index: 0}
     }
 }
 
-/*
+
 impl Correlation {
-
-    fn check(&mut self, value: usize) -> Option<usize> {
-        let veclen = self.tphoton.len().min(200);
-        let result = self.tphoton[0..veclen].iter().map(|&x| x).enumerate().filter(|(_, t)| *t < value + 50).next();
+    
+    fn check(&mut self, evalue: usize) -> Option<usize> {
+        let result = self.tphoton[self.min_index..self.min_index+MIN_LEN].iter()
+            .enumerate()
+            .find(|(_, x)| ((**x as isize - evalue as isize).abs() as usize) < TIME_WIDTH);
+        
         match result {
-            Some((index, pht)) => {
-                if index>EXC.0 && self.tphoton.len() > index + 100 {
-                    self.tphoton = self.tphoton.iter().map(|&x| x).skip(index - EXC.1).collect();
+            Some((index, pht_value)) => {
+                if index > MIN_LEN/10 && self.tphoton.len()>self.min_index + MIN_LEN + index {
+                   self.min_index += index/2;
                 }
-                Some(pht)
+                Some(*pht_value)
             },
             None => None,
         }
     }
 }
-        /*
-        let veclen = self.tdc.len().min(2*MIN_LEN);
-        let result = self.tdc[0..veclen].iter().cloned().enumerate().filter(|(_, x)| (x-value).abs()<TIME_WIDTH).next();
-        match result {
-            Some((index, pht)) => {
-                if index>EXC.0 && self.tdc.len()>index+MIN_LEN{
-                    self.tdc = self.tdc.iter().cloned().skip(index-EXC.1).collect();
-                }
-                Some(pht)
-            },
-            None => None,
-        }
-        */
-*/
+
 
 /*
 pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) 
