@@ -9,9 +9,6 @@ use std::io::{Read, Write};
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
-const MIN_LEN: usize = 100;
-const TIME_WIDTH: usize = 50;
-const TIME_DELAY: usize = 160;
 
 pub trait SpecKind {
     
@@ -67,79 +64,6 @@ impl SpecKind for Live {
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
         Live{ data: temp_vec, len: len, is_ready: false}
-    }
-}
-
-pub struct Correlation {
-    pub data: Vec<u8>,
-    pub xdata: Vec<usize>,
-    pub tdata: Vec<usize>,
-    pub tphoton: Vec<usize>,
-    pub len: usize,
-    pub is_ready: bool,
-    pub min_index: usize,
-}
-
-impl SpecKind for Correlation {
-    
-    fn add_electron_hit(&mut self, index: usize, pack: &Pack, settings: &Settings) {
-        append_to_array(&mut self.data, index, settings.bytedepth);
-        self.xdata.push(pack.x());
-        self.tdata.push(pack.electron_time());
-    }
-
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
-        self.tphoton.push(pack.tdc_time());
-    }
-
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        self.is_ready = true;
-    }
-
-    fn is_ready(&self) -> bool {
-        self.is_ready
-    }
-
-    fn build_output(&self) -> &[u8] {
-        &self.data
-    }
-
-    fn reset_or_else(&mut self, settings: &Settings) {
-        self.is_ready = false;
-        if settings.cumul == false {
-            self.data.iter_mut().for_each(|x| *x = 0);
-            self.data[self.len] = 10;
-        }
-    }
-
-    fn new(settings: &Settings) -> Self {
-        let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
-        let mut temp_vec = vec![0; len + 1];
-        temp_vec[len] = 10;
-        Correlation { data: temp_vec, xdata: Vec::new(), tdata: Vec::new(), tphoton: Vec::new(), len: len, is_ready: false, min_index: 0}
-    }
-}
-
-
-impl Correlation {
-    
-    fn check(&mut self, evalue: usize) -> Option<usize> {
-        let result = self.tphoton[self.min_index..self.min_index+MIN_LEN].iter()
-            .enumerate()
-            .find(|(_, x)| ((**x as isize - evalue as isize).abs() as usize) < TIME_WIDTH);
-        
-        match result {
-            Some((index, pht_value)) => {
-                if index > MIN_LEN/10 && self.tphoton.len()>self.min_index + MIN_LEN + index {
-                   self.min_index += index/2;
-                }
-                Some(*pht_value)
-            },
-            None => None,
-        }
     }
 }
 
