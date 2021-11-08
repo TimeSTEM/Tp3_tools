@@ -27,7 +27,7 @@ pub mod coincidence {
         }
 
         pub fn new(args: &[String]) -> Self {
-            if args.len() != 5-1 {
+            if args.len() != 4+1 {
                 panic!("One must provide 04 ({} detected) arguments (file, is_spim, xspim, yspim).", args.len()-1);
             }
             let file = args[1].clone();
