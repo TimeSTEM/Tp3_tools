@@ -246,11 +246,11 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     let mut list = meas_type.copy_empty();
     
     thread::spawn(move || {
-        //while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-        while let Ok(()) = pack_sock.read_exact(&mut buffer_pack_data) {
-            //if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-            //build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
-            build_spim_data(&mut list, &buffer_pack_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+        while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+        //while let Ok(()) = pack_sock.read_exact(&mut buffer_pack_data) {
+            if size == 0 {println!("Timepix3 sent zero bytes."); break;}
+            build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+            //build_spim_data(&mut list, &buffer_pack_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
             if let Err(_) = tx.send(list) {println!("Cannot send data over the thread channel."); break;}
             list = meas_type.copy_empty();
         }
