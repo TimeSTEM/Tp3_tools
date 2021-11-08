@@ -1,7 +1,7 @@
 pub mod coincidence {
 
     use crate::packetlib::{Packet, PacketEELS as Pack};
-    use crate::tdclib::TdcType;
+    use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
     use std::io;
     use std::io::prelude::*;
     use std::fs;
@@ -22,6 +22,9 @@ pub mod coincidence {
         pub cluster_size: Vec<usize>,
         pub spectrum: Vec<usize>,
         pub corr_spectrum: Vec<usize>,
+        pub is_spim: bool,
+        pub begin_frame: f64,
+        pub spim_size: (usize, usize),
     }
 
     impl ElectronData {
@@ -80,6 +83,9 @@ pub mod coincidence {
                 cluster_size: Vec::new(),
                 spectrum: vec![0; 1024*256],
                 corr_spectrum: vec![0; 1024*256],
+                is_spim: false,
+                begin_frame: 0.0,
+                spim_size: (0, 0),
             }
         }
 
@@ -244,9 +250,17 @@ pub mod coincidence {
 
     pub fn search_coincidence(file: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
         
-        let mytdc = TdcType::TdcTwoRisingEdge;
+        let mut file0 = fs::File::open(file)?;
+        
+        let spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
+            Box::new(PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create period TDC reference."))
+        } else {
+            Box::new(NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic TDC reference."))
+        };
+        
+        let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic TDC reference.");
+        
         let mut ci = 0;
-
         let mut file = fs::File::open(file)?;
         let mut buffer: Vec<u8> = vec![0; 256_000_000];
         let mut total_size = 0;
@@ -265,7 +279,7 @@ pub mod coincidence {
                     _ => {
                         let packet = Pack { chip_index: ci, data: pack_oct };
                         match packet.id() {
-                            6 if packet.tdc_type() == mytdc.associate_value() => {
+                            6 if packet.tdc_type() == np_tdc.id() => {
                                 temp_tdc.add_tdc(&packet);
                             },
                             11 => {
