@@ -13,9 +13,15 @@ x = numpy.reshape(x, (256, 1024))
 x = numpy.sum(x, axis=0)
 xH = numpy.loadtxt("xH.txt", delimiter=',')
 yH = numpy.loadtxt("yH.txt", delimiter=',')
+<<<<<<< HEAD
 indexes = numpy.where(yH>0)[0]
 xH = xH[indexes]
 t = t[indexes]
+=======
+#indexes = numpy.where(yH>=0)[0]
+#xH = xH[indexes]
+#t = t[indexes]
+>>>>>>> 3cabee9de090d46a7e9cdd000d62ef769b1def98
 
 #cs = numpy.loadtxt("cs.txt", delimiter=',')
 #stot = numpy.loadtxt("stot.txt", delimiter=',')
@@ -28,9 +34,15 @@ cRatio = numpy.divide(x, xT)
 fig, ax = plt.subplots(1, 3, dpi=180, sharex = False)
 #plt.subplots_adjust(left=0.25, bottom=0.25)
 ax2 = ax[0].twinx()
+<<<<<<< HEAD
 ax[0].plot(disparray, x, label='Correlated Data')
 ax[0].plot(disparray, xT, alpha=0.8, ls='--', color='red', lw=2, label='Total Data')
 ax2.scatter(disparray, cRatio, c='green', s=5, marker='x', label='Ratio')
+=======
+ax[0].plot(x, label='Correlated Data')
+ax[0].plot(xT, alpha=0.8, ls='--', color='red', lw=2, label='Total Data')
+ax2.scatter(numpy.arange(0, 1024, 1), cRatio, c='green', s=5, marker='x', label='Ratio')
+>>>>>>> 3cabee9de090d46a7e9cdd000d62ef769b1def98
 ax[1].hist(t, bins=200, range = (-100, 100))
 ax[2].hist(xH, bins=1024, range = (0, 1024))
 

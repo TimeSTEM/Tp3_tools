@@ -6,7 +6,6 @@ use std::time::Instant;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::thread;
-//use rayon::prelude::*;
 
 const VIDEO_TIME: usize = 5000;
 const SPIM_PIXELS: usize = 1025;
@@ -39,7 +38,7 @@ impl SpimKind for Live {
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
         let ele_time = packet.electron_time();
         if ele_time > line_tdc.begin_frame + VIDEO_TIME {
-            self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME))
+            self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME));
         }
     }
     
@@ -63,16 +62,47 @@ impl SpimKind for Live {
     }
 
     fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
-        let mut my_vec: Vec<u8> = Vec::new();
+        let mut my_vec: Vec<u8> = Vec::with_capacity(BUFFER_SIZE / 2);
+
+        //First step is to find the index of the (X, Y) of the spectral image in a flattened way
+        //(last index is X*Y). The line value is thus multiplied by the spim size in the X
+        //direction. The column must be between [0, X]. So we have, for the position:
+        //
+        //index = line * xspim + column
+        //
+        //To find the actuall index value, one multiply this value by the number of signal pixels
+        //(the spectra) because every spatial point has SPIM_PIXELS channels.
+        //
+        //index = index * SPIM_PIXELS
+        //
+        //With this, we place every electron in the first channel of the signal dimension. We must
+        //thus add the pixel address to correct reconstruct the spectral image
+        //
+        //index = index + x
+        //
+        
 
         self.data.iter()
-            .filter_map(|&(x, dt)| if dt % spim_tdc.period < spim_tdc.low_time {
-                let r = dt / spim_tdc.period;
-                let rin = dt % spim_tdc.period;
-                let index = ((r/set.spimoverscany) % set.yspim_size * set.xspim_size + (set.xspim_size * rin / spim_tdc.low_time)) * SPIM_PIXELS + x;
-                Some(index) 
-            } else {None}
-            )
+            .filter_map(|&(x, dt)| {
+                let val = dt % spim_tdc.period;
+                if val < spim_tdc.low_time {
+                
+                    let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
+                    let rin = set.xspim_size * val / spim_tdc.low_time; //Column
+            
+                    
+                    if r > (set.yspim_size-1) {
+                        r = r % set.yspim_size
+                    }
+                    
+                    let index = (r * set.xspim_size + rin) * SPIM_PIXELS + x;
+                    
+                
+                    Some(index)
+                } else {
+                    None
+                }
+            })
             .for_each(|index| {
                 append_to_index_array(&mut my_vec, index);
             });
@@ -81,11 +111,11 @@ impl SpimKind for Live {
     }
 
     fn copy_empty(&self) -> Self {
-        Live{ data: Vec::new() }
+        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) }
     }
 
     fn new() -> Self {
-        Live{ data: Vec::new() }
+        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) }
     }
 }
 
@@ -216,14 +246,16 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     let mut list = meas_type.copy_empty();
     
     thread::spawn(move || {
-        while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-            if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-            build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+        //while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+        while let Ok(()) = pack_sock.read_exact(&mut buffer_pack_data) {
+            //if size == 0 {println!("Timepix3 sent zero bytes."); break;}
+            //build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+            build_spim_data(&mut list, &buffer_pack_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
             if let Err(_) = tx.send(list) {println!("Cannot send data over the thread channel."); break;}
             list = meas_type.copy_empty();
         }
     });
-    
+ 
     let start = Instant::now();
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
@@ -232,6 +264,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
 
     let elapsed = start.elapsed(); 
     println!("Total elapsed time is: {:?}.", elapsed);
+
     Ok(())
 }
 
@@ -246,7 +279,7 @@ fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_c
                 let id = packet.id();
                 match id {
                     11 => {
-                        list.add_electron_hit(&packet, line_tdc)
+                        list.add_electron_hit(&packet, line_tdc);
                     },
                     6 if packet.tdc_type() == line_tdc.id() => {
                         list.upt_line(&packet, settings, line_tdc);
@@ -262,8 +295,12 @@ fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_c
 }
 
 fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
-    data.push(((index & 4_278_190_080)>>24) as u8);
-    data.push(((index & 16_711_680)>>16) as u8);
-    data.push(((index & 65_280)>>8) as u8);
-    data.push((index & 255) as u8);
+    //data.push(((index & 4_278_190_080)>>24) as u8);
+    //data.push(((index & 16_711_680)>>16) as u8);
+    //data.push(((index & 65_280)>>8) as u8);
+    //data.push((index & 255) as u8);
+    data.push(((index >> 24 ) & 0xff) as u8);
+    data.push(((index >> 16 ) & 0xff) as u8);
+    data.push(((index >> 8 ) & 0xff) as u8);
+    data.push((index & 0xff) as u8);
 }

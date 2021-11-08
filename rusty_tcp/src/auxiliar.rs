@@ -1,5 +1,10 @@
 //!`auxiliar` is a collection of tools to set acquisition conditions.
 use crate::errorlib::Tp3ErrorKind;
+use std::net::{TcpListener, TcpStream, SocketAddr};
+use std::io::{Read, Write};
+use std::fs::File;
+//use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
+use std::time::Duration;
 
 const CONFIG_SIZE: usize = 20;
 
@@ -215,13 +220,20 @@ impl BytesConfig {
 
 }
 
-use std::net::{TcpListener, TcpStream, SocketAddr};
-use std::io::{Read, Write};
-use std::fs;
-use std::time::Duration;
+
+struct DebugIO {}
+impl Write for DebugIO {
+    fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+        Ok(0)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 
 ///Settings contains all relevant parameters for a given acquistion
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Settings {
     pub bin: bool,
     pub bytedepth: usize,
@@ -292,7 +304,10 @@ impl Settings {
                 Ok((my_settings, Box::new(pack_sock), Box::new(ns_sock)))
             },
             true => {
-                let file = fs::File::open("bin/Data/raw000000.tpx3").expect("could not open file");
+                let file = match File::open("bin/Data/raw000000.tpx3") {
+                    Ok(file) => file,
+                    Err(_) => return Err(Tp3ErrorKind::SetNoReadFile),
+                };
                 println!("Debug mode. Will one file a single time.");
                 Ok((my_settings, Box::new(file), Box::new(ns_sock)))
             },
@@ -300,9 +315,28 @@ impl Settings {
 
     }
 
-    pub fn create_debug_settings() -> Settings {
+    fn create_spec_debug_settings() -> Settings  {
         Settings {
             bin: false,
+            bytedepth: 4,
+            cumul: false,
+            mode: 00,
+            xspim_size: 512,
+            yspim_size: 512,
+            xscan_size: 512,
+            yscan_size: 512,
+            time_delay: 0,
+            time_width: 1000,
+            counter: 128,
+            spimoverscanx: 1,
+            spimoverscany: 1,
+            number_sockets: 1,
+        }
+    }
+    
+    fn create_spim_debug_settings() -> Settings  {
+        Settings {
+            bin: true,
             bytedepth: 4,
             cumul: false,
             mode: 02,
@@ -317,6 +351,33 @@ impl Settings {
             spimoverscany: 1,
             number_sockets: 1,
         }
+    }
+
+    
+    pub fn create_debug_settings(spim: bool) -> Result<(Settings, Box<dyn Read + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
+    
+        let my_settings = match spim {
+            true => Settings::create_spim_debug_settings(),
+            false => Settings::create_spec_debug_settings(),
+        };
+        
+        println!("Received settings is {:?}. Mode is {}.", my_settings, my_settings.mode);
+
+        let in_file = match File::open("Data/raw000000.tpx3") {
+            Ok(file) => file,
+            Err(_) => return Err(Tp3ErrorKind::SetNoReadFile),
+        };
+        
+        /*
+        let out_dir = Path::new("Microscope/Output/");
+        create_dir_all(&out_dir).unwrap();
+        let out_file_name = "out.txt";
+        let file_path = out_dir.join(&out_file_name);
+        let out_file = OpenOptions::new().write(true).create(true).truncate(true).open(file_path).unwrap();
+        */
+
+        println!("Spectra Debug mode. Will one file a single time.");
+        Ok((my_settings, Box::new(in_file), Box::new(DebugIO{})))
     }
 
 }

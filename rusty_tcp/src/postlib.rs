@@ -1,18 +1,54 @@
 pub mod coincidence {
 
     use crate::packetlib::{Packet, PacketEELS as Pack};
-    use crate::tdclib::TdcType;
+    use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
     use std::io;
     use std::io::prelude::*;
     use std::fs;
-    //use rayon::prelude::*;
-    //use std::time::Instant;
+    use rayon::prelude::*;
+    use std::time::Instant;
 
-    const TIME_WIDTH: usize = 50;
-    const TIME_DELAY: usize = 160;
-    const MIN_LEN: usize = 50; // This is the minimal TDC vec size. It reduces over time.
-    //const EXC: (usize, usize) = (5, 3); //This controls how TDC vec reduces. (20, 5) means if correlation is got in the time index >20, the first 5 items are erased.
-    const CLUSTER_DET:usize = 50;
+    const TIME_WIDTH: usize = 50; //Time width to correlate (ns).
+    const TIME_DELAY: usize = 160; //Time delay to correlate (ns).
+    const MIN_LEN: usize = 100; // Sliding time window size.
+    const CLUSTER_DET:usize = 50; //Cluster time window (ns).
+
+    #[derive(Debug)]
+    pub struct Config {
+        file: String,
+        is_spim: bool,
+        xspim: usize,
+        yspim: usize,
+    }
+
+    impl Config {
+        pub fn file(&self) -> &str {
+            &self.file
+        }
+
+        pub fn new(args: &[String]) -> Self {
+            if args.len() != 4+1 {
+                panic!("One must provide 04 ({} detected) arguments (file, is_spim, xspim, yspim).", args.len()-1);
+            }
+            let file = args[1].clone();
+            let is_spim = if args[2] == "1" {
+                true
+            } else {
+                false
+            };
+            let xspim = args[3].parse::<usize>().unwrap();
+            let yspim = args[4].parse::<usize>().unwrap();
+            let my_config = 
+            Config {
+                file,
+                is_spim,
+                xspim,
+                yspim,
+            };
+            println!("Configuration for the coincidence measurement is {:?}", my_config);
+            my_config
+        }
+    }
 
     pub struct ElectronData {
         pub time: Vec<usize>,
@@ -23,6 +59,9 @@ pub mod coincidence {
         pub cluster_size: Vec<usize>,
         pub spectrum: Vec<usize>,
         pub corr_spectrum: Vec<usize>,
+        pub is_spim: bool,
+        pub begin_frame: Option<f64>,
+        pub spim_size: (usize, usize),
     }
 
     impl ElectronData {
@@ -56,21 +95,12 @@ pub mod coincidence {
                 if let Some(pht) = temp_tdc.check(val.0) {
                     self.add_coincident_electron(val, pht);
                 }
-            }
+            };
             
-            /*
-            for val in temp_tdc.tdc {
-                //self.add_electron(val);
-                if let Some(ele) = temp_edata.check(val) {
-                    self.add_coincident_electron(ele, val);
-                }
-            }
-            */
-
             println!("Number of coincident electrons: {:?}", self.x.len());
         }
 
-        pub fn new() -> Self {
+        pub fn new(my_config: &Config) -> Self {
             Self {
                 time: Vec::new(),
                 rel_time: Vec::new(),
@@ -80,9 +110,12 @@ pub mod coincidence {
                 cluster_size: Vec::new(),
                 spectrum: vec![0; 1024*256],
                 corr_spectrum: vec![0; 1024*256],
+                is_spim: my_config.is_spim,
+                begin_frame: None,
+                spim_size: (my_config.xspim, my_config.yspim),
             }
         }
-
+        
         pub fn output_corr_spectrum(&self, bin: bool) {
             let out: String = match bin {
                 true => {
@@ -128,7 +161,7 @@ pub mod coincidence {
         }
         
         pub fn output_non_dispersive(&self) {
-            println!("Outputting each dispersive value under xH name. Vector len is {}", self.rel_time.len());
+            println!("Outputting each non-dispersive value under yH name. Vector len is {}", self.rel_time.len());
             let out: String = self.y.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
             fs::write("yH.txt", out).unwrap();
         }
@@ -179,12 +212,11 @@ pub mod coincidence {
             let result = self.tdc[self.min_index..self.min_index+MIN_LEN].iter()
                 .enumerate()
                 .find(|(_, x)| ((**x as isize - value as isize).abs() as usize) < TIME_WIDTH);
-
-
+            
             match result {
                 Some((index, pht_value)) => {
-                    if index > MIN_LEN/10  && self.tdc.len()>self.min_index + MIN_LEN + index {
-                        self.min_index += index/2;
+                    if index > MIN_LEN/10 && self.tdc.len()>self.min_index + MIN_LEN + index {
+                       self.min_index += index/2;
                     }
                     Some(*pht_value)
                 },
@@ -196,7 +228,7 @@ pub mod coincidence {
 
 
     pub struct TempElectronData {
-        pub electron: Vec<(usize, usize, usize, u16)>,
+        pub electron: Vec<(usize, usize, usize, u16)>, //Time, X, Y and ToT
         pub min_index: usize,
     }
 
@@ -221,7 +253,6 @@ pub mod coincidence {
                     let x_mean:usize = cluster_vec.iter().map(|&(_, x, _, _)| x).sum::<usize>() / cluster_size;
                     let y_mean:usize = cluster_vec.iter().map(|&(_, _, y, _)| y).sum::<usize>() / cluster_size;
                     let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot)| tot as usize).sum::<usize>() / cluster_size) as u16;
-                    //println!("{:?} and {}", cluster_vec, t_mean);
                     nelist.push((t_mean, x_mean, y_mean, tot_mean));
                     cs_list.push(cluster_size);
                     cluster_vec = Vec::new();
@@ -234,44 +265,33 @@ pub mod coincidence {
         }
 
 
-        fn add_electron(&mut self, my_pack: &Pack) {
+        fn add_temp_electron(&mut self, my_pack: &Pack) {
             self.electron.push((my_pack.electron_time(), my_pack.x(), my_pack.y(), my_pack.tot()));
         }
 
         fn sort(&mut self) {
-            self.electron.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+            self.electron.par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         }
- 
-        /*
-        fn check(&mut self, value: usize) -> Option<(usize, usize, usize, u16)> {
-            
-            let result = self.electron[self.min_index..self.min_index+MIN_LEN].iter()
-                .enumerate()
-                .find(|(_, val)| ((val.0 as isize - value as isize).abs() as usize) < TIME_WIDTH);
-
-
-            match result {
-                Some((index, ele_value)) => {
-                    if index > MIN_LEN/10  && self.electron.len()>self.min_index + MIN_LEN + index {
-                        self.min_index += index/2; // - MIN_LEN/10 ;
-                    }
-                    Some(*ele_value)
-                },
-                None => None,
-            }
-        }
-        */
     }
             
 
     pub fn search_coincidence(file: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
         
-        let mytdc = TdcType::TdcTwoRisingEdge;
+        let mut file0 = fs::File::open(file)?;
+        
+        let spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
+            Box::new(PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create period TDC reference."))
+        } else {
+            Box::new(NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic TDC reference."))
+        };
+        let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic (photon) TDC reference.");
+        
+        
         let mut ci = 0;
-
         let mut file = fs::File::open(file)?;
         let mut buffer: Vec<u8> = vec![0; 256_000_000];
         let mut total_size = 0;
+        let start = Instant::now();
         
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
@@ -286,11 +306,13 @@ pub mod coincidence {
                     _ => {
                         let packet = Pack { chip_index: ci, data: pack_oct };
                         match packet.id() {
-                            6 if packet.tdc_type() == mytdc.associate_value() => {
+                            6 if packet.tdc_type() == np_tdc.id() => {
                                 temp_tdc.add_tdc(&packet);
                             },
+                            6 if packet.tdc_type() == spim_tdc.id() => {
+                            },
                             11 => {
-                                temp_edata.add_electron(&packet);
+                                temp_edata.add_temp_electron(&packet);
                             },
                             _ => {},
                         };
@@ -298,6 +320,8 @@ pub mod coincidence {
                 };
             }
         coinc_data.add_events(temp_edata, temp_tdc);
+        println!("Time elapsed: {:?}", start.elapsed());
+
         }
         println!("Total number of bytes read {}", total_size);
         Ok(())
