@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.widgets import Slider
 
+off = -2.1612
+disp = 0.0704
+disparray = numpy.linspace(off, disp*1024, 1024)
 t = numpy.loadtxt("tH.txt", delimiter=',')
 xT = numpy.loadtxt("spec.txt", delimiter=',')
 x = numpy.loadtxt("cspec.txt", delimiter=',')
@@ -10,7 +13,7 @@ x = numpy.reshape(x, (256, 1024))
 x = numpy.sum(x, axis=0)
 xH = numpy.loadtxt("xH.txt", delimiter=',')
 yH = numpy.loadtxt("yH.txt", delimiter=',')
-indexes = numpy.where(yH>160)[0]
+indexes = numpy.where(yH>0)[0]
 xH = xH[indexes]
 t = t[indexes]
 
@@ -25,13 +28,13 @@ cRatio = numpy.divide(x, xT)
 fig, ax = plt.subplots(1, 3, dpi=180, sharex = False)
 #plt.subplots_adjust(left=0.25, bottom=0.25)
 ax2 = ax[0].twinx()
-ax[0].plot(x, label='Correlated Data')
-ax[0].plot(xT, alpha=0.8, ls='--', color='red', lw=2, label='Total Data')
-ax2.scatter(numpy.arange(0, 1024, 1), cRatio, c='green', s=5, marker='x', label='Ratio')
-ax[1].hist(t, bins=100, range = (-50, 50))
+ax[0].plot(disparray, x, label='Correlated Data')
+ax[0].plot(disparray, xT, alpha=0.8, ls='--', color='red', lw=2, label='Total Data')
+ax2.scatter(disparray, cRatio, c='green', s=5, marker='x', label='Ratio')
+ax[1].hist(t, bins=200, range = (-100, 100))
 ax[2].hist(xH, bins=1024, range = (0, 1024))
 
-ax[0].set_xlabel('Energy (pxs)')
+ax[0].set_xlabel('Energy (eV)')
 ax[0].set_ylabel('$\Gamma^{Loss}$ (A.U.)')
 ax2.set_ylabel('Coincidence Ratio', c='green')
 
