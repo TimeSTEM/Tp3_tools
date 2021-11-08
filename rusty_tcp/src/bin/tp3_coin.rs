@@ -1,13 +1,12 @@
 use timepix3::postlib::coincidence::*;
-use std::fs;
 use std::env;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args: Vec<String> = env::args().collect();
-    
-    let mut coinc_data = ElectronData::new();
-    search_coincidence(&args[1], &mut coinc_data)?;
+    let config_set = Config::new(&args);
+    let mut coinc_data = ElectronData::new(&config_set);
+    search_coincidence(&config_set.file(), &mut coinc_data)?;
     
     //let mut entries = fs::read_dir("DataCoinc")?;
     //while let Some(x) = entries.next() {

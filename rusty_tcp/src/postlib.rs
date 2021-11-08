@@ -13,6 +13,43 @@ pub mod coincidence {
     const MIN_LEN: usize = 100; // Sliding time window size.
     const CLUSTER_DET:usize = 50; //Cluster time window (ns).
 
+    #[derive(Debug)]
+    pub struct Config {
+        file: String,
+        is_spim: bool,
+        xspim: usize,
+        yspim: usize,
+    }
+
+    impl Config {
+        pub fn file(&self) -> &str {
+            &self.file
+        }
+
+        pub fn new(args: &[String]) -> Self {
+            if args.len() != 5-1 {
+                panic!("One must provide 04 ({} detected) arguments (file, is_spim, xspim, yspim).", args.len()-1);
+            }
+            let file = args[1].clone();
+            let is_spim = if args[2] == "1" {
+                true
+            } else {
+                false
+            };
+            let xspim = args[3].parse::<usize>().unwrap();
+            let yspim = args[4].parse::<usize>().unwrap();
+            let my_config = 
+            Config {
+                file,
+                is_spim,
+                xspim,
+                yspim,
+            };
+            println!("Configuration for the coincidence measurement is {:?}", my_config);
+            my_config
+        }
+    }
+
     pub struct ElectronData {
         pub time: Vec<usize>,
         pub rel_time: Vec<isize>,
@@ -23,7 +60,7 @@ pub mod coincidence {
         pub spectrum: Vec<usize>,
         pub corr_spectrum: Vec<usize>,
         pub is_spim: bool,
-        pub begin_frame: f64,
+        pub begin_frame: Option<f64>,
         pub spim_size: (usize, usize),
     }
 
@@ -39,16 +76,6 @@ pub mod coincidence {
             self.x.push(val.1);
             self.y.push(val.2);
             self.tot.push(val.3);
-        }
-
-        fn add_events_light(&mut self, temp_edata: TempElectronData, mut temp_tdc: TempTdcData) {
-            for val in temp_edata.electron {
-                self.add_electron(val);
-                if let Some(pht) = temp_tdc.check(val.0) {
-                    self.add_coincident_electron(val, pht);
-                }
-            }
-            println!("Number of coincident electrons: {:?}", self.x.len());
         }
 
         fn add_events(&mut self, mut temp_edata: TempElectronData, mut temp_tdc: TempTdcData) {
@@ -73,7 +100,7 @@ pub mod coincidence {
             println!("Number of coincident electrons: {:?}", self.x.len());
         }
 
-        pub fn new() -> Self {
+        pub fn new(my_config: &Config) -> Self {
             Self {
                 time: Vec::new(),
                 rel_time: Vec::new(),
@@ -83,12 +110,12 @@ pub mod coincidence {
                 cluster_size: Vec::new(),
                 spectrum: vec![0; 1024*256],
                 corr_spectrum: vec![0; 1024*256],
-                is_spim: false,
-                begin_frame: 0.0,
-                spim_size: (0, 0),
+                is_spim: my_config.is_spim,
+                begin_frame: None,
+                spim_size: (my_config.xspim, my_config.yspim),
             }
         }
-
+        
         pub fn output_corr_spectrum(&self, bin: bool) {
             let out: String = match bin {
                 true => {
