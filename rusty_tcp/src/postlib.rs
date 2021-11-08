@@ -68,7 +68,7 @@ pub mod coincidence {
                 if let Some(pht) = temp_tdc.check(val.0) {
                     self.add_coincident_electron(val, pht);
                 }
-            }
+            };
             
             println!("Number of coincident electrons: {:?}", self.x.len());
         }
@@ -257,8 +257,8 @@ pub mod coincidence {
         } else {
             Box::new(NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic TDC reference."))
         };
+        let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic (photon) TDC reference.");
         
-        let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic TDC reference.");
         
         let mut ci = 0;
         let mut file = fs::File::open(file)?;
@@ -281,6 +281,8 @@ pub mod coincidence {
                         match packet.id() {
                             6 if packet.tdc_type() == np_tdc.id() => {
                                 temp_tdc.add_tdc(&packet);
+                            },
+                            6 if packet.tdc_type() == spim_tdc.id() => {
                             },
                             11 => {
                                 temp_edata.add_temp_electron(&packet);
