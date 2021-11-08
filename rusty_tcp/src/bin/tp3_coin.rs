@@ -5,8 +5,7 @@ use std::env;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args: Vec<String> = env::args().collect();
-    println!("{:?}", args);
-
+    
     let mut coinc_data = ElectronData::new();
     search_coincidence(&args[1], &mut coinc_data)?;
     
