@@ -195,7 +195,7 @@ pub mod coincidence {
 
 
     pub struct TempElectronData {
-        pub electron: Vec<(usize, usize, usize, u16)>,
+        pub electron: Vec<(usize, usize, usize, u16)>, //Time, X, Y and ToT
         pub min_index: usize,
     }
 
@@ -232,7 +232,7 @@ pub mod coincidence {
         }
 
 
-        fn add_electron(&mut self, my_pack: &Pack) {
+        fn add_temp_electron(&mut self, my_pack: &Pack) {
             self.electron.push((my_pack.electron_time(), my_pack.x(), my_pack.y(), my_pack.tot()));
         }
 
@@ -269,7 +269,7 @@ pub mod coincidence {
                                 temp_tdc.add_tdc(&packet);
                             },
                             11 => {
-                                temp_edata.add_electron(&packet);
+                                temp_edata.add_temp_electron(&packet);
                             },
                             _ => {},
                         };
