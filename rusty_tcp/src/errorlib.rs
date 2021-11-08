@@ -14,4 +14,5 @@ pub enum Tp3ErrorKind {
     MiscModeNotImplemented(u8),
     SetNoReadFile,
     SetNoWriteFile,
+    TimepixRead
 }

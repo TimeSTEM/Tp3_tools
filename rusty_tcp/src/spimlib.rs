@@ -1,5 +1,5 @@
 use crate::packetlib::{Packet, PacketEELS};
-use crate::auxiliar::Settings;
+use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
@@ -235,7 +235,7 @@ fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
     
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
 pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, meas_type: W) -> Result<(), Tp3ErrorKind>
-    where V: 'static + Send + Read,
+    where V: 'static + Send + TimepixRead,
           T: 'static + Send + TdcControl,
           W: 'static + Send + SpimKind,
           U: 'static + Send + Write,
@@ -246,11 +246,12 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     let mut list = meas_type.copy_empty();
     
     thread::spawn(move || {
-        while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
+        //while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
         //while let Ok(()) = pack_sock.read_exact(&mut buffer_pack_data) {
-            if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-            build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
-            //build_spim_data(&mut list, &buffer_pack_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+        while let Ok(()) = pack_sock.read_timepix(&mut buffer_pack_data) {
+            //if size == 0 {println!("Timepix3 sent zero bytes."); break;}
+            //build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+            build_spim_data(&mut list, &buffer_pack_data, &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
             if let Err(_) = tx.send(list) {println!("Cannot send data over the thread channel."); break;}
             list = meas_type.copy_empty();
         }

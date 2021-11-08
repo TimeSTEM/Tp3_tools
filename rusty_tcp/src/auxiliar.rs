@@ -254,7 +254,7 @@ pub struct Settings {
 impl Settings {
 
     ///Create Settings structure reading from a TCP.
-    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, Box<dyn Read + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
+    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
     
         let mut _sock_vec: Vec<TcpStream> = Vec::new();
         
@@ -354,7 +354,7 @@ impl Settings {
     }
 
     
-    pub fn create_debug_settings(spim: bool) -> Result<(Settings, Box<dyn Read + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
+    pub fn create_debug_settings(spim: bool) -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
     
         let my_settings = match spim {
             true => Settings::create_spim_debug_settings(),
@@ -421,4 +421,39 @@ pub mod simple_log {
         file.write(b"\n")?;
         Ok(())
     }
+}
+
+pub mod misc {
+    use std::io::Read;
+    use crate::errorlib::Tp3ErrorKind;
+    use std::net::TcpStream;
+    use std::fs::File;
+
+    fn default_read_exact<R: Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> Result<(), Tp3ErrorKind> {
+        while !buf.is_empty() {
+            match this.read(buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let tmp = buf;
+                    buf = &mut tmp[n..];
+                }
+                Err(_) => return Err(Tp3ErrorKind::TimepixRead),
+            };
+        };
+        if buf.is_empty() {
+            Ok(())
+        } else {
+            Err(Tp3ErrorKind::TimepixRead)
+        }
+    }
+    
+    pub trait TimepixRead: Read {
+        fn read_timepix(&mut self, buf: &mut [u8]) -> Result<(), Tp3ErrorKind> {
+            default_read_exact(self, buf)
+        }
+    }
+
+    impl<R: TimepixRead + ?Sized> TimepixRead for Box<R> {}
+    impl TimepixRead for TcpStream {}
+    impl TimepixRead for File {}
 }
