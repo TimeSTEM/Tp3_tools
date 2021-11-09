@@ -1,6 +1,6 @@
 ///`modes` is a module containing tools to live acquire frames and spectral images.
 use crate::packetlib::{Packet, PacketEELS as Pack};
-use crate::auxiliar::Settings;
+use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
@@ -111,7 +111,7 @@ pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStr
 
 
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
-pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) -> Result<(), Tp3ErrorKind> {
+pub fn build_spectrum<T: TdcControl, V: TimepixRead, U: Write>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) -> Result<(), Tp3ErrorKind> {
     
     let mut last_ci = 0usize;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
@@ -119,11 +119,8 @@ pub fn build_spectrum<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns
     let mut list = Live::new(&my_settings);
     let start = Instant::now();
 
-    while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-    //while let Ok(()) = pack_sock.read_exact(&mut buffer_pack_data) {
-        if size == 0 {println!("Timepix3 sent zero bytes."); break;}
+    while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         if build_data(&buffer_pack_data[0..size], &mut list, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
-        //if build_data(&buffer_pack_data, &mut list, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc);
             if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
             if let Err(_) = ns_sock.write(list.build_output()) {println!("Client disconnected on data."); break;}
