@@ -429,7 +429,27 @@ pub mod misc {
     use std::net::TcpStream;
     use std::fs::File;
 
-    fn default_read_exact<R: Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> Result<(), Tp3ErrorKind> {
+    fn default_read_exact<R: Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> Result<usize, Tp3ErrorKind> {
+        let mut size = 0;
+        while size == 0 || size % 8 != 0 {
+            match this.read(buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    size += n;
+                    let tmp = buf;
+                    buf = &mut tmp[n..];
+                }
+                Err(_) => return Err(Tp3ErrorKind::TimepixReadLoop),
+            };
+        };
+        if size != 0 && size % 8 == 0 {
+            Ok(size)
+        } else {
+            Err(Tp3ErrorKind::TimepixReadOver)
+        }
+    }
+
+        /*
         while !buf.is_empty() {
             match this.read(buf) {
                 Ok(0) => break,
@@ -446,14 +466,15 @@ pub mod misc {
             Err(Tp3ErrorKind::TimepixRead)
         }
     }
+    */
     
     pub trait TimepixRead: Read {
-        fn read_timepix(&mut self, buf: &mut [u8]) -> Result<(), Tp3ErrorKind> {
+        fn read_timepix(&mut self, buf: &mut [u8]) -> Result<usize, Tp3ErrorKind> {
             default_read_exact(self, buf)
         }
     }
 
-    impl<R: TimepixRead + ?Sized> TimepixRead for Box<R> {}
+    impl<R: Read + ?Sized> TimepixRead for Box<R> {}
     impl TimepixRead for TcpStream {}
     impl TimepixRead for File {}
 }

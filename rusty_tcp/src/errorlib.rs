@@ -7,12 +7,16 @@ pub enum Tp3ErrorKind {
     SetXSize,
     SetYSize,
     SetNbSockets,
+    SetNoReadFile,
+    SetNoWriteFile,
+
     TdcNoReceived,
     TdcBadPeriod,
     TdcNotAscendingOrder,
     TdcZeroBytes,
+
     MiscModeNotImplemented(u8),
-    SetNoReadFile,
-    SetNoWriteFile,
-    TimepixRead
+
+    TimepixReadLoop,
+    TimepixReadOver,
 }
