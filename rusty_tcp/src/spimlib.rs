@@ -3,9 +3,10 @@ use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
-use std::io::{Read, Write};
+use std::io::{Write};
 use std::sync::mpsc;
 use std::thread;
+//use rayon::prelude::*;
 
 const VIDEO_TIME: usize = 5000;
 const SPIM_PIXELS: usize = 1025;
@@ -62,7 +63,6 @@ impl SpimKind for Live {
     }
 
     fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
-        let mut my_vec: Vec<u8> = Vec::with_capacity(BUFFER_SIZE / 2);
 
         //First step is to find the index of the (X, Y) of the spectral image in a flattened way
         //(last index is X*Y). The line value is thus multiplied by the spim size in the X
@@ -79,9 +79,10 @@ impl SpimKind for Live {
         //thus add the pixel address to correct reconstruct the spectral image
         //
         //index = index + x
-        //
+        
         
 
+        let mut my_vec: Vec<u8> = Vec::with_capacity(BUFFER_SIZE / 2);
         self.data.iter()
             .filter_map(|&(x, dt)| {
                 let val = dt % spim_tdc.period;
@@ -97,6 +98,9 @@ impl SpimKind for Live {
                     
                     let index = (r * set.xspim_size + rin) * SPIM_PIXELS + x;
                     
+
+                    //Some([((index >> 24 ) & 0xff) as u8, ((index >> 16 ) & 0xff) as u8, ((index >> 8 ) & 0xff) as u8, (index & 0xff) as u8])
+                    
                 
                     Some(index)
                 } else {
@@ -104,6 +108,9 @@ impl SpimKind for Live {
                 }
             })
             .for_each(|index| {
+                //for val in index.iter() {
+                //    my_vec.push(*val);
+                //}
                 append_to_index_array(&mut my_vec, index);
             });
 
@@ -118,8 +125,6 @@ impl SpimKind for Live {
         Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) }
     }
 }
-
-
 
 /*
 /// Possible outputs to build spim data. `usize` does not implement cluster detection. `(f64,
@@ -296,8 +301,20 @@ fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
     //data.push(((index & 16_711_680)>>16) as u8);
     //data.push(((index & 65_280)>>8) as u8);
     //data.push((index & 255) as u8);
+ 
+    //Big Endian
     data.push(((index >> 24 ) & 0xff) as u8);
     data.push(((index >> 16 ) & 0xff) as u8);
     data.push(((index >> 8 ) & 0xff) as u8);
     data.push((index & 0xff) as u8);
+    
+    //Little Endian
+    //data.push((index & 0xff) as u8);
+    //index = index >> 4;
+    //data.push((index & 0xff) as u8);
+    //index = index >> 4;
+    //data.push((index & 0xff) as u8);
+    //index = index >> 4;
+    //data.push((index & 0xff) as u8);
+
 }

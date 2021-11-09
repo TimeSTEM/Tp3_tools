@@ -4,7 +4,7 @@ use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
-use std::io::{Read, Write};
+use std::io::Write;
 //use rayon::prelude::*;
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
