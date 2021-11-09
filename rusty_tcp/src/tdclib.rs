@@ -220,10 +220,9 @@ impl TdcType {
     }
 }
 
-use std::io::Read;
 use std::time::{Duration, Instant};
 use crate::errorlib::Tp3ErrorKind;
-
+use crate::auxiliar::misc::TimepixRead;
 
 pub trait TdcControl {
     fn id(&self) -> u8;
@@ -231,7 +230,7 @@ pub trait TdcControl {
     fn counter(&self) -> usize;
     fn time(&self) -> usize;
     fn period(&self) -> Option<usize>;
-    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Result<Self, Tp3ErrorKind> where Self: Sized;
+    fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T) -> Result<Self, Tp3ErrorKind> where Self: Sized;
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -274,7 +273,7 @@ impl TdcControl for PeriodicTdcRef {
         Some(self.period)
     }
 
-    fn new<T: Read>(tdc_type: TdcType, sock: &mut T) -> Result<Self, Tp3ErrorKind> {
+    fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
         let mut ci = 0usize;
         let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 5);
@@ -283,12 +282,8 @@ impl TdcControl for PeriodicTdcRef {
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
         loop {
             if start.elapsed() > Duration::from_secs(10) {return Err(Tp3ErrorKind::TdcNoReceived)}
-            if let Ok(size) = sock.read(&mut buffer_pack_data) {
-            //if let Ok(()) = sock.read_exact(&mut buffer_pack_data) {
-                //if size == 0 {println!("Timepix3 sent zero bytes."); return Err(TdcError::TimepixZeroBytes)}
-                //if size % 8 == 0 {
+            if let Ok(size) = sock.read_timepix(&mut buffer_pack_data) {
                 tdcvec::search_any_tdc(&buffer_pack_data[0..size], &mut tdc_search, &mut ci);
-                //}
                 if tdc_search.check_tdc()? {break;}
             }
         }
@@ -349,7 +344,7 @@ impl TdcControl for NonPeriodicTdcRef {
         None
     }
     
-    fn new<T: Read>(tdc_type: TdcType, _sock: &mut T) -> Result<Self, Tp3ErrorKind> {
+    fn new<T: TimepixRead>(tdc_type: TdcType, _sock: &mut T) -> Result<Self, Tp3ErrorKind> {
         Ok(Self {
             tdctype: tdc_type.associate_value(),
             counter: 0,

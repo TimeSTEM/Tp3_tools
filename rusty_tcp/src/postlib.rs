@@ -69,6 +69,14 @@ pub mod coincidence {
             self.spectrum[val.1 + 1024 * val.2] += 1;
         }
 
+        fn add_spim_line<T: TdcControl + ?Sized >(&mut self, pack: &Pack, spim_tdc: &mut T) {
+        //fn add_spim_line(&mut self, pack: &Pack) {
+            spim_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+            //if (line_tdc.counter() / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
+            //    line_tdc.begin_frame = line_tdc.time();
+            //}
+        }
+
         fn add_coincident_electron(&mut self, val: (usize, usize, usize, u16), photon_time: usize) {
             self.corr_spectrum[val.1 + 1024*val.2] += 1;
             self.time.push(val.0);
@@ -279,12 +287,13 @@ pub mod coincidence {
         
         let mut file0 = fs::File::open(file)?;
         
-        let spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
+        let mut spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
             Box::new(PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create period TDC reference."))
         } else {
             Box::new(NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic TDC reference."))
         };
         let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic (photon) TDC reference.");
+
         
         
         let mut ci = 0;
@@ -310,6 +319,7 @@ pub mod coincidence {
                                 temp_tdc.add_tdc(&packet);
                             },
                             6 if packet.tdc_type() == spim_tdc.id() => {
+                                coinc_data.add_spim_line(&packet, &mut *spim_tdc);
                             },
                             11 => {
                                 temp_edata.add_temp_electron(&packet);
