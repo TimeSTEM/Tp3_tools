@@ -66,25 +66,26 @@ pub mod coincidence {
     }
 
     impl ElectronData {
-        fn add_electron(&mut self, val: (usize, usize, usize, u16, usize)) {
+        fn add_electron(&mut self, val: (usize, usize, usize, usize)) {
             self.spectrum[val.1 + 1024 * val.2] += 1;
         }
 
         fn add_spim_line<T: TdcControl + ?Sized >(&mut self, pack: &Pack, spim_tdc: &mut T) {
-        //fn add_spim_line(&mut self, pack: &Pack) {
-            spim_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-            //if (line_tdc.counter() / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
-            //    line_tdc.begin_frame = line_tdc.time();
-            //}
+            if self.is_spim {
+                spim_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+                if (spim_tdc.counter() / 2) % self.spim_size.1 == 0 {
+                    self.begin_frame = Some(spim_tdc.time());
+                }
+            }
         }
 
-        fn add_coincident_electron(&mut self, val: (usize, usize, usize, u16, usize), photon_time: usize) {
+        fn add_coincident_electron(&mut self, val: (usize, usize, usize, usize), photon_time: usize) {
             self.corr_spectrum[val.1 + 1024*val.2] += 1;
             self.time.push(val.0);
             self.rel_time.push(val.0 as isize - photon_time as isize);
             self.x.push(val.1);
             self.y.push(val.2);
-            self.tot.push(val.3);
+            //self.tot.push(val.3);
         }
 
         fn add_events(&mut self, mut temp_edata: TempElectronData, mut temp_tdc: TempTdcData) {
@@ -237,7 +238,8 @@ pub mod coincidence {
 
 
     pub struct TempElectronData {
-        pub electron: Vec<(usize, usize, usize, u16, usize)>, //Time, X, Y and ToT and Time difference (for Spim positioning)
+        //pub electron: Vec<(usize, usize, usize, u16, usize)>, //Time, X, Y and ToT and Time difference (for Spim positioning)
+        pub electron: Vec<(usize, usize, usize, usize)>, //Time, X, Y and ToT and Time difference (for Spim positioning)
         pub min_index: usize,
     }
 
@@ -250,20 +252,20 @@ pub mod coincidence {
         }
 
         fn remove_clusters(&mut self) -> Vec<usize> {
-            let mut nelist:Vec<(usize, usize, usize, u16, usize)> = Vec::new();
+            let mut nelist:Vec<(usize, usize, usize, usize)> = Vec::new();
             let mut cs_list: Vec<usize> = Vec::new();
 
-            let mut last: (usize, usize, usize, u16, usize) = self.electron[0];
-            let mut cluster_vec: Vec<(usize, usize, usize, u16, usize)> = Vec::new();
+            let mut last: (usize, usize, usize, usize) = self.electron[0];
+            let mut cluster_vec: Vec<(usize, usize, usize, usize)> = Vec::new();
             for x in &self.electron {
                 if x.0 > last.0 + CLUSTER_DET || (x.1 as isize - last.1 as isize).abs() > 2 || (x.2 as isize - last.2 as isize).abs() > 2 {
                     let cluster_size: usize = cluster_vec.len();
-                    let t_mean:usize = cluster_vec.iter().map(|&(t, _, _, _, _)| t).sum::<usize>() / cluster_size as usize;
-                    let x_mean:usize = cluster_vec.iter().map(|&(_, x, _, _, _)| x).sum::<usize>() / cluster_size;
-                    let y_mean:usize = cluster_vec.iter().map(|&(_, _, y, _, _)| y).sum::<usize>() / cluster_size;
-                    let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot, _)| tot as usize).sum::<usize>() / cluster_size) as u16;
-                    let time_dif: usize = cluster_vec.iter().map(|&(_, _, _, _, td)| td).next().unwrap();
-                    nelist.push((t_mean, x_mean, y_mean, tot_mean, time_dif));
+                    let t_mean:usize = cluster_vec.iter().map(|&(t, _, _, _)| t).sum::<usize>() / cluster_size as usize;
+                    let x_mean:usize = cluster_vec.iter().map(|&(_, x, _, _)| x).sum::<usize>() / cluster_size;
+                    let y_mean:usize = cluster_vec.iter().map(|&(_, _, y, _)| y).sum::<usize>() / cluster_size;
+                    //let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot, _)| tot as usize).sum::<usize>() / cluster_size) as u16;
+                    let time_dif: usize = cluster_vec.iter().map(|&(_, _, _, td)| td).next().unwrap();
+                    nelist.push((t_mean, x_mean, y_mean, time_dif));
                     cs_list.push(cluster_size);
                     cluster_vec = Vec::new();
                 }
@@ -279,10 +281,12 @@ pub mod coincidence {
             let ele_time = my_pack.electron_time();
             if let Some(begin_frame) = frame_time {
                 if ele_time > begin_frame + VIDEO_TIME {
-                    self.electron.push((ele_time, my_pack.x(), my_pack.y(), my_pack.tot(), ele_time - begin_frame - VIDEO_TIME));
+                    //self.electron.push((ele_time, my_pack.x(), my_pack.y(), my_pack.tot(), ele_time - begin_frame - VIDEO_TIME));
+                    self.electron.push((ele_time, my_pack.x(), my_pack.y(), ele_time - begin_frame - VIDEO_TIME));
                 }
             } else {
-                self.electron.push((ele_time, my_pack.x(), my_pack.y(), my_pack.tot(), 0));
+                //self.electron.push((ele_time, my_pack.x(), my_pack.y(), my_pack.tot(), 0));
+                self.electron.push((ele_time, my_pack.x(), my_pack.y(), 0));
             }
         }
 
@@ -298,9 +302,12 @@ pub mod coincidence {
         let mut file0 = fs::File::open(file)?;
         
         let mut spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
+            if coinc_data.spim_size.0 <= 0 || coinc_data.spim_size.1 <= 0 {
+                panic!("Spim mode is on. X and Y pixels must be greater than 0.");
+            }
             Box::new(PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create period TDC reference."))
         } else {
-            Box::new(NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic TDC reference."))
+            Box::new(NonPeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create non periodic TDC reference."))
         };
         let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic (photon) TDC reference.");
 
