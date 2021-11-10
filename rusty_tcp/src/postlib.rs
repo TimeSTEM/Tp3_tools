@@ -172,7 +172,7 @@ pub mod coincidence {
         fn prepare_spim(&mut self, spim_tdc: &PeriodicTdcRef) {
             assert!(self.is_spim);
             self.spim_period = Some(spim_tdc.period);
-            self.spim_period = Some(spim_tdc.low_time);
+            self.spim_low_time = Some(spim_tdc.low_time);
         }
 
         pub fn new(my_config: &Config) -> Self {
@@ -242,6 +242,12 @@ pub mod coincidence {
             println!("Outputting each non-dispersive value under yH name. Vector len is {}", self.rel_time.len());
             let out: String = self.y.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
             fs::write("yH.txt", out).unwrap();
+        }
+        
+        pub fn output_spim_index(&self) {
+            println!("Outputting each spim index value under si name. Vector len is {}", self.spim_index.len());
+            let out: String = self.spim_index.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            fs::write("si.txt", out).unwrap();
         }
 
         pub fn output_cluster_size(&self) {

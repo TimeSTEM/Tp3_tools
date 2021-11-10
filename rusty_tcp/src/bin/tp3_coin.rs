@@ -21,6 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     coinc_data.output_relative_time();
     coinc_data.output_dispersive();
     coinc_data.output_non_dispersive();
+    coinc_data.output_spim_index();
 
     Ok(())
 }
