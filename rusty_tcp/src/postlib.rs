@@ -13,6 +13,7 @@ pub mod coincidence {
     const MIN_LEN: usize = 100; // Sliding time window size.
     const CLUSTER_DET:usize = 50; //Cluster time window (ns).
     const VIDEO_TIME: usize = 5000; //Video time for spim (ns).
+    const SPIM_PIXELS: usize = 1025;
 
     #[derive(Debug)]
     pub struct Config {
@@ -65,6 +66,7 @@ pub mod coincidence {
         pub begin_frame: Option<usize>,
         pub spim_period: Option<usize>,
         pub spim_low_time: Option<usize>,
+        pub spim_index: Vec<usize>,
     }
 
     impl ElectronData {
@@ -88,14 +90,36 @@ pub mod coincidence {
             self.x.push(val.1);
             self.y.push(val.2);
             //self.tot.push(val.3);
+            if self.is_spim {
+                if let Some(index) = self.calculate_index(val.3, val.1) {
+                    self.spim_index.push(index);
+                }
+            }
         }
 
-        /*
-        fn calculate_index(dt: usize, x: usize) -> usize {
-            let val = dt % 
+        
+        fn calculate_index(&self, dt: usize, x: usize) -> Option<usize> {
+            let per = self.spim_period.expect("Spim period was none.");
+            let lt = self.spim_low_time.expect("Spim low time was none.");
+            let val = dt % per;
+            if val < lt {
+                let mut r = dt / per; //how many periods -> which line to put.
+                let rin = self.spim_size.0 * val / lt; //Column
+        
+                if r > (self.spim_size.1-1) {
+                    r = r % self.spim_size.1
+                }
+                
+                Some((r * self.spim_size.0 + rin) * SPIM_PIXELS + x)
+            } else {
+                None
+            }
+        }
 
 
 
+
+            /*
             let mut my_vec: Vec<u8> = Vec::with_capacity(BUFFER_SIZE / 2);
             self.data.iter()
                 .filter_map(|&(x, dt)| {
@@ -166,6 +190,7 @@ pub mod coincidence {
                 begin_frame: None,
                 spim_period: None,
                 spim_low_time: None,
+                spim_index: Vec::new(),
             }
         }
         
