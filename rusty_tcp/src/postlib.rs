@@ -61,8 +61,10 @@ pub mod coincidence {
         pub spectrum: Vec<usize>,
         pub corr_spectrum: Vec<usize>,
         pub is_spim: bool,
-        pub begin_frame: Option<usize>,
         pub spim_size: (usize, usize),
+        pub begin_frame: Option<usize>,
+        pub spim_period: Option<usize>,
+        pub spim_low_time: Option<usize>,
     }
 
     impl ElectronData {
@@ -88,6 +90,39 @@ pub mod coincidence {
             //self.tot.push(val.3);
         }
 
+        /*
+        fn calculate_index(dt: usize, x: usize) -> usize {
+            let val = dt % 
+
+
+
+            let mut my_vec: Vec<u8> = Vec::with_capacity(BUFFER_SIZE / 2);
+            self.data.iter()
+                .filter_map(|&(x, dt)| {
+                    let val = dt % spim_tdc.period;
+                    if val < spim_tdc.low_time {
+                    
+                        let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
+                        let rin = set.xspim_size * val / spim_tdc.low_time; //Column
+                
+                        
+                        if r > (set.yspim_size-1) {
+                            r = r % set.yspim_size
+                        }
+                        
+                        let index = (r * set.xspim_size + rin) * SPIM_PIXELS + x;
+                        
+                        Some(index)
+                    } else {
+                        None
+                    }
+                })
+                .for_each(|index| {
+                    append_to_index_array(&mut my_vec, index);
+            0
+        }
+        */
+
         fn add_events(&mut self, mut temp_edata: TempElectronData, mut temp_tdc: TempTdcData) {
             temp_edata.sort();
             temp_tdc.sort();
@@ -110,6 +145,12 @@ pub mod coincidence {
             println!("Number of coincident electrons: {:?}", self.x.len());
         }
 
+        fn prepare_spim(&mut self, spim_tdc: &PeriodicTdcRef) {
+            assert!(self.is_spim);
+            self.spim_period = Some(spim_tdc.period);
+            self.spim_period = Some(spim_tdc.low_time);
+        }
+
         pub fn new(my_config: &Config) -> Self {
             Self {
                 time: Vec::new(),
@@ -121,8 +162,10 @@ pub mod coincidence {
                 spectrum: vec![0; 1024*256],
                 corr_spectrum: vec![0; 1024*256],
                 is_spim: my_config.is_spim,
-                begin_frame: None,
                 spim_size: (my_config.xspim, my_config.yspim),
+                begin_frame: None,
+                spim_period: None,
+                spim_low_time: None,
             }
         }
         
@@ -305,7 +348,9 @@ pub mod coincidence {
             if coinc_data.spim_size.0 <= 0 || coinc_data.spim_size.1 <= 0 {
                 panic!("Spim mode is on. X and Y pixels must be greater than 0.");
             }
-            Box::new(PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create period TDC reference."))
+            let temp = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create period TDC reference.");
+            coinc_data.prepare_spim(&temp);
+            Box::new(temp)
         } else {
             Box::new(NonPeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create non periodic TDC reference."))
         };
