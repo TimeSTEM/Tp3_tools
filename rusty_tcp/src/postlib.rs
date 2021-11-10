@@ -309,6 +309,38 @@ pub mod coincidence {
         }
     }
 
+    
+    struct SingleElectron {
+        pub x: usize,
+        pub y: usize,
+        pub t: usize,
+        pub dt: Option<usize>,
+    }
+
+    impl SingleElectron {
+        fn try_new(pack: &Pack, begin_frame: Option<usize>) -> Option<Self> {
+            let ele_time = pack.electron_time();
+            match begin_frame {
+                Some(frame_time) if ele_time > frame_time + VIDEO_TIME => {
+                    Some(SingleElectron {
+                        x: pack.x(),
+                        y: pack.y(),
+                        t: ele_time,
+                        dt: Some(ele_time - frame_time - VIDEO_TIME),
+                    })
+                },
+                None => {
+                    Some(SingleElectron {
+                        x: pack.x(),
+                        y: pack.y(),
+                        t: ele_time,
+                        dt: None,
+                    })
+                },
+                _ => None,
+            }
+        }
+    }
 
 
     pub struct TempElectronData {
