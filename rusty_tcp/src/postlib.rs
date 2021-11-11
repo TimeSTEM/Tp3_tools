@@ -33,11 +33,7 @@ pub mod coincidence {
                 panic!("One must provide 04 ({} detected) arguments (file, is_spim, xspim, yspim).", args.len()-1);
             }
             let file = args[1].clone();
-            let is_spim = if args[2] == "1" {
-                true
-            } else {
-                false
-            };
+            let is_spim = args[2] == "1";
             let xspim = args[3].parse::<usize>().unwrap();
             let yspim = args[4].parse::<usize>().unwrap();
             let my_config = 
@@ -107,7 +103,7 @@ pub mod coincidence {
                 let rin = self.spim_size.0 * val / lt; //Column
         
                 if r > (self.spim_size.1-1) {
-                    r = r % self.spim_size.1
+                    r %= self.spim_size.1
                 }
                 
                 Some((r * self.spim_size.0 + rin) * SPIM_PIXELS + x)
@@ -408,7 +404,7 @@ pub mod coincidence {
         let mut file0 = fs::File::open(file)?;
         
         let mut spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
-            if coinc_data.spim_size.0 <= 0 || coinc_data.spim_size.1 <= 0 {
+            if coinc_data.spim_size.0 == 0 || coinc_data.spim_size.1 == 0 {
                 panic!("Spim mode is on. X and Y pixels must be greater than 0.");
             }
             let temp = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create period TDC reference.");
@@ -433,10 +429,10 @@ pub mod coincidence {
             println!("MB Read: {}", total_size / 1_000_000 );
             let mut temp_edata = TempElectronData::new();
             let mut temp_tdc = TempTdcData::new();
-            let mut packet_chunks = buffer[0..size].chunks_exact(8);
-            while let Some(pack_oct) = packet_chunks.next() {
-                match pack_oct {
-                    &[84, 80, 88, 51, nci, _, _, _] => {ci=nci as usize;},
+            //let mut packet_chunks = buffer[0..size].chunks_exact(8);
+            buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+                match *pack_oct {
+                    [84, 80, 88, 51, nci, _, _, _] => {ci=nci as usize;},
                     _ => {
                         let packet = Pack { chip_index: ci, data: pack_oct };
                         match packet.id() {
@@ -453,7 +449,7 @@ pub mod coincidence {
                         };
                     },
                 };
-            }
+            });
         coinc_data.add_events(temp_edata, temp_tdc);
         println!("Time elapsed: {:?}", start.elapsed());
 

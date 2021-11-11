@@ -144,24 +144,18 @@ mod tdcvec {
 
     pub fn search_any_tdc(data: &[u8], tdc_struct: &mut TdcSearch, last_ci: &mut usize) {
 
-        let file_data = data;
-        let mut packet_chunks = file_data.chunks_exact(8);
-
-        while let Some(x) = packet_chunks.next() {
-            match x {
-                &[84, 80, 88, 51, nci, _, _, _] => {*last_ci = nci as usize},
+        data.chunks_exact(8).for_each(|x| {
+            match *x {
+                [84, 80, 88, 51, nci, _, _, _] => {*last_ci = nci as usize},
                 _ => {
                     let packet = Pack { chip_index: *last_ci, data: x};
                     
-                    match packet.id() {
-                        6 => {
-                            tdc_struct.add_tdc(&packet);
-                        },
-                        _ => {},
+                    if packet.id() == 6 {
+                        tdc_struct.add_tdc(&packet);
                     };
                 },
             };
-        };
+        });
     }
 
 }

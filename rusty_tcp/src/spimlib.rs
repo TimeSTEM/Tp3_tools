@@ -59,7 +59,7 @@ impl SpimKind for Live {
     }
 
     fn check(&self) -> bool {
-        self.data.iter().next().is_some()
+        self.data.get(0).is_some()
     }
 
     fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
@@ -92,7 +92,7 @@ impl SpimKind for Live {
                     let rin = set.xspim_size * val / spim_tdc.low_time; //Column
                     
                     if r > (set.yspim_size-1) {
-                        r = r % set.yspim_size;
+                        r %= set.yspim_size;
                     }
                     
                     let index = (r * set.xspim_size + rin) * SPIM_PIXELS + x;

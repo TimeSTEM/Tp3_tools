@@ -276,7 +276,7 @@ impl Settings {
         let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
         println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
         
-        let mut cam_settings = [0 as u8; CONFIG_SIZE];
+        let mut cam_settings = [0_u8; CONFIG_SIZE];
         let my_config = {
             match ns_sock.read(&mut cam_settings){
                 Ok(size) => {
@@ -339,7 +339,7 @@ impl Settings {
             bin: true,
             bytedepth: 4,
             cumul: false,
-            mode: 02,
+            mode: 2,
             xspim_size: 512,
             yspim_size: 512,
             xscan_size: 512,

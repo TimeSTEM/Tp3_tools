@@ -53,7 +53,7 @@ impl SpecKind for Live {
 
     fn reset_or_else(&mut self, settings: &Settings) {
         self.is_ready = false;
-        if settings.cumul == false {
+        if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = 0);
             self.data[self.len] = 10;
         }
