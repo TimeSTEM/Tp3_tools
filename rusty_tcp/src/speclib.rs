@@ -122,8 +122,8 @@ pub fn build_spectrum<T: TdcControl, V: TimepixRead, U: Write>(mut pack_sock: V,
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         if build_data(&buffer_pack_data[0..size], &mut list, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc);
-            if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
-            if let Err(_) = ns_sock.write(list.build_output()) {println!("Client disconnected on data."); break;}
+            if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
+            if ns_sock.write(list.build_output()).is_err() {println!("Client disconnected on data."); break;}
             list.reset_or_else(&my_settings);
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
         }
@@ -145,8 +145,8 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut Live, last_ci: &mut u
     };
 
     data.chunks_exact(8).for_each( |x| {
-        match x {
-            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
+        match *x {
+            [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
             _ => {
                 let packet = Pack { chip_index: *last_ci, data: x};
                 

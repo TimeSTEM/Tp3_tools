@@ -23,8 +23,8 @@ pub fn build_chrono<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns_s
         let new_data = &buffer_pack_data[0..size];
         if build_chrono_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc);
-            if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on header."); break;}
-            if let Err(_) = ns_sock.write(&data_array) {println!("Client disconnected on data."); break;}
+            if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
+            if ns_sock.write(&data_array).is_err() {println!("Client disconnected on data."); break;}
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
         }
     }
@@ -33,12 +33,11 @@ pub fn build_chrono<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns_s
 
 fn build_chrono_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
 
-    let mut packet_chunks = data.chunks_exact(8);
     let mut has = false;
     
-    while let Some(x) = packet_chunks.next() {
-        match x {
-            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
+    data.chunks_exact(8).for_each(|x| {
+        match *x {
+            [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
             _ => {
                 let packet = Pack { chip_index: *last_ci, data: x};
                 
@@ -66,7 +65,7 @@ fn build_chrono_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci:
                 };
             },
         };
-    };
+    });
     has
 }
 

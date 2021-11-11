@@ -20,8 +20,8 @@ mod tdcvec {
         pub fn new(tdc_choosen: TdcType, how_many: usize) -> Self {
             TdcSearch{
                 data: Vec::new(),
-                how_many: how_many,
-                tdc_choosen: tdc_choosen,
+                how_many,
+                tdc_choosen,
                 initial_counter: None,
                 last_counter: 0,
             }
@@ -300,14 +300,14 @@ impl TdcControl for PeriodicTdcRef {
         println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ns) is {}. ON interval (ns) is {}. Period (ns) is {}. Low time (ns) is {}.", tdc_type.associate_str(), counter, last_time, high_time, period, low_time);
         Ok(Self {
             tdctype: tdc_type.associate_value(),
-            counter: counter,
-            counter_offset: counter_offset,
-            last_hard_counter: last_hard_counter,
+            counter,
+            counter_offset,
+            last_hard_counter,
             counter_overflow: 0,
             begin_frame: begin_time,
-            period: period,
-            high_time: high_time,
-            low_time: low_time,
+            period,
+            high_time,
+            low_time,
             time: last_time,
         })
     }

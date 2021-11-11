@@ -397,28 +397,28 @@ pub mod simple_log {
         let file_path = dir.join(&date);
         let mut file = OpenOptions::new().write(true).truncate(false).create(true).append(true).open(file_path)?;
         let date = Local::now().to_string();
-        file.write(date.as_bytes())?;
-        file.write(b" - Starting new loop\n")?;
+        file.write_all(date.as_bytes())?;
+        file.write_all(b" - Starting new loop\n")?;
         Ok(file)
     }
 
     pub fn ok(file: &mut File, mode: u8) -> io::Result<()> {
         let date = Local::now().to_string();
-        file.write(date.as_bytes())?;
-        file.write(b" - OK ")?;
+        file.write_all(date.as_bytes())?;
+        file.write_all(b" - OK ")?;
         let mode = format!("{:?}", mode);
-        file.write(mode.as_bytes())?;
-        file.write(b"\n")?;
+        file.write_all(mode.as_bytes())?;
+        file.write_all(b"\n")?;
         Ok(())
     }
 
     pub fn error(file: &mut File, error: Tp3ErrorKind) -> io::Result<()> {
         let date = Local::now().to_string();
-        file.write(date.as_bytes())?;
-        file.write(b" - ERROR ")?;
+        file.write_all(date.as_bytes())?;
+        file.write_all(b" - ERROR ")?;
         let error = format!("{:?}", error);
-        file.write(error.as_bytes())?;
-        file.write(b"\n")?;
+        file.write_all(error.as_bytes())?;
+        file.write_all(b"\n")?;
         Ok(())
     }
 }

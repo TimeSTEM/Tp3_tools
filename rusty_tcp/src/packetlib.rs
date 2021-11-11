@@ -5,7 +5,7 @@ pub trait Packet {
     fn ci(&self) -> usize;
     fn data(&self) -> &[u8];
     fn x(&self) -> usize {
-        let temp = ((((self.data()[6] & 224))>>4 | ((self.data()[7] & 15))<<4) | (((self.data()[5] & 112)>>4)>>2)) as usize;
+        let temp = (((self.data()[6] & 224)>>4 | (self.data()[7] & 15)<<4) | (((self.data()[5] & 112)>>4)>>2)) as usize;
         match self.ci() {
             0 => 255 - temp,
             1 => 256 * 4 - 1 - temp,
@@ -16,12 +16,12 @@ pub trait Packet {
     }
     
     fn x_raw(&self) -> usize {
-        let x = ((((self.data()[6] & 224))>>4 | ((self.data()[7] & 15))<<4) | ((self.data()[5] & 64)>>6)) as usize;
+        let x = (((self.data()[6] & 224)>>4 | (self.data()[7] & 15)<<4) | ((self.data()[5] & 64)>>6)) as usize;
         x
     }
     
     fn y(&self) -> usize {
-        let y = (   ( ((self.data()[5] & 128))>>5 | ((self.data()[6] & 31))<<3 ) | ( (((self.data()[5] & 112)>>4)) & 3 )   ) as usize;
+        let y = (   ( (self.data()[5] & 128)>>5 | (self.data()[6] & 31)<<3 ) | ( ((self.data()[5] & 112)>>4) & 3 )   ) as usize;
         y
     }
 
@@ -129,7 +129,7 @@ impl<'a> Packet for PacketDiffraction<'a> {
         self.data
     }
     fn x(&self) -> usize {
-        let temp = ((((self.data[6] & 224))>>4 | ((self.data[7] & 15))<<4) | (((self.data[5] & 112)>>4)>>2)) as usize;
+        let temp = (((self.data[6] & 224)>>4 | (self.data[7] & 15)<<4) | (((self.data[5] & 112)>>4)>>2)) as usize;
         match self.chip_index {
             0 => 255 - temp,
             1 => temp,
@@ -140,7 +140,7 @@ impl<'a> Packet for PacketDiffraction<'a> {
     }
 
     fn y(&self) -> usize {
-        let temp = (   ( ((self.data[5] & 128))>>5 | ((self.data[6] & 31))<<3 ) | ( (((self.data[5] & 112)>>4)) & 3 )   ) as usize;
+        let temp = (   ( (self.data[5] & 128)>>5 | (self.data[6] & 31)<<3 ) | ( ((self.data[5] & 112)>>4) & 3 )   ) as usize;
         match self.chip_index {
             0 => temp,
             1 => 256 * 2 - 1 - temp,

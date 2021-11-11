@@ -90,10 +90,9 @@ impl SpimKind for Live {
                 
                     let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
                     let rin = set.xspim_size * val / spim_tdc.low_time; //Column
-            
                     
                     if r > (set.yspim_size-1) {
-                        r = r % set.yspim_size
+                        r = r % set.yspim_size;
                     }
                     
                     let index = (r * set.xspim_size + rin) * SPIM_PIXELS + x;
@@ -253,7 +252,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
             build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
-            if let Err(_) = tx.send(list) {println!("Cannot send data over the thread channel."); break;}
+            if tx.send(list).is_err() {println!("Cannot send data over the thread channel."); break;}
             list = meas_type.copy_empty();
         }
     });
@@ -261,7 +260,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     let start = Instant::now();
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
-        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
+        if ns_sock.write(&result).is_err() {println!("Client disconnected on data."); break;}
     }
 
     let elapsed = start.elapsed(); 
@@ -274,8 +273,8 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
 fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) {
 
     data.chunks_exact(8).for_each(|x| {
-        match x {
-            &[84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
+        match *x {
+            [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
             _ => {
                 let packet = PacketEELS { chip_index: *last_ci, data: x};
                 let id = packet.id();
