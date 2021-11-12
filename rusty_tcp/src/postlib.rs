@@ -156,9 +156,9 @@ pub mod coincidence {
             println!("Electron events: {}. Number of clusters: {}, Number of photons: {}", nelectrons, nclusters, nphotons);
 
             for val in temp_edata.electron {
-                self.add_electron(val);
-                if let Some(pht) = temp_tdc.check(val.0) {
-                    self.add_coincident_electron(val, pht);
+                self.add_electron(val.data);
+                if let Some(pht) = temp_tdc.check(val.data.0) {
+                    self.add_coincident_electron(val.data, pht);
                 }
             };
             
@@ -305,10 +305,11 @@ pub mod coincidence {
         }
     }
 
-    
-    struct SingleElectron {
+    #[derive(Copy, Clone)]
+    pub struct SingleElectron {
         pub data: (usize, usize, usize, usize),
     }
+
 
     impl SingleElectron {
         fn try_new(pack: &Pack, begin_frame: Option<usize>) -> Option<Self> {
@@ -353,7 +354,7 @@ pub mod coincidence {
 
     pub struct TempElectronData {
         //pub electron: Vec<(usize, usize, usize, u16, usize)>, //Time, X, Y and ToT and Time difference (for Spim positioning)
-        pub electron: Vec<(usize, usize, usize, usize)>, //Time, X, Y and ToT and Time difference (for Spim positioning)
+        pub electron: Vec<SingleElectron>, //Time, X, Y and ToT and Time difference (for Spim positioning)
         pub min_index: usize,
     }
 
@@ -366,20 +367,16 @@ pub mod coincidence {
         }
 
         fn remove_clusters(&mut self) -> Vec<usize> {
-            let mut nelist:Vec<(usize, usize, usize, usize)> = Vec::new();
+            let mut nelist:Vec<SingleElectron> = Vec::new();
             let mut cs_list: Vec<usize> = Vec::new();
 
-            let mut last: (usize, usize, usize, usize) = self.electron[0];
-            let mut cluster_vec: Vec<(usize, usize, usize, usize)> = Vec::new();
+            let mut last: SingleElectron = self.electron[0];
+            let mut cluster_vec: Vec<SingleElectron> = Vec::new();
             for x in &self.electron {
-                if x.0 > last.0 + CLUSTER_DET || (x.1 as isize - last.1 as isize).abs() > 2 || (x.2 as isize - last.2 as isize).abs() > 2 {
+                if SingleElectron::is_new_cluster(x, &last) {
                     let cluster_size: usize = cluster_vec.len();
-                    let t_mean:usize = cluster_vec.iter().map(|&(t, _, _, _)| t).sum::<usize>() / cluster_size as usize;
-                    let x_mean:usize = cluster_vec.iter().map(|&(_, x, _, _)| x).sum::<usize>() / cluster_size;
-                    let y_mean:usize = cluster_vec.iter().map(|&(_, _, y, _)| y).sum::<usize>() / cluster_size;
-                    //let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot, _)| tot as usize).sum::<usize>() / cluster_size) as u16;
-                    let time_dif: usize = cluster_vec.iter().map(|&(_, _, _, td)| td).next().unwrap();
-                    nelist.push((t_mean, x_mean, y_mean, time_dif));
+                    let new_from_cluster = SingleElectron::new_from_cluster(&cluster_vec);
+                    nelist.push(new_from_cluster);
                     cs_list.push(cluster_size);
                     cluster_vec = Vec::new();
                 }
@@ -392,7 +389,11 @@ pub mod coincidence {
 
 
         fn add_temp_electron(&mut self, my_pack: &Pack, frame_time: Option<usize>) {
-            let ele_time = my_pack.electron_time();
+            //let ele_time = my_pack.electron_time();
+            if let Some(se) = SingleElectron::try_new(my_pack, frame_time) {
+                self.electron.push(se);
+            }
+            /*
             if let Some(begin_frame) = frame_time {
                 if ele_time > begin_frame + VIDEO_TIME {
                     //self.electron.push((ele_time, my_pack.x(), my_pack.y(), my_pack.tot(), ele_time - begin_frame - VIDEO_TIME));
@@ -402,11 +403,11 @@ pub mod coincidence {
                 //self.electron.push((ele_time, my_pack.x(), my_pack.y(), my_pack.tot(), 0));
                 self.electron.push((ele_time, my_pack.x(), my_pack.y(), 0));
             }
+            */
         }
 
-
         fn sort(&mut self) {
-            self.electron.par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+            self.electron.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
         }
     }
             
