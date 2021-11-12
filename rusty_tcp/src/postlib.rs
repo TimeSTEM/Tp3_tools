@@ -307,10 +307,7 @@ pub mod coincidence {
 
     
     struct SingleElectron {
-        pub x: usize,
-        pub y: usize,
-        pub t: usize,
-        pub dt: Option<usize>,
+        pub data: (usize, usize, usize, usize),
     }
 
     impl SingleElectron {
@@ -319,21 +316,27 @@ pub mod coincidence {
             match begin_frame {
                 Some(frame_time) if ele_time > frame_time + VIDEO_TIME => {
                     Some(SingleElectron {
-                        x: pack.x(),
-                        y: pack.y(),
-                        t: ele_time,
-                        dt: Some(ele_time - frame_time - VIDEO_TIME),
+                        data: (ele_time, pack.x(), pack.y(), ele_time - frame_time - VIDEO_TIME),
                     })
                 },
                 None => {
                     Some(SingleElectron {
-                        x: pack.x(),
-                        y: pack.y(),
-                        t: ele_time,
-                        dt: None,
+                        data: (ele_time, pack.x(), pack.y(), 0),
                     })
                 },
                 _ => None,
+            }
+        }
+
+        fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
+            let cluster_size: usize = cluster.len();
+            let t_mean:usize = cluster.iter().map(|se| se.data.0).sum::<usize>() / cluster_size as usize;
+            let x_mean:usize = cluster.iter().map(|se| se.data.1).sum::<usize>() / cluster_size;
+            let y_mean:usize = cluster.iter().map(|se| se.data.2).sum::<usize>() / cluster_size;
+            //let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot, _)| tot as usize).sum::<usize>() / cluster_size) as u16;
+            let time_dif: usize = cluster.iter().map(|se| se.data.3).next().unwrap();
+            SingleElectron {
+                data: (t_mean, x_mean, y_mean, time_dif),
             }
         }
     }
