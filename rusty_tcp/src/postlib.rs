@@ -66,8 +66,8 @@ pub mod coincidence {
     }
 
     impl ElectronData {
-        fn add_electron(&mut self, val: (usize, usize, usize, usize)) {
-            self.spectrum[val.1 + 1024 * val.2] += 1;
+        fn add_electron(&mut self, val: SingleElectron) {
+            self.spectrum[val.data.1 + 1024 * val.data.2] += 1;
         }
 
         fn add_spim_line<T: TdcControl + ?Sized >(&mut self, pack: &Pack, spim_tdc: &mut T) {
@@ -79,15 +79,15 @@ pub mod coincidence {
             }
         }
 
-        fn add_coincident_electron(&mut self, val: (usize, usize, usize, usize), photon_time: usize) {
-            self.corr_spectrum[val.1 + 1024*val.2] += 1;
-            self.time.push(val.0);
-            self.rel_time.push(val.0 as isize - photon_time as isize);
-            self.x.push(val.1);
-            self.y.push(val.2);
+        fn add_coincident_electron(&mut self, val: SingleElectron, photon_time: usize) {
+            self.corr_spectrum[val.data.1 + 1024*val.data.2] += 1;
+            self.time.push(val.data.0);
+            self.rel_time.push(val.data.0 as isize - photon_time as isize);
+            self.x.push(val.data.1);
+            self.y.push(val.data.2);
             //self.tot.push(val.3);
             if self.is_spim {
-                if let Some(index) = self.calculate_index(val.3, val.1) {
+                if let Some(index) = self.calculate_index(val.data.3, val.data.1) {
                     self.spim_index.push(index);
                 }
             }
@@ -112,37 +112,6 @@ pub mod coincidence {
             }
         }
 
-
-
-
-            /*
-            let mut my_vec: Vec<u8> = Vec::with_capacity(BUFFER_SIZE / 2);
-            self.data.iter()
-                .filter_map(|&(x, dt)| {
-                    let val = dt % spim_tdc.period;
-                    if val < spim_tdc.low_time {
-                    
-                        let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
-                        let rin = set.xspim_size * val / spim_tdc.low_time; //Column
-                
-                        
-                        if r > (set.yspim_size-1) {
-                            r = r % set.yspim_size
-                        }
-                        
-                        let index = (r * set.xspim_size + rin) * SPIM_PIXELS + x;
-                        
-                        Some(index)
-                    } else {
-                        None
-                    }
-                })
-                .for_each(|index| {
-                    append_to_index_array(&mut my_vec, index);
-            0
-        }
-        */
-
         fn add_events(&mut self, mut temp_edata: TempElectronData, mut temp_tdc: TempTdcData) {
             temp_edata.sort();
             temp_tdc.sort();
@@ -156,9 +125,9 @@ pub mod coincidence {
             println!("Electron events: {}. Number of clusters: {}, Number of photons: {}", nelectrons, nclusters, nphotons);
 
             for val in temp_edata.electron {
-                self.add_electron(val.data);
-                if let Some(pht) = temp_tdc.check(val.data.0) {
-                    self.add_coincident_electron(val.data, pht);
+                self.add_electron(val);
+                if let Some(pht) = temp_tdc.check(val) {
+                    self.add_coincident_electron(val, pht);
                 }
             };
             
@@ -287,11 +256,11 @@ pub mod coincidence {
             self.tdc.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         }
 
-        fn check(&mut self, value: usize) -> Option<usize> {
+        fn check(&mut self, value: SingleElectron) -> Option<usize> {
             
             let result = self.tdc[self.min_index..self.min_index+MIN_LEN].iter()
                 .enumerate()
-                .find(|(_, x)| ((**x as isize - value as isize).abs() as usize) < TIME_WIDTH);
+                .find(|(_, x)| ((**x as isize - value.data.0 as isize).abs() as usize) < TIME_WIDTH);
             
             match result {
                 Some((index, pht_value)) => {
