@@ -328,6 +328,15 @@ pub mod coincidence {
             }
         }
 
+        fn is_new_cluster(f: &SingleElectron, s: &SingleElectron) -> bool {
+            if f.data.0 > s.data.0 + CLUSTER_DET || (f.data.1 as isize - s.data.1 as isize).abs() > 2 || (f.data.2 as isize - s.data.2 as isize).abs() > 2 {
+                true
+            } else {
+                false
+            }
+        }
+
+
         fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
             let cluster_size: usize = cluster.len();
             let t_mean:usize = cluster.iter().map(|se| se.data.0).sum::<usize>() / cluster_size as usize;
