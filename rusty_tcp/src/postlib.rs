@@ -13,7 +13,7 @@ pub mod coincidence {
     const MIN_LEN: usize = 100; // Sliding time window size.
     const CLUSTER_DET:usize = 50; //Cluster time window (ns).
     const VIDEO_TIME: usize = 5000; //Video time for spim (ns).
-    const SPIM_PIXELS: usize = 1025;
+    const SPIM_PIXELS: usize = 1025; //Number of pixels in the spim. Last pixel is currently off.
 
     #[derive(Debug)]
     pub struct Config {
@@ -67,7 +67,7 @@ pub mod coincidence {
 
     impl ElectronData {
         fn add_electron(&mut self, val: SingleElectron) {
-            self.spectrum[val.data.1 + 1024 * val.data.2] += 1;
+            self.spectrum[val.data.1 + 1024*val.data.2] += 1;
         }
 
         fn add_spim_line<T: TdcControl + ?Sized >(&mut self, pack: &Pack, spim_tdc: &mut T) {
@@ -85,7 +85,6 @@ pub mod coincidence {
             self.rel_time.push(val.data.0 as isize - photon_time as isize);
             self.x.push(val.data.1);
             self.y.push(val.data.2);
-            //self.tot.push(val.3);
             if self.is_spim {
                 if let Some(index) = self.calculate_index(val.data.3, val.data.1) {
                     self.spim_index.push(index);
@@ -257,6 +256,11 @@ pub mod coincidence {
         }
 
         fn check(&mut self, value: SingleElectron) -> Option<usize> {
+
+            //Sometimes you have less photons than the min_index. That would panic.
+            if self.min_index + MIN_LEN > self.tdc.len() {
+                return None
+            }
             
             let result = self.tdc[self.min_index..self.min_index+MIN_LEN].iter()
                 .enumerate()
@@ -309,11 +313,20 @@ pub mod coincidence {
 
         fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
             let cluster_size: usize = cluster.len();
+            
             let t_mean:usize = cluster.iter().map(|se| se.data.0).sum::<usize>() / cluster_size as usize;
+            //let t_mean:usize = cluster.iter().map(|se| se.data.0).next().unwrap();
+            
             let x_mean:usize = cluster.iter().map(|se| se.data.1).sum::<usize>() / cluster_size;
+            //let x_mean:usize = cluster.iter().map(|se| se.data.1).next().unwrap();
+            
             let y_mean:usize = cluster.iter().map(|se| se.data.2).sum::<usize>() / cluster_size;
+            //let y_mean:usize = cluster.iter().map(|se| se.data.2).next().unwrap();
+            
             //let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot, _)| tot as usize).sum::<usize>() / cluster_size) as u16;
+            
             let time_dif: usize = cluster.iter().map(|se| se.data.3).next().unwrap();
+            
             SingleElectron {
                 data: (t_mean, x_mean, y_mean, time_dif),
             }
@@ -322,7 +335,6 @@ pub mod coincidence {
 
 
     pub struct TempElectronData {
-        //pub electron: Vec<(usize, usize, usize, u16, usize)>, //Time, X, Y and ToT and Time difference (for Spim positioning)
         pub electron: Vec<SingleElectron>, //Time, X, Y and ToT and Time difference (for Spim positioning)
         pub min_index: usize,
     }
@@ -358,21 +370,9 @@ pub mod coincidence {
 
 
         fn add_temp_electron(&mut self, my_pack: &Pack, frame_time: Option<usize>) {
-            //let ele_time = my_pack.electron_time();
             if let Some(se) = SingleElectron::try_new(my_pack, frame_time) {
                 self.electron.push(se);
             }
-            /*
-            if let Some(begin_frame) = frame_time {
-                if ele_time > begin_frame + VIDEO_TIME {
-                    //self.electron.push((ele_time, my_pack.x(), my_pack.y(), my_pack.tot(), ele_time - begin_frame - VIDEO_TIME));
-                    self.electron.push((ele_time, my_pack.x(), my_pack.y(), ele_time - begin_frame - VIDEO_TIME));
-                }
-            } else {
-                //self.electron.push((ele_time, my_pack.x(), my_pack.y(), my_pack.tot(), 0));
-                self.electron.push((ele_time, my_pack.x(), my_pack.y(), 0));
-            }
-            */
         }
 
         fn sort(&mut self) {
