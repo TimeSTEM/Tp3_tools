@@ -54,6 +54,7 @@ pub trait Packet {
     fn electron_time(&self) -> usize {
         let spidr = (self.data()[0] as usize) | (self.data()[1] as usize)<<8;
         let toa = ((self.data()[3] & 192) as usize)>>6 | (self.data()[4] as usize)<<2 | ((self.data()[5] & 15) as usize)<<10;
+        //let toa = ((self.data()[3] >> 6) as usize) | (self.data()[4] as usize)<<2 | ((self.data()[5] << 4) as usize)<<6;
         let ftoa = (self.data()[2] & 15) as usize;
         let ctoa = (toa << 4) | (!ftoa & 15);
         spidr * 25 * 16384 + ctoa * 25 / 16
