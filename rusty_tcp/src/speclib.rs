@@ -18,6 +18,7 @@ pub trait SpecKind {
     fn is_ready(&self) -> bool;
     fn build_output(&self) -> &[u8];
     fn reset_or_else(&mut self, settings: &Settings);
+    fn try_quit(&self) -> bool;
     fn new(settings: &Settings) -> Self;
 }
 
@@ -57,6 +58,10 @@ impl SpecKind for Live {
             self.data.iter_mut().for_each(|x| *x = 0);
             self.data[self.len] = 10;
         }
+    }
+
+    fn try_quit(&self) -> bool {
+        false
     }
 
     fn new(settings: &Settings) -> Self {
@@ -124,6 +129,7 @@ pub fn build_spectrum<T: TdcControl, V: TimepixRead, U: Write>(mut pack_sock: V,
             let msg = create_header(&my_settings, &frame_tdc);
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             if ns_sock.write(list.build_output()).is_err() {println!("Client disconnected on data."); break;}
+            if list.try_quit() {break;}
             list.reset_or_else(&my_settings);
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
         }
@@ -167,6 +173,7 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut Live, last_ci: &mut u
         };
     });
     has
+    //final_data.is_ready()
 }
 
 fn tr_check_if_in(ele_time: usize, tdc: usize, period: usize, settings: &Settings) -> bool {
