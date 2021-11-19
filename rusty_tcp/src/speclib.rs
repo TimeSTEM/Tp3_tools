@@ -141,7 +141,7 @@ pub fn build_spectrum<T: TdcControl, V: TimepixRead, U: Write>(mut pack_sock: V,
 
 fn build_data<T: TdcControl>(data: &[u8], final_data: &mut Live, last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
 
-    let mut has = false;
+    //let mut has = false;
     
     let array_pos = |pack: &Pack| {
         match settings.bin {
@@ -162,7 +162,7 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut Live, last_ci: &mut u
                     },
                     6 if packet.tdc_type() == frame_tdc.id() => {
                         final_data.upt_frame(&packet, frame_tdc);
-                        has = true;
+                        //has = true;
                     },
                     6 if packet.tdc_type() == ref_tdc.id() => {
                         final_data.add_tdc_hit(&packet, settings, ref_tdc);
@@ -172,8 +172,8 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut Live, last_ci: &mut u
             },
         };
     });
-    has
-    //final_data.is_ready()
+    //has
+    final_data.is_ready()
 }
 
 fn tr_check_if_in(ele_time: usize, tdc: usize, period: usize, settings: &Settings) -> bool {
