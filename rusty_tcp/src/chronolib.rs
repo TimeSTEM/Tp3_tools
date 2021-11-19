@@ -45,7 +45,7 @@ fn build_chrono_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci:
                 let packet = Pack { chip_index: *last_ci, data: x};
                 
                 match packet.id() {
-                    11 if ref_tdc.period().is_none() => {
+                    11 => {
                         let line = (frame_tdc.counter() / 2) % settings.xspim_size;
                         let array_pos = packet.x() + line * CAM_DESIGN.0;
                         append_to_array(final_data, array_pos, settings.bytedepth);
