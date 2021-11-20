@@ -18,7 +18,8 @@ pub trait SpecKind {
     fn build_output(&self) -> &[u8];
     fn new(settings: &Settings) -> Self;
     
-    fn add_electron_hit(&mut self, index: usize, _pack: &Pack, settings: &Settings) {
+    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings) {
+        let index = pack.x() + CAM_DESIGN.0 * pack.y();
         append_to_array(&mut self.data(), index, settings.bytedepth);
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
@@ -34,6 +35,7 @@ pub trait SpecKind {
         if !settings.cumul {
             self.data().iter_mut().for_each(|x| *x = 0);
             *self.data().iter_mut().last().expect("SpecKind: Last value is none.") = 10;
+            //self.data[self.len] = 10;
         }
     }
     fn try_quit(&self) -> bool {
@@ -44,7 +46,6 @@ pub trait SpecKind {
 
 pub struct Live {
     data: Vec<u8>,
-    len: usize,
     is_ready: bool,
 }
 
@@ -53,33 +54,20 @@ impl SpecKind for Live {
     fn data(&mut self) -> &mut [u8] {
         &mut self.data
     }
-    
     fn is_ready(&self) -> bool {
         self.is_ready
     }
-    
     fn set_ready(&mut self, value: bool) {
         self.is_ready = value;
     }
-
     fn build_output(&self) -> &[u8] {
         &self.data
     }
-
-    /*fn reset_or_else(&mut self, settings: &Settings) {
-        self.is_ready = false;
-        if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = 0);
-            self.data[self.len] = 10;
-        }
-    }
-    */
-
     fn new(settings: &Settings) -> Self {
         let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        Live{ data: temp_vec, len: len, is_ready: false}
+        Live{ data: temp_vec, is_ready: false}
     }
 }
 
@@ -169,7 +157,8 @@ fn build_data<T: TdcControl>(data: &[u8], final_data: &mut Live, last_ci: &mut u
                 
                 match packet.id() {
                     11 => {
-                        final_data.add_electron_hit(array_pos(&packet), &packet, settings);
+                        //final_data.add_electron_hit(array_pos(&packet), &packet, settings);
+                        final_data.add_electron_hit(&packet, settings);
                     },
                     6 if packet.tdc_type() == frame_tdc.id() => {
                         final_data.upt_frame(&packet, frame_tdc);
