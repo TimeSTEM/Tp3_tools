@@ -44,13 +44,17 @@ pub trait SpecKind {
 
 }
 
-pub struct Live {
+pub struct Live2D {
     data: Vec<u8>,
     is_ready: bool,
 }
 
-impl SpecKind for Live {
+pub struct Live1D {
+    data: Vec<u8>,
+    is_ready: bool,
+}
 
+impl SpecKind for Live2D {
     fn data(&mut self) -> &mut [u8] {
         &mut self.data
     }
@@ -67,7 +71,32 @@ impl SpecKind for Live {
         let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        Live{ data: temp_vec, is_ready: false}
+        Live2D{ data: temp_vec, is_ready: false}
+    }
+}
+
+impl SpecKind for Live1D {
+    fn data(&mut self) -> &mut [u8] {
+        &mut self.data
+    }
+    fn is_ready(&self) -> bool {
+        self.is_ready
+    }
+    fn set_ready(&mut self, value: bool) {
+        self.is_ready = value;
+    }
+    fn build_output(&self) -> &[u8] {
+        &self.data
+    }
+    fn new(settings: &Settings) -> Self {
+        let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
+        let mut temp_vec = vec![0; len + 1];
+        temp_vec[len] = 10;
+        Live1D{ data: temp_vec, is_ready: false}
+    }
+    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings) {
+        let index = pack.x();
+        append_to_array(&mut self.data(), index, settings.bytedepth);
     }
 }
 
@@ -115,21 +144,26 @@ pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStr
 
 
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
-pub fn build_spectrum<T: TdcControl, V: TimepixRead, U: Write>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) -> Result<(), Tp3ErrorKind> {
+pub fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
+    where T: TdcControl,
+          V: TimepixRead,
+          U: Write,
+          W: SpecKind
+{
     
     let mut last_ci = 0usize;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     
-    let mut list = Live::new(&my_settings);
+    //let mut list = Live::new(&my_settings);
     let start = Instant::now();
 
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
-        if build_data(&buffer_pack_data[0..size], &mut list, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
+        if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc);
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
-            if ns_sock.write(list.build_output()).is_err() {println!("Client disconnected on data."); break;}
-            if list.try_quit() {break;}
-            list.reset_or_else(&my_settings);
+            if ns_sock.write(meas_type.build_output()).is_err() {println!("Client disconnected on data."); break;}
+            if meas_type.try_quit() {break;}
+            meas_type.reset_or_else(&my_settings);
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
         }
     }
@@ -138,7 +172,7 @@ pub fn build_spectrum<T: TdcControl, V: TimepixRead, U: Write>(mut pack_sock: V,
 
 }
 
-fn build_data<T: TdcControl>(data: &[u8], final_data: &mut Live, last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
+fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
 
     //let mut has = false;
     
