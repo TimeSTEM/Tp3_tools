@@ -68,7 +68,8 @@ impl SpecKind for Live2D {
         &self.data
     }
     fn new(settings: &Settings) -> Self {
-        let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
+        //let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
+        let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
         Live2D{ data: temp_vec, is_ready: false}
@@ -89,7 +90,8 @@ impl SpecKind for Live1D {
         &self.data
     }
     fn new(settings: &Settings) -> Self {
-        let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
+        //let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
+        let len: usize = settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
         Live1D{ data: temp_vec, is_ready: false}
@@ -174,15 +176,6 @@ pub fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings:
 
 fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
 
-    //let mut has = false;
-    
-    let array_pos = |pack: &Pack| {
-        match settings.bin {
-            true => pack.x(),
-            false => pack.x() + CAM_DESIGN.0 * pack.y(),
-        }
-    };
-
     data.chunks_exact(8).for_each( |x| {
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
@@ -191,12 +184,10 @@ fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_
                 
                 match packet.id() {
                     11 => {
-                        //final_data.add_electron_hit(array_pos(&packet), &packet, settings);
                         final_data.add_electron_hit(&packet, settings);
                     },
                     6 if packet.tdc_type() == frame_tdc.id() => {
                         final_data.upt_frame(&packet, frame_tdc);
-                        //has = true;
                     },
                     6 if packet.tdc_type() == ref_tdc.id() => {
                         final_data.add_tdc_hit(&packet, settings, ref_tdc);
@@ -206,7 +197,6 @@ fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_
             },
         };
     });
-    //has
     final_data.is_ready()
 }
 
