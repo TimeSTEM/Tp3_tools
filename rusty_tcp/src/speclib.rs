@@ -12,14 +12,34 @@ const BUFFER_SIZE: usize = 16384 * 2;
 
 pub trait SpecKind {
     
-    fn add_electron_hit(&mut self, index: usize, pack: &Pack, settings: &Settings);
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T);
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef);
+    fn data(&mut self) -> &mut [u8];
     fn is_ready(&self) -> bool;
+    fn set_ready(&mut self, value: bool);
     fn build_output(&self) -> &[u8];
-    fn reset_or_else(&mut self, settings: &Settings);
-    fn try_quit(&self) -> bool;
     fn new(settings: &Settings) -> Self;
+    
+    fn add_electron_hit(&mut self, index: usize, _pack: &Pack, settings: &Settings) {
+        append_to_array(&mut self.data(), index, settings.bytedepth);
+    }
+    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
+        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        append_to_array(&mut self.data(), CAM_DESIGN.0-1, settings.bytedepth);
+    }
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef) {
+        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        self.set_ready(true);
+    }
+    fn reset_or_else(&mut self, settings: &Settings) {
+        self.set_ready(false);
+        if !settings.cumul {
+            self.data().iter_mut().for_each(|x| *x = 0);
+            *self.data().iter_mut().last().expect("SpecKind: Last value is none.") = 10;
+        }
+    }
+    fn try_quit(&self) -> bool {
+        false
+    }
+
 }
 
 pub struct Live {
@@ -29,40 +49,31 @@ pub struct Live {
 }
 
 impl SpecKind for Live {
+
+    fn data(&mut self) -> &mut [u8] {
+        &mut self.data
+    }
     
-    fn add_electron_hit(&mut self, index: usize, _pack: &Pack, settings: &Settings) {
-        append_to_array(&mut self.data, index, settings.bytedepth);
-    }
-
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
-    }
-
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        self.is_ready = true;
-    }
-
     fn is_ready(&self) -> bool {
         self.is_ready
+    }
+    
+    fn set_ready(&mut self, value: bool) {
+        self.is_ready = value;
     }
 
     fn build_output(&self) -> &[u8] {
         &self.data
     }
 
-    fn reset_or_else(&mut self, settings: &Settings) {
+    /*fn reset_or_else(&mut self, settings: &Settings) {
         self.is_ready = false;
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = 0);
             self.data[self.len] = 10;
         }
     }
-
-    fn try_quit(&self) -> bool {
-        false
-    }
+    */
 
     fn new(settings: &Settings) -> Self {
         let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
