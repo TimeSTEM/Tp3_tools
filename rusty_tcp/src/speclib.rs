@@ -44,16 +44,13 @@ pub trait SpecKind {
 
 }
 
-//pub trait Test {}
-pub struct TLive2D {}
 pub struct TLive1D {}
-//impl Test for TLive2D {}
-//impl Test for TLive1D {}
+pub struct TLive2D {}
 
 pub struct SpecMeasurement<T> {
     data: Vec<u8>,
     is_ready: bool,
-    kind: T
+    _kind: T
 }
 
 impl SpecKind for SpecMeasurement<TLive2D> {
@@ -74,7 +71,7 @@ impl SpecKind for SpecMeasurement<TLive2D> {
         let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, is_ready: false, kind: TLive2D {} }
+        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: TLive2D {} }
     }
 }
 
@@ -93,75 +90,16 @@ impl SpecKind for SpecMeasurement<TLive1D> {
     }
     fn new(settings: &Settings) -> Self {
         //let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
-        let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
-        let mut temp_vec = vec![0; len + 1];
-        temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, is_ready: false, kind: TLive1D {} }
-    }
-}
-
-
-/*
-pub struct Live2D {
-    data: Vec<u8>,
-    is_ready: bool,
-}
-
-pub struct Live1D {
-    data: Vec<u8>,
-    is_ready: bool,
-}
-
-impl SpecKind for Live2D {
-
-    fn data(&mut self) -> &mut [u8] {
-        &mut self.data
-    }
-    fn is_ready(&self) -> bool {
-        self.is_ready
-    }
-    fn set_ready(&mut self, value: bool) {
-        self.is_ready = value;
-    }
-    fn build_output(&self) -> &[u8] {
-        &self.data
-    }
-    fn new<U: Test>(settings: &Settings, which: U) -> Self {
-        //let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
-        let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
-        let mut temp_vec = vec![0; len + 1];
-        temp_vec[len] = 10;
-        Live2D{ data: temp_vec, is_ready: false}
-    }
-}
-
-impl SpecKind for Live1D {
-    fn data(&mut self) -> &mut [u8] {
-        &mut self.data
-    }
-    fn is_ready(&self) -> bool {
-        self.is_ready
-    }
-    fn set_ready(&mut self, value: bool) {
-        self.is_ready = value;
-    }
-    fn build_output(&self) -> &[u8] {
-        &self.data
-    }
-    fn new(settings: &Settings) -> Self {
-        //let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
         let len: usize = settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        Live1D{ data: temp_vec, is_ready: false}
+        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: TLive1D {} }
     }
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings) {
         let index = pack.x();
         append_to_array(&mut self.data(), index, settings.bytedepth);
     }
 }
-*/
-
 
 /*
 pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) 
