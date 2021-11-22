@@ -18,7 +18,7 @@ pub trait SpecKind {
     fn build_output(&self) -> &[u8];
     fn new(settings: &Settings) -> Self;
     
-    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings) {
+    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef) {
         let index = pack.x() + CAM_DESIGN.0 * pack.y();
         append_to_array(&mut self.data(), index, settings.bytedepth);
     }
@@ -26,7 +26,7 @@ pub trait SpecKind {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         append_to_array(&mut self.data(), CAM_DESIGN.0-1, settings.bytedepth);
     }
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef) {
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         self.set_ready(true);
     }
@@ -38,22 +38,23 @@ pub trait SpecKind {
             //self.data[self.len] = 10;
         }
     }
-    fn try_quit(&self) -> bool {
+    fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool {
         false
     }
 
 }
 
-pub struct TLive1D {}
-pub struct TLive2D {}
+pub struct Live1D;
+pub struct Live2D;
+pub struct Chrono;
 
 pub struct SpecMeasurement<T> {
     data: Vec<u8>,
     is_ready: bool,
-    _kind: T
+    _kind: T,
 }
 
-impl SpecKind for SpecMeasurement<TLive2D> {
+impl SpecKind for SpecMeasurement<Live2D> {
     fn data(&mut self) -> &mut [u8] {
         &mut self.data
     }
@@ -71,11 +72,11 @@ impl SpecKind for SpecMeasurement<TLive2D> {
         let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: TLive2D {} }
+        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: Live2D }
     }
 }
 
-impl SpecKind for SpecMeasurement<TLive1D> {
+impl SpecKind for SpecMeasurement<Live1D> {
     fn data(&mut self) -> &mut [u8] {
         &mut self.data
     }
@@ -93,11 +94,45 @@ impl SpecKind for SpecMeasurement<TLive1D> {
         let len: usize = settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: TLive1D {} }
+        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: Live1D}
     }
-    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings) {
+    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef) {
         let index = pack.x();
         append_to_array(&mut self.data(), index, settings.bytedepth);
+    }
+}
+
+impl SpecKind for SpecMeasurement<Chrono> {
+    fn data(&mut self) -> &mut [u8] {
+        &mut self.data
+    }
+    fn is_ready(&self) -> bool {
+        self.is_ready
+    }
+    fn set_ready(&mut self, value: bool) {
+        self.is_ready = value;
+    }
+    fn build_output(&self) -> &[u8] {
+        &self.data
+    }
+    fn new(settings: &Settings) -> Self {
+        let len: usize = settings.xspim_size*settings.bytedepth*CAM_DESIGN.0;
+        let mut temp_vec = vec![0; len + 1];
+        temp_vec[len] = 10;
+        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: Chrono}
+    }
+    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef) {
+        let line = frame_tdc.counter()/2;
+        let index = pack.x() + line * CAM_DESIGN.0;
+        append_to_array(&mut self.data(), index, settings.bytedepth);
+    }
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
+        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        self.set_ready( (frame_tdc.counter()/2) > settings.xspim_size );
+    }
+    fn reset_or_else(&mut self, _settings: &Settings) {}
+    fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool {
+        true
     }
 }
 
@@ -162,7 +197,7 @@ pub fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings:
             let msg = create_header(&my_settings, &frame_tdc);
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             if ns_sock.write(meas_type.build_output()).is_err() {println!("Client disconnected on data."); break;}
-            if meas_type.try_quit() {break;}
+            if meas_type.try_quit(&frame_tdc, &my_settings) {break;}
             meas_type.reset_or_else(&my_settings);
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
         }
@@ -182,10 +217,10 @@ fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_
                 
                 match packet.id() {
                     11 => {
-                        final_data.add_electron_hit(&packet, settings);
+                        final_data.add_electron_hit(&packet, settings, frame_tdc);
                     },
                     6 if packet.tdc_type() == frame_tdc.id() => {
-                        final_data.upt_frame(&packet, frame_tdc);
+                        final_data.upt_frame(&packet, frame_tdc, settings);
                     },
                     6 if packet.tdc_type() == ref_tdc.id() => {
                         final_data.add_tdc_hit(&packet, settings, ref_tdc);
