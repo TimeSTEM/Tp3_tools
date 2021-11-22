@@ -44,6 +44,38 @@ pub trait SpecKind {
 
 }
 
+
+pub struct TLive2D {}
+
+pub struct SpecMeasurement<T> {
+    data: Vec<u8>,
+    is_ready: bool,
+    _kind: T
+}
+
+impl SpecKind for SpecMeasurement<TLive2D> {
+    fn data(&mut self) -> &mut [u8] {
+        &mut self.data
+    }
+    fn is_ready(&self) -> bool {
+        self.is_ready
+    }
+    fn set_ready(&mut self, value: bool) {
+        self.is_ready = value;
+    }
+    fn build_output(&self) -> &[u8] {
+        &self.data
+    }
+    fn new(settings: &Settings) -> Self {
+        //let len: usize = ((CAM_DESIGN.1-1)*!settings.bin as usize + 1)*settings.bytedepth*CAM_DESIGN.0;
+        let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
+        let mut temp_vec = vec![0; len + 1];
+        temp_vec[len] = 10;
+        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: TLive2D {} }
+    }
+}
+
+
 pub struct Live2D {
     data: Vec<u8>,
     is_ready: bool,
