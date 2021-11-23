@@ -11,6 +11,7 @@ use std::thread;
 const VIDEO_TIME: usize = 5000;
 const SPIM_PIXELS: usize = 1025;
 const BUFFER_SIZE: usize = 16384 * 2;
+const ELECTRON_MAX: usize = 26_843_545_600;
 
 pub trait SpimKind {
     type MyOutput;
@@ -90,7 +91,7 @@ impl SpimKind for Live {
                     let rin = set.xspim_size * val / spim_tdc.low_time; //Column
 
                     if r > (set.yspim_size-1) {
-                        if r > 26_843_545_600 {return None;} //This removes overflow electrons. See add_electron_hit
+                        if r > ELECTRON_MAX {return None;} //This removes overflow electrons. See add_electron_hit
                         r %= set.yspim_size;
                     }
                     
