@@ -48,6 +48,7 @@ pub struct Live1D;
 pub struct Live2D;
 pub struct FastChrono;
 pub struct Chrono;
+pub struct SuperResolution;
 
 pub struct SpecMeasurement<T> {
     data: Vec<u8>,
@@ -173,6 +174,31 @@ impl SpecKind for SpecMeasurement<Chrono> {
         }
     }
 }
+
+impl SpecKind for SpecMeasurement<SuperResolution> {
+    fn data(&mut self) -> &mut [u8] {
+        &mut self.data
+    }
+    fn is_ready(&self) -> bool {
+        self.is_ready
+    }
+    fn set_ready(&mut self, value: bool) {
+        self.is_ready = value;
+    }
+    fn build_output(&self) -> &[u8] {
+        &self.data
+    }
+    fn new(settings: &Settings) -> Self {
+        let len: usize = settings.bytedepth*CAM_DESIGN.0;
+        let mut temp_vec = vec![0; len + 1];
+        temp_vec[len] = 10;
+        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: SuperResolution}
+    }
+    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef) {
+        let index = pack.x();
+        append_to_array(&mut self.data(), index, settings.bytedepth);
+    }
+    }
 
 /*
 pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) 

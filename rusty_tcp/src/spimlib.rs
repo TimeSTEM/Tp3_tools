@@ -89,7 +89,7 @@ impl SpimKind for Live {
                 if val < spim_tdc.low_time {
                 
                     let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
-                    let rin = set.xspim_size * val / spim_tdc.low_time; //Column
+                    let rin = set.xspim_size * val / spim_tdc.low_time; //Column correction. Maybe not even needed.
                     
                     if r > (set.yspim_size-1) {
                         r %= set.yspim_size;
