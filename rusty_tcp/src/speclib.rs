@@ -9,6 +9,7 @@ use std::io::Write;
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
+const SUPER_RESOLUTION: usize = 1_000;
 
 pub trait SpecKind {
 
@@ -52,7 +53,9 @@ pub struct SuperResolution;
 
 pub struct SpecMeasurement<T> {
     data: Vec<u8>,
+    aux_data: Vec<usize>,
     is_ready: bool,
+    last_time: usize,
     _kind: T,
 }
 
@@ -74,7 +77,7 @@ impl SpecKind for SpecMeasurement<Live2D> {
         let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: Live2D }
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: Live2D }
     }
 }
 
@@ -96,7 +99,7 @@ impl SpecKind for SpecMeasurement<Live1D> {
         let len: usize = settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: Live1D}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: Live1D}
     }
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef) {
         let index = pack.x();
@@ -121,7 +124,7 @@ impl SpecKind for SpecMeasurement<FastChrono> {
         let len: usize = settings.xspim_size*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: FastChrono}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: FastChrono}
     }
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef) {
         let line = frame_tdc.counter()/2;
@@ -155,7 +158,7 @@ impl SpecKind for SpecMeasurement<Chrono> {
         let len: usize = settings.xspim_size*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: Chrono}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: Chrono}
     }
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef) {
         let line = frame_tdc.counter()/2;
@@ -192,11 +195,19 @@ impl SpecKind for SpecMeasurement<SuperResolution> {
         let len: usize = settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, is_ready: false, _kind: SuperResolution}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: SuperResolution}
     }
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef) {
         let index = pack.x();
-        append_to_array(&mut self.data(), index, settings.bytedepth);
+        self.aux_data.push(index);
+        
+
+        if pack.fast_electron_time() > self.last_time + SUPER_RESOLUTION {
+            //for val in &self.aux_data {
+            //    append_to_array(&mut self.data(), *val, settings.bytedepth);
+            //}
+            self.aux_data = Vec::new();
+        }
     }
     }
 
