@@ -9,7 +9,8 @@ use std::io::Write;
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
-const SUPER_RESOLUTION: usize = 1_000;
+const SUPER_RESOLUTION: usize = 100_000;
+const INDEX_SUPER_RESOLUTION: usize = 1024;
 
 pub trait SpecKind {
 
@@ -186,8 +187,10 @@ impl SpecKind for SpecMeasurement<Chrono> {
     }
 }
 
-/*
 impl SpecKind for SpecMeasurement<SuperResolution> {
+    fn is_ready(&self) -> bool {
+        self.is_ready
+    }
     fn build_output(&self) -> &[u8] {
         &self.data
     }
@@ -197,38 +200,48 @@ impl SpecKind for SpecMeasurement<SuperResolution> {
         temp_vec[len] = 10;
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: SuperResolution}
     }
+    #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef) {
         let index = pack.x();
         self.aux_data.push(index);
         
+        let new_time = pack.fast_electron_time();
+        if new_time > self.last_time + SUPER_RESOLUTION {
+            let len = self.aux_data.iter().filter(|&&val| val <= INDEX_SUPER_RESOLUTION).count();
+            let sum: usize = self.aux_data.iter().filter(|&&val| val <= INDEX_SUPER_RESOLUTION).sum();
 
-        if pack.fast_electron_time() > self.last_time + SUPER_RESOLUTION {
-            //for val in &self.aux_data {
-            //    append_to_array(&mut self.data(), *val, settings.bytedepth);
-            //}
+            let offset = match len {
+                0 => 0,
+                _ => sum / len,
+            };
+
+            for val in &self.aux_data {
+                append_to_array_roll(&mut self.data, *val, settings.bytedepth, 10);
+            }
+            
+            self.last_time = new_time;
             self.aux_data = Vec::new();
         }
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        self.set_ready( frame_tdc.counter() % 20 == 0 );
+        self.is_ready = true;
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        append_to_array(&mut self.data(), CAM_DESIGN.0-1, settings.bytedepth);
+        append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
     }
-    fn reset_or_else(&mut self, frame_tdc: &PeriodicTdcRef, settings: &Settings) {
-        self.set_ready(false);
-        if frame_tdc.counter() % 2*settings.xspim_size == 0 {
-            self.data().iter_mut().for_each(|x| *x = 0);
-            *self.data().iter_mut().last().expect("SpecKind: Last value is none.") = 10;
+    fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
+        self.is_ready = false;
+        if !settings.cumul {
+            self.data.iter_mut().for_each(|x| *x = 0);
+            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
         }
     }
     fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool {
-        true
+        false
     }
 }
-*/
 
 /*
 pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) 
@@ -395,6 +408,36 @@ fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
     */
     
 
+}
+
+fn append_to_array_roll(data: &mut [u8], index:usize, bytedepth: usize, roll: isize) {
+    let index = index as isize + roll;
+    if index >= CAM_DESIGN.0 as isize - 1 || index < 0 {
+        return
+    }
+    let index = index as usize;
+
+    let index = index * bytedepth;
+    
+    if bytedepth == 4 {
+        data[index+3] = data[index+3].wrapping_add(1);
+        if data[index+3]==0 {
+            data[index+2] = data[index+2].wrapping_add(1);
+            if data[index+2]==0 {
+                data[index+1] = data[index+1].wrapping_add(1);
+                if data[index+1]==0 {
+                    data[index] = data[index].wrapping_add(1);
+                };
+            };
+        };
+    } else if bytedepth == 2 {
+        data[index+1] = data[index+1].wrapping_add(1);
+        if data[index+1]==0 {
+            data[index] = data[index].wrapping_add(1);
+        }
+    } else if bytedepth == 1 {
+        data[index] = data[index].wrapping_add(1);
+    }
 }
 
 fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
