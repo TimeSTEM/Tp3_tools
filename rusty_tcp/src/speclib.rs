@@ -17,28 +17,10 @@ pub trait SpecKind {
     fn build_output(&self) -> &[u8];
     fn new(settings: &Settings) -> Self;
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef);
-    //    let index = pack.x() + CAM_DESIGN.0 * pack.y();
-    //    append_to_array(&mut self.data(), index, settings.bytedepth);
-    //}
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T);
-    //    ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-    //    append_to_array(&mut self.data(), CAM_DESIGN.0-1, settings.bytedepth);
-    //}
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings);
-    //    frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-    //    self.set_ready(true);
-    //}
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings);
-    //    self.set_ready(false);
-    //    if !settings.cumul {
-    //        self.data().iter_mut().for_each(|x| *x = 0);
-    //        *self.data().iter_mut().last().expect("SpecKind: Last value is none.") = 10;
-    //        //self.data[self.len] = 10;
-    //    }
-    //}
     fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool;
-    //    false
-    //}
 }
 
 pub struct Live1D;
@@ -107,6 +89,7 @@ impl SpecKind for SpecMeasurement<Live1D> {
         temp_vec[len] = 10;
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: Live1D}
     }
+    #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef) {
         let index = pack.x();
         append_to_array(&mut self.data, index, settings.bytedepth);
@@ -131,7 +114,6 @@ impl SpecKind for SpecMeasurement<Live1D> {
     }
 }
 
-/*
 impl SpecKind for SpecMeasurement<FastChrono> {
     fn is_ready(&self) -> bool {
         self.is_ready
@@ -145,6 +127,7 @@ impl SpecKind for SpecMeasurement<FastChrono> {
         temp_vec[len] = 10;
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: FastChrono}
     }
+    #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef) {
         let line = frame_tdc.counter()/2;
         let index = pack.x() + line * CAM_DESIGN.0;
@@ -177,6 +160,7 @@ impl SpecKind for SpecMeasurement<Chrono> {
         temp_vec[len] = 10;
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: Chrono}
     }
+    #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef) {
         let line = frame_tdc.counter()/2;
         let index = pack.x() + line * CAM_DESIGN.0;
@@ -198,10 +182,11 @@ impl SpecKind for SpecMeasurement<Chrono> {
         }
     }
     fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool {
-        true
+        false
     }
 }
 
+/*
 impl SpecKind for SpecMeasurement<SuperResolution> {
     fn build_output(&self) -> &[u8] {
         &self.data
