@@ -68,6 +68,7 @@ impl SpecKind for SpecMeasurement<Live2D> {
         temp_vec[len] = 10;
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: Live2D }
     }
+    #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef) {
         let index = pack.x() + CAM_DESIGN.0 * pack.y();
         append_to_array(&mut self.data, index, settings.bytedepth);
@@ -130,6 +131,7 @@ impl SpecKind for SpecMeasurement<Live1D> {
     }
 }
 
+/*
 impl SpecKind for SpecMeasurement<FastChrono> {
     fn is_ready(&self) -> bool {
         self.is_ready
@@ -200,7 +202,6 @@ impl SpecKind for SpecMeasurement<Chrono> {
     }
 }
 
-/*
 impl SpecKind for SpecMeasurement<SuperResolution> {
     fn build_output(&self) -> &[u8] {
         &self.data
