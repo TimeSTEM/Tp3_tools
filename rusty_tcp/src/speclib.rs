@@ -9,8 +9,9 @@ use std::io::Write;
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
-const SUPER_RESOLUTION: usize = 100_000;
-const INDEX_SUPER_RESOLUTION: usize = 1024;
+const SR_TIME: usize = 10_000; //Time window (10_000 -> 10 us);
+const SR_INDEX: usize = 1024; //Maximum x index value to account in the average calculation;
+const SR_MIN: usize = 10; //Minimum array size to perform the average in super resolution;
 
 pub trait SpecKind {
 
@@ -35,6 +36,7 @@ pub struct SpecMeasurement<T> {
     aux_data: Vec<usize>,
     is_ready: bool,
     last_time: usize,
+    last_mean: Option<usize>,
     _kind: T,
 }
 
@@ -49,7 +51,7 @@ impl SpecKind for SpecMeasurement<Live2D> {
         let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: Live2D }
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, last_mean: None, _kind: Live2D }
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef) {
@@ -88,7 +90,7 @@ impl SpecKind for SpecMeasurement<Live1D> {
         let len: usize = settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: Live1D}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, last_mean: None, _kind: Live1D}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef) {
@@ -126,7 +128,7 @@ impl SpecKind for SpecMeasurement<FastChrono> {
         let len: usize = settings.xspim_size*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: FastChrono}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, last_mean: None, _kind: FastChrono}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef) {
@@ -159,7 +161,7 @@ impl SpecKind for SpecMeasurement<Chrono> {
         let len: usize = settings.xspim_size*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: Chrono}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, last_mean: None, _kind: Chrono}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef) {
@@ -198,7 +200,7 @@ impl SpecKind for SpecMeasurement<SuperResolution> {
         let len: usize = settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, _kind: SuperResolution}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, last_mean: None, _kind: SuperResolution}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef) {
@@ -206,17 +208,24 @@ impl SpecKind for SpecMeasurement<SuperResolution> {
         self.aux_data.push(index);
         
         let new_time = pack.fast_electron_time();
-        if new_time > self.last_time + SUPER_RESOLUTION {
-            let len = self.aux_data.iter().filter(|&&val| val <= INDEX_SUPER_RESOLUTION).count();
-            let sum: usize = self.aux_data.iter().filter(|&&val| val <= INDEX_SUPER_RESOLUTION).sum();
+        if new_time > self.last_time + SR_TIME {
+            let len = self.aux_data.iter().filter(|&&val| val <= SR_INDEX).count();
+            let sum: usize = self.aux_data.iter().filter(|&&val| val <= SR_INDEX).sum();
 
-            let offset = match len {
-                0 => 0,
-                _ => sum / len,
+            let offset: isize = match self.last_mean {
+                None if len>SR_MIN => {
+                    self.last_mean = Some(sum / len);
+                    0
+                },
+                Some(val) if len>SR_MIN => {
+                    self.last_mean = Some( sum / len);
+                    val as isize - (sum / len) as isize
+                }
+                _ => 0,
             };
 
             for val in &self.aux_data {
-                append_to_array_roll(&mut self.data, *val, settings.bytedepth, 10);
+                append_to_array_roll(&mut self.data, *val, settings.bytedepth, offset);
             }
             
             self.last_time = new_time;

@@ -37,6 +37,7 @@ impl SpimKind for Live {
         &self.data
     }
 
+    #[inline]
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
         let ele_time = packet.electron_time();
         self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
@@ -61,6 +62,7 @@ impl SpimKind for Live {
         self.data.get(0).is_some()
     }
 
+    #[inline]
     fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
 
         //First step is to find the index of the (X, Y) of the spectral image in a flattened way
