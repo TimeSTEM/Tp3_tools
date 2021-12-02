@@ -28,6 +28,7 @@ pub trait SpecKind {
 pub struct Live1D;
 pub struct Live2D;
 pub struct LiveTR1D;
+pub struct LiveTR2D;
 pub struct FastChrono;
 pub struct Chrono;
 pub struct SuperResolution;
@@ -135,6 +136,46 @@ impl SpecKind for SpecMeasurement<LiveTR1D> {
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &T) {
         if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
             let index = pack.x();
+            append_to_array(&mut self.data, index, settings.bytedepth);
+        }
+    }
+    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
+        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
+    }
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
+        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        self.is_ready = true;
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
+        self.is_ready = false;
+        if !settings.cumul {
+            self.data.iter_mut().for_each(|x| *x = 0);
+            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
+        }
+    }
+    fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool {
+        false
+    }
+}
+
+impl SpecKind for SpecMeasurement<LiveTR2D> {
+    fn is_ready(&self) -> bool {
+        self.is_ready
+    }
+    fn build_output(&self) -> &[u8] {
+        &self.data
+    }
+    fn new(settings: &Settings) -> Self {
+        let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
+        let mut temp_vec = vec![0; len + 1];
+        temp_vec[len] = 10;
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, last_mean: None, _kind: LiveTR2D}
+    }
+    #[inline]
+    fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &T) {
+        if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
+            let index = pack.x() + CAM_DESIGN.0 * pack.y();
             append_to_array(&mut self.data, index, settings.bytedepth);
         }
     }
