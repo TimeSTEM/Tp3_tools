@@ -23,13 +23,20 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
             Ok(my_settings.mode)
         },
-        /*1 => {
+        1 if my_settings.bin => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
             let laser_tdc = PeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, laser_tdc)?;
+            let measurement = speclib::SpecMeasurement::<speclib::LiveTR1D>::new(&my_settings);
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, laser_tdc, measurement)?;
             Ok(my_settings.mode)
         },
-        */
+        1 if !my_settings.bin => {
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
+            let laser_tdc = PeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
+            let measurement = speclib::SpecMeasurement::<speclib::LiveTR2D>::new(&my_settings);
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, laser_tdc, measurement)?;
+            Ok(my_settings.mode)
+        },
         2 => {
             let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack)?;
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
@@ -60,6 +67,7 @@ fn main() {
                 simple_log::ok(&mut log_file, val).unwrap();
             },
             Err(e) => {
+                println!("Error in measurement. Error message: {:?}.", e);
                 simple_log::error(&mut log_file, e).unwrap();
             },
         }
