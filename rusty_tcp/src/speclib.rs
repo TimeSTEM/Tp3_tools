@@ -10,8 +10,8 @@ use std::io::Write;
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
 const SR_TIME: usize = 10_000; //Time window (10_000 -> 10 us);
-const SR_INDEX: usize = 1024; //Maximum x index value to account in the average calculation;
-const SR_MIN: usize = 10; //Minimum array size to perform the average in super resolution;
+const SR_INDEX: usize = 64; //Maximum x index value to account in the average calculation;
+const SR_MIN: usize = 0; //Minimum array size to perform the average in super resolution;
 
 pub trait SpecKind {
 
@@ -303,12 +303,24 @@ impl SpecKind for SpecMeasurement<SuperResolution> {
                     self.last_mean = Some( sum / len);
                     val as isize - (sum / len) as isize
                 }
-                _ => 0,
+                _ => {
+                    self.last_mean = None;
+                    0
+                },
             };
 
             for val in &self.aux_data {
-                append_to_array_roll(&mut self.data, *val, settings.bytedepth, offset);
+                append_to_array_roll(&mut self.data, *val, settings.bytedepth, offset/1);
             }
+            
+            /*
+            if len > 0 {
+                println!("{} and {} and {}", len, sum / len, offset/2);
+            }
+            else {
+                println!("{}", len);
+            }
+            */
             
             self.last_time = new_time;
             self.aux_data = Vec::new();
