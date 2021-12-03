@@ -14,7 +14,7 @@ pub trait Packet {
             1 => 256 * 4 - 1 - temp,
             2 => 256 * 3 - 1 - temp,
             3 => 256 * 2 - 1 - temp,
-            _ => panic!("More than four CI."),
+            _ => panic!("More than four CIs."),
         }
     }
     
@@ -26,6 +26,23 @@ pub trait Packet {
     fn y(&self) -> usize {
         let y = (   ( (self.data()[5] & 128)>>5 | (self.data()[6] & 31)<<3 ) | ( ((self.data()[5] & 112)>>4) & 3 )   ) as usize;
         y
+    }
+
+    fn x_y(&self) -> (usize, usize) {
+        let dcol = (self.data()[6] & 224)>>4 | (self.data()[7] << 4);
+        let spix = (self.data()[5] & 128) >> 5 | (self.data()[6] & 31) << 3;
+        let pix = (self.data()[5] & 112) >> 4;
+
+        let temp = (dcol | (pix >> 2)) as usize;
+        let y = (spix | (pix & 3)) as usize;
+
+        match self.ci() {
+            0 => (255 - temp, y),
+            1 => (256 * 4 - 1 - temp, y),
+            2 => (256 * 3 - 1 - temp, y),
+            3 => (256 * 2 - 1 - temp, y),
+            _ => panic!("More than four CIs."),
+        }
     }
 
     fn id(&self) -> u8 {
