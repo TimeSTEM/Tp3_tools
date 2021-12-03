@@ -5,8 +5,6 @@ pub trait Packet {
     fn ci(&self) -> usize;
     fn data(&self) -> &[u8];
     fn x(&self) -> usize {
-        
-        //let temp = (((self.data()[6] & 224)>>4 | (self.data()[7] & 15)<<4) | (((self.data()[5] & 112)>>4)>>2)) as usize;
         let temp = ((self.data()[6] & 224)>>4 | (self.data()[7] << 4) | ((self.data()[5] & 112) >> 6)) as usize;
 
         match self.ci() {
@@ -35,7 +33,7 @@ pub trait Packet {
 
         let temp = (dcol | (pix >> 2)) as usize;
         let y = (spix | (pix & 3)) as usize;
-
+        
         match self.ci() {
             0 => (255 - temp, y),
             1 => (256 * 4 - 1 - temp, y),
