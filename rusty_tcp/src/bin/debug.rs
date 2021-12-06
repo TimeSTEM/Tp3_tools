@@ -6,7 +6,7 @@ use timepix3::{speclib, spimlib, chronolib, spimlib::SpimKind};
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
     
-    let (my_settings, mut pack, ns) = Settings::create_debug_settings(true)?;
+    let (my_settings, mut pack, ns) = Settings::create_debug_settings(false)?;
 
     match my_settings.mode {
         0 => {

@@ -25,9 +25,12 @@ pub fn build_chrono<T: TdcControl, V: Read, U: Write>(mut pack_sock: V, mut ns_s
             let msg = create_header(&my_settings, &frame_tdc);
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             if ns_sock.write(&data_array).is_err() {println!("Client disconnected on data."); break;}
-            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
+            if frame_tdc.counter() >= my_settings.xspim_size {break;};
         }
     }
+
+    let elapsed = start.elapsed();
+    println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());
     Ok(6)
 }
 
@@ -42,24 +45,22 @@ fn build_chrono_data<T: TdcControl>(data: &[u8], final_data: &mut [u8], last_ci:
                 let packet = Pack { chip_index: *last_ci, data: x};
                 
                 match packet.id() {
-                    11 if ref_tdc.period().is_none() => {
-                        let line = frame_tdc.counter() % settings.xspim_size;
+                    11 => {
+                        let line = (frame_tdc.counter() / 2) % settings.xspim_size;
                         let array_pos = packet.x() + line * CAM_DESIGN.0;
                         append_to_array(final_data, array_pos, settings.bytedepth);
                     },
                     6 if packet.tdc_type() == frame_tdc.id() => {
                         frame_tdc.upt(packet.tdc_time(), packet.tdc_counter());
-                        if frame_tdc.counter() % 5 == 0 {
+                        if frame_tdc.counter() >= settings.xspim_size {
                             has = true;
                         }
                     },
                     6 if packet.tdc_type() == ref_tdc.id() => {
                         ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
-                        if ref_tdc.period().is_none() {
-                            let line = frame_tdc.counter() % settings.xspim_size;
-                            let array_pos = CAM_DESIGN.0-1 + line * CAM_DESIGN.0;
-                            append_to_array(final_data, array_pos, settings.bytedepth);
-                        }   
+                        let line = (frame_tdc.counter() / 2) % settings.xspim_size;
+                        let array_pos = CAM_DESIGN.0-1 + line * CAM_DESIGN.0;
+                        append_to_array(final_data, array_pos, settings.bytedepth);
                     },
                     _ => {},
                 };
