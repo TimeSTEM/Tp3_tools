@@ -8,7 +8,7 @@ pub mod coincidence {
     use rayon::prelude::*;
     use std::time::Instant;
 
-    const TIME_WIDTH: usize = 100; //Time width to correlate (ns).
+    const TIME_WIDTH: usize = 200; //Time width to correlate (ns).
     const TIME_DELAY: usize = 160; //Time delay to correlate (ns).
     const MIN_LEN: usize = 100; // Sliding time window size.
     const CLUSTER_DET:usize = 50; //Cluster time window (ns).
