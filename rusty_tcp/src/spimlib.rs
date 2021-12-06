@@ -11,6 +11,7 @@ use std::thread;
 const VIDEO_TIME: usize = 5000;
 const SPIM_PIXELS: usize = 1025;
 const BUFFER_SIZE: usize = 16384 * 2;
+const ELECTRON_MAX: usize = 26_843_545_600;
 
 pub trait SpimKind {
     type MyOutput;
@@ -36,11 +37,10 @@ impl SpimKind for Live {
         &self.data
     }
 
+    #[inline]
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
         let ele_time = packet.electron_time();
-        if ele_time > line_tdc.begin_frame + VIDEO_TIME {
-            self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME));
-        }
+        self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
     }
     
     fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
@@ -62,6 +62,7 @@ impl SpimKind for Live {
         self.data.get(0).is_some()
     }
 
+    #[inline]
     fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u8> {
 
         //First step is to find the index of the (X, Y) of the spectral image in a flattened way
@@ -89,14 +90,14 @@ impl SpimKind for Live {
                 if val < spim_tdc.low_time {
                 
                     let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
-                    let rin = set.xspim_size * val / spim_tdc.low_time; //Column
+                    let rin = set.xspim_size * val / spim_tdc.low_time; //Column correction. Maybe not even needed.
                     
                     if r > (set.yspim_size-1) {
+                        if r > ELECTRON_MAX {return None;} //This removes overflow electrons. See add_electron_hit
                         r %= set.yspim_size;
                     }
                     
                     let index = (r * set.xspim_size + rin) * SPIM_PIXELS + x;
-                    
 
                     //Some([((index >> 24 ) & 0xff) as u8, ((index >> 16 ) & 0xff) as u8, ((index >> 8 ) & 0xff) as u8, (index & 0xff) as u8])
                     

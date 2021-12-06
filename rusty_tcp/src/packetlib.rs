@@ -5,8 +5,6 @@ pub trait Packet {
     fn ci(&self) -> usize;
     fn data(&self) -> &[u8];
     fn x(&self) -> usize {
-        
-        //let temp = (((self.data()[6] & 224)>>4 | (self.data()[7] & 15)<<4) | (((self.data()[5] & 112)>>4)>>2)) as usize;
         let temp = ((self.data()[6] & 224)>>4 | (self.data()[7] << 4) | ((self.data()[5] & 112) >> 6)) as usize;
 
         match self.ci() {
@@ -14,7 +12,7 @@ pub trait Packet {
             1 => 256 * 4 - 1 - temp,
             2 => 256 * 3 - 1 - temp,
             3 => 256 * 2 - 1 - temp,
-            _ => panic!("More than four CI."),
+            _ => panic!("More than four CIs."),
         }
     }
     
@@ -28,12 +26,29 @@ pub trait Packet {
         y
     }
 
+    fn x_y(&self) -> (usize, usize) {
+        let dcol = (self.data()[6] & 224)>>4 | (self.data()[7] << 4);
+        let spix = (self.data()[5] & 128) >> 5 | (self.data()[6] & 31) << 3;
+        let pix = (self.data()[5] & 112) >> 4;
+
+        let temp = (dcol | (pix >> 2)) as usize;
+        let y = (spix | (pix & 3)) as usize;
+        
+        match self.ci() {
+            0 => (255 - temp, y),
+            1 => (256 * 4 - 1 - temp, y),
+            2 => (256 * 3 - 1 - temp, y),
+            3 => (256 * 2 - 1 - temp, y),
+            _ => panic!("More than four CIs."),
+        }
+    }
+
     fn id(&self) -> u8 {
         (self.data()[7] & 240) >> 4
     }
 
     fn spidr(&self) -> u16 {
-        (self.data()[0] as u16) | (self.data()[1] as u16)<<8
+        (self.data()[0] as u16) | (self.data()[1] as u16) << 8
     }
 
     fn ftoa(&self) -> u8 {
@@ -53,12 +68,16 @@ pub trait Packet {
         let ftoa = (self.data()[2] & 15) as u32;
         (toa << 4) | (!ftoa & 15)
     }
+
+    fn fast_electron_time(&self) -> usize {
+        let spidr = (self.data()[0] as usize) | (self.data()[1] as usize)<<8;
+        let toa = ((self.data()[3] >> 6) as usize) | (self.data()[4] as usize)<<2 | ((self.data()[5] & 15) as usize)<<10;
+        spidr * 25 * 16384 + toa * 25
+    }
     
     fn electron_time(&self) -> usize {
         let spidr = (self.data()[0] as usize) | (self.data()[1] as usize)<<8;
         
-        //let toa = ((self.data()[3] & 192) as usize)>>6 | (self.data()[4] as usize)<<2 | ((self.data()[5] & 15) as usize)<<10;
-        //let toa = ((self.data()[3] >> 6) as usize) | (self.data()[4] as usize)<<2 | ((self.data()[5] << 4) as usize)<<6;
         let toa = ((self.data()[3] >> 6) as usize) | (self.data()[4] as usize)<<2 | ((self.data()[5] & 15) as usize)<<10;
         
         let ftoa = (self.data()[2] & 15) as usize;

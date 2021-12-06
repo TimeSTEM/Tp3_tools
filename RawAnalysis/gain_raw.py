@@ -8,17 +8,19 @@ xL = list() #x position
 yL = list() #Y position
 Tafter = list() #Global Time
 ToT = list() #Global Time
-last_laser = [0.0] * 20 #Rising Edge tdc1 Time
+last_laser = [0.0] * 5 #Rising Edge tdc1 Time
+spec = numpy.zeros(1024)
 
 i = [0, 0, 0] #Counter. First index is electron event and second is tdc event.
 final_tdc = 0 #Last tdc time received
 start = time.time() 
 
 #FOLDER = '../TCPFiletoStream/GainRawTP3/25-53-25262(132)'
-FOLDER = '../TCPFiletoStream/gain_data'
-WIDTH = 300e-9
-DELAY = 1800e-9
-MAX_HOR = 120
+#FOLDER = '../TCPFiletoStream/gain_data'
+FOLDER = 'C:/Users/AUAD/Downloads/05-03-2021/25-53-25262'
+WIDTH = 100e-6 #200e-9
+DELAY = 0 #1800e-9
+MAX_HOR = 1024
 MIN_HOR = 0
 
 def check_if_in(ele_time, tdc_time_list):
@@ -62,7 +64,7 @@ for data in os.listdir(FOLDER):# in datas:
                     
                     spidrT = spidr * 25.0 * 16384.0
                     #toa_ns = toa * 25.0
-                    tot_time= tot * 25.0 / 1e9
+                    #tot_time= tot * 25.0 / 1e9
                     global_time = (spidrT + ctoa * 25.0/16.0)/1e9
 
                     
@@ -76,7 +78,7 @@ for data in os.listdir(FOLDER):# in datas:
                         spix = ((byte[1] & 31)<<3) | ((byte[2] & 128)>>5)
                         pix = (byte[2] & 112)>>4
 
-                        x = dcol | pix>>4
+                        x = dcol | pix>>2
                         y = int(spix | (pix & 3))
 
     
@@ -84,20 +86,21 @@ for data in os.listdir(FOLDER):# in datas:
                             x = 255 - x
                             y = y
                         elif chip_index==1:
-                            x = 255*4 - x
+                            x = 256*4 - 1 - x
                             y = y
                         elif chip_index==2:
-                            x = 255*3 - x
+                            x = 256*3 - 1 - x
                             y = y
                         elif chip_index==3:
-                            x = 255*2 - x
+                            x = 256*2 - 1 - x
                             y = y
                         
                         if (x<MAX_HOR and x>=MIN_HOR):
+                            spec[x]+=1
                             xL.append(x)
                             yL.append(y)
-                            Tafter.append((global_time - tdc_ref + tot_time * 0.0)*1e6)
-                            ToT.append((tot_time)*1e6)
+                            Tafter.append((global_time - tdc_ref)*1e6)
+                            #ToT.append((tot_time)*1e6)
                     else:
                         i[2]+=1
 
@@ -117,28 +120,31 @@ for data in os.listdir(FOLDER):# in datas:
                 
 finish = time.time()
 print(f'Total time is {finish-start} with {i} events (events, tdcs, rejected events). Last laser is at {last_laser}. Number of positional electrons are {len(xL)}. Number of temporal electrons are {len(Tafter)}.')
-print(last_laser[5]-last_laser[4])
-print(last_laser[4]-last_laser[3])
-print(last_laser[3]-last_laser[2])
 print(last_laser[2]-last_laser[1])
 print(last_laser[1]-last_laser[0])
 
-fig, ax = plt.subplots(3, 1, dpi=160)
-ax[0].hist2d(xL, yL, bins=100, range=([0, 1024], [0, 256]), norm=mcolors.PowerNorm(0.1))
-ax[0].axvline(x=MIN_HOR, color='red')
-ax[0].axvline(x=MAX_HOR, color='white')
-#ax[1].hist2d(xL, yL, bins=49, range=([0, HOR], [0, 256]), norm=mcolors.PowerNorm(0.3))
-ax[1].hist(Tafter, bins=200, density = False, range=(DELAY*1e6, (DELAY+WIDTH)*1e6))
-ax[2].hist(ToT, bins=100, density = True)
+fig, ax = plt.subplots(1, 1, figsize=(8, 2), dpi=600)
+ax.hist2d(xL, yL, bins=(512, 256), range=([0, 1024], [0, 256]), norm=mcolors.PowerNorm(0.1))
+ax.axvline(x=MIN_HOR, color='red')
+ax.axvline(x=MAX_HOR, color='white')
+
+
+#ax[0].plot(spec)
+#ax[1].hist(Tafter, bins=127, density = False, range=(DELAY*1e6, (DELAY+WIDTH)*1e6))
                 
-ax[0].set_ylabel('Y')
-ax[0].set_xlabel('X')
+ax.set_ylabel('X (pixels)')
+ax.set_xlabel('Y (pixels)')
 
-ax[1].set_ylabel('Event counts')
-ax[1].set_xlabel('Time Elapsed from TDC (us)')
+#ax[1].set_ylabel('Event counts')
+#ax[1].set_xlabel('Time Elapsed from TDC (us)')
 
+plt.tight_layout()
+plt.savefig(FOLDER + '.pdf')
 plt.savefig(FOLDER + '.png')
-numpy.save(FOLDER + '.npy', Tafter)
+numpy.save(FOLDER + '_time_' + '.npy', Tafter)
+numpy.save(FOLDER + '_x_' + '.npy', xL)
+numpy.save(FOLDER + '_y_' + '.npy', yL)
+numpy.save(FOLDER + '_spec_' + '.npy', spec)
 plt.show()
 
 

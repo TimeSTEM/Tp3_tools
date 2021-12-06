@@ -1,7 +1,7 @@
 use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
-use timepix3::{speclib, spimlib, chronolib, spimlib::SpimKind};
+use timepix3::{speclib, spimlib, chronolib, speclib::SpecKind, spimlib::SpimKind};
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
@@ -9,16 +9,24 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
     let (my_settings, mut pack, ns) = Settings::create_debug_settings(false)?;
 
     match my_settings.mode {
-        0 => {
+        0 if my_settings.bin => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc)?;
+            let measurement = speclib::SpecMeasurement::<speclib::Live1D>::new(&my_settings);
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+            Ok(my_settings.mode)
+        },
+        0 if !my_settings.bin => {
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
+            let measurement = speclib::SpecMeasurement::<speclib::Live2D>::new(&my_settings);
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
             Ok(my_settings.mode)
         },
         1 => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
-            let laser_tdc = PeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, laser_tdc)?;
+            //let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
+            //let laser_tdc = PeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
+            //speclib::build_spectrum(pack, ns, my_settings, frame_tdc, laser_tdc)?;
             Ok(my_settings.mode)
         },
         2 => {
