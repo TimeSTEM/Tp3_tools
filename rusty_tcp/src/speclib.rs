@@ -76,7 +76,8 @@ impl SpecKind for SpecMeasurement<Live2D> {
             //self.data[self.len] = 10;
         }
     }
-    fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool {
+    fn try_quit(&self, frame_tdc: &PeriodicTdcRef, settings: &Settings) -> bool {
+        //settings.cumul && (frame_tdc.counter()/2 > settings.xspim_size)
         false
     }
 }
@@ -256,7 +257,7 @@ impl SpecKind for SpecMeasurement<Chrono> {
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         let line = frame_tdc.counter() / 2;
-        self.is_ready = line % 20 == 0;
+        self.is_ready = line % 20 == 0; //Every 20 lines send chrono;
         if line % settings.xspim_size == 0 {
             self.aux_data.push(0); //This indicates the frame must be refreshed;
         }
