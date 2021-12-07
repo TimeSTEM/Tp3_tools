@@ -203,7 +203,9 @@ impl SpecKind for SpecMeasurement<FastChrono> {
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
         let line = frame_tdc.counter()/2;
         let index = pack.x() + line * CAM_DESIGN.0;
-        append_to_array(&mut self.data, index, settings.bytedepth);
+        if line < settings.xspim_size {
+            append_to_array(&mut self.data, index, settings.bytedepth);
+        }
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
@@ -231,21 +233,26 @@ impl SpecKind for SpecMeasurement<Chrono> {
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
-        let line = frame_tdc.counter()/2;
+        let line = (frame_tdc.counter()/2) % settings.xspim_size;
         let index = pack.x() + line * CAM_DESIGN.0;
         append_to_array(&mut self.data, index, settings.bytedepth);
     }
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        self.is_ready = frame_tdc.counter() % 20 == 0;
+        let line = frame_tdc.counter() / 2;
+        self.is_ready = line % 20 == 0; //Every 20 lines send chrono;
+        if line % settings.xspim_size == 0 {
+            self.aux_data.push(0); //This indicates the frame must be refreshed;
+        }
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
     }
-    fn reset_or_else(&mut self, frame_tdc: &PeriodicTdcRef, settings: &Settings) {
+    fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) {
         self.is_ready = false;
-        if frame_tdc.counter() % 2*settings.xspim_size == 0 {
+        if self.aux_data.len() > 0 { //Refresh frame if true;
+            self.aux_data.pop(); //Remove for the next cycle;
             self.data.iter_mut().for_each(|x| *x = 0);
             *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
         }
