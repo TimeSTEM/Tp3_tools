@@ -22,7 +22,6 @@ pub trait SpecKind {
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T);
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings);
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings);
-    fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool;
 }
 
 pub struct Live1D;
@@ -76,9 +75,6 @@ impl SpecKind for SpecMeasurement<Live2D> {
             //self.data[self.len] = 10;
         }
     }
-    fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool {
-        false
-    }
 }
 
 impl SpecKind for SpecMeasurement<Live1D> {
@@ -113,9 +109,6 @@ impl SpecKind for SpecMeasurement<Live1D> {
             self.data.iter_mut().for_each(|x| *x = 0);
             *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
         }
-    }
-    fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool {
-        false
     }
 }
 
@@ -154,9 +147,6 @@ impl SpecKind for SpecMeasurement<LiveTR1D> {
             *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
         }
     }
-    fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool {
-        false
-    }
 }
 
 impl SpecKind for SpecMeasurement<LiveTR2D> {
@@ -194,9 +184,6 @@ impl SpecKind for SpecMeasurement<LiveTR2D> {
             *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
         }
     }
-    fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool {
-        false
-    }
 }
 
 impl SpecKind for SpecMeasurement<FastChrono> {
@@ -227,9 +214,6 @@ impl SpecKind for SpecMeasurement<FastChrono> {
         self.is_ready = (frame_tdc.counter()/2) > settings.xspim_size;
     }
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) {}
-    fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool {
-        true
-    }
 }
 
 impl SpecKind for SpecMeasurement<Chrono> {
@@ -265,9 +249,6 @@ impl SpecKind for SpecMeasurement<Chrono> {
             self.data.iter_mut().for_each(|x| *x = 0);
             *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
         }
-    }
-    fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool {
-        false
     }
 }
 
@@ -340,9 +321,6 @@ impl SpecKind for SpecMeasurement<SuperResolution> {
             self.data.iter_mut().for_each(|x| *x = 0);
             *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
         }
-    }
-    fn try_quit(&self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) -> bool {
-        false
     }
 }
 
@@ -424,7 +402,6 @@ pub fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings:
             let msg = create_header(&my_settings, &frame_tdc);
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             if ns_sock.write(meas_type.build_output()).is_err() {println!("Client disconnected on data."); break;}
-            if meas_type.try_quit(&frame_tdc, &my_settings) {break;}
             meas_type.reset_or_else(&frame_tdc, &my_settings);
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
         }
