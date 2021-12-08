@@ -36,6 +36,7 @@ pub struct SpecMeasurement<T> {
     data: Vec<u8>,
     aux_data: Vec<usize>,
     is_ready: bool,
+    global_stop: bool,
     last_time: usize,
     last_mean: Option<usize>,
     _kind: T,
@@ -52,7 +53,7 @@ impl SpecKind for SpecMeasurement<Live2D> {
         let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, last_mean: None, _kind: Live2D }
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: Live2D }
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
@@ -72,7 +73,6 @@ impl SpecKind for SpecMeasurement<Live2D> {
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = 0);
             *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
-            //self.data[self.len] = 10;
         }
     }
 }
@@ -88,7 +88,7 @@ impl SpecKind for SpecMeasurement<Live1D> {
         let len: usize = settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, last_mean: None, _kind: Live1D}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: Live1D}
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
@@ -123,7 +123,7 @@ impl SpecKind for SpecMeasurement<LiveTR1D> {
         let len: usize = settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, last_mean: None, _kind: LiveTR1D}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTR1D}
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &T) {
@@ -160,7 +160,7 @@ impl SpecKind for SpecMeasurement<LiveTR2D> {
         let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, last_mean: None, _kind: LiveTR2D}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTR2D}
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &T) {
@@ -188,7 +188,7 @@ impl SpecKind for SpecMeasurement<LiveTR2D> {
 
 impl SpecKind for SpecMeasurement<FastChrono> {
     fn is_ready(&self) -> bool {
-        self.is_ready
+        self.is_ready && !self.global_stop
     }
     fn build_output(&self) -> &[u8] {
         &self.data
@@ -197,7 +197,7 @@ impl SpecKind for SpecMeasurement<FastChrono> {
         let len: usize = settings.xspim_size*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, last_mean: None, _kind: FastChrono}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: FastChrono}
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
@@ -215,7 +215,9 @@ impl SpecKind for SpecMeasurement<FastChrono> {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         self.is_ready = (frame_tdc.counter()/2) > settings.xspim_size;
     }
-    fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) {}
+    fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) {
+        self.global_stop = true;
+    }
 }
 
 impl SpecKind for SpecMeasurement<Chrono> {
@@ -229,7 +231,7 @@ impl SpecKind for SpecMeasurement<Chrono> {
         let len: usize = settings.xspim_size*settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, last_mean: None, _kind: Chrono}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: Chrono}
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
@@ -270,7 +272,7 @@ impl SpecKind for SpecMeasurement<SuperResolution> {
         let len: usize = settings.bytedepth*CAM_DESIGN.0;
         let mut temp_vec = vec![0; len + 1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, last_time: 0, last_mean: None, _kind: SuperResolution}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: SuperResolution}
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
@@ -535,9 +537,13 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
     msg.push_str(",\"frameNumber\":");
     msg.push_str(&(tdc.counter().to_string()));
     msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
-    match set.bin {
-        true => { msg.push_str(&((set.bytedepth*CAM_DESIGN.0).to_string()))},
-        false => { msg.push_str(&((set.bytedepth*CAM_DESIGN.0*CAM_DESIGN.1).to_string()))},
+    if set.mode == 6 { //ChronoMode
+        msg.push_str(&((set.bytedepth*CAM_DESIGN.0).to_string()));
+    } else {
+        match set.bin {
+            true => { msg.push_str(&((set.bytedepth*CAM_DESIGN.0).to_string()))},
+            false => { msg.push_str(&((set.bytedepth*CAM_DESIGN.0*CAM_DESIGN.1).to_string()))},
+        }
     }
     msg.push_str(",\"bitDepth\":");
     msg.push_str(&((set.bytedepth<<3).to_string()));
