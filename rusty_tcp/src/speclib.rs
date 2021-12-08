@@ -533,9 +533,9 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(tdc.time().to_string()));
     msg.push_str(",\"frameNumber\":");
-    msg.push_str(&(tdc.counter().to_string()));
+    msg.push_str(&((tdc.counter()/2).to_string()));
     msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
-    if set.mode == 6 { //ChronoMode
+    if set.mode == 6 || set.mode == 7 { //ChronoMode
         msg.push_str(&((set.xspim_size*set.bytedepth*CAM_DESIGN.0).to_string()));
     } else {
         match set.bin {
@@ -548,7 +548,7 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
     msg.push_str(",\"width\":");
     msg.push_str(&(CAM_DESIGN.0.to_string()));
     msg.push_str(",\"height\":");
-    if set.mode == 6 { //ChronoMode
+    if set.mode == 6 || set.mode == 7 { //ChronoMode
         msg.push_str(&(set.xspim_size.to_string()));
     } else {
         match set.bin {
