@@ -6,7 +6,6 @@ pub enum Tp3ErrorKind {
     SetMode,
     SetXSize,
     SetYSize,
-    SetNbSockets,
     SetNoReadFile,
     SetNoWriteFile,
 

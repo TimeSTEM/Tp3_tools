@@ -6,7 +6,7 @@ use std::fs::File;
 //use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
 use std::time::Duration;
 
-const CONFIG_SIZE: usize = 20;
+const CONFIG_SIZE: usize = 16;
 
 ///Configures the detector for acquisition. Each new measurement must send 20 bytes
 ///containing instructions.
@@ -142,24 +142,6 @@ impl BytesConfig {
         tw
     }
     
-    ///Counter for general use. Can be used to finish accumulation automatically or to create a
-    ///Chrono measurement for example. Must be sent with 2 bytes in big-endian mode. Byte[16..18]
-    fn counter(&self) -> usize {
-        let counter = (self.data[16] as usize)<<8 | (self.data[17] as usize);
-        println!("Counter value is: {}.", counter);
-        counter
-    }
-    
-    
-    ///Number of sockets. Must be sent with 2 bytes in big-endian mode. Byte[18..20].
-    fn nsockets(&self) -> Result<usize, Tp3ErrorKind> {
-        let number_sockets = (self.data[18] as usize)<<8 | (self.data[19] as usize);
-        if number_sockets == 1 || number_sockets % 4 == 0{
-            println!("Number of sockets is: {}", number_sockets);
-            Ok(number_sockets)
-        } else {Err(Tp3ErrorKind::SetNbSockets)}
-    }
-    
     ///Convenience method. Returns the ratio between scan and spim size in X.
     fn spimoverscanx(&self) -> Result<usize, Tp3ErrorKind> {
         let xspim = self.xspim_size();
@@ -210,10 +192,8 @@ impl BytesConfig {
             yscan_size: self.yscan_size(),
             time_delay: self.time_delay(),
             time_width: self.time_width(),
-            counter: self.counter(),
             spimoverscanx: self.spimoverscanx()?,
             spimoverscany: self.spimoverscany()?,
-            number_sockets: self.nsockets()?,
         };
         Ok(my_set)
     }
@@ -245,10 +225,8 @@ pub struct Settings {
     pub yscan_size: usize,
     pub time_delay: usize,
     pub time_width: usize,
-    pub counter: usize,
     pub spimoverscanx: usize,
     pub spimoverscany: usize,
-    pub number_sockets: usize,
 }
 
 impl Settings {
@@ -287,13 +265,6 @@ impl Settings {
             }
         };
         let my_settings = my_config.create_settings()?;
-        //sock_vec.push(ns_sock);
-        println!("Connecting auxiliar sockets...***VEC IS NOT CREATED***");
-        for i in 0..my_settings.number_sockets-1 {
-            let (ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
-            println!("Nionswift ({}) connected at {:?} and {:?}.", i, ns_addr, ns_sock);
-            //sock_vec.push(ns_sock);
-        }
         println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
 
         match debug {
@@ -326,10 +297,8 @@ impl Settings {
             yscan_size: 512,
             time_delay: 0,
             time_width: 1000,
-            counter: 128,
             spimoverscanx: 1,
             spimoverscany: 1,
-            number_sockets: 1,
         }
     }
     
@@ -345,10 +314,8 @@ impl Settings {
             yscan_size: 512,
             time_delay: 0,
             time_width: 1000,
-            counter: 128,
             spimoverscanx: 1,
             spimoverscany: 1,
-            number_sockets: 1,
         }
     }
 
