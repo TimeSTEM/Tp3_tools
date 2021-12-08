@@ -538,7 +538,7 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
     msg.push_str(&(tdc.counter().to_string()));
     msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
     if set.mode == 6 { //ChronoMode
-        msg.push_str(&((set.bytedepth*CAM_DESIGN.0).to_string()));
+        msg.push_str(&((set.xspim_size*set.bytedepth*CAM_DESIGN.0).to_string()));
     } else {
         match set.bin {
             true => { msg.push_str(&((set.bytedepth*CAM_DESIGN.0).to_string()))},
@@ -550,9 +550,13 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
     msg.push_str(",\"width\":");
     msg.push_str(&(CAM_DESIGN.0.to_string()));
     msg.push_str(",\"height\":");
-    match set.bin {
-        true=>{msg.push_str(&(1.to_string()))},
-        false=>{msg.push_str(&(CAM_DESIGN.1.to_string()))},
+    if set.mode == 6 { //ChronoMode
+        msg.push_str(&(set.xspim_size.to_string()));
+    } else {
+        match set.bin {
+            true=>{msg.push_str(&(1.to_string()))},
+            false=>{msg.push_str(&(CAM_DESIGN.1.to_string()))},
+        }
     }
     msg.push_str("}\n");
 
