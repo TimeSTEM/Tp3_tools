@@ -65,7 +65,10 @@ impl BytesConfig {
 
     ///Acquisition Mode. `\x00` for normal, `\x01` for spectral image and `\x02` for time-resolved. Panics otherwise. Byte[2..4].
     fn mode(&self) -> Result<u8, Tp3ErrorKind> {
-        match self.data[3] {
+        println!("Mode is: {}", self.data[3]);
+        Ok(self.data[3])
+        
+        /*match self.data[3] {
             0 => {
                 println!("Mode is Focus/Cumul.");
                 Ok(self.data[3])
@@ -95,7 +98,7 @@ impl BytesConfig {
                 Ok(self.data[3])
             },
             _ => Err(Tp3ErrorKind::SetMode),
-        }
+        }*/
     }
 
 
@@ -143,8 +146,8 @@ impl BytesConfig {
     
     ///Convenience method. Returns the ratio between scan and spim size in X.
     fn spimoverscanx(&self) -> Result<usize, Tp3ErrorKind> {
-        let xspim = self.xspim_size();
-        let xscan = self.xscan_size();
+        let xspim = (self.data[4] as usize)<<8 | (self.data[5] as usize);
+        let xscan = (self.data[8] as usize)<<8 | (self.data[9] as usize);
         if xspim == 0 {return Err(Tp3ErrorKind::SetXSize);}
         let var = xscan / xspim;
         match var {
@@ -161,8 +164,8 @@ impl BytesConfig {
     
     ///Convenience method. Returns the ratio between scan and spim size in Y.
     fn spimoverscany(&self) -> Result<usize, Tp3ErrorKind> {
-        let yspim = self.yspim_size();
-        let yscan = self.yscan_size();
+        let yspim = (self.data[6] as usize)<<8 | (self.data[7] as usize);
+        let yscan = (self.data[10] as usize)<<8 | (self.data[11] as usize);
         if yspim == 0 {return Err(Tp3ErrorKind::SetYSize);}
         let var = yscan / yspim;
         match var {

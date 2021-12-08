@@ -47,6 +47,13 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
         6 => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
+            let measurement = speclib::SpecMeasurement::<speclib::FastChrono>::new(&my_settings);
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+            Ok(my_settings.mode)
+        },
+        7 => {
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
             let measurement = speclib::SpecMeasurement::<speclib::Chrono>::new(&my_settings);
             speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
             Ok(my_settings.mode)
