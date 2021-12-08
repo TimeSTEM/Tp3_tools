@@ -140,24 +140,22 @@ mod tdcvec {
                 .next().unwrap();
             begin_time
         }
+
+        pub fn search_specific_tdc(&mut self, data: &[u8]) {
+            data.chunks_exact(8).for_each(|x| {
+                match *x {
+                    [84, 80, 88, 51, _, _, _, _] => {},
+                    _ => {
+                        let packet = Pack {chip_index: 0, data: x};
+                        if packet.id() == 6 && self.tdc_choosen.is_same_inputline(packet.tdc_type()) {
+                            self.add_tdc(&packet);
+                        }
+                    },
+                };
+            });
+        }
+
     }
-
-    pub fn search_any_tdc(data: &[u8], tdc_struct: &mut TdcSearch, last_ci: &mut usize) {
-
-        data.chunks_exact(8).for_each(|x| {
-            match *x {
-                [84, 80, 88, 51, nci, _, _, _] => {*last_ci = nci as usize},
-                _ => {
-                    let packet = Pack { chip_index: *last_ci, data: x};
-                    
-                    if packet.id() == 6 {
-                        tdc_struct.add_tdc(&packet);
-                    };
-                },
-            };
-        });
-    }
-
 }
 
 
@@ -192,6 +190,15 @@ impl TdcType {
             TdcType::NoTdc => String::from("Tdc Disabled"),
         }
     }
+    
+    ///Check if a given tdc is from the same input line.
+    fn is_same_inputline(&self, check: u8) -> bool {
+        match *self {
+            TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge if check == 15 || check == 10 => true,
+            TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge if check == 14 || check == 11 => true,
+            _ => false,
+        }
+    }
 
     ///From associate value to enum TdcType.
     pub fn associate_value_to_enum(value: u8) -> Option<TdcType> {
@@ -204,14 +211,6 @@ impl TdcType {
         }
     }
 
-    ///Check if a given tdc is from the same input line.
-    pub fn is_same_inputline(given: u8, check: u8) -> bool {
-        match given {
-            15 | 10 if check==15 || check==10 => true,
-            14 | 11 if check==14 || check==11 => true,
-            _ => false,
-        }
-    }
 }
 
 use std::time::{Duration, Instant};
@@ -269,7 +268,6 @@ impl TdcControl for PeriodicTdcRef {
 
     fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
-        let mut ci = 0usize;
         let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 5);
         let start = Instant::now();
 
@@ -277,7 +275,7 @@ impl TdcControl for PeriodicTdcRef {
         loop {
             if start.elapsed() > Duration::from_secs(10) {return Err(Tp3ErrorKind::TdcNoReceived)}
             if let Ok(size) = sock.read_timepix(&mut buffer_pack_data) {
-                tdcvec::search_any_tdc(&buffer_pack_data[0..size], &mut tdc_search, &mut ci);
+                tdc_search.search_specific_tdc(&buffer_pack_data[0..size]);
                 if tdc_search.check_tdc()? {break;}
             }
         }
