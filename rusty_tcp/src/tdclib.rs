@@ -46,7 +46,7 @@ mod tdcvec {
             for (_time, tdc_type) in &self.data {
                 if tdc_type.associate_value() == self.tdc_choosen.associate_value() {counter+=1;}
             }
-            if counter>self.how_many {
+            if counter>=self.how_many {
                 self.check_ascending_order()?;
                 Ok(true)
             } else {Ok(false)}
@@ -75,7 +75,7 @@ mod tdcvec {
             else {Ok(())}
         }
 
-        pub fn find_high_time(&self) -> usize {
+        pub fn find_high_time(&self) -> Result<usize, Tp3ErrorKind> {
             let fal_tdc_type = match self.tdc_choosen {
                 TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
                 TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
@@ -90,12 +90,23 @@ mod tdcvec {
 
             let mut fal = self.get_timelist(&fal_tdc_type);
             let mut ris = self.get_timelist(&ris_tdc_type);
-            let last_fal = fal.pop().expect("Please get at least 01 falling Tdc");
-            let last_ris = ris.pop().expect("Please get at least 01 rising Tdc");
+            //let last_fal = fal.pop().expect("Please get at least 01 falling Tdc");
+            let last_fal = match fal.pop() {
+                Some(val) => val,
+                None => return Err(Tp3ErrorKind::TdcBadHighTime),
+            };
+            let last_ris = match ris.pop() {
+                Some(val) => val,
+                None => return Err(Tp3ErrorKind::TdcBadHighTime),
+            };
             if last_fal > last_ris {
-                last_fal - last_ris 
+                Ok(last_fal - last_ris)
             } else {
-                last_fal - ris.pop().expect("Please get at least 02 rising Tdc's.")
+                let new_ris = match ris.pop () {
+                    Some(val) => val,
+                    None => return Err(Tp3ErrorKind::TdcBadHighTime),
+                };
+                Ok(last_fal - new_ris)
             }
         }
         
@@ -268,7 +279,7 @@ impl TdcControl for PeriodicTdcRef {
 
     fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
-        let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 5);
+        let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 3);
         let start = Instant::now();
 
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
@@ -285,7 +296,7 @@ impl TdcControl for PeriodicTdcRef {
         let last_hard_counter = tdc_search.get_last_hardware_counter();
         let begin_time = tdc_search.get_begintime();
         let last_time = tdc_search.get_lasttime();
-        let high_time = tdc_search.find_high_time();
+        let high_time = tdc_search.find_high_time()?;
         let period = tdc_search.find_period()?;
         let low_time = period - high_time;
         
@@ -318,8 +329,6 @@ impl TdcControl for NonPeriodicTdcRef {
     }
 
     fn upt(&mut self, time: usize, _: u16) {
-        //self.time.pop().expect("***Tdc Lib***: There is no element to exclude from NonPeriodicTDC.");
-        //self.time.insert(0, time);
         self.time = time;
         self.counter+=1;
     }

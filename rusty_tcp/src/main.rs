@@ -1,7 +1,7 @@
 use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::{Settings, simple_log};
 use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
-use timepix3::{speclib, spimlib, chronolib, speclib::SpecKind, spimlib::SpimKind};
+use timepix3::{speclib, spimlib, speclib::SpecKind, spimlib::SpimKind};
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {

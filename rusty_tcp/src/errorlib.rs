@@ -11,6 +11,7 @@ pub enum Tp3ErrorKind {
 
     TdcNoReceived,
     TdcBadPeriod,
+    TdcBadHighTime,
     TdcNotAscendingOrder,
     TdcZeroBytes,
 
