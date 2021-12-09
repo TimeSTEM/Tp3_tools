@@ -3,7 +3,7 @@ use timepix3::tdclib::TdcType;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
-    let time = 4e11 as usize;
+    let time = 4e8 as usize;
     
     let line_offset = 23;
     let spim_size = 32;
