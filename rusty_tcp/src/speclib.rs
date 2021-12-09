@@ -12,6 +12,7 @@ const BUFFER_SIZE: usize = 16384 * 2;
 const SR_TIME: usize = 10_000; //Time window (10_000 -> 10 us);
 const SR_INDEX: usize = 64; //Maximum x index value to account in the average calculation;
 const SR_MIN: usize = 0; //Minimum array size to perform the average in super resolution;
+const TILT_FRACTION: usize = 16; //Values with y = 256 will be tilted by 256 / 16;
 
 pub trait SpecKind {
 
@@ -200,7 +201,9 @@ impl SpecKind for SpecMeasurement<LiveTilted2D> {
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
-        let index = pack.x() + CAM_DESIGN.0 * pack.y();
+        let x = pack.x();
+        let y = pack.y();
+        let index = x + CAM_DESIGN.0 * y;
         append_to_array(&mut self.data, index, settings.bytedepth);
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {

@@ -117,8 +117,9 @@ pub trait Packet {
         time - (time / (26843545600)) * 26843545600
     }
 
-    fn electron_reset_time() -> f64 {
-        26843545600.0 * 1e-9
+    fn electron_reset_time() -> usize {
+        //26843545600.0 * 1e-9
+        26_843_545_600
     }
 
 

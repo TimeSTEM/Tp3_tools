@@ -441,7 +441,7 @@ pub mod coincidence {
     }
 }
 
-/*
+
 pub mod time_resolved {
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
@@ -457,7 +457,7 @@ pub mod time_resolved {
         MinGreaterThanMax,
     }
 
-    const VIDEO_TIME: f64 = 0.000005;
+    const VIDEO_TIME: usize = 5_000;
 
     pub trait TimeTypes {
         fn prepare(&mut self, file: &mut fs::File);
@@ -474,7 +474,7 @@ pub mod time_resolved {
     /// This enables spectral analysis in a certain spectral window.
     pub struct TimeSpectral {
         pub spectra: Vec<[usize; 1024]>,
-        pub initial_time: Option<f64>,
+        pub initial_time: Option<usize>,
         pub interval: usize,
         pub counter: Vec<usize>,
         pub min: usize,
@@ -493,7 +493,7 @@ pub mod time_resolved {
             };
 
             if let Some(offset) = self.initial_time {
-                let vec_index = ((packet.electron_time()-offset) * 1.0e9) as usize / self.interval;
+                let vec_index = (packet.electron_time()-offset) / self.interval;
                 while self.spectra.len() < vec_index+1 {
                     self.spectra.push([0; 1024]);
                     self.counter.push(0);
@@ -576,8 +576,8 @@ pub mod time_resolved {
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial {
         pub spectra: Vec<Vec<usize>>,
-        pub initial_time: Option<f64>,
-        pub cycle_counter: f64, //Electron overflow counter
+        pub initial_time: Option<usize>,
+        pub cycle_counter: usize, //Electron overflow counter
         pub cycle_trigger: bool, //Electron overflow control
         pub interval: usize, //time interval you want to form spims
         pub counter: Vec<usize>,
@@ -600,7 +600,7 @@ pub mod time_resolved {
         fn prepare(&mut self, file: &mut fs::File) {
             self.tdc_periodic = match self.tdc_periodic {
                 None => {
-                    let val = Some(PeriodicTdcRef::new(self.tdc_type, file));
+                    let val = Some(PeriodicTdcRef::new(self.tdc_type, file).expect("Problem in creating periodic tdc ref."));
                     val
                 },
                 Some(val) => Some(val),
@@ -616,14 +616,15 @@ pub mod time_resolved {
 
             //Correcting Electron Time
             let el = packet.electron_time();
-            if el > 26.7 && self.cycle_trigger {
-                self.cycle_counter += 1.0;
+            if el > 26_700_000_000 && self.cycle_trigger {
+                self.cycle_counter += 1;
                 self.cycle_trigger = false;
             }
-            else if el > 0.1 && packet.electron_time() < 13.0 && !self.cycle_trigger {
+            else if el > 100_000_000 && packet.electron_time() < 13_000_000_000 && !self.cycle_trigger {
                 self.cycle_trigger = true;
             }
-            let corrected_el = if !self.cycle_trigger && (el + self.cycle_counter * Pack::electron_reset_time()) > ((0.5 + self.cycle_counter) * Pack::electron_reset_time()) {
+            //let corrected_el = if !self.cycle_trigger && (el + self.cycle_counter * Pack::electron_reset_time()) > ((0.5 + self.cycle_counter) * Pack::electron_reset_time()) {
+            let corrected_el = if !self.cycle_trigger && (el + self.cycle_counter * Pack::electron_reset_time()) > (self.cycle_counter * Pack::electron_reset_time() + Pack::electron_reset_time() / 2) {
                 el
             } else {
                 el + self.cycle_counter * Pack::electron_reset_time()
@@ -632,8 +633,8 @@ pub mod time_resolved {
             //Creating the array using the electron corrected time. Note that you dont need to use
             //it in the 'spim_detector' if you synchronize the clocks.
             if let Some(offset) = self.initial_time {
-                let vec_index = ((corrected_el-offset) * 1.0e9) as usize / self.interval;
-                while self.spectra.len() < vec_index+1 {
+                let vec_index = (corrected_el-offset) / self.interval;
+                while self.spectra.len() < vec_index + 1 {
                     self.expand_data();
                     self.counter.push(0);
                 }
@@ -653,7 +654,7 @@ pub mod time_resolved {
             match &mut self.tdc_periodic {
                 Some(my_tdc_periodic) if packet.tdc_type() == self.tdc_type.associate_value() => {
                     my_tdc_periodic.upt(packet.tdc_time_norm(), packet.tdc_counter());
-                    if  (my_tdc_periodic.counter / 2) % (self.spimy) == 0 {
+                    if  (my_tdc_periodic.counter() / 2) % (self.spimy) == 0 {
                         my_tdc_periodic.begin_frame = my_tdc_periodic.time();
                     }
                 },
@@ -707,7 +708,7 @@ pub mod time_resolved {
 
         fn display_info(&self) -> Result<(), ErrorType> {
             let number = self.counter.iter().sum::<usize>();
-            println!("Total number of spims are: {}. Total number of electrons are: {}. Electrons / spim are {}. First electron detected at {:?}. TDC period (us) is {}. TDC low time (us) is {}. Output is image: {}. Scanx, Scany and Spec_bin is {:?}, {:?} and {:?} (must be all None is is_image). Is a complete spim: {}.", self.spectra.len(), number, number / self.spectra.len(), self.initial_time, self.tdc_periodic.expect("TDC periodic is None during display_info.").period*1e6, self.tdc_periodic.expect("TDC periodic is None during display_info.").low_time*1e6, self.is_image, self.scanx, self.scany, self.spec_bin, self.is_spim);
+            println!("Total number of spims are: {}. Total number of electrons are: {}. Electrons / spim are {}. First electron detected at {:?}. TDC period (ns) is {}. TDC low time (ns) is {}. Output is image: {}. Scanx, Scany and Spec_bin is {:?}, {:?} and {:?} (must be all None is is_image). Is a complete spim: {}.", self.spectra.len(), number, number / self.spectra.len(), self.initial_time, self.tdc_periodic.expect("TDC periodic is None during display_info.").period, self.tdc_periodic.expect("TDC periodic is None during display_info.").low_time, self.is_image, self.scanx, self.scany, self.spec_bin, self.is_spim);
             Ok(())
         }
     }
@@ -740,7 +741,7 @@ pub mod time_resolved {
                 interval: interval,
                 counter: Vec::new(),
                 initial_time: None,
-                cycle_counter: 0.0,
+                cycle_counter: 0,
                 cycle_trigger: true,
                 min: xmin,
                 max: xmax,
@@ -758,25 +759,30 @@ pub mod time_resolved {
             })
         }
 
-        fn spim_detector(&self, ele_time: f64) -> Option<usize> {
+
+        
+        fn spim_detector(&self, ele_time: usize) -> Option<usize> {
             if let Some(tdc_periodic) = self.tdc_periodic {
-                let begin = tdc_periodic.begin;
+                let begin = tdc_periodic.begin_frame;
                 let interval = tdc_periodic.low_time;
                 let period = tdc_periodic.period;
                
-                let ratio = (ele_time - begin) / period;
-                let ratio_inline = ratio.fract();
-                if ratio_inline > interval / period || ratio_inline.is_sign_negative() {
-                    None
-                } else {
-                    let line = (ratio as usize + self.line_offset) % self.spimy;
-                    let xpos = (self.spimx as f64 * ratio_inline / (interval / period)) as usize;
-                    let result = line * self.spimx + xpos;
-                    match (self.scanx, self.scany, self.spec_bin) {
-                        (None, None, None) => Some(result),
-                        (Some(posx), Some(posy), Some(spec_bin)) if (posx as isize-xpos as isize).abs()<spec_bin as isize && (posy as isize-line as isize).abs()<spec_bin as isize => Some(result),
-                        _ => None,
-                    }
+                let dt = ele_time - begin;
+                let val = dt % period;
+                if val >= interval { return None; }
+                let mut r =  dt / period + self.line_offset;
+                let rin = val * self.spimx / interval;
+                
+                if r > (self.spimy - 1) {
+                    if r > Pack::electron_reset_time() {return None;}
+                    r %= self.spimy;
+                }
+
+                let result = r * self.spimx + rin;
+                match (self.scanx, self.scany, self.spec_bin) {
+                    (None, None, None) => Some(result),
+                    (Some(posx), Some(posy), Some(spec_bin)) if (posx as isize-rin as isize).abs()<spec_bin as isize && (posy as isize-r as isize).abs()<spec_bin as isize => Some(result),
+                    _ => None,
                 }
             } else {None}
         }
@@ -845,4 +851,3 @@ pub mod time_resolved {
         };
     }
 }
-*/
