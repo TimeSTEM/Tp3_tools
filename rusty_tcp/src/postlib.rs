@@ -1,3 +1,4 @@
+
 pub mod coincidence {
 
     use crate::packetlib::{Packet, PacketEELS as Pack};
@@ -11,9 +12,9 @@ pub mod coincidence {
     const TIME_WIDTH: usize = 200; //Time width to correlate (ns).
     const TIME_DELAY: usize = 160; //Time delay to correlate (ns).
     const MIN_LEN: usize = 100; // Sliding time window size.
-    const CLUSTER_DET:usize = 50; //Cluster time window (ns).
-    const VIDEO_TIME: usize = 5000; //Video time for spim (ns).
     const SPIM_PIXELS: usize = 1025; //Number of pixels in the spim. Last pixel is currently off.
+    const VIDEO_TIME: usize = 5000; //Video time for spim (ns).
+    const CLUSTER_DET:usize = 50; //Cluster time window (ns).
 
     #[derive(Debug)]
     pub struct Config {
@@ -446,9 +447,10 @@ pub mod time_resolved {
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
+    use rayon::prelude::*;
     use std::fs;
     
-    const CLUSTER_DET:usize = 50; //Cluster time window (ns).
+    const CLUSTER_DET:usize = 100; //Cluster time window (ns).
 
     #[derive(Debug)]
     pub enum ErrorType {
@@ -575,7 +577,7 @@ pub mod time_resolved {
         }
     }
 
-    #[derive(Copy, Clone)]
+    #[derive(Copy, Clone, Debug)]
     pub struct SingleElectron {
         pub data: (usize, usize, usize, usize, usize), //Time, X, Y, spim slice, array_pos;
     }
@@ -681,10 +683,10 @@ pub mod time_resolved {
                 while self.spectra.len() < vec_index + 1 {
                     self.expand_data();
                     self.counter.push(0);
+                    self.try_clean_and_append();
                 }
                 match self.spim_detector(packet.electron_time() - VIDEO_TIME) {
                     Some(array_pos) if packet.x()>self.min && packet.x()<self.max => {
-                        //self.append_electron(vec_index, array_pos, packet.x());
                         self.counter[vec_index] += 1;
                         let se = SingleElectron::new(packet, vec_index, array_pos);
                         self.ensemble.push(se);
@@ -715,13 +717,7 @@ pub mod time_resolved {
                 }
             }
             
-            self.sort();
-            self.remove_clusters();
-            //self.ensemble.for_each(|val| self.append_electron(val.data.3, val.data.4, val.data.1));
-            for val in &self.ensemble {
-            //    self.append_electron(val.data.3, val.data.4, val.data.1);
-                self.spectra[val.data.3][val.data.4*1024+val.data.1] += 1;
-            }
+            self.try_clean_and_append();
             
             let mut folder: String = String::from(&self.folder);
             folder.push_str("\\");
@@ -855,18 +851,25 @@ pub mod time_resolved {
             }
         }
 
-        fn append_electron(&mut self, vec_index: usize, array_pos: usize, x: usize) {
-            if self.is_spim {
-                self.spectra[vec_index][array_pos*1024+x] += 1;
-            } else {
-                if self.is_image {
-                    self.spectra[vec_index][array_pos] += 1;
-                } else {
-                    self.spectra[vec_index][x] += 1;
+        fn try_clean_and_append(&mut self) {
+            if self.ensemble.len() > 0 {
+                self.sort();
+                self.remove_clusters();
+                for val in &self.ensemble {
+                    if self.is_spim {
+                        self.spectra[val.data.3][val.data.4*1024+val.data.1] += 1;
+                    } else {
+                        if self.is_image {
+                            self.spectra[val.data.3][val.data.4] += 1;
+                        } else {
+                            self.spectra[val.data.3][val.data.1] += 1;
+                        }
+                    }
                 }
             }
+            self.ensemble = Vec::new();
         }
-        
+
         fn remove_clusters(&mut self) -> Vec<usize> {
             let nelectrons = self.ensemble.len();
             let mut nelist:Vec<SingleElectron> = Vec::new();
@@ -887,16 +890,14 @@ pub mod time_resolved {
             }
             self.ensemble = nelist;
             let new_nelectrons = self.ensemble.len();
-            println!("Number of electrons: {}. Number of clusters: {}", nelectrons, new_nelectrons); 
+            println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
             cs_list
         }
         
         fn sort(&mut self) {
-            self.ensemble.sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
+            self.ensemble.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
         }
     }
-
-
 
     pub fn analyze_data(file: &str, data: &mut TimeSet) {
 
