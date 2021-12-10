@@ -379,7 +379,8 @@ impl LiveTR1D {
             let xper = (last_time - ele_time) / period + 1;
             last_time - xper * period
         } else {
-            last_time
+            let xper = (ele_time - last_time) / period;
+            last_time + xper * period
         };
 
         ele_time > eff_tdc + settings.time_delay && ele_time < eff_tdc + settings.time_delay + settings.time_width

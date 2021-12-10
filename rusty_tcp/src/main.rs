@@ -1,6 +1,6 @@
 use timepix3::errorlib::Tp3ErrorKind;
-use timepix3::auxiliar::{Settings, simple_log};
-use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
+use timepix3::auxiliar::*;
+use timepix3::tdclib::*;
 use timepix3::{speclib, spimlib, speclib::SpecKind, spimlib::SpimKind};
 
 
@@ -25,14 +25,14 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
         },
         1 if my_settings.bin => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
-            let laser_tdc = PeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
+            let laser_tdc = SingleTriggerPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack)?;
             let measurement = speclib::SpecMeasurement::<speclib::LiveTR1D>::new(&my_settings);
             speclib::build_spectrum(pack, ns, my_settings, frame_tdc, laser_tdc, measurement)?;
             Ok(my_settings.mode)
         },
         1 if !my_settings.bin => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
-            let laser_tdc = PeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
+            let laser_tdc = SingleTriggerPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack)?;
             let measurement = speclib::SpecMeasurement::<speclib::LiveTR2D>::new(&my_settings);
             speclib::build_spectrum(pack, ns, my_settings, frame_tdc, laser_tdc, measurement)?;
             Ok(my_settings.mode)
