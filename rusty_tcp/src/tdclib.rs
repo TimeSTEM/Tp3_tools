@@ -317,6 +317,79 @@ impl TdcControl for PeriodicTdcRef {
 }
 
 #[derive(Copy, Clone, Debug)]
+pub struct SingleTriggerPeriodicTdcRef {
+    tdctype: u8,
+    counter: usize,
+    counter_offset: usize,
+    last_hard_counter: u16,
+    counter_overflow: usize,
+    pub begin_frame: usize,
+    pub period: usize,
+    pub time: usize,
+}
+
+impl TdcControl for SingleTriggerPeriodicTdcRef {
+    fn id(&self) -> u8 {
+        self.tdctype
+    }
+
+    fn upt(&mut self, time: usize, hard_counter: u16) {
+        if hard_counter < self.last_hard_counter {
+            self.counter_overflow += 1;
+        }
+        self.last_hard_counter = hard_counter;
+        self.time = time;
+        self.counter = self.last_hard_counter as usize + self.counter_overflow * 4096 - self.counter_offset;
+    }
+
+    fn counter(&self) -> usize {
+        self.counter
+    }
+
+    fn time(&self) -> usize {
+        self.time
+    }
+
+    fn period(&self) -> Option<usize> {
+        Some(self.period)
+    }
+
+    fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T) -> Result<Self, Tp3ErrorKind> {
+        let mut buffer_pack_data = vec![0; 16384];
+        let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 3);
+        let start = Instant::now();
+
+        println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
+        loop {
+            if start.elapsed() > Duration::from_secs(10) {return Err(Tp3ErrorKind::TdcNoReceived)}
+            if let Ok(size) = sock.read_timepix(&mut buffer_pack_data) {
+                tdc_search.search_specific_tdc(&buffer_pack_data[0..size]);
+                if tdc_search.check_tdc()? {break;}
+            }
+        }
+        println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
+        let counter = tdc_search.get_counter()?;
+        let counter_offset = tdc_search.get_counter_offset();
+        let last_hard_counter = tdc_search.get_last_hardware_counter();
+        let begin_time = tdc_search.get_begintime();
+        let last_time = tdc_search.get_lasttime();
+        let period = tdc_search.find_period()?;
+        
+        println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ns) is {}. Period (ns) is {}.", tdc_type.associate_str(), counter, last_time, period);
+        Ok(Self {
+            tdctype: tdc_type.associate_value(),
+            counter,
+            counter_offset,
+            last_hard_counter,
+            counter_overflow: 0,
+            begin_frame: begin_time,
+            period,
+            time: last_time,
+        })
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
 pub struct NonPeriodicTdcRef {
     pub tdctype: u8,
     pub counter: usize,
