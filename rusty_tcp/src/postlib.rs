@@ -717,7 +717,7 @@ pub mod time_resolved {
                 }
             }
             
-            self.try_clean_and_append();
+            self.clean_and_append();
             
             let mut folder: String = String::from(&self.folder);
             folder.push_str("\\");
@@ -852,6 +852,25 @@ pub mod time_resolved {
         }
 
         fn try_clean_and_append(&mut self) {
+            if self.ensemble.len() > 1000 {
+                self.sort();
+                self.remove_clusters();
+                for val in &self.ensemble {
+                    if self.is_spim {
+                        self.spectra[val.data.3][val.data.4*1024+val.data.1] += 1;
+                    } else {
+                        if self.is_image {
+                            self.spectra[val.data.3][val.data.4] += 1;
+                        } else {
+                            self.spectra[val.data.3][val.data.1] += 1;
+                        }
+                    }
+                }
+                self.ensemble = Vec::new();
+            }
+        }
+        
+        fn clean_and_append(&mut self) {
             if self.ensemble.len() > 0 {
                 self.sort();
                 self.remove_clusters();
@@ -866,8 +885,8 @@ pub mod time_resolved {
                         }
                     }
                 }
+                self.ensemble = Vec::new();
             }
-            self.ensemble = Vec::new();
         }
 
         fn remove_clusters(&mut self) -> Vec<usize> {
