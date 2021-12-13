@@ -1019,19 +1019,19 @@ pub mod ntime_resolved {
 
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial {
-        pub spectra: Vec<Vec<usize>>,
-        pub ensemble: CollectionElectron,
-        pub initial_time: Option<usize>,
-        pub cycle_counter: usize, //Electron overflow counter
-        pub cycle_trigger: bool, //Electron overflow control
-        pub begin_frame: Option<usize>,
-        pub interval: usize, //time interval you want to form spims
-        pub folder: String,
-        pub spimx: usize,
-        pub spimy: usize,
-        pub line_offset: usize,
-        pub tdc_periodic: Option<PeriodicTdcRef>,
-        pub tdc_type: TdcType,
+        pub spectra: Vec<Vec<usize>>, //Main data,
+        pub ensemble: CollectionElectron, //A collection of single electrons,
+        pub initial_time: Option<usize>, //Acquisition start time,
+        pub cycle_counter: usize, //Electron overflow counter,
+        pub cycle_trigger: bool, //Electron overflow control,
+        pub begin_frame: Option<usize>, //Up-to-date frame,
+        pub interval: usize, //time interval you want to form spims,
+        pub folder: String, //Folder in which data will be saved,
+        pub spimx: usize, //The horinzontal axis of the spim,
+        pub spimy: usize, //The vertical axis of the spim,
+        pub tdc_periodic: Option<PeriodicTdcRef>, //The periodic tdc. Can be none if xspim and yspim <= 1,
+        pub tdc_type: TdcType, //The tdc type for the spim,
+        pub remove_clusters: bool,
     }
     
     impl TimeTypes for TimeSpectralSpatial {
@@ -1061,20 +1061,18 @@ pub mod ntime_resolved {
             else if el > 100_000_000 && packet.electron_time() < 13_000_000_000 && !self.cycle_trigger {
                 self.cycle_trigger = true;
             }
-            //let corrected_el = if !self.cycle_trigger && (el + self.cycle_counter * Pack::electron_reset_time()) > ((0.5 + self.cycle_counter) * Pack::electron_reset_time()) {
             let corrected_el = if !self.cycle_trigger && (el + self.cycle_counter * Pack::electron_reset_time()) > (self.cycle_counter * Pack::electron_reset_time() + Pack::electron_reset_time() / 2) {
                 el
             } else {
                 el + self.cycle_counter * Pack::electron_reset_time()
             };
  
-            //Creating the array using the electron corrected time. Note that you dont need to use
-            //it in the 'spim_detector' if you synchronize the clocks.
+            //Creating the array using the electron corrected time. Note that you dont need to use it in the 'spim_detector' if you synchronize the clocks.
             if let Some(offset) = self.initial_time {
                 let vec_index = (corrected_el-offset) / self.interval;
                 while self.spectra.len() < vec_index + 1 {
                     self.expand_data();
-                    self.ensemble.try_clean_and_append(&mut self.spectra, self.tdc_periodic, self.spimx, self.spimy);
+                    self.ensemble.try_clean_and_append(&mut self.spectra, self.tdc_periodic, self.spimx, self.spimy, self.remove_clusters, 1000);
                 }
                 let se = SingleElectron::new(packet, self.begin_frame, vec_index);
                 self.ensemble.add_electron(se);
@@ -1082,14 +1080,13 @@ pub mod ntime_resolved {
         }
 
         fn add_tdc(&mut self, packet: &Pack) {
-            //Synchronizing clocks using two different approaches. It is always better to use a
-            //multiple of 2 and use the FPGA counter.
+            //Synchronizing clocks using two different approaches. It is always better to use a multiple of 2 and use the FPGA counter.
             match &mut self.tdc_periodic {
                 Some(my_tdc_periodic) if packet.tdc_type() == self.tdc_type.associate_value() => {
                     my_tdc_periodic.upt(packet.tdc_time_norm(), packet.tdc_counter());
                     if  (my_tdc_periodic.counter() / 2) % (self.spimy) == 0 {
                         my_tdc_periodic.begin_frame = my_tdc_periodic.time();
-                        self.begin_frame = Some(my_tdc_periodic.time());
+                        self.begin_frame = Some(my_tdc_periodic.begin_frame);
                     }
                 },
                 _ => {},
@@ -1102,10 +1099,16 @@ pub mod ntime_resolved {
                     return Err(ErrorType::FolderNotCreated);
                 }
             }
+                    
+            self.ensemble.try_clean_and_append(&mut self.spectra, self.tdc_periodic, self.spimx, self.spimy, self.remove_clusters, 0);
             
             let mut folder: String = String::from(&self.folder);
             folder.push_str("\\");
             folder.push_str(&(self.spectra.len()).to_string());
+            folder.push_str("_");
+            folder.push_str(&(self.spimx).to_string());
+            folder.push_str("_");
+            folder.push_str(&(self.spimy).to_string());
             folder.push_str("_spimComplete");
 
             let out = self.spectra.iter().flatten().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
@@ -1117,14 +1120,13 @@ pub mod ntime_resolved {
         }
 
         fn display_info(&self) -> Result<(), ErrorType> {
-            println!("Total number of spims are: {}. First electron detected at {:?}. TDC period (ns) is {}. TDC low time (ns) is {}.", self.spectra.len(), self.initial_time, self.tdc_periodic.expect("TDC periodic is None during display_info.").period, self.tdc_periodic.expect("TDC periodic is None during display_info.").low_time);
+            println!("Total number of spims are: {}. First electron detected at {:?}. TDC info is {:?}.", self.spectra.len(), self.initial_time, self.tdc_periodic);
             Ok(())
         }
     }
     
     impl TimeSpectralSpatial {
-
-        pub fn new(interval: usize, spimx: usize, spimy: usize, lineoffset: usize, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
+        pub fn new(interval: usize, spimx: usize, spimy: usize, remove_clusters: bool, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
 
             Ok(Self {
                 spectra: Vec::new(),
@@ -1136,10 +1138,10 @@ pub mod ntime_resolved {
                 begin_frame: None,
                 spimx: spimx,
                 spimy: spimy,
-                line_offset: lineoffset,
                 folder: folder,
                 tdc_periodic: None,
                 tdc_type: tdc_type,
+                remove_clusters: remove_clusters,
             })
         }
         
@@ -1149,7 +1151,6 @@ pub mod ntime_resolved {
     }
 
     pub fn analyze_data(file: &str, data: &mut TimeSet) {
-
         for each in data.set.iter_mut() {
             let mut file = fs::File::open(file).expect("Could not open desired file.");
             each.prepare(&mut file);
@@ -1184,4 +1185,4 @@ pub mod ntime_resolved {
             };
         };
     }
-    }
+}

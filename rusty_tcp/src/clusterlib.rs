@@ -48,10 +48,12 @@ pub mod cluster {
             self.data.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
         }
 
-        pub fn try_clean_and_append(&mut self, array: &mut Vec<Vec<usize>>, frame_tdc: Option<PeriodicTdcRef>, xspim: usize, yspim: usize) {
-            if self.data.len() > 0 {
-                self.sort();
-                self.remove_clusters();
+        pub fn try_clean_and_append(&mut self, array: &mut Vec<Vec<usize>>, frame_tdc: Option<PeriodicTdcRef>, xspim: usize, yspim: usize, remove_clusters: bool, min_length: usize) {
+            if self.data.len() > min_length {
+                if remove_clusters {
+                    self.sort();
+                    self.remove_clusters();
+                }
                 for val in &self.data {
                     if let Some(index) = val.get_or_not_spim_index(frame_tdc, xspim, yspim) {
                         val.append_sliced_array(array, index);
