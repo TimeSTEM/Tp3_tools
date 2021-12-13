@@ -994,7 +994,7 @@ pub mod ntime_resolved {
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use std::fs;
     
-    const SPIM_PIXELS: usize = 1025;
+    const SPIM_PIXELS: usize = 1024;
 
     #[derive(Debug)]
     pub enum ErrorType {
@@ -1022,6 +1022,8 @@ pub mod ntime_resolved {
         pub spectra: Vec<Vec<usize>>,
         pub ensemble: CollectionElectron,
         pub initial_time: Option<usize>,
+        pub cycle_counter: usize, //Electron overflow counter
+        pub cycle_trigger: bool, //Electron overflow control
         pub begin_frame: Option<usize>,
         pub interval: usize, //time interval you want to form spims
         pub folder: String,
@@ -1050,13 +1052,26 @@ pub mod ntime_resolved {
                 None => {Some(packet.electron_time())},
             };
 
-            //Electron Time
+            //Correcting Electron Time
             let el = packet.electron_time();
+            if el > 26_700_000_000 && self.cycle_trigger {
+                self.cycle_counter += 1;
+                self.cycle_trigger = false;
+            }
+            else if el > 100_000_000 && packet.electron_time() < 13_000_000_000 && !self.cycle_trigger {
+                self.cycle_trigger = true;
+            }
+            //let corrected_el = if !self.cycle_trigger && (el + self.cycle_counter * Pack::electron_reset_time()) > ((0.5 + self.cycle_counter) * Pack::electron_reset_time()) {
+            let corrected_el = if !self.cycle_trigger && (el + self.cycle_counter * Pack::electron_reset_time()) > (self.cycle_counter * Pack::electron_reset_time() + Pack::electron_reset_time() / 2) {
+                el
+            } else {
+                el + self.cycle_counter * Pack::electron_reset_time()
+            };
  
             //Creating the array using the electron corrected time. Note that you dont need to use
             //it in the 'spim_detector' if you synchronize the clocks.
             if let Some(offset) = self.initial_time {
-                let vec_index = (el-offset) / self.interval;
+                let vec_index = (corrected_el-offset) / self.interval;
                 while self.spectra.len() < vec_index + 1 {
                     self.expand_data();
                     self.ensemble.try_clean_and_append(&mut self.spectra, self.tdc_periodic, self.spimx, self.spimy);
@@ -1116,6 +1131,8 @@ pub mod ntime_resolved {
                 ensemble: CollectionElectron::new(),
                 interval: interval,
                 initial_time: None,
+                cycle_counter: 0,
+                cycle_trigger: true,
                 begin_frame: None,
                 spimx: spimx,
                 spimy: spimy,

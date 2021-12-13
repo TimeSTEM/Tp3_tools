@@ -6,7 +6,7 @@ pub mod cluster {
     
     const VIDEO_TIME: usize = 5000; //Video time for spim (ns).
     const CLUSTER_DET:usize = 50; //Cluster time window (ns).
-    const SPIM_PIXELS: usize = 1025;
+    const SPIM_PIXELS: usize = 1024;
 
     pub struct CollectionElectron {
         pub data: Vec<SingleElectron>,
@@ -22,6 +22,7 @@ pub mod cluster {
             self.data.push(electron);
         }
         pub fn remove_clusters(&mut self) {
+            let nelectrons = self.data.len();
             let mut nelist: Vec<SingleElectron> = Vec::new();
             let mut cs_list: Vec<usize> = Vec::new();
 
@@ -39,6 +40,8 @@ pub mod cluster {
                 cluster_vec.push(*x);
             }
             self.data = nelist;
+            let new_nelectrons = self.data.len();
+            println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
         }
 
         fn sort(&mut self) {
@@ -138,6 +141,7 @@ pub mod cluster {
 
         fn append_sliced_array(&self, array: &mut Vec<Vec<usize>>, index: usize) {
             array[self.data.4][index*SPIM_PIXELS+self.data.1] += 1;
+            
         }
     }
 }
