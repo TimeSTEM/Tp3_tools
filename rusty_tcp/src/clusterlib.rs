@@ -1,10 +1,12 @@
 pub mod cluster {
     
     use crate::packetlib::{Packet, PacketEELS as Pack};
+    use crate::tdclib::PeriodicTdcRef;
     use rayon::prelude::*;
     
     const VIDEO_TIME: usize = 5000; //Video time for spim (ns).
     const CLUSTER_DET:usize = 50; //Cluster time window (ns).
+    const SPIM_PIXELS: usize = 1025;
 
     pub struct CollectionElectron {
         pub data: Vec<SingleElectron>,
@@ -15,9 +17,6 @@ pub mod cluster {
             CollectionElectron {
                 data: Vec::new(),
             }
-        }
-        pub fn collection_size(&self) -> usize {
-            self.data.len()
         }
         pub fn add_electron(&mut self, electron: SingleElectron) {
             self.data.push(electron);
@@ -42,8 +41,21 @@ pub mod cluster {
             self.data = nelist;
         }
 
-        pub fn sort(&mut self) {
+        fn sort(&mut self) {
             self.data.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
+        }
+
+        pub fn try_clean_and_append(&mut self, array: &mut Vec<Vec<usize>>, frame_tdc: Option<PeriodicTdcRef>, xspim: usize, yspim: usize) {
+            if self.data.len() > 0 {
+                self.sort();
+                self.remove_clusters();
+                for val in &self.data {
+                    if let Some(index) = val.get_or_not_spim_index(frame_tdc, xspim, yspim) {
+                        val.append_sliced_array(array, index);
+                    }
+                }
+                self.data = Vec::new();
+            }
         }
     }
 
@@ -55,12 +67,12 @@ pub mod cluster {
 
 
     impl SingleElectron {
-        pub fn new(pack: &Pack, begin_frame: Option<usize>, slice: Option<usize>) -> Self {
+        pub fn new(pack: &Pack, begin_frame: Option<usize>, slice: usize) -> Self {
             let ele_time = pack.electron_time();
             match begin_frame {
                 Some(frame_time) => {
                     SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice.unwrap()),
+                        data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice),
                     }
                 },
                 None => {
@@ -71,7 +83,7 @@ pub mod cluster {
             }
         }
 
-        pub fn is_new_cluster(&self, s: &SingleElectron) -> bool {
+        fn is_new_cluster(&self, s: &SingleElectron) -> bool {
             if self.data.0 > s.data.0 + CLUSTER_DET || (self.data.1 as isize - s.data.1 as isize).abs() > 2 || (self.data.2 as isize - s.data.2 as isize).abs() > 2 {
                 true
             } else {
@@ -80,7 +92,7 @@ pub mod cluster {
         }
 
 
-        pub fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
+        fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
             let cluster_size: usize = cluster.len();
             
             let t_mean:usize = cluster.iter().map(|se| se.data.0).sum::<usize>() / cluster_size as usize;
@@ -101,6 +113,31 @@ pub mod cluster {
                 data: (t_mean, x_mean, y_mean, time_dif, slice),
             }
         }
+
+        fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: usize, yspim: usize) -> Option<usize> {
+            if let Some(frame_tdc) = spim_tdc {
+                let interval = frame_tdc.low_time;
+                let period = frame_tdc.period;
+
+                let val = self.data.3 % period;
+                if val >= interval {return None;}
+                let mut r = self.data.3 / period;
+                let rin = val * xspim / interval;
+
+                if r > yspim -1 {
+                    if r > Pack::electron_reset_time() {return None;}
+                    r %= yspim;
+                }
+
+                let result = r * xspim + rin;
+                Some(result)
+            } else {
+                Some(0)
+            }
+        }
+
+        fn append_sliced_array(&self, array: &mut Vec<Vec<usize>>, index: usize) {
+            array[self.data.4][index*SPIM_PIXELS+self.data.1] += 1;
+        }
     }
 }
-

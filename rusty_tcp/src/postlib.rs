@@ -991,13 +991,10 @@ pub mod ntime_resolved {
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
-    use rayon::prelude::*;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use std::fs;
     
-    const CLUSTER_DET:usize = 50; //Cluster time window (ns).
     const SPIM_PIXELS: usize = 1025;
-    const VIDEO_TIME: usize = 5_000;
 
     #[derive(Debug)]
     pub enum ErrorType {
@@ -1038,14 +1035,14 @@ pub mod ntime_resolved {
     impl TimeTypes for TimeSpectralSpatial {
         fn prepare(&mut self, file: &mut fs::File) {
             self.tdc_periodic = match self.tdc_periodic {
-                None => {
+                None if self.spimx>1 && self.spimy>1 => {
                     let val = Some(PeriodicTdcRef::new(self.tdc_type, file).expect("Problem in creating periodic tdc ref."));
                     val
                 },
                 Some(val) => Some(val),
+                _ => None,
             };
         }
-        
         fn add_packet(&mut self, packet: &Pack) {
             //Getting Initial Time
             self.initial_time = match self.initial_time {
@@ -1062,17 +1059,10 @@ pub mod ntime_resolved {
                 let vec_index = (el-offset) / self.interval;
                 while self.spectra.len() < vec_index + 1 {
                     self.expand_data();
-                    self.try_clean_and_append();
+                    self.ensemble.try_clean_and_append(&mut self.spectra, self.tdc_periodic, self.spimx, self.spimy);
                 }
-                let se = SingleElectron::new(packet, self.begin_frame, Some(vec_index));
+                let se = SingleElectron::new(packet, self.begin_frame, vec_index);
                 self.ensemble.add_electron(se);
-                //match self.spim_detector(packet.electron_time() - VIDEO_TIME) {
-                //    Some(array_pos) => {
-                //        let se = SingleElectron::new(packet, vec_index, array_pos);
-                //        self.ensemble.push(se);
-                //    },
-                //    _ => {},
-                //};
             }
         }
 
@@ -1097,8 +1087,6 @@ pub mod ntime_resolved {
                     return Err(ErrorType::FolderNotCreated);
                 }
             }
-            
-            self.clean_and_append();
             
             let mut folder: String = String::from(&self.folder);
             folder.push_str("\\");
@@ -1125,7 +1113,7 @@ pub mod ntime_resolved {
 
             Ok(Self {
                 spectra: Vec::new(),
-                ensemble: CollectionElectron {data: Vec::new()},
+                ensemble: CollectionElectron::new(),
                 interval: interval,
                 initial_time: None,
                 begin_frame: None,
@@ -1137,55 +1125,9 @@ pub mod ntime_resolved {
                 tdc_type: tdc_type,
             })
         }
-
-
         
-        fn spim_detector(&self, ele_time: usize) -> Option<usize> {
-            if let Some(tdc_periodic) = self.tdc_periodic {
-                let begin = tdc_periodic.begin_frame;
-                let interval = tdc_periodic.low_time;
-                let period = tdc_periodic.period;
-               
-                let dt = ele_time - begin;
-                let val = dt % period;
-                if val >= interval { return None; }
-                let mut r =  dt / period + self.line_offset;
-                let rin = val * self.spimx / interval;
-                
-                if r > (self.spimy - 1) {
-                    if r > Pack::electron_reset_time() {return None;}
-                    r %= self.spimy;
-                }
-
-                let result = r * self.spimx + rin;
-                Some(result)
-            } else {None}
-        }
-
         fn expand_data(&mut self) {
             self.spectra.push(vec![0; self.spimx*self.spimy*SPIM_PIXELS]);
-        }
-
-        fn try_clean_and_append(&mut self) {
-            if self.ensemble.collection_size() > 1000 {
-                self.ensemble.sort();
-                self.ensemble.remove_clusters();
-                for val in &self.ensemble.data {
-                    self.spectra[val.data.3][val.data.4*SPIM_PIXELS+val.data.1] += 1;
-                }
-                self.ensemble = CollectionElectron::new();
-            }
-        }
-        
-        fn clean_and_append(&mut self) {
-            if self.ensemble.collection_size() > 0 {
-                self.ensemble.sort();
-                self.ensemble.remove_clusters();
-                for val in &self.ensemble.data {
-                    self.spectra[val.data.3][val.data.4*SPIM_PIXELS+val.data.1] += 1;
-                }
-                self.ensemble = CollectionElectron::new();
-            }
         }
     }
 
