@@ -955,11 +955,44 @@ pub mod time_resolved {
     }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 pub mod ntime_resolved {
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
     use rayon::prelude::*;
+    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use std::fs;
     
     const CLUSTER_DET:usize = 50; //Cluster time window (ns).
@@ -987,52 +1020,12 @@ pub mod ntime_resolved {
         pub set: Vec<Box<dyn TimeTypes>>,
     }
 
-    #[derive(Copy, Clone, Debug)]
-    pub struct SingleElectron {
-        pub data: (usize, usize, usize, usize, usize), //Time, X, Y, spim slice, array_pos;
-    }
-
-    impl SingleElectron {
-        fn new(pack: &Pack, slice: usize, array_pos: usize) -> SingleElectron {
-            SingleElectron {
-                data: (pack.electron_time(), pack.x(), pack.y(), slice, array_pos)
-            }
-        }
-        
-        fn is_new_cluster(f: &SingleElectron, s: &SingleElectron) -> bool {
-            if f.data.0 > s.data.0 + CLUSTER_DET || (f.data.1 as isize - s.data.1 as isize).abs() > 2 || (f.data.2 as isize - s.data.2 as isize).abs() > 2 {
-                true
-            } else {
-                false
-            }
-        }
-        
-        fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
-            let cluster_size = cluster.len();
-            
-            //let t:usize = cluster.iter().map(|se| se.data.0).next().unwrap();
-            let t_mean:usize = cluster.iter().map(|se| se.data.0).sum::<usize>() / cluster_size as usize;
-            
-            //let x:usize = cluster.iter().map(|se| se.data.1).next().unwrap();
-            let x_mean:usize = cluster.iter().map(|se| se.data.1).sum::<usize>() / cluster_size as usize;
-            
-            //let y:usize = cluster.iter().map(|se| se.data.2).next().unwrap();
-            let y_mean:usize = cluster.iter().map(|se| se.data.2).sum::<usize>() / cluster_size as usize;
-            
-            let slice:usize = cluster.iter().map(|se| se.data.3).next().unwrap();
-            let array_pos:usize = cluster.iter().map(|se| se.data.4).next().unwrap();
-            
-            SingleElectron {
-                data: (t_mean, x_mean, y_mean, slice, array_pos),
-            }
-        }
-    }
-
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial {
         pub spectra: Vec<Vec<usize>>,
-        pub ensemble: Vec<SingleElectron>,
+        pub ensemble: CollectionElectron,
         pub initial_time: Option<usize>,
+        pub begin_frame: Option<usize>,
         pub interval: usize, //time interval you want to form spims
         pub folder: String,
         pub spimx: usize,
@@ -1071,13 +1064,15 @@ pub mod ntime_resolved {
                     self.expand_data();
                     self.try_clean_and_append();
                 }
-                match self.spim_detector(packet.electron_time() - VIDEO_TIME) {
-                    Some(array_pos) => {
-                        let se = SingleElectron::new(packet, vec_index, array_pos);
-                        self.ensemble.push(se);
-                    },
-                    _ => {},
-                };
+                let se = SingleElectron::new(packet, self.begin_frame, Some(vec_index));
+                self.ensemble.add_electron(se);
+                //match self.spim_detector(packet.electron_time() - VIDEO_TIME) {
+                //    Some(array_pos) => {
+                //        let se = SingleElectron::new(packet, vec_index, array_pos);
+                //        self.ensemble.push(se);
+                //    },
+                //    _ => {},
+                //};
             }
         }
 
@@ -1089,6 +1084,7 @@ pub mod ntime_resolved {
                     my_tdc_periodic.upt(packet.tdc_time_norm(), packet.tdc_counter());
                     if  (my_tdc_periodic.counter() / 2) % (self.spimy) == 0 {
                         my_tdc_periodic.begin_frame = my_tdc_periodic.time();
+                        self.begin_frame = Some(my_tdc_periodic.time());
                     }
                 },
                 _ => {},
@@ -1129,9 +1125,10 @@ pub mod ntime_resolved {
 
             Ok(Self {
                 spectra: Vec::new(),
-                ensemble: Vec::new(),
+                ensemble: CollectionElectron {data: Vec::new()},
                 interval: interval,
                 initial_time: None,
+                begin_frame: None,
                 spimx: spimx,
                 spimy: spimy,
                 line_offset: lineoffset,
@@ -1170,53 +1167,25 @@ pub mod ntime_resolved {
         }
 
         fn try_clean_and_append(&mut self) {
-            if self.ensemble.len() > 1000 {
-                self.sort();
-                self.remove_clusters();
-                for val in &self.ensemble {
+            if self.ensemble.collection_size() > 1000 {
+                self.ensemble.sort();
+                self.ensemble.remove_clusters();
+                for val in &self.ensemble.data {
                     self.spectra[val.data.3][val.data.4*SPIM_PIXELS+val.data.1] += 1;
                 }
-                self.ensemble = Vec::new();
+                self.ensemble = CollectionElectron::new();
             }
         }
         
         fn clean_and_append(&mut self) {
-            if self.ensemble.len() > 0 {
-                self.sort();
-                self.remove_clusters();
-                for val in &self.ensemble {
+            if self.ensemble.collection_size() > 0 {
+                self.ensemble.sort();
+                self.ensemble.remove_clusters();
+                for val in &self.ensemble.data {
                     self.spectra[val.data.3][val.data.4*SPIM_PIXELS+val.data.1] += 1;
                 }
-                self.ensemble = Vec::new();
+                self.ensemble = CollectionElectron::new();
             }
-        }
-
-        fn remove_clusters(&mut self) -> Vec<usize> {
-            let nelectrons = self.ensemble.len();
-            let mut nelist:Vec<SingleElectron> = Vec::new();
-            let mut cs_list: Vec<usize> = Vec::new();
-
-            let mut last: SingleElectron = self.ensemble[0];
-            let mut cluster_vec: Vec<SingleElectron> = Vec::new();
-            for x in &self.ensemble {
-                if SingleElectron::is_new_cluster(x, &last) {
-                    let cluster_size: usize = cluster_vec.len();
-                    let new_from_cluster = SingleElectron::new_from_cluster(&cluster_vec);
-                    nelist.push(new_from_cluster);
-                    cs_list.push(cluster_size);
-                    cluster_vec = Vec::new();
-                }
-                last = *x;
-                cluster_vec.push(*x);
-            }
-            self.ensemble = nelist;
-            let new_nelectrons = self.ensemble.len();
-            println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
-            cs_list
-        }
-        
-        fn sort(&mut self) {
-            self.ensemble.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
         }
     }
 

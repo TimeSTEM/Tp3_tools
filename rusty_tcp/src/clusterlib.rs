@@ -11,6 +11,17 @@ pub mod cluster {
     }
 
     impl CollectionElectron {
+        pub fn new() -> Self {
+            CollectionElectron {
+                data: Vec::new(),
+            }
+        }
+        pub fn collection_size(&self) -> usize {
+            self.data.len()
+        }
+        pub fn add_electron(&mut self, electron: SingleElectron) {
+            self.data.push(electron);
+        }
         pub fn remove_clusters(&mut self) {
             let mut nelist: Vec<SingleElectron> = Vec::new();
             let mut cs_list: Vec<usize> = Vec::new();
@@ -36,30 +47,30 @@ pub mod cluster {
         }
     }
 
-    ///ToA, X, Y, Spim dT
+    ///ToA, X, Y, Spim dT, Spim Slice
     #[derive(Copy, Clone, Debug)]
     pub struct SingleElectron {
-        pub data: (usize, usize, usize, usize),
+        pub data: (usize, usize, usize, usize, usize),
     }
 
 
     impl SingleElectron {
-        pub fn try_new(pack: &Pack, begin_frame: Option<usize>) -> Option<Self> {
+        pub fn new(pack: &Pack, begin_frame: Option<usize>, slice: Option<usize>) -> Self {
             let ele_time = pack.electron_time();
             match begin_frame {
                 Some(frame_time) => {
-                    Some(SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME),
-                    })
+                    SingleElectron {
+                        data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice.unwrap()),
+                    }
                 },
                 None => {
-                    Some(SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), 0),
-                    })
+                    SingleElectron {
+                        data: (ele_time, pack.x(), pack.y(), 0, 0),
+                    }
                 },
             }
         }
-        
+
         pub fn is_new_cluster(&self, s: &SingleElectron) -> bool {
             if self.data.0 > s.data.0 + CLUSTER_DET || (self.data.1 as isize - s.data.1 as isize).abs() > 2 || (self.data.2 as isize - s.data.2 as isize).abs() > 2 {
                 true
@@ -84,9 +95,10 @@ pub mod cluster {
             //let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot, _)| tot as usize).sum::<usize>() / cluster_size) as u16;
             
             let time_dif: usize = cluster.iter().map(|se| se.data.3).next().unwrap();
+            let slice: usize = cluster.iter().map(|se| se.data.4).next().unwrap();
             
             SingleElectron {
-                data: (t_mean, x_mean, y_mean, time_dif),
+                data: (t_mean, x_mean, y_mean, time_dif, slice),
             }
         }
     }
