@@ -1,4 +1,3 @@
-
 pub mod coincidence {
 
     use crate::packetlib::{Packet, PacketEELS as Pack};
@@ -450,7 +449,8 @@ pub mod time_resolved {
     use rayon::prelude::*;
     use std::fs;
     
-    const CLUSTER_DET:usize = 100; //Cluster time window (ns).
+    const CLUSTER_DET:usize = 50; //Cluster time window (ns).
+    const VIDEO_TIME: usize = 5_000;
 
     #[derive(Debug)]
     pub enum ErrorType {
@@ -461,7 +461,6 @@ pub mod time_resolved {
         MinGreaterThanMax,
     }
 
-    const VIDEO_TIME: usize = 5_000;
 
     pub trait TimeTypes {
         fn prepare(&mut self, file: &mut fs::File);
@@ -955,3 +954,306 @@ pub mod time_resolved {
         };
     }
 }
+
+pub mod ntime_resolved {
+    use crate::packetlib::{Packet, PacketEELS as Pack};
+    use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
+    use std::io::prelude::*;
+    use rayon::prelude::*;
+    use std::fs;
+    
+    const CLUSTER_DET:usize = 50; //Cluster time window (ns).
+    const SPIM_PIXELS: usize = 1025;
+    const VIDEO_TIME: usize = 5_000;
+
+    #[derive(Debug)]
+    pub enum ErrorType {
+        OutOfBounds,
+        FolderDoesNotExist,
+        FolderNotCreated,
+        ScanOutofBounds,
+        MinGreaterThanMax,
+    }
+
+    pub trait TimeTypes {
+        fn prepare(&mut self, file: &mut fs::File);
+        fn add_packet(&mut self, packet: &Pack);
+        fn add_tdc(&mut self, packet: &Pack);
+        fn output(&mut self) -> Result<(), ErrorType>;
+        fn display_info(&self) -> Result<(), ErrorType>;
+    }
+
+    pub struct TimeSet {
+        pub set: Vec<Box<dyn TimeTypes>>,
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct SingleElectron {
+        pub data: (usize, usize, usize, usize, usize), //Time, X, Y, spim slice, array_pos;
+    }
+
+    impl SingleElectron {
+        fn new(pack: &Pack, slice: usize, array_pos: usize) -> SingleElectron {
+            SingleElectron {
+                data: (pack.electron_time(), pack.x(), pack.y(), slice, array_pos)
+            }
+        }
+        
+        fn is_new_cluster(f: &SingleElectron, s: &SingleElectron) -> bool {
+            if f.data.0 > s.data.0 + CLUSTER_DET || (f.data.1 as isize - s.data.1 as isize).abs() > 2 || (f.data.2 as isize - s.data.2 as isize).abs() > 2 {
+                true
+            } else {
+                false
+            }
+        }
+        
+        fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
+            let cluster_size = cluster.len();
+            
+            //let t:usize = cluster.iter().map(|se| se.data.0).next().unwrap();
+            let t_mean:usize = cluster.iter().map(|se| se.data.0).sum::<usize>() / cluster_size as usize;
+            
+            //let x:usize = cluster.iter().map(|se| se.data.1).next().unwrap();
+            let x_mean:usize = cluster.iter().map(|se| se.data.1).sum::<usize>() / cluster_size as usize;
+            
+            //let y:usize = cluster.iter().map(|se| se.data.2).next().unwrap();
+            let y_mean:usize = cluster.iter().map(|se| se.data.2).sum::<usize>() / cluster_size as usize;
+            
+            let slice:usize = cluster.iter().map(|se| se.data.3).next().unwrap();
+            let array_pos:usize = cluster.iter().map(|se| se.data.4).next().unwrap();
+            
+            SingleElectron {
+                data: (t_mean, x_mean, y_mean, slice, array_pos),
+            }
+        }
+    }
+
+    /// This enables spatial+spectral analysis in a certain spectral window.
+    pub struct TimeSpectralSpatial {
+        pub spectra: Vec<Vec<usize>>,
+        pub ensemble: Vec<SingleElectron>,
+        pub initial_time: Option<usize>,
+        pub interval: usize, //time interval you want to form spims
+        pub folder: String,
+        pub spimx: usize,
+        pub spimy: usize,
+        pub line_offset: usize,
+        pub tdc_periodic: Option<PeriodicTdcRef>,
+        pub tdc_type: TdcType,
+    }
+    
+    impl TimeTypes for TimeSpectralSpatial {
+        fn prepare(&mut self, file: &mut fs::File) {
+            self.tdc_periodic = match self.tdc_periodic {
+                None => {
+                    let val = Some(PeriodicTdcRef::new(self.tdc_type, file).expect("Problem in creating periodic tdc ref."));
+                    val
+                },
+                Some(val) => Some(val),
+            };
+        }
+        
+        fn add_packet(&mut self, packet: &Pack) {
+            //Getting Initial Time
+            self.initial_time = match self.initial_time {
+                Some(t) => {Some(t)},
+                None => {Some(packet.electron_time())},
+            };
+
+            //Electron Time
+            let el = packet.electron_time();
+ 
+            //Creating the array using the electron corrected time. Note that you dont need to use
+            //it in the 'spim_detector' if you synchronize the clocks.
+            if let Some(offset) = self.initial_time {
+                let vec_index = (el-offset) / self.interval;
+                while self.spectra.len() < vec_index + 1 {
+                    self.expand_data();
+                    self.try_clean_and_append();
+                }
+                match self.spim_detector(packet.electron_time() - VIDEO_TIME) {
+                    Some(array_pos) => {
+                        let se = SingleElectron::new(packet, vec_index, array_pos);
+                        self.ensemble.push(se);
+                    },
+                    _ => {},
+                };
+            }
+        }
+
+        fn add_tdc(&mut self, packet: &Pack) {
+            //Synchronizing clocks using two different approaches. It is always better to use a
+            //multiple of 2 and use the FPGA counter.
+            match &mut self.tdc_periodic {
+                Some(my_tdc_periodic) if packet.tdc_type() == self.tdc_type.associate_value() => {
+                    my_tdc_periodic.upt(packet.tdc_time_norm(), packet.tdc_counter());
+                    if  (my_tdc_periodic.counter() / 2) % (self.spimy) == 0 {
+                        my_tdc_periodic.begin_frame = my_tdc_periodic.time();
+                    }
+                },
+                _ => {},
+            };
+        }
+
+        fn output(&mut self) -> Result<(), ErrorType> {
+            if let Err(_) = fs::read_dir(&self.folder) {
+                if let Err(_) = fs::create_dir(&self.folder) {
+                    return Err(ErrorType::FolderNotCreated);
+                }
+            }
+            
+            self.clean_and_append();
+            
+            let mut folder: String = String::from(&self.folder);
+            folder.push_str("\\");
+            folder.push_str(&(self.spectra.len()).to_string());
+            folder.push_str("_spimComplete");
+
+            let out = self.spectra.iter().flatten().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            if let Err(_) = fs::write(&folder, out) {
+                return Err(ErrorType::FolderDoesNotExist);
+            }
+         
+            Ok(())
+        }
+
+        fn display_info(&self) -> Result<(), ErrorType> {
+            println!("Total number of spims are: {}. First electron detected at {:?}. TDC period (ns) is {}. TDC low time (ns) is {}.", self.spectra.len(), self.initial_time, self.tdc_periodic.expect("TDC periodic is None during display_info.").period, self.tdc_periodic.expect("TDC periodic is None during display_info.").low_time);
+            Ok(())
+        }
+    }
+    
+    impl TimeSpectralSpatial {
+
+        pub fn new(interval: usize, spimx: usize, spimy: usize, lineoffset: usize, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
+
+            Ok(Self {
+                spectra: Vec::new(),
+                ensemble: Vec::new(),
+                interval: interval,
+                initial_time: None,
+                spimx: spimx,
+                spimy: spimy,
+                line_offset: lineoffset,
+                folder: folder,
+                tdc_periodic: None,
+                tdc_type: tdc_type,
+            })
+        }
+
+
+        
+        fn spim_detector(&self, ele_time: usize) -> Option<usize> {
+            if let Some(tdc_periodic) = self.tdc_periodic {
+                let begin = tdc_periodic.begin_frame;
+                let interval = tdc_periodic.low_time;
+                let period = tdc_periodic.period;
+               
+                let dt = ele_time - begin;
+                let val = dt % period;
+                if val >= interval { return None; }
+                let mut r =  dt / period + self.line_offset;
+                let rin = val * self.spimx / interval;
+                
+                if r > (self.spimy - 1) {
+                    if r > Pack::electron_reset_time() {return None;}
+                    r %= self.spimy;
+                }
+
+                let result = r * self.spimx + rin;
+                Some(result)
+            } else {None}
+        }
+
+        fn expand_data(&mut self) {
+            self.spectra.push(vec![0; self.spimx*self.spimy*SPIM_PIXELS]);
+        }
+
+        fn try_clean_and_append(&mut self) {
+            if self.ensemble.len() > 1000 {
+                self.sort();
+                self.remove_clusters();
+                for val in &self.ensemble {
+                    self.spectra[val.data.3][val.data.4*SPIM_PIXELS+val.data.1] += 1;
+                }
+                self.ensemble = Vec::new();
+            }
+        }
+        
+        fn clean_and_append(&mut self) {
+            if self.ensemble.len() > 0 {
+                self.sort();
+                self.remove_clusters();
+                for val in &self.ensemble {
+                    self.spectra[val.data.3][val.data.4*SPIM_PIXELS+val.data.1] += 1;
+                }
+                self.ensemble = Vec::new();
+            }
+        }
+
+        fn remove_clusters(&mut self) -> Vec<usize> {
+            let nelectrons = self.ensemble.len();
+            let mut nelist:Vec<SingleElectron> = Vec::new();
+            let mut cs_list: Vec<usize> = Vec::new();
+
+            let mut last: SingleElectron = self.ensemble[0];
+            let mut cluster_vec: Vec<SingleElectron> = Vec::new();
+            for x in &self.ensemble {
+                if SingleElectron::is_new_cluster(x, &last) {
+                    let cluster_size: usize = cluster_vec.len();
+                    let new_from_cluster = SingleElectron::new_from_cluster(&cluster_vec);
+                    nelist.push(new_from_cluster);
+                    cs_list.push(cluster_size);
+                    cluster_vec = Vec::new();
+                }
+                last = *x;
+                cluster_vec.push(*x);
+            }
+            self.ensemble = nelist;
+            let new_nelectrons = self.ensemble.len();
+            println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
+            cs_list
+        }
+        
+        fn sort(&mut self) {
+            self.ensemble.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
+        }
+    }
+
+    pub fn analyze_data(file: &str, data: &mut TimeSet) {
+
+        for each in data.set.iter_mut() {
+            let mut file = fs::File::open(file).expect("Could not open desired file.");
+            each.prepare(&mut file);
+        }
+
+        let mut file = fs::File::open(file).expect("Could not open desired file.");
+        let mut buffer: Vec<u8> = Vec::new();
+        file.read_to_end(&mut buffer).expect("Could not write file on buffer.");
+
+        let mut ci = 0usize;
+        let mut packet_chunks = buffer.chunks_exact(8);
+
+        while let Some(pack_oct) = packet_chunks.next() {
+            match pack_oct {
+                &[84, 80, 88, 51, nci, _, _, _] => {ci = nci as usize},
+                _ => {
+                    let packet = Pack{chip_index: ci, data: pack_oct};
+                    match packet.id() {
+                        6 => {
+                            for each in data.set.iter_mut() {
+                                each.add_tdc(&packet);
+                            }
+                        },
+                        11 => {
+                            for each in data.set.iter_mut() {
+                                each.add_packet(&packet);
+                            }
+                        },
+                        _ => {},
+                    };
+                },
+            };
+        };
+    }
+    }
