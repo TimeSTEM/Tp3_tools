@@ -16,7 +16,6 @@ mod tdcvec {
     }
 
     impl TdcSearch {
-
         pub fn new(tdc_choosen: TdcType, how_many: usize) -> Self {
             TdcSearch{
                 data: Vec::new(),
@@ -422,7 +421,6 @@ impl TdcControl for NonPeriodicTdcRef {
         Ok(Self {
             tdctype: tdc_type.associate_value(),
             counter: 0,
-            //time: vec![0; 5],
             time: 0,
         })
     }
