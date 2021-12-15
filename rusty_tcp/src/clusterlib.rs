@@ -82,7 +82,7 @@ pub mod cluster {
                 },
                 None => {
                     SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), 0, 0),
+                        data: (ele_time, pack.x(), pack.y(), 0, slice),
                     }
                 },
             }
