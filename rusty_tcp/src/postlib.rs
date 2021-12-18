@@ -953,7 +953,19 @@ pub mod ntime_resolved {
                 let vec_index = (corrected_el-offset) / self.interval;
                 while self.spectra.len() < vec_index + 1 {
                     self.expand_data();
-                    if self.ensemble.try_clean(1000) {
+                    let mut name = String::from("time_no_cluster");
+                    name.push_str(&vec_index.to_string());
+                    self.ensemble.output_time(name);
+                    if self.ensemble.try_clean(1000, self.remove_clusters) {
+                        let mut name = String::from("time_cluster");
+                        name.push_str(&vec_index.to_string());
+                        self.ensemble.output_time(name);
+                        let mut name = String::from("x_cluster");
+                        name.push_str(&vec_index.to_string());
+                        self.ensemble.output_x(name);
+                        let mut name = String::from("y_cluster");
+                        name.push_str(&vec_index.to_string());
+                        self.ensemble.output_y(name);
                         for val in &self.ensemble {
                             if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
                                 self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;
@@ -988,7 +1000,7 @@ pub mod ntime_resolved {
                 }
             }
 
-            if self.ensemble.try_clean(1000) {
+            if self.ensemble.try_clean(0, self.remove_clusters) {
                 for val in &self.ensemble {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
                         self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;

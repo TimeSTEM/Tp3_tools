@@ -7,7 +7,7 @@ pub mod cluster {
     use rayon::prelude::*;
     
     const VIDEO_TIME: usize = 5000; //Video time for spim (ns).
-    const CLUSTER_DET:usize = 50; //Cluster time window (ns).
+    const CLUSTER_DET:usize = 200; //Cluster time window (ns).
     pub const SPIM_PIXELS: usize = 1024;
 
     pub struct CollectionElectron {
@@ -73,8 +73,8 @@ pub mod cluster {
             self.remove_clusters();
         }
 
-        pub fn try_clean(&mut self, min_size: usize) -> bool {
-            if self.data.len() > min_size {
+        pub fn try_clean(&mut self, min_size: usize, remove: bool) -> bool {
+            if self.data.len() > min_size && remove {
                 self.sort();
                 self.remove_clusters();
                 true
@@ -84,11 +84,35 @@ pub mod cluster {
         }
 
         pub fn output_time(&self, filename: String) {
+            println!("Outputting T. Vec len is: {}.", self.data.len());
             let mut tfile = OpenOptions::new()
-                .append(true)
+                .append(false)
+                .write(true)
+                .truncate(true)
                 .create(true)
                 .open(&filename).expect("Could not output time histogram.");
             let out: String = self.data.iter().map(|x| x.time().to_string()).collect::<Vec<String>>().join(", ");
+            tfile.write_all(out.as_ref()).expect("Could not write time to file.");
+        }
+        pub fn output_x(&self, filename: String) {
+            println!("Outputting x. Vec len is: {}.", self.data.len());
+            let mut tfile = OpenOptions::new()
+                .append(false)
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open(&filename).expect("Could not output x histogram.");
+            let out: String = self.data.iter().map(|x| x.x().to_string()).collect::<Vec<String>>().join(", ");
+            tfile.write_all(out.as_ref()).expect("Could not write time to file.");
+        }
+        pub fn output_y(&self, filename: String) {
+            let mut tfile = OpenOptions::new()
+                .append(false)
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open(&filename).expect("Could not output x histogram.");
+            let out: String = self.data.iter().map(|x| x.y().to_string()).collect::<Vec<String>>().join(", ");
             tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
     }
@@ -148,7 +172,7 @@ pub mod cluster {
         fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
             let cluster_size: usize = cluster.len();
             
-            let t_mean:usize = cluster.iter().map(|se| se.data.0).sum::<usize>() / cluster_size as usize;
+            let t_mean:usize = cluster.iter().map(|se| se.data.0).sum::<usize>() / cluster_size;
             //let t_mean:usize = cluster.iter().map(|se| se.data.0).next().unwrap();
             
             let x_mean:usize = cluster.iter().map(|se| se.data.1).sum::<usize>() / cluster_size;
@@ -156,12 +180,12 @@ pub mod cluster {
             
             let y_mean:usize = cluster.iter().map(|se| se.data.2).sum::<usize>() / cluster_size;
             //let y_mean:usize = cluster.iter().map(|se| se.data.2).next().unwrap();
-            
+
             //let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot, _)| tot as usize).sum::<usize>() / cluster_size) as u16;
             
             let time_dif: usize = cluster.iter().map(|se| se.data.3).next().unwrap();
             let slice: usize = cluster.iter().map(|se| se.data.4).next().unwrap();
-            
+
             SingleElectron {
                 data: (t_mean, x_mean, y_mean, time_dif, slice),
             }
