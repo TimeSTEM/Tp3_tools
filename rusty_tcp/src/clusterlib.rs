@@ -8,6 +8,7 @@ pub mod cluster {
     
     const VIDEO_TIME: usize = 5000; //Video time for spim (ns).
     const CLUSTER_DET:usize = 200; //Cluster time window (ns).
+    const CLUSTER_SPATIAL: isize = 2; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
     pub const SPIM_PIXELS: usize = 1024;
 
     pub struct CollectionElectron {
@@ -117,10 +118,10 @@ pub mod cluster {
         }
     }
 
-    ///ToA, X, Y, Spim dT, Spim Slice
+    ///ToA, X, Y, Spim dT, Spim Slice, ToT
     #[derive(Copy, Clone, Debug)]
     pub struct SingleElectron {
-        data: (usize, usize, usize, usize, usize),
+        data: (usize, usize, usize, usize, usize, u16),
     }
 
 
@@ -130,12 +131,12 @@ pub mod cluster {
             match begin_frame {
                 Some(frame_time) => {
                     SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice),
+                        data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice, pack.tot()),
                     }
                 },
                 None => {
                     SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), 0, slice),
+                        data: (ele_time, pack.x(), pack.y(), 0, slice, pack.tot()),
                     }
                 },
             }
@@ -150,6 +151,12 @@ pub mod cluster {
         pub fn time(&self) -> usize {
             self.data.0
         }
+        pub fn tot(&self) -> u16 {
+            self.data.5
+        }
+        pub fn frame_dt(&self) -> usize {
+            self.data.3
+        }
         pub fn image_index(&self) -> usize {
             self.data.1 + SPIM_PIXELS*self.data.2
         }
@@ -161,7 +168,7 @@ pub mod cluster {
         }
 
         fn is_new_cluster(&self, s: &SingleElectron) -> bool {
-            if self.data.0 > s.data.0 + CLUSTER_DET || (self.data.1 as isize - s.data.1 as isize).abs() > 2 || (self.data.2 as isize - s.data.2 as isize).abs() > 2 {
+            if self.data.0 > s.data.0 + CLUSTER_DET || (self.data.1 as isize - s.data.1 as isize).abs() > CLUSTER_SPATIAL || (self.data.2 as isize - s.data.2 as isize).abs() > CLUSTER_SPATIAL {
                 true
             } else {
                 false
@@ -172,22 +179,16 @@ pub mod cluster {
         fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
             let cluster_size: usize = cluster.len();
             
-            let t_mean:usize = cluster.iter().map(|se| se.data.0).sum::<usize>() / cluster_size;
-            //let t_mean:usize = cluster.iter().map(|se| se.data.0).next().unwrap();
+            let t_mean:usize = cluster.iter().map(|se| se.time()).sum::<usize>() / cluster_size;
+            let x_mean:usize = cluster.iter().map(|se| se.x()).sum::<usize>() / cluster_size;
+            let y_mean:usize = cluster.iter().map(|se| se.y()).sum::<usize>() / cluster_size;
+            let tot_mean: u16 = (cluster.iter().map(|se| se.tot() as usize).sum::<usize>() / cluster_size) as u16;
             
-            let x_mean:usize = cluster.iter().map(|se| se.data.1).sum::<usize>() / cluster_size;
-            //let x_mean:usize = cluster.iter().map(|se| se.data.1).next().unwrap();
-            
-            let y_mean:usize = cluster.iter().map(|se| se.data.2).sum::<usize>() / cluster_size;
-            //let y_mean:usize = cluster.iter().map(|se| se.data.2).next().unwrap();
-
-            //let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot, _)| tot as usize).sum::<usize>() / cluster_size) as u16;
-            
-            let time_dif: usize = cluster.iter().map(|se| se.data.3).next().unwrap();
-            let slice: usize = cluster.iter().map(|se| se.data.4).next().unwrap();
+            let time_dif: usize = cluster.iter().map(|se| se.frame_dt()).next().unwrap();
+            let slice: usize = cluster.iter().map(|se| se.spim_slice()).next().unwrap();
 
             SingleElectron {
-                data: (t_mean, x_mean, y_mean, time_dif, slice),
+                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_mean),
             }
         }
 
