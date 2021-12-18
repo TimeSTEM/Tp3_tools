@@ -9,8 +9,7 @@ pub mod coincidence {
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
 
     const TIME_WIDTH: usize = 200; //Time width to correlate (ns).
-    const TIME_DELAY: usize = 100_000 - 1875; //Time delay to correlate (ns).
-    //const TIME_DELAY: usize = 160; //Time delay to correlate (ns).
+    const TIME_DELAY: usize = 100_000 - 1850; //Time delay to correlate (ns).
     const MIN_LEN: usize = 1000; // Sliding time window size.
 
     #[derive(Debug)]
@@ -79,12 +78,10 @@ pub mod coincidence {
         fn add_coincident_electron(&mut self, val: SingleElectron, photon_time: usize) {
             self.corr_spectrum[val.image_index()] += 1;
             self.time.push(val.time());
-            //self.rel_time.push(val.data.0 as isize - photon_time as isize);
             self.rel_time.push(val.relative_time(photon_time));
             self.x.push(val.x());
             self.y.push(val.y());
             if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
-            //if let Some(index) = self.calculate_index(val.data.3, val.data.1) {
                 self.spim_index.push(index);
             }
         }
@@ -877,10 +874,9 @@ pub mod ntime_resolved {
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
-    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
+    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, SPIM_PIXELS};
     use std::fs;
     
-    const SPIM_PIXELS: usize = 1024;
 
     #[derive(Debug)]
     pub enum ErrorType {
@@ -958,7 +954,14 @@ pub mod ntime_resolved {
                 let vec_index = (corrected_el-offset) / self.interval;
                 while self.spectra.len() < vec_index + 1 {
                     self.expand_data();
-                    self.ensemble.try_clean_and_append(&mut self.spectra, self.tdc_periodic, self.spimx, self.spimy, self.remove_clusters, 1000);
+                    if self.ensemble.try_clean(1000) {
+                        for val in &self.ensemble {
+                            if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
+                                self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;
+                            }
+                        }
+                        self.ensemble = CollectionElectron::new();
+                    }
                 }
                 let se = SingleElectron::new(packet, self.begin_frame, vec_index);
                 self.ensemble.add_electron(se);
@@ -985,9 +988,16 @@ pub mod ntime_resolved {
                     return Err(ErrorType::FolderNotCreated);
                 }
             }
+
+            if self.ensemble.try_clean(1000) {
+                for val in &self.ensemble {
+                    if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
+                        self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;
+                    }
+                }
+                self.ensemble = CollectionElectron::new();
+            }
                     
-            self.ensemble.try_clean_and_append(&mut self.spectra, self.tdc_periodic, self.spimx, self.spimy, self.remove_clusters, 0);
-            
             let mut folder: String = String::from(&self.folder);
             folder.push_str("\\");
             folder.push_str(&(self.spectra.len()).to_string());

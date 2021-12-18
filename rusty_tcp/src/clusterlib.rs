@@ -6,7 +6,7 @@ pub mod cluster {
     
     const VIDEO_TIME: usize = 5000; //Video time for spim (ns).
     const CLUSTER_DET:usize = 50; //Cluster time window (ns).
-    const SPIM_PIXELS: usize = 1024;
+    pub const SPIM_PIXELS: usize = 1024;
 
     pub struct CollectionElectron {
         data: Vec<SingleElectron>,
@@ -18,6 +18,15 @@ pub mod cluster {
 
         fn into_iter(self) -> Self::IntoIter {
             self.data.into_iter()
+        }
+    }
+    
+    impl<'a> IntoIterator for &'a CollectionElectron {
+        type Item = &'a SingleElectron;
+        type IntoIter = std::slice::Iter<'a, SingleElectron>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            self.data.iter()
         }
     }
 
@@ -62,18 +71,13 @@ pub mod cluster {
             self.remove_clusters();
         }
 
-        pub fn try_clean_and_append(&mut self, array: &mut Vec<Vec<usize>>, frame_tdc: Option<PeriodicTdcRef>, xspim: usize, yspim: usize, remove_clusters: bool, min_length: usize) {
-            if self.data.len() > min_length {
-                if remove_clusters {
-                    self.sort();
-                    self.remove_clusters();
-                }
-                for val in &self.data {
-                    if let Some(index) = val.get_or_not_spim_index(frame_tdc, xspim, yspim) {
-                        val.append_sliced_array(array, index);
-                    }
-                }
-                self.data = Vec::new();
+        pub fn try_clean(&mut self, min_size: usize) -> bool {
+            if self.data.len() > min_size {
+                self.sort();
+                self.remove_clusters();
+                true
+            } else {
+                false
             }
         }
     }
@@ -116,6 +120,9 @@ pub mod cluster {
         }
         pub fn relative_time(&self, reference_time: usize) -> isize {
             self.data.0 as isize - reference_time as isize
+        }
+        pub fn spim_slice(&self) -> usize {
+            self.data.4
         }
 
         fn is_new_cluster(&self, s: &SingleElectron) -> bool {
@@ -168,13 +175,9 @@ pub mod cluster {
                 let result = r * xspim + rin;
                 Some(result)
             } else {
-                Some(0)
+                None
             }
         }
 
-        fn append_sliced_array(&self, array: &mut Vec<Vec<usize>>, index: usize) {
-            array[self.data.4][index*SPIM_PIXELS+self.data.1] += 1;
-            
-        }
     }
 }
