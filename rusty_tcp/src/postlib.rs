@@ -8,9 +8,11 @@ pub mod coincidence {
     use rayon::prelude::*;
     use std::time::Instant;
 
-    const TIME_WIDTH: usize = 200; //Time width to correlate (ns).
-    const TIME_DELAY: usize = 160; //Time delay to correlate (ns).
-    const MIN_LEN: usize = 100; // Sliding time window size.
+    const TIME_WIDTH: usize = 13; //Time width to correlate (ns).
+    //const TIME_DELAY: usize = 100_000 - 1875; //Time delay to correlate (ns).
+    const TIME_DELAY: usize = 13; //Time delay to correlate (ns).
+    //const TIME_DELAY: usize = 160; //Time delay to correlate (ns).
+    const MIN_LEN: usize = 1000; // Sliding time window size.
     const SPIM_PIXELS: usize = 1025; //Number of pixels in the spim. Last pixel is currently off.
     const VIDEO_TIME: usize = 5000; //Video time for spim (ns).
     const CLUSTER_DET:usize = 50; //Cluster time window (ns).
@@ -395,7 +397,7 @@ pub mod coincidence {
         } else {
             Box::new(NonPeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create non periodic TDC reference."))
         };
-        let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic (photon) TDC reference.");
+        let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut file0).expect("Could not create non periodic (photon) TDC reference.");
 
         
         
