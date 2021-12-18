@@ -2,6 +2,8 @@ pub mod cluster {
     
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::tdclib::PeriodicTdcRef;
+    use std::fs::OpenOptions;
+    use std::io::Write;
     use rayon::prelude::*;
     
     const VIDEO_TIME: usize = 5000; //Video time for spim (ns).
@@ -79,6 +81,15 @@ pub mod cluster {
             } else {
                 false
             }
+        }
+
+        pub fn output_time(&self, filename: String) {
+            let mut tfile = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(&filename).expect("Could not output time histogram.");
+            let out: String = self.data.iter().map(|x| x.time().to_string()).collect::<Vec<String>>().join(", ");
+            tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
     }
 

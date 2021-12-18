@@ -92,7 +92,6 @@ pub mod coincidence {
             println!("Supplementary events: {}.", nphotons);
             
             temp_edata.electron.clean();
-        
 
             for val in temp_edata.electron {
                 self.add_electron(val);
