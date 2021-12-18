@@ -18,8 +18,9 @@ start = time.time()
 #FOLDER = '../TCPFiletoStream/GainRawTP3/25-53-25262(132)'
 #FOLDER = '../TCPFiletoStream/gain_data'
 FOLDER = 'C:/Users/AUAD/Downloads/05-03-2021/25-53-25262'
-WIDTH = 100e-6 #200e-9
-DELAY = 0 #1800e-9
+#FOLDER = 'C:/Users/AUAD/Downloads/gainLuiz'
+WIDTH = 200e-9
+DELAY = 1800e-9
 MAX_HOR = 1024
 MIN_HOR = 0
 
@@ -123,20 +124,20 @@ print(f'Total time is {finish-start} with {i} events (events, tdcs, rejected eve
 print(last_laser[2]-last_laser[1])
 print(last_laser[1]-last_laser[0])
 
-fig, ax = plt.subplots(1, 1, figsize=(8, 2), dpi=600)
-ax.hist2d(xL, yL, bins=(512, 256), range=([0, 1024], [0, 256]), norm=mcolors.PowerNorm(0.1))
-ax.axvline(x=MIN_HOR, color='red')
-ax.axvline(x=MAX_HOR, color='white')
+fig, ax = plt.subplots(2, 1, figsize=(8, 2), dpi=600)
+ax[0].hist2d(xL, yL, bins=(512, 256), range=([0, 1024], [0, 256]), norm=mcolors.PowerNorm(0.1))
+ax[0].axvline(x=MIN_HOR, color='red')
+ax[0].axvline(x=MAX_HOR, color='white')
 
 
 #ax[0].plot(spec)
-#ax[1].hist(Tafter, bins=127, density = False, range=(DELAY*1e6, (DELAY+WIDTH)*1e6))
+ax[1].hist(Tafter, bins=64, density = False, range=(DELAY*1e6, (DELAY+WIDTH)*1e6))
                 
-ax.set_ylabel('X (pixels)')
-ax.set_xlabel('Y (pixels)')
+ax[0].set_ylabel('X (pixels)')
+ax[0].set_xlabel('Y (pixels)')
 
-#ax[1].set_ylabel('Event counts')
-#ax[1].set_xlabel('Time Elapsed from TDC (us)')
+ax[1].set_ylabel('Event counts')
+ax[1].set_xlabel('Time Elapsed from TDC (us)')
 
 plt.tight_layout()
 plt.savefig(FOLDER + '.pdf')
