@@ -9,7 +9,16 @@ pub mod cluster {
     const SPIM_PIXELS: usize = 1024;
 
     pub struct CollectionElectron {
-        pub data: Vec<SingleElectron>,
+        data: Vec<SingleElectron>,
+    }
+
+    impl IntoIterator for CollectionElectron {
+        type Item = SingleElectron;
+        type IntoIter = std::vec::IntoIter<Self::Item>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            self.data.into_iter()
+        }
     }
 
     impl CollectionElectron {
@@ -72,7 +81,7 @@ pub mod cluster {
     ///ToA, X, Y, Spim dT, Spim Slice
     #[derive(Copy, Clone, Debug)]
     pub struct SingleElectron {
-        pub data: (usize, usize, usize, usize, usize),
+        data: (usize, usize, usize, usize, usize),
     }
 
 
@@ -91,6 +100,22 @@ pub mod cluster {
                     }
                 },
             }
+        }
+
+        pub fn x(&self) -> usize {
+            self.data.1
+        }
+        pub fn y(&self) -> usize {
+            self.data.2
+        }
+        pub fn time(&self) -> usize {
+            self.data.0
+        }
+        pub fn image_index(&self) -> usize {
+            self.data.1 + SPIM_PIXELS*self.data.2
+        }
+        pub fn relative_time(&self, reference_time: usize) -> isize {
+            self.data.0 as isize - reference_time as isize
         }
 
         fn is_new_cluster(&self, s: &SingleElectron) -> bool {
@@ -125,6 +150,7 @@ pub mod cluster {
         }
 
         pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: usize, yspim: usize) -> Option<usize> {
+            
             if let Some(frame_tdc) = spim_tdc {
                 let interval = frame_tdc.low_time;
                 let period = frame_tdc.period;

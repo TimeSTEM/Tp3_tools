@@ -64,7 +64,7 @@ pub mod coincidence {
 
     impl ElectronData {
         fn add_electron(&mut self, val: SingleElectron) {
-            self.spectrum[val.data.1 + 1024*val.data.2] += 1;
+            self.spectrum[val.image_index()] += 1;
         }
 
         fn add_spim_line<T: TdcControl + ?Sized >(&mut self, pack: &Pack, spim_tdc: &mut T) {
@@ -77,11 +77,12 @@ pub mod coincidence {
         }
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon_time: usize) {
-            self.corr_spectrum[val.data.1 + 1024*val.data.2] += 1;
-            self.time.push(val.data.0);
-            self.rel_time.push(val.data.0 as isize - photon_time as isize);
-            self.x.push(val.data.1);
-            self.y.push(val.data.2);
+            self.corr_spectrum[val.image_index()] += 1;
+            self.time.push(val.time());
+            //self.rel_time.push(val.data.0 as isize - photon_time as isize);
+            self.rel_time.push(val.relative_time(photon_time));
+            self.x.push(val.x());
+            self.y.push(val.y());
             if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
             //if let Some(index) = self.calculate_index(val.data.3, val.data.1) {
                 self.spim_index.push(index);
@@ -96,7 +97,7 @@ pub mod coincidence {
             temp_edata.electron.clean();
         
 
-            for val in temp_edata.electron.data {
+            for val in temp_edata.electron {
                 self.add_electron(val);
                 if let Some(pht) = temp_tdc.check(val) {
                     self.add_coincident_electron(val, pht);
@@ -235,7 +236,7 @@ pub mod coincidence {
             
             let result = self.tdc[self.min_index..self.min_index+MIN_LEN].iter()
                 .enumerate()
-                .find(|(_, x)| ((**x as isize - value.data.0 as isize).abs() as usize) < TIME_WIDTH);
+                .find(|(_, x)| ((**x as isize - value.time() as isize).abs() as usize) < TIME_WIDTH);
             
             match result {
                 Some((index, pht_value)) => {
