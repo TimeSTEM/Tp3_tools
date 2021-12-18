@@ -21,7 +21,7 @@ pub mod cluster {
         pub fn add_electron(&mut self, electron: SingleElectron) {
             self.data.push(electron);
         }
-        pub fn remove_clusters(&mut self) {
+        fn remove_clusters(&mut self) {
             let nelectrons = self.data.len();
             let mut nelist: Vec<SingleElectron> = Vec::new();
             let mut cs_list: Vec<usize> = Vec::new();
@@ -46,6 +46,11 @@ pub mod cluster {
 
         fn sort(&mut self) {
             self.data.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
+        }
+
+        pub fn clean(&mut self) {
+            self.sort();
+            self.remove_clusters();
         }
 
         pub fn try_clean_and_append(&mut self, array: &mut Vec<Vec<usize>>, frame_tdc: Option<PeriodicTdcRef>, xspim: usize, yspim: usize, remove_clusters: bool, min_length: usize) {
@@ -119,7 +124,7 @@ pub mod cluster {
             }
         }
 
-        fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: usize, yspim: usize) -> Option<usize> {
+        pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: usize, yspim: usize) -> Option<usize> {
             if let Some(frame_tdc) = spim_tdc {
                 let interval = frame_tdc.low_time;
                 let period = frame_tdc.period;

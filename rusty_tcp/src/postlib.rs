@@ -5,17 +5,13 @@ pub mod coincidence {
     use std::io;
     use std::io::prelude::*;
     use std::fs;
-    use rayon::prelude::*;
     use std::time::Instant;
+    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
 
-    const TIME_WIDTH: usize = 13; //Time width to correlate (ns).
-    //const TIME_DELAY: usize = 100_000 - 1875; //Time delay to correlate (ns).
-    const TIME_DELAY: usize = 13; //Time delay to correlate (ns).
+    const TIME_WIDTH: usize = 200; //Time width to correlate (ns).
+    const TIME_DELAY: usize = 100_000 - 1875; //Time delay to correlate (ns).
     //const TIME_DELAY: usize = 160; //Time delay to correlate (ns).
     const MIN_LEN: usize = 1000; // Sliding time window size.
-    const SPIM_PIXELS: usize = 1025; //Number of pixels in the spim. Last pixel is currently off.
-    const VIDEO_TIME: usize = 5000; //Video time for spim (ns).
-    const CLUSTER_DET:usize = 50; //Cluster time window (ns).
 
     #[derive(Debug)]
     pub struct Config {
@@ -62,9 +58,8 @@ pub mod coincidence {
         pub is_spim: bool,
         pub spim_size: (usize, usize),
         pub begin_frame: Option<usize>,
-        pub spim_period: Option<usize>,
-        pub spim_low_time: Option<usize>,
         pub spim_index: Vec<usize>,
+        pub spim_tdc: Option<PeriodicTdcRef>,
     }
 
     impl ElectronData {
@@ -87,45 +82,21 @@ pub mod coincidence {
             self.rel_time.push(val.data.0 as isize - photon_time as isize);
             self.x.push(val.data.1);
             self.y.push(val.data.2);
-            if self.is_spim {
-                if let Some(index) = self.calculate_index(val.data.3, val.data.1) {
-                    self.spim_index.push(index);
-                }
+            if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
+            //if let Some(index) = self.calculate_index(val.data.3, val.data.1) {
+                self.spim_index.push(index);
             }
         }
-
         
-        fn calculate_index(&self, dt: usize, x: usize) -> Option<usize> {
-            let per = self.spim_period.expect("Spim period was none.");
-            let lt = self.spim_low_time.expect("Spim low time was none.");
-            let val = dt % per;
-            if val < lt {
-                let mut r = dt / per; //how many periods -> which line to put.
-                let rin = self.spim_size.0 * val / lt; //Column
-        
-                if r > (self.spim_size.1-1) {
-                    r %= self.spim_size.1
-                }
-                
-                Some((r * self.spim_size.0 + rin) * SPIM_PIXELS + x)
-            } else {
-                None
-            }
-        }
-
         fn add_events(&mut self, mut temp_edata: TempElectronData, mut temp_tdc: TempTdcData) {
-            temp_edata.sort();
             temp_tdc.sort();
-            let nelectrons = temp_edata.electron.len();
             let nphotons = temp_tdc.tdc.len();
+            println!("Supplementary events: {}.", nphotons);
             
-            let mut cs = temp_edata.remove_clusters();
-            let nclusters = cs.len();
-            self.cluster_size.append(&mut cs);
+            temp_edata.electron.clean();
         
-            println!("Electron events: {}. Number of clusters: {}, Number of photons: {}", nelectrons, nclusters, nphotons);
 
-            for val in temp_edata.electron {
+            for val in temp_edata.electron.data {
                 self.add_electron(val);
                 if let Some(pht) = temp_tdc.check(val) {
                     self.add_coincident_electron(val, pht);
@@ -135,10 +106,9 @@ pub mod coincidence {
             println!("Number of coincident electrons: {:?}", self.x.len());
         }
 
-        fn prepare_spim(&mut self, spim_tdc: &PeriodicTdcRef) {
+        fn prepare_spim(&mut self, spim_tdc: PeriodicTdcRef) {
             assert!(self.is_spim);
-            self.spim_period = Some(spim_tdc.period);
-            self.spim_low_time = Some(spim_tdc.low_time);
+            self.spim_tdc = Some(spim_tdc);
         }
 
         pub fn new(my_config: &Config) -> Self {
@@ -154,9 +124,8 @@ pub mod coincidence {
                 is_spim: my_config.is_spim,
                 spim_size: (my_config.xspim, my_config.yspim),
                 begin_frame: None,
-                spim_period: None,
-                spim_low_time: None,
                 spim_index: Vec::new(),
+                spim_tdc: None,
             }
         }
         
@@ -280,107 +249,20 @@ pub mod coincidence {
         }
     }
 
-    #[derive(Copy, Clone)]
-    pub struct SingleElectron {
-        pub data: (usize, usize, usize, usize),
-    }
-
-
-    impl SingleElectron {
-        fn try_new(pack: &Pack, begin_frame: Option<usize>) -> Option<Self> {
-            let ele_time = pack.electron_time();
-            match begin_frame {
-                Some(frame_time) if ele_time > frame_time + VIDEO_TIME => {
-                    Some(SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), ele_time - frame_time - VIDEO_TIME),
-                    })
-                },
-                None => {
-                    Some(SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), 0),
-                    })
-                },
-                _ => None,
-            }
-        }
-
-        fn is_new_cluster(f: &SingleElectron, s: &SingleElectron) -> bool {
-            if f.data.0 > s.data.0 + CLUSTER_DET || (f.data.1 as isize - s.data.1 as isize).abs() > 2 || (f.data.2 as isize - s.data.2 as isize).abs() > 2 {
-                true
-            } else {
-                false
-            }
-        }
-
-
-        fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
-            let cluster_size: usize = cluster.len();
-            
-            let t_mean:usize = cluster.iter().map(|se| se.data.0).sum::<usize>() / cluster_size as usize;
-            //let t_mean:usize = cluster.iter().map(|se| se.data.0).next().unwrap();
-            
-            let x_mean:usize = cluster.iter().map(|se| se.data.1).sum::<usize>() / cluster_size;
-            //let x_mean:usize = cluster.iter().map(|se| se.data.1).next().unwrap();
-            
-            let y_mean:usize = cluster.iter().map(|se| se.data.2).sum::<usize>() / cluster_size;
-            //let y_mean:usize = cluster.iter().map(|se| se.data.2).next().unwrap();
-            
-            //let tot_mean: u16 = (cluster_vec.iter().map(|&(_, _, _, tot, _)| tot as usize).sum::<usize>() / cluster_size) as u16;
-            
-            let time_dif: usize = cluster.iter().map(|se| se.data.3).next().unwrap();
-            
-            SingleElectron {
-                data: (t_mean, x_mean, y_mean, time_dif),
-            }
-        }
-    }
-
-
     pub struct TempElectronData {
-        pub electron: Vec<SingleElectron>, //Time, X, Y and ToT and Time difference (for Spim positioning)
+        pub electron: CollectionElectron, //Time, X, Y and ToT and Time difference (for Spim positioning)
         pub min_index: usize,
     }
 
     impl TempElectronData {
         fn new() -> Self {
             Self {
-                electron: Vec::new(),
+                electron: CollectionElectron::new(),
                 min_index: 0,
             }
         }
-
-        fn remove_clusters(&mut self) -> Vec<usize> {
-            let mut nelist:Vec<SingleElectron> = Vec::new();
-            let mut cs_list: Vec<usize> = Vec::new();
-
-            let mut last: SingleElectron = self.electron[0];
-            let mut cluster_vec: Vec<SingleElectron> = Vec::new();
-            for x in &self.electron {
-                if SingleElectron::is_new_cluster(x, &last) {
-                    let cluster_size: usize = cluster_vec.len();
-                    let new_from_cluster = SingleElectron::new_from_cluster(&cluster_vec);
-                    nelist.push(new_from_cluster);
-                    cs_list.push(cluster_size);
-                    cluster_vec = Vec::new();
-                }
-                last = *x;
-                cluster_vec.push(*x);
-            }
-            self.electron = nelist;
-            cs_list
-        }
-
-
-        fn add_temp_electron(&mut self, my_pack: &Pack, frame_time: Option<usize>) {
-            if let Some(se) = SingleElectron::try_new(my_pack, frame_time) {
-                self.electron.push(se);
-            }
-        }
-
-        fn sort(&mut self) {
-            self.electron.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
-        }
     }
+
             
 
     pub fn search_coincidence(file: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
@@ -392,7 +274,7 @@ pub mod coincidence {
                 panic!("Spim mode is on. X and Y pixels must be greater than 0.");
             }
             let temp = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create period TDC reference.");
-            coinc_data.prepare_spim(&temp);
+            coinc_data.prepare_spim(temp);
             Box::new(temp)
         } else {
             Box::new(NonPeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create non periodic TDC reference."))
@@ -427,7 +309,8 @@ pub mod coincidence {
                                 coinc_data.add_spim_line(&packet, &mut *spim_tdc);
                             },
                             11 => {
-                                temp_edata.add_temp_electron(&packet, coinc_data.begin_frame);
+                                let se = SingleElectron::new(&packet, coinc_data.begin_frame, 0);
+                                temp_edata.electron.add_electron(se);
                             },
                             _ => {},
                         };
