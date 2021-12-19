@@ -78,14 +78,13 @@ pub mod cluster {
             if self.data.len() > min_size && remove {
                 self.sort();
                 self.remove_clusters();
-                true
-            } else {
-                false
+                return true
             }
+            !remove
         }
 
-        pub fn output_time(&self, filename: String) {
-            println!("Outputting T. Vec len is: {}.", self.data.len());
+        pub fn output_time(&self, mut filename: String, code: usize) {
+            filename.push_str(&code.to_string());
             let mut tfile = OpenOptions::new()
                 .append(false)
                 .write(true)
@@ -95,8 +94,8 @@ pub mod cluster {
             let out: String = self.data.iter().map(|x| x.time().to_string()).collect::<Vec<String>>().join(", ");
             tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
-        pub fn output_x(&self, filename: String) {
-            println!("Outputting x. Vec len is: {}.", self.data.len());
+        pub fn output_x(&self, mut filename: String, code: usize) {
+            filename.push_str(&code.to_string());
             let mut tfile = OpenOptions::new()
                 .append(false)
                 .write(true)
@@ -106,7 +105,8 @@ pub mod cluster {
             let out: String = self.data.iter().map(|x| x.x().to_string()).collect::<Vec<String>>().join(", ");
             tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
-        pub fn output_y(&self, filename: String) {
+        pub fn output_y(&self, mut filename: String, code: usize) {
+            filename.push_str(&code.to_string());
             let mut tfile = OpenOptions::new()
                 .append(false)
                 .write(true)
@@ -114,6 +114,17 @@ pub mod cluster {
                 .create(true)
                 .open(&filename).expect("Could not output x histogram.");
             let out: String = self.data.iter().map(|x| x.y().to_string()).collect::<Vec<String>>().join(", ");
+            tfile.write_all(out.as_ref()).expect("Could not write time to file.");
+        }
+        pub fn output_tot(&self, mut filename: String, code: usize) {
+            filename.push_str(&code.to_string());
+            let mut tfile = OpenOptions::new()
+                .append(false)
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open(&filename).expect("Could not output x histogram.");
+            let out: String = self.data.iter().map(|x| x.tot().to_string()).collect::<Vec<String>>().join(", ");
             tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
     }
@@ -182,7 +193,8 @@ pub mod cluster {
             let t_mean:usize = cluster.iter().map(|se| se.time()).sum::<usize>() / cluster_size;
             let x_mean:usize = cluster.iter().map(|se| se.x()).sum::<usize>() / cluster_size;
             let y_mean:usize = cluster.iter().map(|se| se.y()).sum::<usize>() / cluster_size;
-            let tot_mean: u16 = (cluster.iter().map(|se| se.tot() as usize).sum::<usize>() / cluster_size) as u16;
+            //let tot_mean: u16 = (cluster.iter().map(|se| se.tot() as usize).sum::<usize>() / cluster_size) as u16;
+            let tot_mean: u16 = cluster.iter().map(|se| se.tot() as usize).sum::<usize>() as u16;
             
             let time_dif: usize = cluster.iter().map(|se| se.frame_dt()).next().unwrap();
             let slice: usize = cluster.iter().map(|se| se.spim_slice()).next().unwrap();
