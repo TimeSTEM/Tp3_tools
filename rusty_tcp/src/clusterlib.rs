@@ -16,13 +16,18 @@ pub mod cluster {
         data: Vec<SingleElectron>,
     }
     impl CollectionElectron {
+
         pub fn values(&self) -> Inspector {
             Inspector{iter: self.data.iter()}
+        }
+
+        pub fn first_value(&self) -> SingleElectron {
+            *self.data.iter().filter(|x| x.cluster_size() == 1).next().unwrap()
         }
     }
 
     pub struct Inspector<'a> {
-        iter: std::slice::Iter<'a, SingleElectron>
+        iter: std::slice::Iter<'a, SingleElectron>,
     }
 
     impl<'a> Iterator for Inspector<'a> {
@@ -69,28 +74,25 @@ pub mod cluster {
             let mut nelist: Vec<SingleElectron> = Vec::new();
             let mut cs_list: Vec<usize> = Vec::new();
 
-            let mut last: SingleElectron = self.data[0];
+            let mut last: SingleElectron = self.first_value();
             let mut cluster_vec: Vec<SingleElectron> = Vec::new();
-            for x in self.data.iter().filter(|val| val.cluster_size() == 1) {
-                if x.is_new_cluster(&last) {
-                    let cluster_size: usize = cluster_vec.len();
-                    let new_from_cluster = SingleElectron::new_from_cluster(&cluster_vec);
-                    nelist.push(new_from_cluster);
-                    cs_list.push(cluster_size);
-                    cluster_vec = Vec::new();
-                }
-                last = *x;
-                cluster_vec.push(*x);
+            for x in self.values() {
+                    if x.cluster_size() == 1 {
+                        if x.is_new_cluster(&last) {
+                            let cluster_size: usize = cluster_vec.len();
+                            let new_from_cluster = SingleElectron::new_from_cluster(&cluster_vec);
+                            nelist.push(new_from_cluster);
+                            cs_list.push(cluster_size);
+                            cluster_vec = Vec::new();
+                        }
+                        last = *x;
+                        cluster_vec.push(*x);
+                    }
             }
             self.data = nelist;
             let new_nelectrons = self.data.len();
             println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
         }
-
-        //fn get_iterator(&self) -> std::iter::Filter<I, P> {
-        //    let iter = self.data.iter().filter(|val| val.cluster_size() == 1);
-        //    iter
-        //}
 
         fn sort(&mut self) {
             self.data.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
