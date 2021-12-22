@@ -11,10 +11,29 @@ pub mod cluster {
     const CLUSTER_SPATIAL: isize = 2; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
     pub const SPIM_PIXELS: usize = 1024;
 
+    #[derive(Debug)]
     pub struct CollectionElectron {
         data: Vec<SingleElectron>,
     }
+    impl CollectionElectron {
+        pub fn values(&self) -> Inspector {
+            Inspector{iter: self.data.iter()}
+        }
+    }
 
+    pub struct Inspector<'a> {
+        iter: std::slice::Iter<'a, SingleElectron>
+    }
+
+    impl<'a> Iterator for Inspector<'a> {
+        type Item = &'a SingleElectron;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            self.iter.next()
+        }
+    }
+
+    /*
     impl IntoIterator for CollectionElectron {
         type Item = SingleElectron;
         type IntoIter = std::vec::IntoIter<Self::Item>;
@@ -32,6 +51,9 @@ pub mod cluster {
             self.data.iter()
         }
     }
+    */
+    
+    
 
     impl CollectionElectron {
         pub fn new() -> Self {
@@ -49,7 +71,7 @@ pub mod cluster {
 
             let mut last: SingleElectron = self.data[0];
             let mut cluster_vec: Vec<SingleElectron> = Vec::new();
-            for x in &self.data {
+            for x in self.data.iter().filter(|val| val.cluster_size() == 1) {
                 if x.is_new_cluster(&last) {
                     let cluster_size: usize = cluster_vec.len();
                     let new_from_cluster = SingleElectron::new_from_cluster(&cluster_vec);
@@ -64,6 +86,11 @@ pub mod cluster {
             let new_nelectrons = self.data.len();
             println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
         }
+
+        //fn get_iterator(&self) -> std::iter::Filter<I, P> {
+        //    let iter = self.data.iter().filter(|val| val.cluster_size() == 1);
+        //    iter
+        //}
 
         fn sort(&mut self) {
             self.data.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
@@ -214,9 +241,9 @@ pub mod cluster {
             let tot_sum: u16 = cluster.iter().map(|se| se.tot() as usize).sum::<usize>() as u16;
             let cluster_size: usize = cluster_size;
 
-            //if t_mean >= 3187876439 && t_mean <= 3187876543 {
-            //    println!("{:?}", cluster);
-            //}
+            if t_mean >= 3187876439 && t_mean <= 3187876543 {
+                println!("{:?}", cluster);
+            }
 
             //if x_mean == 258 {
             //    println!("{:?}", cluster);

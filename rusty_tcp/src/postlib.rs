@@ -93,13 +93,13 @@ pub mod coincidence {
             
             temp_edata.electron.clean();
 
-            for val in temp_edata.electron {
-                self.add_electron(val);
-                if let Some(pht) = temp_tdc.check(val) {
-                    self.add_coincident_electron(val, pht);
+            for val in temp_edata.electron.values() {
+                self.add_electron(*val);
+                if let Some(pht) = temp_tdc.check(*val) {
+                    self.add_coincident_electron(*val, pht);
                 }
             };
-            
+
             println!("Number of coincident electrons: {:?}", self.x.len());
         }
 
@@ -965,7 +965,7 @@ pub mod ntime_resolved {
                             self.ensemble.output_tot(String::from("tot_cluster"), vec_index);
                             self.ensemble.output_cluster_size(String::from("cluster_size"), vec_index);
                         }
-                        for val in &self.ensemble {
+                        for val in self.ensemble.values() {
                             if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
                                 self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;
                             }
@@ -1000,7 +1000,7 @@ pub mod ntime_resolved {
             }
 
             if self.ensemble.try_clean(0, self.remove_clusters) {
-                for val in &self.ensemble {
+                for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
                         self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;
                     }
