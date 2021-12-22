@@ -953,16 +953,17 @@ pub mod ntime_resolved {
                 let vec_index = (corrected_el-offset) / self.interval;
                 while self.spectra.len() < vec_index + 1 {
                     self.expand_data();
-                    if vec_index == 3 {
+                    if vec_index == 2 {
                         self.ensemble.output_time(String::from("time_no_cluster"), vec_index);
                         self.ensemble.output_tot(String::from("tot_no_cluster"), vec_index);
                     }
                     if self.ensemble.try_clean(1000, self.remove_clusters) {
-                        if vec_index == 3 {
+                        if vec_index == 2 {
                             self.ensemble.output_time(String::from("time_cluster"), vec_index);
                             self.ensemble.output_x(String::from("x_cluster"), vec_index);
                             self.ensemble.output_y(String::from("y_cluster"), vec_index);
                             self.ensemble.output_tot(String::from("tot_cluster"), vec_index);
+                            self.ensemble.output_cluster_size(String::from("cluster_size"), vec_index);
                         }
                         for val in &self.ensemble {
                             if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {

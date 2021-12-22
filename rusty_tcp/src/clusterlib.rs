@@ -127,27 +127,41 @@ pub mod cluster {
             let out: String = self.data.iter().map(|x| x.tot().to_string()).collect::<Vec<String>>().join(", ");
             tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
+        pub fn output_cluster_size(&self, mut filename: String, code: usize) {
+            filename.push_str(&code.to_string());
+            let mut tfile = OpenOptions::new()
+                .append(false)
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open(&filename).expect("Could not output x histogram.");
+            let out: String = self.data.iter().map(|x| x.cluster_size().to_string()).collect::<Vec<String>>().join(", ");
+            tfile.write_all(out.as_ref()).expect("Could not write time to file.");
+        }
     }
 
-    ///ToA, X, Y, Spim dT, Spim Slice, ToT
+    ///ToA, X, Y, Spim dT, Spim Slice, ToT, Cluster Size
     #[derive(Copy, Clone, Debug)]
     pub struct SingleElectron {
-        data: (usize, usize, usize, usize, usize, u16),
+        data: (usize, usize, usize, usize, usize, u16, usize),
     }
 
 
     impl SingleElectron {
         pub fn new(pack: &Pack, begin_frame: Option<usize>, slice: usize) -> Self {
             let ele_time = pack.electron_time();
+            if pack.x() == 257 || pack.x() == 254 {
+                println!("found one {}", pack.x());
+            }
             match begin_frame {
                 Some(frame_time) => {
                     SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice, pack.tot()),
+                        data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice, pack.tot(), 1),
                     }
                 },
                 None => {
                     SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), 0, slice, pack.tot()),
+                        data: (ele_time, pack.x(), pack.y(), 0, slice, pack.tot(), 1),
                     }
                 },
             }
@@ -177,6 +191,9 @@ pub mod cluster {
         pub fn spim_slice(&self) -> usize {
             self.data.4
         }
+        pub fn cluster_size(&self) -> usize {
+            self.data.6
+        }
 
         fn is_new_cluster(&self, s: &SingleElectron) -> bool {
             if self.data.0 > s.data.0 + CLUSTER_DET || (self.data.1 as isize - s.data.1 as isize).abs() > CLUSTER_SPATIAL || (self.data.2 as isize - s.data.2 as isize).abs() > CLUSTER_SPATIAL {
@@ -186,21 +203,27 @@ pub mod cluster {
             }
         }
 
-
         fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
             let cluster_size: usize = cluster.len();
             
             let t_mean:usize = cluster.iter().map(|se| se.time()).sum::<usize>() / cluster_size;
             let x_mean:usize = cluster.iter().map(|se| se.x()).sum::<usize>() / cluster_size;
             let y_mean:usize = cluster.iter().map(|se| se.y()).sum::<usize>() / cluster_size;
-            //let tot_mean: u16 = (cluster.iter().map(|se| se.tot() as usize).sum::<usize>() / cluster_size) as u16;
-            let tot_mean: u16 = cluster.iter().map(|se| se.tot() as usize).sum::<usize>() as u16;
-            
             let time_dif: usize = cluster.iter().map(|se| se.frame_dt()).next().unwrap();
             let slice: usize = cluster.iter().map(|se| se.spim_slice()).next().unwrap();
+            let tot_sum: u16 = cluster.iter().map(|se| se.tot() as usize).sum::<usize>() as u16;
+            let cluster_size: usize = cluster_size;
+
+            //if t_mean >= 3187876439 && t_mean <= 3187876543 {
+            //    println!("{:?}", cluster);
+            //}
+
+            //if x_mean == 258 {
+            //    println!("{:?}", cluster);
+            //}
 
             SingleElectron {
-                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_mean),
+                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
             }
         }
 
