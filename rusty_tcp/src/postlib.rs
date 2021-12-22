@@ -970,7 +970,6 @@ pub mod ntime_resolved {
                                 self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;
                             }
                         }
-                        //self.ensemble.try_clean(0, self.remove_clusters);
                         self.ensemble = CollectionElectron::new();
                     }
                 }
