@@ -70,28 +70,27 @@ pub mod cluster {
             self.data.push(electron);
         }
         fn remove_clusters(&mut self) {
-            let nelectrons = self.data.len();
             let mut nelist: Vec<SingleElectron> = Vec::new();
-            let mut cs_list: Vec<usize> = Vec::new();
 
             let mut last: SingleElectron = self.first_value();
             let mut cluster_vec: Vec<SingleElectron> = Vec::new();
             for x in self.values() {
                     if x.cluster_size() == 1 {
+                        if last.cluster_size() != 1 {
+                            println!("{:?}", last);
+                        }
                         if x.is_new_cluster(&last) {
-                            let cluster_size: usize = cluster_vec.len();
                             let new_from_cluster = SingleElectron::new_from_cluster(&cluster_vec);
                             nelist.push(new_from_cluster);
-                            cs_list.push(cluster_size);
                             cluster_vec = Vec::new();
                         }
                         last = *x;
                         cluster_vec.push(*x);
+                    } else {
+                        nelist.push(*x);
                     }
             }
             self.data = nelist;
-            let new_nelectrons = self.data.len();
-            println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
         }
 
         fn sort(&mut self) {
@@ -105,8 +104,14 @@ pub mod cluster {
 
         pub fn try_clean(&mut self, min_size: usize, remove: bool) -> bool {
             if self.data.len() > min_size && remove {
+                let nelectrons = self.data.len();
                 self.sort();
-                self.remove_clusters();
+                for _x in 0..2 {
+                    self.remove_clusters();
+                }
+                self.sort();
+                let new_nelectrons = self.data.len();
+                println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
                 return true
             }
             !remove
@@ -179,9 +184,6 @@ pub mod cluster {
     impl SingleElectron {
         pub fn new(pack: &Pack, begin_frame: Option<usize>, slice: usize) -> Self {
             let ele_time = pack.electron_time();
-            if pack.x() == 257 || pack.x() == 254 {
-                println!("found one {}", pack.x());
-            }
             match begin_frame {
                 Some(frame_time) => {
                     SingleElectron {
@@ -242,14 +244,6 @@ pub mod cluster {
             let slice: usize = cluster.iter().map(|se| se.spim_slice()).next().unwrap();
             let tot_sum: u16 = cluster.iter().map(|se| se.tot() as usize).sum::<usize>() as u16;
             let cluster_size: usize = cluster_size;
-
-            if t_mean >= 3187876439 && t_mean <= 3187876543 {
-                println!("{:?}", cluster);
-            }
-
-            //if x_mean == 258 {
-            //    println!("{:?}", cluster);
-            //}
 
             SingleElectron {
                 data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
