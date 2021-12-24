@@ -1063,32 +1063,33 @@ pub mod ntime_resolved {
         }
 
         let mut file = fs::File::open(file).expect("Could not open desired file.");
-        let mut buffer: Vec<u8> = Vec::new();
-        file.read_to_end(&mut buffer).expect("Could not write file on buffer.");
+        let mut buffer: Vec<u8> = vec![0; 128_000_000];
 
         let mut ci = 0usize;
-        let mut packet_chunks = buffer.chunks_exact(8);
 
-        while let Some(pack_oct) = packet_chunks.next() {
-            match pack_oct {
-                &[84, 80, 88, 51, nci, _, _, _] => {ci = nci as usize},
-                _ => {
-                    let packet = Pack{chip_index: ci, data: pack_oct};
-                    match packet.id() {
-                        6 => {
-                            for each in data.set.iter_mut() {
-                                each.add_tdc(&packet);
-                            }
-                        },
-                        11 => {
-                            for each in data.set.iter_mut() {
-                                each.add_packet(&packet);
-                            }
-                        },
-                        _ => {},
-                    };
-                },
-            };
+        while let Ok(size) = file.read(&mut buffer) {
+            if size==0 {break;}
+            buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+                match pack_oct {
+                    &[84, 80, 88, 51, nci, _, _, _] => {ci = nci as usize},
+                    _ => {
+                        let packet = Pack{chip_index: ci, data: pack_oct};
+                        match packet.id() {
+                            6 => {
+                                for each in data.set.iter_mut() {
+                                    each.add_tdc(&packet);
+                                }
+                            },
+                            11 => {
+                                for each in data.set.iter_mut() {
+                                    each.add_packet(&packet);
+                                }
+                            },
+                            _ => {},
+                        };
+                    },
+                };
+            });
         };
     }
 }
