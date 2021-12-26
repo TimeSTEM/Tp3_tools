@@ -1070,13 +1070,13 @@ pub mod ntime_resolved {
             each.prepare(&mut file);
         }
 
-        let mut file = fs::File::open(file).expect("Could not open desired file.");
+        let mut my_file = fs::File::open(file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = vec![0; 128_000_000];
 
         let mut total_size = 0;
         let mut ci = 0usize;
 
-        while let Ok(size) = file.read(&mut buffer) {
+        while let Ok(size) = my_file.read(&mut buffer) {
             if size==0 {break;}
             total_size += size;
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
@@ -1103,7 +1103,7 @@ pub mod ntime_resolved {
             for each in data.set.iter_mut() {
                 each.process();
             }
-            println!("Total number of bytes read (MB): {}", total_size/1_000_000);
+            println!("File: {:?}. Total number of bytes read (MB): ~ {}", file, total_size/1_000_000);
         };
     }
 }

@@ -17,7 +17,6 @@ fn main() -> Result<(), ErrorType> {
     while let Some(x) = entries.next() {
         let path = x.unwrap().path();
         let dir = path.to_str().unwrap();
-        println!("Looping over file {:}.", dir);
         analyze_data(dir, &mut specs);
     }
 
