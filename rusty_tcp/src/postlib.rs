@@ -888,8 +888,9 @@ pub mod ntime_resolved {
 
     pub trait TimeTypes {
         fn prepare(&mut self, file: &mut fs::File);
-        fn add_packet(&mut self, packet: &Pack);
+        fn add_electron(&mut self, packet: &Pack);
         fn add_tdc(&mut self, packet: &Pack);
+        fn process(&mut self);
         fn output(&mut self) -> Result<(), ErrorType>;
         fn display_info(&self) -> Result<(), ErrorType>;
     }
@@ -926,7 +927,7 @@ pub mod ntime_resolved {
                 _ => None,
             };
         }
-        fn add_packet(&mut self, packet: &Pack) {
+        fn add_electron(&mut self, packet: &Pack) {
             //Getting Initial Time
             self.initial_time = match self.initial_time {
                 Some(t) => {Some(t)},
@@ -953,12 +954,13 @@ pub mod ntime_resolved {
                 let vec_index = (corrected_el-offset) / self.interval;
                 while self.spectra.len() < vec_index + 1 {
                     self.expand_data();
-                    if vec_index == 2 {
+                    /*
+                    if vec_index == 1 {
                         self.ensemble.output_time(String::from("time_no_cluster"), vec_index);
                         self.ensemble.output_tot(String::from("tot_no_cluster"), vec_index);
                     }
                     if self.ensemble.try_clean(1000, self.remove_clusters) {
-                        if vec_index == 2 {
+                        if vec_index == 1 {
                             self.ensemble.output_time(String::from("time_cluster"), vec_index);
                             self.ensemble.output_x(String::from("x_cluster"), vec_index);
                             self.ensemble.output_y(String::from("y_cluster"), vec_index);
@@ -972,6 +974,7 @@ pub mod ntime_resolved {
                         }
                         self.ensemble = CollectionElectron::new();
                     }
+                    */
                 }
                 let se = SingleElectron::new(packet, self.begin_frame, vec_index);
                 self.ensemble.add_electron(se);
@@ -991,6 +994,19 @@ pub mod ntime_resolved {
                 _ => {},
             };
         }
+
+        fn process(&mut self) {
+            //let total = self.ensemble.values().filter(|(val)| val.spim_slice() == 1).count();
+            if self.ensemble.try_clean(1000, self.remove_clusters) {
+                for val in self.ensemble.values() {
+                    if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
+                        self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;
+                    }
+                }
+                self.ensemble = CollectionElectron::new();
+            }
+        }
+
 
         fn output(&mut self) -> Result<(), ErrorType> {
             if let Err(_) = fs::read_dir(&self.folder) {
@@ -1065,10 +1081,12 @@ pub mod ntime_resolved {
         let mut file = fs::File::open(file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = vec![0; 128_000_000];
 
+        let mut total_size = 0;
         let mut ci = 0usize;
 
         while let Ok(size) = file.read(&mut buffer) {
             if size==0 {break;}
+            total_size += size;
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match pack_oct {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci = nci as usize},
@@ -1082,7 +1100,7 @@ pub mod ntime_resolved {
                             },
                             11 => {
                                 for each in data.set.iter_mut() {
-                                    each.add_packet(&packet);
+                                    each.add_electron(&packet);
                                 }
                             },
                             _ => {},
@@ -1090,6 +1108,10 @@ pub mod ntime_resolved {
                     },
                 };
             });
+            for each in data.set.iter_mut() {
+                each.process();
+            }
+            println!("Total number of bytes read (MB): {}", total_size/1_000_000);
         };
     }
 }
