@@ -125,7 +125,7 @@ pub mod cluster {
                 .truncate(true)
                 .create(true)
                 .open(&filename).expect("Could not output time histogram.");
-            let out: String = self.data.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            let out: String = self.data.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(",");
             tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
 
@@ -137,7 +137,7 @@ pub mod cluster {
                 .truncate(true)
                 .create(true)
                 .open(&filename).expect("Could not output time histogram.");
-            let out: String = self.data.iter().map(|x| x.time().to_string()).collect::<Vec<String>>().join(", ");
+            let out: String = self.data.iter().map(|x| x.time().to_string()).collect::<Vec<String>>().join(",");
             tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
         pub fn output_x(&self, mut filename: String, code: usize) {
@@ -148,7 +148,7 @@ pub mod cluster {
                 .truncate(true)
                 .create(true)
                 .open(&filename).expect("Could not output x histogram.");
-            let out: String = self.data.iter().map(|x| x.x().to_string()).collect::<Vec<String>>().join(", ");
+            let out: String = self.data.iter().map(|x| x.x().to_string()).collect::<Vec<String>>().join(",");
             tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
         pub fn output_y(&self, mut filename: String, code: usize) {
@@ -159,7 +159,7 @@ pub mod cluster {
                 .truncate(true)
                 .create(true)
                 .open(&filename).expect("Could not output x histogram.");
-            let out: String = self.data.iter().map(|x| x.y().to_string()).collect::<Vec<String>>().join(", ");
+            let out: String = self.data.iter().map(|x| x.y().to_string()).collect::<Vec<String>>().join(",");
             tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
         pub fn output_tot(&self, mut filename: String, code: usize) {
@@ -170,7 +170,7 @@ pub mod cluster {
                 .truncate(true)
                 .create(true)
                 .open(&filename).expect("Could not output x histogram.");
-            let out: String = self.data.iter().map(|x| x.tot().to_string()).collect::<Vec<String>>().join(", ");
+            let out: String = self.data.iter().map(|x| x.tot().to_string()).collect::<Vec<String>>().join(",");
             tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
         pub fn output_cluster_size(&self, mut filename: String, code: usize) {
@@ -181,7 +181,7 @@ pub mod cluster {
                 .truncate(true)
                 .create(true)
                 .open(&filename).expect("Could not output x histogram.");
-            let out: String = self.data.iter().map(|x| x.cluster_size().to_string()).collect::<Vec<String>>().join(", ");
+            let out: String = self.data.iter().map(|x| x.cluster_size().to_string()).collect::<Vec<String>>().join(",");
             tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
     }
