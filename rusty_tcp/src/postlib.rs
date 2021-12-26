@@ -891,7 +891,7 @@ pub mod ntime_resolved {
         fn add_electron(&mut self, packet: &Pack);
         fn add_tdc(&mut self, packet: &Pack);
         fn process(&mut self);
-        fn output(&mut self) -> Result<(), ErrorType>;
+        fn output(&self) -> Result<(), ErrorType>;
         fn display_info(&self) -> Result<(), ErrorType>;
     }
 
@@ -1008,22 +1008,13 @@ pub mod ntime_resolved {
         }
 
 
-        fn output(&mut self) -> Result<(), ErrorType> {
+        fn output(&self) -> Result<(), ErrorType> {
             if let Err(_) = fs::read_dir(&self.folder) {
                 if let Err(_) = fs::create_dir(&self.folder) {
                     return Err(ErrorType::FolderNotCreated);
                 }
             }
 
-            if self.ensemble.try_clean(0, self.remove_clusters) {
-                for val in self.ensemble.values() {
-                    if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
-                        self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;
-                    }
-                }
-                self.ensemble = CollectionElectron::new();
-            }
-                    
             let mut folder: String = String::from(&self.folder);
             folder.push_str("\\");
             folder.push_str(&(self.spectra.len()).to_string());

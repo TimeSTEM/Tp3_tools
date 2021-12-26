@@ -117,6 +117,18 @@ pub mod cluster {
             !remove
         }
 
+        pub fn output_data(&self, mut filename: String, code: usize) {
+            filename.push_str(&code.to_string());
+            let mut tfile = OpenOptions::new()
+                .append(false)
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open(&filename).expect("Could not output time histogram.");
+            let out: String = self.data.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
+            tfile.write_all(out.as_ref()).expect("Could not write time to file.");
+        }
+
         pub fn output_time(&self, mut filename: String, code: usize) {
             filename.push_str(&code.to_string());
             let mut tfile = OpenOptions::new()
@@ -180,6 +192,27 @@ pub mod cluster {
         data: (usize, usize, usize, usize, usize, u16, usize),
     }
 
+    impl ToString for SingleElectron {
+        fn to_string(&self) -> String {
+
+            let mut val = String::from(self.data.0.to_string());
+            val.push_str(",");
+            val.push_str(&self.data.1.to_string());
+            val.push_str(",");
+            val.push_str(&self.data.2.to_string());
+            val.push_str(",");
+            val.push_str(&self.data.3.to_string());
+            val.push_str(",");
+            val.push_str(&self.data.4.to_string());
+            val.push_str(",");
+            val.push_str(&self.data.5.to_string());
+            val.push_str(",");
+            val.push_str(&self.data.6.to_string());
+            
+            val
+        }
+    }
+
 
     impl SingleElectron {
         pub fn new(pack: &Pack, begin_frame: Option<usize>, slice: usize) -> Self {
@@ -227,7 +260,7 @@ pub mod cluster {
         }
 
         fn is_new_cluster(&self, s: &SingleElectron) -> bool {
-            if self.data.0 > s.data.0 + CLUSTER_DET || (self.data.1 as isize - s.data.1 as isize).abs() > CLUSTER_SPATIAL || (self.data.2 as isize - s.data.2 as isize).abs() > CLUSTER_SPATIAL {
+            if self.time() > s.time() + CLUSTER_DET || (self.x() as isize - s.x() as isize).abs() > CLUSTER_SPATIAL || (self.y() as isize - s.y() as isize).abs() > CLUSTER_SPATIAL {
                 true
             } else {
                 false
@@ -256,9 +289,9 @@ pub mod cluster {
                 let interval = frame_tdc.low_time;
                 let period = frame_tdc.period;
 
-                let val = self.data.3 % period;
+                let val = self.frame_dt() % period;
                 if val >= interval {return None;}
-                let mut r = self.data.3 / period;
+                let mut r = self.frame_dt() / period;
                 let rin = val * xspim / interval;
 
                 if r > yspim -1 {
