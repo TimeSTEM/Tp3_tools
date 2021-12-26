@@ -996,8 +996,9 @@ pub mod ntime_resolved {
         }
 
         fn process(&mut self) {
-            //let total = self.ensemble.values().filter(|(val)| val.spim_slice() == 1).count();
+            //self.ensemble.output_data(String::from("entire_data"), 2);
             if self.ensemble.try_clean(1000, self.remove_clusters) {
+                //self.ensemble.output_data(String::from("entire_data_cluster"), 2);
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
                         self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;

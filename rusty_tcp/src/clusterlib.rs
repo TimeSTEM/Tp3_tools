@@ -117,16 +117,17 @@ pub mod cluster {
             !remove
         }
 
-        pub fn output_data(&self, mut filename: String, code: usize) {
-            filename.push_str(&code.to_string());
+        pub fn output_data(&self, filename: String, slice: usize) {
             let mut tfile = OpenOptions::new()
-                .append(false)
-                .write(true)
-                .truncate(true)
+                .append(true)
                 .create(true)
                 .open(&filename).expect("Could not output time histogram.");
-            let out: String = self.data.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(",");
-            tfile.write_all(out.as_ref()).expect("Could not write time to file.");
+            let out: Vec<String> = self.data.iter().filter(|se| se.spim_slice()==slice).map(|x| x.to_string()).collect::<Vec<String>>();
+            if out.len() > 0 {
+                println!("Outputting data for slice {}. Number of electrons: {}", slice, out.len());
+            }
+            let out_str: String = out.join(",");
+            tfile.write_all(out_str.as_ref()).expect("Could not write time to file.");
         }
 
         pub fn output_time(&self, mut filename: String, code: usize) {
