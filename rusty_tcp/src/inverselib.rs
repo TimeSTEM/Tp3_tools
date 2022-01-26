@@ -1,4 +1,5 @@
 pub mod inverselib {
+    use crate::packetlib::{Packet, PacketEELS as Pack};
     pub struct InvPacketEELS {
         x: usize,
         y: usize,
@@ -13,8 +14,22 @@ pub mod inverselib {
             let ftoa_ticks = ctoa % 25;
             (spidr_ticks, toa_ticks, ftoa_ticks)
         }
-    }
 
+        fn create_electron_event(&self) {
+            let data: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0]; 
+            let packet = Pack {
+                chip_index: 0,
+                data: &data
+            };
+        }
+                
+    }
+    
+    #[test]
+    fn it_works() {
+        println!("k");
+        assert_eq!(2+2, 4);
+    }
 
 
 }
