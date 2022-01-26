@@ -76,9 +76,6 @@ pub mod cluster {
             let mut cluster_vec: Vec<SingleElectron> = Vec::new();
             for x in self.values() {
                     if x.cluster_size() == 1 {
-                        if last.cluster_size() != 1 {
-                            println!("{:?}", last);
-                        }
                         if x.is_new_cluster(&last) {
                             let new_from_cluster = SingleElectron::new_from_cluster(&cluster_vec);
                             nelist.push(new_from_cluster);
@@ -122,12 +119,12 @@ pub mod cluster {
                 .append(true)
                 .create(true)
                 .open(&filename).expect("Could not output time histogram.");
-            let out: Vec<String> = self.data.iter().filter(|se| se.spim_slice()==slice).map(|x| x.to_string()).collect::<Vec<String>>();
+            let out: Vec<String> = self.data.iter().filter(|se| se.spim_slice()==slice && se.tot() > 60 && se.tot() < 220).map(|x| x.to_string()).collect::<Vec<String>>();
             if out.len() > 0 {
                 println!("Outputting data for slice {}. Number of electrons: {}", slice, out.len());
+                let out_str: String = out.join(",");
+                tfile.write_all(out_str.as_ref()).expect("Could not write time to file.");
             }
-            let out_str: String = out.join(",");
-            tfile.write_all(out_str.as_ref()).expect("Could not write time to file.");
         }
 
         pub fn output_time(&self, mut filename: String, code: usize) {
