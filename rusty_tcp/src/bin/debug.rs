@@ -1,12 +1,12 @@
 use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
-use timepix3::{speclib, spimlib, chronolib, speclib::SpecKind, spimlib::SpimKind};
+use timepix3::{speclib, spimlib, speclib::SpecKind, spimlib::SpimKind};
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
     
-    let (my_settings, mut pack, ns) = Settings::create_debug_settings(false)?;
+    let (my_settings, mut pack, ns) = Settings::create_debug_settings(true)?;
 
     match my_settings.mode {
         0 if my_settings.bin => {
@@ -37,9 +37,9 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             Ok(my_settings.mode)
         },
         6 => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
-            chronolib::build_chrono(pack, ns, my_settings, frame_tdc, np_tdc)?;
+            //let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
+            //let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack)?;
+            //chronolib::build_chrono(pack, ns, my_settings, frame_tdc, np_tdc)?;
             Ok(my_settings.mode)
         },
         _ => Err(Tp3ErrorKind::MiscModeNotImplemented(my_settings.mode)),

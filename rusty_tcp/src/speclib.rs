@@ -5,6 +5,7 @@ use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::Write;
+use std::convert::TryInto;
 //use rayon::prelude::*;
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
@@ -388,47 +389,6 @@ impl LiveTR1D {
     }
 }
 
-/*
-pub fn build_spectrum_thread<T, V>(mut pack_sock: V, mut vec_ns_sock: Vec<TcpStream>, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T) 
-    where T: 'static + Send + TdcControl,
-          V: 'static + Send + Read
-{
-    
-    let (tx, rx) = mpsc::channel();
-    let start = Instant::now();
-    let mut last_ci = 0usize;
-    let mut buffer_pack_data = [0; BUFFER_SIZE];
-    let len: usize = ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0;
-    //let mut data_array: Vec<u8> = vec![0; ((CAM_DESIGN.1-1)*!my_settings.bin as usize + 1)*my_settings.bytedepth*CAM_DESIGN.0];
-    let mut data_array = vec![0; len + 1];
-    data_array[len] = 10;
-
-    thread::spawn(move || {
-        while let Ok(size) = pack_sock.read(&mut buffer_pack_data) {
-                if size == 0 {println!("Timepix3 sent zero bytes."); break;}
-                let new_data = &buffer_pack_data[0..size];
-                if build_data(new_data, &mut data_array, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
-                    let msg = create_header(&my_settings, &frame_tdc);
-                    tx.send((data_array.clone(), msg)).expect("could not send data in the thread channel.");
-                    if my_settings.cumul == false {
-                        data_array = vec![0; len + 1];
-                        data_array[len] = 10;
-                    };
-                    if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());}
-                 }
-        }
-    });
-
-    let mut ns_sock = vec_ns_sock.pop().expect("Could not pop nionswift main socket.");
-    for (result, msg) in rx {
-        if let Err(_) = ns_sock.write(&msg) {println!("Client disconnected on data."); break;}
-        if let Err(_) = ns_sock.write(&result) {println!("Client disconnected on data."); break;}
-    }
-    println!("Total elapsed time is: {:?}.", start.elapsed());
-}
-*/
-
-
 
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
 pub fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
@@ -464,7 +424,7 @@ fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
             _ => {
-                let packet = Pack { chip_index: *last_ci, data: x};
+                let packet = Pack { chip_index: *last_ci, data: x.try_into().unwrap()};
                 
                 match packet.id() {
                     11 => {
@@ -507,36 +467,6 @@ fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
         data[index] = data[index].wrapping_add(1);
     }
     
-    
-
-    /*
-    match bytedepth {
-        4 => {
-            data[index+3] = data[index+3].wrapping_add(1);
-            if data[index+3]==0 {
-                data[index+2] = data[index+2].wrapping_add(1);
-                if data[index+2]==0 {
-                    data[index+1] = data[index+1].wrapping_add(1);
-                    if data[index+1]==0 {
-                        data[index] = data[index].wrapping_add(1);
-                    };
-                };
-            };
-        },
-        2 => {
-            data[index+1] = data[index+1].wrapping_add(1);
-            if data[index+1]==0 {
-                data[index] = data[index].wrapping_add(1);
-            }
-        },
-        1 => {
-            data[index] = data[index].wrapping_add(1);
-        },
-        _ => {panic!("Bytedepth must be 1 | 2 | 4.");},
-    }
-    */
-    
-
 }
 
 fn append_to_array_roll(data: &mut [u8], index:usize, bytedepth: usize, roll: isize) {

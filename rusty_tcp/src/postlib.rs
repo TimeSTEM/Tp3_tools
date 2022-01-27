@@ -7,6 +7,7 @@ pub mod coincidence {
     use std::fs;
     use std::time::Instant;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
+    use std::convert::TryInto;
 
     const TIME_WIDTH: usize = 200; //Time width to correlate (ns).
     const TIME_DELAY: usize = 100_000 - 1850; //Time delay to correlate (ns).
@@ -297,7 +298,7 @@ pub mod coincidence {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci as usize;},
                     _ => {
-                        let packet = Pack { chip_index: ci, data: pack_oct };
+                        let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
                         match packet.id() {
                             6 if packet.tdc_type() == np_tdc.id() => {
                                 temp_tdc.add_tdc(&packet);
@@ -324,6 +325,7 @@ pub mod coincidence {
 }
 
 
+/*
 pub mod time_resolved {
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
@@ -836,7 +838,7 @@ pub mod time_resolved {
         };
     }
 }
-
+*/
 
 
 
@@ -874,6 +876,7 @@ pub mod ntime_resolved {
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, SPIM_PIXELS};
+    use std::convert::TryInto;
     use std::fs;
     
 
@@ -1083,7 +1086,7 @@ pub mod ntime_resolved {
                 match pack_oct {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci = nci as usize},
                     _ => {
-                        let packet = Pack{chip_index: ci, data: pack_oct};
+                        let packet = Pack{chip_index: ci, data: pack_oct.try_into().unwrap()};
                         match packet.id() {
                             6 => {
                                 for each in data.set.iter_mut() {
