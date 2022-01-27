@@ -1,9 +1,9 @@
 pub mod inverselib {
-    use crate::packetlib::{Packet, PacketEELS as Pack};
+    use crate::packetlib::{PacketEELS as Pack};
     pub struct InvPacketEELS {
-        x: usize,
-        y: usize,
-        time: usize,
+        pub x: usize,
+        pub y: usize,
+        pub time: usize,
     }
 
     impl InvPacketEELS {
@@ -15,12 +15,15 @@ pub mod inverselib {
             (spidr_ticks, toa_ticks, ftoa_ticks)
         }
 
-        fn create_electron_event(&self) {
-            let data: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0]; 
-            let packet = Pack {
+        pub fn create_electron_event(&self) -> Pack {
+            let a = self.x as u8;
+            let b = self.y as u8;
+            let (_c, _d, _e) = self.time_to_ticks();
+            let data: [u8; 8] = [a, b, 0, 1, 2, 0, 0, 0]; 
+            Pack {
                 chip_index: 0,
-                data: &data
-            };
+                data: data
+            }
         }
                 
     }
