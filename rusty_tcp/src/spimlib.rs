@@ -6,6 +6,7 @@ use std::time::Instant;
 use std::io::{Write};
 use std::sync::mpsc;
 use std::thread;
+use std::convert::TryInto;
 //use rayon::prelude::*;
 
 const VIDEO_TIME: usize = 5000;
@@ -277,7 +278,7 @@ fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_c
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
             _ => {
-                let packet = PacketEELS { chip_index: *last_ci, data: x};
+                let packet = PacketEELS { chip_index: *last_ci, data: x.try_into().unwrap()};
                 let id = packet.id();
                 match id {
                     11 => {

@@ -9,7 +9,6 @@ pub mod packetlib;
 pub mod postlib;
 pub mod speclib;
 pub mod spimlib;
-pub mod chronolib;
 pub mod errorlib;
 pub mod clusterlib;
 pub mod inverselib;

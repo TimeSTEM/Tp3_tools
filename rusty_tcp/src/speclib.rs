@@ -5,6 +5,7 @@ use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::Write;
+use std::convert::TryInto;
 //use rayon::prelude::*;
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
@@ -464,7 +465,7 @@ fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
             _ => {
-                let packet = Pack { chip_index: *last_ci, data: x};
+                let packet = Pack { chip_index: *last_ci, data: x.try_into().unwrap()};
                 
                 match packet.id() {
                     11 => {
