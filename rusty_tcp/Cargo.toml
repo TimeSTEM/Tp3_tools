@@ -1,6 +1,6 @@
 [package]
 name = "timepix3"
-version = "0.8.3"
+version = "0.9.0"
 authors = ["yvesauad <yvesauad@gmail.com>"]
 edition = "2018"
 
@@ -24,6 +24,6 @@ opt-level = 1
 [profile.release]
 opt-level = 3
 debug = true
-debuginfo-level=1
+#debuginfo-level=1
 lto = "thin"
 #codegen-units=1
