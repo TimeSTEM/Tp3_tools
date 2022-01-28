@@ -3,7 +3,7 @@
 
 pub trait Packet {
     fn ci(&self) -> usize;
-    fn data(&self) -> [u8; 8];
+    fn data(&self) -> &[u8; 8];
     fn x(&self) -> usize {
         let temp = ((self.data()[6] & 224)>>4 | (self.data()[7] << 4) | ((self.data()[5] & 112) >> 6)) as usize;
 
@@ -125,37 +125,37 @@ pub trait Packet {
 
 }
 
-pub struct PacketEELS {
+pub struct PacketEELS<'a> {
     pub chip_index: usize,
-    pub data: [u8; 8],
+    pub data: &'a [u8; 8],
 }
 
-impl Packet for PacketEELS {
+impl<'a> Packet for PacketEELS<'a> {
     fn ci(&self) -> usize {
         self.chip_index
     }
-    fn data(&self) -> [u8; 8] {
+    fn data(&self) -> &[u8; 8] {
         self.data
     }
 }
 
-impl PacketEELS {
+impl<'a> PacketEELS<'a> {
     pub const fn chip_array() -> (usize, usize) {
         (1025, 256)
     }
 }
 
 
-pub struct PacketDiffraction {
+pub struct PacketDiffraction<'a> {
     pub chip_index: usize,
-    pub data: [u8; 8],
+    pub data: &'a [u8; 8],
 }
 
-impl Packet for PacketDiffraction {
+impl<'a> Packet for PacketDiffraction<'a> {
     fn ci(&self) -> usize {
         self.chip_index
     }
-    fn data(&self) -> [u8; 8] {
+    fn data(&self) -> &[u8; 8] {
         self.data
     }
     fn x(&self) -> usize {
@@ -181,7 +181,7 @@ impl Packet for PacketDiffraction {
     }
 }
 
-impl PacketDiffraction {
+impl<'a> PacketDiffraction<'a> {
     pub const fn chip_array() -> (usize, usize) {
         (512, 512)
     }
