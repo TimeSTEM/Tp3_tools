@@ -11,7 +11,6 @@ pub mod speclib;
 pub mod spimlib;
 pub mod errorlib;
 pub mod clusterlib;
-pub mod inverselib;
 
 /*
 ///`message_board` is a module containing tools to display HTTP based informations about the

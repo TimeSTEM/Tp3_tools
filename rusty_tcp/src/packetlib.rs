@@ -121,8 +121,6 @@ pub trait Packet {
         //26843545600.0 * 1e-9
         26_843_545_600
     }
-
-
 }
 
 pub struct PacketEELS<'a> {
@@ -187,3 +185,29 @@ impl<'a> PacketDiffraction<'a> {
     }
 }
 
+pub struct InversePacket {
+    x: usize,
+    y: usize,
+    time: usize,
+    id: usize,
+}
+
+impl InversePacket {
+    pub fn create_array(&self) -> [u8; 8] {
+        let (spidr, toa_ticks, ftoa_ticks) = self.time_to_ticks();
+        let x_raw = self.x / 255;
+
+        let data5: u8 = ((self.x & 1) << 6 | (self.y & 4) << 5 | (self.y & 3) << 4 | (toa_ticks & 245_760) >> 10) as u8;
+        let data6: u8 = ((self.y & 248) >> 3 | (self.x & 14) << 4) as u8;
+        let data7: u8 = ((self.id & 15) << 4 | (self.x & 240) >> 4) as u8;
+        [0, 0, 0, 0, 0, 0, data6, data7]
+    }
+
+    pub fn time_to_ticks(&self) -> (usize, usize, usize) {
+        let spidr_ticks = self.time / 409_600;
+        let ctoa = self.time % 409_600;
+        let toa_ticks = ctoa / 25;
+        let ftoa_ticks = ctoa % 25;
+        (spidr_ticks, toa_ticks, ftoa_ticks)
+    }
+}

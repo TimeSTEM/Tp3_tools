@@ -20,9 +20,9 @@ pub mod inverselib {
             let b = self.y as u8;
             let (_c, _d, _e) = self.time_to_ticks();
             let data: [u8; 8] = [a, b, 0, 1, 2, 0, 0, 0]; 
-           // Pack {
-           //     chip_index: 0,
-            //    data: data
+            //Pack {
+            //    chip_index: 0,
+            //    data: &data
             //}
             0
         }
