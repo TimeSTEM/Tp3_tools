@@ -186,21 +186,21 @@ impl<'a> PacketDiffraction<'a> {
 }
 
 pub struct InversePacket {
-    x: usize,
-    y: usize,
-    time: usize,
-    id: usize,
+    pub x: usize,
+    pub y: usize,
+    pub time: usize,
+    pub id: usize,
 }
 
 impl InversePacket {
     pub fn create_array(&self) -> [u8; 8] {
-        let (spidr, toa_ticks, ftoa_ticks) = self.time_to_ticks();
+        let (_spidr, toa_ticks, _ftoa_ticks) = self.time_to_ticks();
         let x_raw = self.x / 255;
 
-        let data5: u8 = ((self.x & 1) << 6 | (self.y & 4) << 5 | (self.y & 3) << 4 | (toa_ticks & 245_760) >> 10) as u8;
-        let data6: u8 = ((self.y & 248) >> 3 | (self.x & 14) << 4) as u8;
-        let data7: u8 = ((self.id & 15) << 4 | (self.x & 240) >> 4) as u8;
-        [0, 0, 0, 0, 0, 0, data6, data7]
+        let data5: u8 = ((x_raw & 1) << 6 | (self.y & 4) << 5 | (self.y & 3) << 4 | (toa_ticks & 245_760) >> 10) as u8;
+        let data6: u8 = ((self.y & 248) >> 3 | (x_raw & 14) << 4) as u8;
+        let data7: u8 = ((self.id & 15) << 4 | (x_raw & 240) >> 4) as u8;
+        [0, 0, 0, 0, 0, data5, data6, data7]
     }
 
     pub fn time_to_ticks(&self) -> (usize, usize, usize) {
