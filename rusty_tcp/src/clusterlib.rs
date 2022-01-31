@@ -122,7 +122,7 @@ pub mod cluster {
             let out: Vec<String> = self.data.iter().filter(|se| se.spim_slice()==slice && se.tot() > 60 && se.tot() < 220).map(|x| x.to_string()).collect::<Vec<String>>();
             if out.len() > 0 {
                 println!("Outputting data for slice {}. Number of electrons: {}", slice, out.len());
-                let out_str: String = out.join(",");
+                let out_str: String = out.join("");
                 tfile.write_all(out_str.as_ref()).expect("Could not write time to file.");
             }
         }
@@ -193,19 +193,20 @@ pub mod cluster {
     impl ToString for SingleElectron {
         fn to_string(&self) -> String {
 
-            let mut val = String::from(self.data.0.to_string());
+            let mut val = String::from(self.time().to_string());
             val.push_str(",");
-            val.push_str(&self.data.1.to_string());
+            val.push_str(&self.x().to_string());
             val.push_str(",");
-            val.push_str(&self.data.2.to_string());
+            val.push_str(&self.y().to_string());
             val.push_str(",");
-            val.push_str(&self.data.3.to_string());
+            val.push_str(&self.frame_dt().to_string());
             val.push_str(",");
-            val.push_str(&self.data.4.to_string());
+            val.push_str(&self.spim_slice().to_string());
             val.push_str(",");
-            val.push_str(&self.data.5.to_string());
+            val.push_str(&self.tot().to_string());
             val.push_str(",");
-            val.push_str(&self.data.6.to_string());
+            val.push_str(&self.cluster_size().to_string());
+            val.push_str(",");
             
             val
         }
