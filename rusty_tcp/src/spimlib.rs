@@ -27,6 +27,26 @@ pub trait SpimKind {
     fn new() -> Self;
 }
 
+#[inline]
+fn get_spimindex(dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<usize> {
+    let val = dt % spim_tdc.period;
+    if val < spim_tdc.low_time {
+        let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
+        let rin = xspim * val / spim_tdc.low_time; //Column correction. Maybe not even needed.
+            
+            if r > (yspim-1) {
+                if r > ELECTRON_MAX {return None;} //This removes overflow electrons. See add_electron_hit
+                r %= yspim;
+            }
+            
+            let index = (r * xspim + rin) * SPIM_PIXELS;
+        
+            Some(index)
+        } else {
+            None
+        }
+}
+
 pub struct Live {
     data: Vec<(usize, usize)>,
 }
@@ -87,6 +107,7 @@ impl SpimKind for Live {
         let mut my_vec: Vec<u8> = Vec::with_capacity(BUFFER_SIZE / 2);
         self.data.iter()
             .filter_map(|&(x, dt)| {
+                //let index = get_spimindex(dt, spim_tdc, set.xspim_size, set.yspim_size);
                 let val = dt % spim_tdc.period;
                 if val < spim_tdc.low_time {
                 
