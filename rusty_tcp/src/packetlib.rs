@@ -193,14 +193,29 @@ pub struct InversePacket {
 }
 
 impl InversePacket {
-    pub fn create_array(&self) -> [u8; 8] {
-        let (_spidr, toa_ticks, _ftoa_ticks) = self.time_to_ticks();
-        let x_raw = self.x >> 8;
+    pub fn create_array(&self) -> [u8; 16] {
+        let (spidr, toa_ticks, ftoa_ticks) = self.time_to_ticks();
+        let tot_ticks = 255;
+        let x_raw = self.x % 256;
+        let mut ci: u8 = (self.x >> 8) as u8;
 
+        ci = if ci == 1 {
+            3
+        } else if ci == 3 {
+            1
+        } else {
+            ci
+        };
+
+        let data0: u8 = (spidr & 255) as u8;
+        let data1: u8 = ((spidr & 65_280) >> 8) as u8;
+        let data2: u8 = (ftoa_ticks | (tot_ticks & 15) << 4) as u8;
+        let data3: u8 = ((tot_ticks & 1_008) >> 4 | (toa_ticks & 3) << 6) as u8;
+        let data4: u8 = ((toa_ticks & 1_020) >> 2) as u8;
         let data5: u8 = ((x_raw & 1) << 6 | (self.y & 4) << 5 | (self.y & 3) << 4 | (toa_ticks & 15_360) >> 10) as u8;
         let data6: u8 = ((self.y & 248) >> 3 | (x_raw & 14) << 4) as u8;
         let data7: u8 = ((self.id & 15) << 4 | (x_raw & 240) >> 4) as u8;
-        [0, 0, 0, 0, 0, data5, data6, data7]
+        [84, 80, 88, 51, ci, 0, 8, 0, data0, data1, data2, data3, data4, data5, data6, data7]
     }
 
     pub fn time_to_ticks(&self) -> (usize, usize, usize) {
