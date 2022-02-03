@@ -195,9 +195,9 @@ pub struct InversePacket {
 impl InversePacket {
     pub fn create_array(&self) -> [u8; 8] {
         let (_spidr, toa_ticks, _ftoa_ticks) = self.time_to_ticks();
-        let x_raw = self.x / 255;
+        let x_raw = self.x >> 8;
 
-        let data5: u8 = ((x_raw & 1) << 6 | (self.y & 4) << 5 | (self.y & 3) << 4 | (toa_ticks & 245_760) >> 10) as u8;
+        let data5: u8 = ((x_raw & 1) << 6 | (self.y & 4) << 5 | (self.y & 3) << 4 | (toa_ticks & 15_360) >> 10) as u8;
         let data6: u8 = ((self.y & 248) >> 3 | (x_raw & 14) << 4) as u8;
         let data7: u8 = ((self.id & 15) << 4 | (x_raw & 240) >> 4) as u8;
         [0, 0, 0, 0, 0, data5, data6, data7]
