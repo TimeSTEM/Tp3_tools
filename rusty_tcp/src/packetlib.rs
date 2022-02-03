@@ -6,6 +6,7 @@ pub trait Packet {
     fn data(&self) -> &[u8; 8];
     fn x(&self) -> usize {
         let temp = ((self.data()[6] & 224)>>4 | (self.data()[7] << 4) | ((self.data()[5] & 112) >> 6)) as usize;
+        //(!temp & 255) | (temp & 768)
 
         match self.ci() {
             0 => 255 - temp,
@@ -192,10 +193,26 @@ pub struct InversePacket {
     pub id: usize,
 }
 
+use std::convert::TryInto;
+
 impl InversePacket {
+
+    pub fn new_inverse(x: usize, y: usize, time: usize) -> Self {
+        
+        let x = (!x & 255) | (x & 768);
+
+        let my_inv_packet = InversePacket {
+            x,
+            y,
+            time,
+            id: 11
+        };
+        my_inv_packet
+    }
+
     pub fn create_array(&self) -> [u8; 16] {
         let (spidr, toa_ticks, ftoa_ticks) = self.time_to_ticks();
-        let tot_ticks = 255;
+        let tot_ticks = 1023;
         let x_raw = self.x % 256;
         let mut ci: u8 = (self.x >> 8) as u8;
 
@@ -209,7 +226,7 @@ impl InversePacket {
 
         let data0: u8 = (spidr & 255) as u8;
         let data1: u8 = ((spidr & 65_280) >> 8) as u8;
-        let data2: u8 = (ftoa_ticks | (tot_ticks & 15) << 4) as u8;
+        let data2: u8 = (!ftoa_ticks | (tot_ticks & 15) << 4) as u8;
         let data3: u8 = ((tot_ticks & 1_008) >> 4 | (toa_ticks & 3) << 6) as u8;
         let data4: u8 = ((toa_ticks & 1_020) >> 2) as u8;
         let data5: u8 = ((x_raw & 1) << 6 | (self.y & 4) << 5 | (self.y & 3) << 4 | (toa_ticks & 15_360) >> 10) as u8;
@@ -218,11 +235,28 @@ impl InversePacket {
         [84, 80, 88, 51, ci, 0, 8, 0, data0, data1, data2, data3, data4, data5, data6, data7]
     }
 
+    pub fn test_func(&self) {
+        let my_inv_packet = InversePacket::new_inverse(128, 100, 3_111_005);
+
+        let my_data = my_inv_packet.create_array();
+        let my_packet = PacketEELS {
+            chip_index: my_data[4] as usize,
+            data: &my_data[8..16].try_into().unwrap()
+        };
+
+        println!("{} and {} and {} and {} and {} and {}", my_packet.x(), my_packet.y(), my_packet.x_raw(), my_packet.electron_time(), !my_packet.ftoa() & 15, my_packet.tot());
+    }
+
+
+
+
+
+
     pub fn time_to_ticks(&self) -> (usize, usize, usize) {
         let spidr_ticks = self.time / 409_600;
         let ctoa = self.time % 409_600;
         let toa_ticks = ctoa / 25;
-        let ftoa_ticks = ctoa % 25;
+        let ftoa_ticks = (ctoa % 25) * 16 / 25;
         (spidr_ticks, toa_ticks, ftoa_ticks)
     }
 }
