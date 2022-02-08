@@ -1,14 +1,13 @@
 use timepix3::packetlib::*;
 
 fn main() {
-    let inv = InversePacket {
-        x: 10,
-        y: 10,
-        time: 10,
-        id: 14
-    };
+    let inv = InversePacket::new_inverse_electron(10, 10, 10_000_000_000);
+    let tdc_inv = InversePacket::new_inverse_tdc(10_000_000_000);
 
-    inv.test_func();
+    //inv.test_func();
+    //inv.tdc_test_func();
+    
+    
 
 
 

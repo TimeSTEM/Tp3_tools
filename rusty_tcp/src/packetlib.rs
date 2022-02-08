@@ -202,14 +202,24 @@ impl InversePacket {
         
         let x = (!x & 255) | (x & 768);
 
-        let my_inv_packet = InversePacket {
+        InversePacket {
             x,
             y,
             time,
             id: 11
-        };
-        my_inv_packet
+        }
     }
+
+    pub fn new_inverse_tdc(time: usize) -> Self {
+
+        InversePacket {
+            x: 0,
+            y: 0,
+            time,
+            id: 6,
+        }
+    }
+
 
     pub fn create_electron_array(&self) -> [u8; 16] {
         let (spidr, toa_ticks, ftoa_ticks) = self.time_to_ticks();
@@ -244,8 +254,8 @@ impl InversePacket {
 
         let data0: u8 = ((res & 248) >> 3 | (ft & 7) << 5) as u8;
         let data1: u8 = ((ct & 127) << 1 | (ft & 8) >> 3) as u8;
-        let data2: u8 = ((ct * 32_640) >> 7 ) as u8;
-        let data3: u8 = ((ct * 8_355_840) >> 15) as u8;
+        let data2: u8 = ((ct & 32_640) >> 7 ) as u8;
+        let data3: u8 = ((ct & 8_355_840) >> 15) as u8;
         let data4: u8 = ((ct & 2_139_095_040) >> 23) as u8;
         let data5: u8 = ((counter & 15) << 4 | (ct & 32_212_254_720) >> 31) as u8;
         let data6: u8 = ((counter & 4080) >> 4) as u8;
@@ -266,6 +276,17 @@ impl InversePacket {
         println!("{} and {} and {} and {} and {} and {}", my_packet.x(), my_packet.y(), my_packet.x_raw(), my_packet.electron_time(), !my_packet.ftoa() & 15, my_packet.tot());
     }
 
+    pub fn tdc_test_func(&self) {
+        let my_inv_packet = InversePacket::new_inverse_tdc(26_844_000_000);
+
+        let my_data = my_inv_packet.create_tdc_array();
+        let my_packet = PacketEELS {
+            chip_index: my_data[4] as usize,
+            data: &my_data[8..16].try_into().unwrap()
+        };
+
+        println!("{} and {} and {} and {}", my_packet.id(), my_packet.tdc_time_norm(), my_packet.tdc_time(), my_packet.tdc_type());
+    }
 
     pub fn time_to_ticks(&self) -> (usize, usize, usize) {
         let spidr_ticks = self.time / 409_600;
@@ -276,13 +297,10 @@ impl InversePacket {
     }
     
     pub fn tdc_time_to_ticks(&self) -> (usize, usize) {
-        let coarseT = self.time / (1_000/320);
-        let fine_time = self.time % (1_000 / 320);
-        let fineT = fine_time * (1_000 / 260);
+        let coarse_ticks = self.time * 320 / 1_000;
+        let fine_time = ((self.time * 1000) % 3125) / 1000;
+        let fine_ticks = fine_time * 1_000 / 260;
  
-        (coarseT, fineT)
-
-
-
+        (coarse_ticks, fine_ticks)
     }
 }
