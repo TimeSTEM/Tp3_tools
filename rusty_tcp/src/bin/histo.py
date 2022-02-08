@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from matplotlib.widgets import Slider
 
-off = -2.1612
-disp = 0.0704
+off = 11.921
+disp = 0.08
 disparray = numpy.linspace(off, disp*1024, 1024)
 t = numpy.loadtxt("tH.txt", delimiter=',')
 xT = numpy.loadtxt("spec.txt", delimiter=',')
@@ -20,9 +20,12 @@ xH = numpy.loadtxt("xH.txt", delimiter=',')
 cRatio = numpy.divide(x, xT)
 
 #Bins
-tmax = int(numpy.max(t))
-tmin = int(numpy.min(t))
-tbin = int((tmax - tmin)/(4*1.5625))
+maxratio = int(numpy.max(t) / 1.5625)
+minratio = int(numpy.min(t) / 1.5625)
+tmax = maxratio * 1.5625 #int(numpy.max(t)) 
+tmin = minratio * 1.5625 #int(numpy.min(t)) 
+tbin = int((tmax - tmin)/(2*1.5625))
+print(tmax, tmin)
 
 fig, ax = plt.subplots(1, 2, dpi=180, sharex = False)
 ax2 = ax[0].twinx()
@@ -42,8 +45,9 @@ plt.savefig('coinc.svg')
 plt.show()
 
 fig, ax = plt.subplots(1, 1, dpi=180, sharex = False)
-ax.hist2d(xH, t, bins=[1024, tbin], range = [[0, 1024], [tmin, tmax]], cmap = 'inferno', norm = mcolors.PowerNorm(0.1))
-ax.set_xlabel('Energy (pixels)')
+ax.hist2d(xH*disp-off, t, bins=[1024, tbin], range = [[0*disp-off, 1024*disp-off], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(0.6))
+#ax.hist2d(xH*disp-off, t, bins=[160, tbin], range = [[-10, 10], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(0.7))
+ax.set_xlabel('Energy (eV)')
 ax.set_ylabel('Time delay (ns)')
 plt.tight_layout()
 plt.show()

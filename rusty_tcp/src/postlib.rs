@@ -9,8 +9,9 @@ pub mod coincidence {
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use std::convert::TryInto;
 
-    const TIME_WIDTH: usize = 200; //Time width to correlate (ns).
-    const TIME_DELAY: usize = 100_000 - 1850; //Time delay to correlate (ns).
+    const TIME_WIDTH: usize = 100; //Time width to correlate (ns).
+    //const TIME_DELAY: usize = 100_000 - 1867; //Time delay to correlate (ns).
+    const TIME_DELAY: usize = 0;
     const MIN_LEN: usize = 1000; // Sliding time window size.
 
     #[derive(Debug)]
@@ -277,7 +278,7 @@ pub mod coincidence {
         } else {
             Box::new(NonPeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create non periodic TDC reference."))
         };
-        let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut file0).expect("Could not create non periodic (photon) TDC reference.");
+        let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic (photon) TDC reference.");
 
         
         
@@ -310,7 +311,7 @@ pub mod coincidence {
                                 let se = SingleElectron::new(&packet, coinc_data.begin_frame, 0);
                                 temp_edata.electron.add_electron(se);
                             },
-                            _ => {},
+                            _ => {}, //println!("{}", packet.tdc_type());},
                         };
                     },
                 };
