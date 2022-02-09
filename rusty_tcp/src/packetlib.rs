@@ -97,7 +97,7 @@ pub trait Packet {
     
     #[inline]
     fn tdc_fine(&self) -> usize {
-        ((self.data()[0] & 224) as usize >> 5) | ((self.data()[1] & 1) as usize) << 3;
+        ((self.data()[0] & 224) as usize >> 5) | ((self.data()[1] & 1) as usize) << 3
     }
 
     #[inline]
