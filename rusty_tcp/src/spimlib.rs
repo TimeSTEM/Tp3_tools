@@ -73,11 +73,8 @@ impl SpimKind for Live {
         }
     }
 
-    fn upt_line(&self, packet: &PacketEELS, settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
+    fn upt_line(&self, packet: &PacketEELS, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
-        if (line_tdc.counter() / 2) % (settings.yspim_size * settings.spimoverscany) == 0 {
-            line_tdc.begin_frame = line_tdc.time();
-        }
     }
 
     fn check(&self) -> bool {

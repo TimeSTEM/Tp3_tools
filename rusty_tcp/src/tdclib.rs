@@ -234,7 +234,7 @@ pub trait TdcControl {
     fn counter(&self) -> usize;
     fn time(&self) -> usize;
     fn period(&self) -> Option<usize>;
-    fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T) -> Result<Self, Tp3ErrorKind> where Self: Sized;
+    fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, sp: Option<usize>) -> Result<Self, Tp3ErrorKind> where Self: Sized;
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -244,6 +244,7 @@ pub struct PeriodicTdcRef {
     counter_offset: usize,
     last_hard_counter: u16,
     counter_overflow: usize,
+    pub ticks_to_frame: Option<usize>,
     pub begin_frame: usize,
     pub period: usize,
     pub high_time: usize,
@@ -263,6 +264,11 @@ impl TdcControl for PeriodicTdcRef {
         self.last_hard_counter = hard_counter;
         self.time = time;
         self.counter = self.last_hard_counter as usize + self.counter_overflow * 4096 - self.counter_offset;
+        if let Some(spimy) = self.ticks_to_frame {
+            if (self.counter / 2) % spimy == 0 {
+                self.begin_frame = time;
+            }
+        }
     }
 
     fn counter(&self) -> usize {
@@ -277,7 +283,7 @@ impl TdcControl for PeriodicTdcRef {
         Some(self.period)
     }
 
-    fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T) -> Result<Self, Tp3ErrorKind> {
+    fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, ticks_to_frame: Option<usize>) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
         let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 3);
         let start = Instant::now();
@@ -308,6 +314,7 @@ impl TdcControl for PeriodicTdcRef {
             last_hard_counter,
             counter_overflow: 0,
             begin_frame: begin_time,
+            ticks_to_frame,
             period,
             high_time,
             low_time,
@@ -354,7 +361,7 @@ impl TdcControl for SingleTriggerPeriodicTdcRef {
         Some(self.period)
     }
 
-    fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T) -> Result<Self, Tp3ErrorKind> {
+    fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, _: Option<usize>) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
         let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 3);
         let start = Instant::now();
@@ -418,7 +425,7 @@ impl TdcControl for NonPeriodicTdcRef {
         None
     }
     
-    fn new<T: TimepixRead>(tdc_type: TdcType, _sock: &mut T) -> Result<Self, Tp3ErrorKind> {
+    fn new<T: TimepixRead>(tdc_type: TdcType, _sock: &mut T, _: Option<usize>) -> Result<Self, Tp3ErrorKind> {
         Ok(Self {
             tdctype: tdc_type.associate_value(),
             counter: 0,

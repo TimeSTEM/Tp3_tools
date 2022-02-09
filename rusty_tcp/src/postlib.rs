@@ -58,7 +58,7 @@ pub mod coincidence {
         pub corr_spectrum: Vec<usize>,
         pub is_spim: bool,
         pub spim_size: (usize, usize),
-        pub begin_frame: Option<usize>,
+        //pub begin_frame: Option<usize>,
         pub spim_index: Vec<usize>,
         pub spim_tdc: Option<PeriodicTdcRef>,
     }
@@ -71,9 +71,6 @@ pub mod coincidence {
         fn add_spim_line<T: TdcControl + ?Sized >(&mut self, pack: &Pack, spim_tdc: &mut T) {
             if self.is_spim {
                 spim_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-                if (spim_tdc.counter() / 2) % self.spim_size.1 == 0 {
-                    self.begin_frame = Some(spim_tdc.time());
-                }
             }
         }
 
@@ -122,7 +119,6 @@ pub mod coincidence {
                 corr_spectrum: vec![0; 1024*256],
                 is_spim: my_config.is_spim,
                 spim_size: (my_config.xspim, my_config.yspim),
-                begin_frame: None,
                 spim_index: Vec::new(),
                 spim_tdc: None,
             }
@@ -272,13 +268,13 @@ pub mod coincidence {
             if coinc_data.spim_size.0 == 0 || coinc_data.spim_size.1 == 0 {
                 panic!("Spim mode is on. X and Y pixels must be greater than 0.");
             }
-            let temp = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create period TDC reference.");
+            let temp = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
             coinc_data.prepare_spim(temp);
             Box::new(temp)
         } else {
-            Box::new(NonPeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0).expect("Could not create non periodic TDC reference."))
+            Box::new(NonPeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, None).expect("Could not create non periodic TDC reference."))
         };
-        let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0).expect("Could not create non periodic (photon) TDC reference.");
+        let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0, None).expect("Could not create non periodic (photon) TDC reference.");
 
         
         
@@ -308,7 +304,7 @@ pub mod coincidence {
                                 coinc_data.add_spim_line(&packet, &mut *spim_tdc);
                             },
                             11 => {
-                                let se = SingleElectron::new(&packet, coinc_data.begin_frame, 0);
+                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc, 0);
                                 temp_edata.electron.add_electron(se);
                             },
                             _ => {}, //println!("{}", packet.tdc_type());},
@@ -910,7 +906,7 @@ pub mod ntime_resolved {
         pub initial_time: Option<usize>, //Acquisition start time,
         pub cycle_counter: usize, //Electron overflow counter,
         pub cycle_trigger: bool, //Electron overflow control,
-        pub begin_frame: Option<usize>, //Up-to-date frame,
+        //pub begin_frame: Option<usize>, //Up-to-date frame,
         pub interval: usize, //time interval you want to form spims,
         pub folder: String, //Folder in which data will be saved,
         pub spimx: usize, //The horinzontal axis of the spim,
@@ -924,7 +920,7 @@ pub mod ntime_resolved {
         fn prepare(&mut self, file: &mut fs::File) {
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
-                    let val = Some(PeriodicTdcRef::new(self.tdc_type, file).expect("Problem in creating periodic tdc ref."));
+                    let val = Some(PeriodicTdcRef::new(self.tdc_type, file, Some(self.spimy)).expect("Problem in creating periodic tdc ref."));
                     val
                 },
                 Some(val) => Some(val),
@@ -980,7 +976,8 @@ pub mod ntime_resolved {
                     }
                     */
                 }
-                let se = SingleElectron::new(packet, self.begin_frame, vec_index);
+                //let se = SingleElectron::new(packet, self.begin_frame, vec_index);
+                let se = SingleElectron::new(packet, self.tdc_periodic, vec_index);
                 self.ensemble.add_electron(se);
             }
         }
@@ -990,19 +987,15 @@ pub mod ntime_resolved {
             match &mut self.tdc_periodic {
                 Some(my_tdc_periodic) if packet.tdc_type() == self.tdc_type.associate_value() => {
                     my_tdc_periodic.upt(packet.tdc_time_norm(), packet.tdc_counter());
-                    if  (my_tdc_periodic.counter() / 2) % (self.spimy) == 0 {
-                        my_tdc_periodic.begin_frame = my_tdc_periodic.time();
-                        self.begin_frame = Some(my_tdc_periodic.begin_frame);
-                    }
                 },
                 _ => {},
             };
         }
 
         fn process(&mut self) {
-            self.ensemble.output_data(String::from("entire_data"), 2);
+            //self.ensemble.output_data(String::from("entire_data"), 2);
             if self.ensemble.try_clean(1000, self.remove_clusters) {
-                self.ensemble.output_data(String::from("entire_data_cluster"), 2);
+                //self.ensemble.output_data(String::from("entire_data_cluster"), 2);
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
                         self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;
@@ -1053,7 +1046,6 @@ pub mod ntime_resolved {
                 initial_time: None,
                 cycle_counter: 0,
                 cycle_trigger: true,
-                begin_frame: None,
                 spimx: spimx,
                 spimy: spimy,
                 folder: folder,

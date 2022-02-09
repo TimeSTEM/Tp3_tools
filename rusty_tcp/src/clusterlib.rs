@@ -214,14 +214,17 @@ pub mod cluster {
 
 
     impl SingleElectron {
-        pub fn new(pack: &Pack, begin_frame: Option<usize>, slice: usize) -> Self {
+        pub fn new(pack: &Pack, begin_frame: Option<PeriodicTdcRef>, slice: usize) -> Self {
             let ele_time = pack.electron_time();
             match begin_frame {
-                Some(frame_time) => {
-                    //let frame_time = spim_tdc.begin_frame;
+                Some(spim_tdc) => {
+                    let mut frame_time = spim_tdc.begin_frame;
                     if ele_time < frame_time + VIDEO_TIME {
-                        println!("{} and {} and {}", ele_time - frame_time - VIDEO_TIME, ele_time, ele_time-frame_time);
-                    };
+                        frame_time -= spim_tdc.period*spim_tdc.ticks_to_frame.unwrap();
+                    }
+                    //while ele_time < frame_time + VIDEO_TIME {
+                    //    frame_time -= spim_tdc.period;
+                    //};
                     SingleElectron {
                         data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice, pack.tot(), 1),
                     }
