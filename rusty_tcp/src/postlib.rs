@@ -9,8 +9,8 @@ pub mod coincidence {
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use std::convert::TryInto;
 
-    const TIME_WIDTH: usize = 100; //Time width to correlate (ns).
-    //const TIME_DELAY: usize = 100_000 - 1867; //Time delay to correlate (ns).
+    const TIME_WIDTH: usize = 100_000; //Time width to correlate (ps).
+    //const TIME_DELAY: usize = 100_000 - 1867; //Time delay to correlate (ps).
     const TIME_DELAY: usize = 0;
     const MIN_LEN: usize = 1000; // Sliding time window size.
 
@@ -940,11 +940,11 @@ pub mod ntime_resolved {
 
             //Correcting Electron Time
             let el = packet.electron_time();
-            if el > 26_700_000_000 && self.cycle_trigger {
+            if el > Pack::electron_reset_time() * 99/100 && self.cycle_trigger {
                 self.cycle_counter += 1;
                 self.cycle_trigger = false;
             }
-            else if el > 100_000_000 && packet.electron_time() < 13_000_000_000 && !self.cycle_trigger {
+            else if el > Pack::electron_reset_time() * 1/100 && packet.electron_time() < Pack::electron_reset_time() * 50/100 && !self.cycle_trigger {
                 self.cycle_trigger = true;
             }
             let corrected_el = if !self.cycle_trigger && (el + self.cycle_counter * Pack::electron_reset_time()) > (self.cycle_counter * Pack::electron_reset_time() + Pack::electron_reset_time() / 2) {
