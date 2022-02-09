@@ -218,6 +218,10 @@ pub mod cluster {
             let ele_time = pack.electron_time();
             match begin_frame {
                 Some(frame_time) => {
+                    //let frame_time = spim_tdc.begin_frame;
+                    if ele_time < frame_time + VIDEO_TIME {
+                        println!("{} and {} and {}", ele_time - frame_time - VIDEO_TIME, ele_time, ele_time-frame_time);
+                    };
                     SingleElectron {
                         data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice, pack.tot(), 1),
                     }
@@ -294,7 +298,7 @@ pub mod cluster {
                 let rin = val * xspim / interval;
 
                 if r > yspim -1 {
-                    if r > Pack::electron_reset_time() {return None;}
+                    if r > 4096 {return None;}
                     r %= yspim;
                 }
 
