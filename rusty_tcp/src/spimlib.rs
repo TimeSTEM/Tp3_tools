@@ -27,6 +27,7 @@ pub trait SpimKind {
     fn new() -> Self;
 }
 
+
 #[inline]
 fn get_spimindex(dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<usize> {
     let val = dt % spim_tdc.period;

@@ -20,11 +20,9 @@ xH = numpy.loadtxt("xH.txt", delimiter=',')
 cRatio = numpy.divide(x, xT)
 
 #Bins
-maxratio = int(numpy.max(t) / 1.5625)
-minratio = int(numpy.min(t) / 1.5625)
-tmax = maxratio * 1.5625 #int(numpy.max(t)) 
-tmin = minratio * 1.5625 #int(numpy.min(t)) 
-tbin = int((tmax - tmin)/(2*1.5625))
+tmax = int(numpy.max(t)) 
+tmin = int(numpy.min(t))
+tbin = int((tmax - tmin)/(1*1562.5))
 print(tmax, tmin)
 
 fig, ax = plt.subplots(1, 2, dpi=180, sharex = False)

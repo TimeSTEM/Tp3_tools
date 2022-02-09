@@ -147,7 +147,6 @@ impl<'a> PacketEELS<'a> {
     }
 }
 
-
 pub struct PacketDiffraction<'a> {
     pub chip_index: usize,
     pub data: &'a [u8; 8],
