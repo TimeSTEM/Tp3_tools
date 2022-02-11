@@ -147,6 +147,40 @@ impl<'a> PacketEELS<'a> {
     }
 }
 
+pub struct TimeCorrectedPacketEELS<'a> {
+    pub chip_index: usize,
+    pub data: &'a [u8; 8],
+}
+
+impl<'a> Packet for TimeCorrectedPacketEELS<'a> {
+    fn ci(&self) -> usize {
+        self.chip_index
+    }
+    fn data(&self) -> &[u8; 8] {
+        self.data
+    }
+    
+    fn fast_electron_time(&self) -> usize {
+        let spidr = self.spidr();
+        let toa = self.toa();
+        spidr * 25_000 * 16384 + toa * 25_000
+    }
+    
+    fn electron_time(&self) -> usize {
+        let spidr = self.spidr();
+        let ctoa = self.ctoa();
+        //let ftoa2 = (!self.data()[2] & 15) as usize;
+        //let ctoa2 = (toa << 4) | ftoa2;
+        spidr * 25_000 * 16384 + ctoa * 25_000 / 16
+    }
+}
+
+impl<'a> TimeCorrectedPacketEELS<'a> {
+    pub const fn chip_array() -> (usize, usize) {
+        (1025, 256)
+    }
+}
+
 pub struct PacketDiffraction<'a> {
     pub chip_index: usize,
     pub data: &'a [u8; 8],

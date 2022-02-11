@@ -222,9 +222,6 @@ pub mod cluster {
                     if ele_time < frame_time + VIDEO_TIME {
                         frame_time -= spim_tdc.period*spim_tdc.ticks_to_frame.unwrap();
                     }
-                    //while ele_time < frame_time + VIDEO_TIME {
-                    //    frame_time -= spim_tdc.period;
-                    //};
                     SingleElectron {
                         data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice, pack.tot(), 1),
                     }

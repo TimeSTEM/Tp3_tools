@@ -62,7 +62,6 @@ pub mod coincidence {
         //pub begin_frame: Option<usize>,
         pub spim_index: Vec<usize>,
         pub spim_tdc: Option<PeriodicTdcRef>,
-        pub test: usize,
     }
 
     impl ElectronData {
@@ -130,7 +129,6 @@ pub mod coincidence {
                 spim_size: (my_config.xspim, my_config.yspim),
                 spim_index: Vec::new(),
                 spim_tdc: None,
-                test: 0,
             }
         }
         
@@ -296,7 +294,6 @@ pub mod coincidence {
         
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
-            if total_size >= 1_000_000_000 {break;}
             total_size += size;
             println!("MB Read: {}", total_size / 1_000_000 );
             let mut temp_edata = TempElectronData::new();
