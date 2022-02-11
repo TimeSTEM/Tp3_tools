@@ -171,7 +171,12 @@ impl<'a> Packet for TimeCorrectedPacketEELS<'a> {
         let ctoa = self.ctoa();
         //let ftoa2 = (!self.data()[2] & 15) as usize;
         //let ctoa2 = (toa << 4) | ftoa2;
-        spidr * 25_000 * 16384 + ctoa * 25_000 / 16
+        let x = self.x();
+        let t = spidr * 25_000 * 16384 + ctoa * 25_000 / 16;
+        match x {
+            57..=61 | 308..=317 | 560..=575 | 580..=581 | 584..=585 | 592..=593 | 820..=829 => t-25_000,
+            _ => t,
+        }
     }
 }
 

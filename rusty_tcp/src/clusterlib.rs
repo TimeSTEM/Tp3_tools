@@ -1,6 +1,6 @@
 pub mod cluster {
     
-    use crate::packetlib::{Packet, PacketEELS as Pack};
+    use crate::packetlib::Packet;
     use crate::tdclib::PeriodicTdcRef;
     use std::fs::OpenOptions;
     use std::io::Write;
@@ -214,7 +214,7 @@ pub mod cluster {
 
 
     impl SingleElectron {
-        pub fn new(pack: &Pack, begin_frame: Option<PeriodicTdcRef>, slice: usize) -> Self {
+        pub fn new<T: Packet>(pack: &T, begin_frame: Option<PeriodicTdcRef>, slice: usize) -> Self {
             let ele_time = pack.electron_time();
             match begin_frame {
                 Some(spim_tdc) => {
