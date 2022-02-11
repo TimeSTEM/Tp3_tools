@@ -11,8 +11,8 @@ pub mod coincidence {
 
     const TIME_WIDTH: usize = 100; //Time width to correlate (ns).
     //const TIME_DELAY: usize = 100_000 - 1867; //Time delay to correlate (ns).
-    const TIME_DELAY: usize = 0;
-    const MIN_LEN: usize = 1000; // Sliding time window size.
+    const TIME_DELAY: usize = 162;
+    const MIN_LEN: usize = 100; // Sliding time window size.
 
     #[derive(Debug)]
     pub struct Config {
