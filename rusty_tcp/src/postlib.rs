@@ -13,7 +13,7 @@ pub mod coincidence {
     const TIME_WIDTH: usize = 100_000; //Time width to correlate (ps).
     //const TIME_DELAY: usize = 100_000 - 1867; //Time delay to correlate (ps).
     const TIME_DELAY: usize = 160_000; //Time delay to correlate (ps).
-    const MIN_LEN: usize = 1000; // Sliding time window size.
+    const MIN_LEN: usize = 100; // Sliding time window size.
 
     #[derive(Debug)]
     pub struct Config {
@@ -62,6 +62,7 @@ pub mod coincidence {
         //pub begin_frame: Option<usize>,
         pub spim_index: Vec<usize>,
         pub spim_tdc: Option<PeriodicTdcRef>,
+        pub test: usize,
     }
 
     impl ElectronData {
@@ -69,8 +70,15 @@ pub mod coincidence {
             self.spectrum[val.image_index()] += 1;
         }
 
-        fn add_spim_line<T: TdcControl + ?Sized >(&mut self, pack: &Pack, spim_tdc: &mut T) {
-            if self.is_spim {
+        fn add_spim_line(&mut self, pack: &Pack) {
+            //match &mut self.spim_tdc {
+            //    Some(spim_tdc) => {
+            //        spim_tdc.ticks_to_frame = None;
+            //    },
+            //    _ => {},
+            //};
+            
+            if let Some(spim_tdc) = &mut self.spim_tdc {
                 spim_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
             }
         }
@@ -82,7 +90,7 @@ pub mod coincidence {
             self.x.push(val.x());
             self.y.push(val.y());
             if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
-                self.spim_index.push(index);
+                self.spim_index.push(index*1024 + val.x());
             }
         }
         
@@ -122,6 +130,7 @@ pub mod coincidence {
                 spim_size: (my_config.xspim, my_config.yspim),
                 spim_index: Vec::new(),
                 spim_tdc: None,
+                test: 0,
             }
         }
         
@@ -267,7 +276,7 @@ pub mod coincidence {
         
         let mut file0 = fs::File::open(file)?;
         
-        let mut spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
+        let spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
             if coinc_data.spim_size.0 == 0 || coinc_data.spim_size.1 == 0 {
                 panic!("Spim mode is on. X and Y pixels must be greater than 0.");
             }
@@ -279,8 +288,6 @@ pub mod coincidence {
         };
         let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0, None).expect("Could not create non periodic (photon) TDC reference.");
 
-        
-        
         let mut ci = 0;
         let mut file = fs::File::open(file)?;
         let mut buffer: Vec<u8> = vec![0; 256_000_000];
@@ -289,6 +296,7 @@ pub mod coincidence {
         
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
+            if total_size >= 1_000_000_000 {break;}
             total_size += size;
             println!("MB Read: {}", total_size / 1_000_000 );
             let mut temp_edata = TempElectronData::new();
@@ -304,7 +312,7 @@ pub mod coincidence {
                                 temp_tdc.add_tdc(&packet);
                             },
                             6 if packet.tdc_type() == spim_tdc.id() => {
-                                coinc_data.add_spim_line(&packet, &mut *spim_tdc);
+                                coinc_data.add_spim_line(&packet);
                             },
                             11 => {
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc, 0);
