@@ -8,10 +8,11 @@ pub mod coincidence {
     use std::time::Instant;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use std::convert::TryInto;
+    use std::cmp;
 
     const TIME_WIDTH: usize = 100_000; //Time width to correlate (ps).
     //const TIME_DELAY: usize = 100_000 - 1867; //Time delay to correlate (ps).
-    const TIME_DELAY: usize = 0;
+    const TIME_DELAY: usize = 160_000; //Time delay to correlate (ps).
     const MIN_LEN: usize = 1000; // Sliding time window size.
 
     #[derive(Debug)]
@@ -223,18 +224,20 @@ pub mod coincidence {
 
         fn check(&mut self, value: SingleElectron) -> Option<usize> {
 
-            //Sometimes you have less photons than the min_index. That would panic.
-            if self.min_index + MIN_LEN > self.tdc.len() {
-                return None
-            }
+            let array_length = self.tdc.len();
+            let max_index = cmp::min(self.min_index + MIN_LEN, array_length);
             
-            let result = self.tdc[self.min_index..self.min_index+MIN_LEN].iter()
+            let result = self.tdc[self.min_index..max_index].iter()
                 .enumerate()
                 .find(|(_, x)| ((**x as isize - value.time() as isize).abs() as usize) < TIME_WIDTH);
             
+            //Index must be greater than 10% of MIN_LEN, so first photons do not count.
+            //Effective size must be greater or equal than MIN_LEN otherwise a smaller array is
+            //iterated.
             match result {
                 Some((index, pht_value)) => {
-                    if index > MIN_LEN/10 && self.tdc.len()>self.min_index + MIN_LEN + index {
+                    //if index > MIN_LEN/10 && array_length>self.min_index + MIN_LEN + index {
+                    if index > MIN_LEN/10 && (max_index - self.min_index) >= MIN_LEN {
                        self.min_index += index/2;
                     }
                     Some(*pht_value)
