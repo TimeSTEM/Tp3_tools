@@ -4,7 +4,7 @@ import matplotlib.colors as mcolors
 from matplotlib.widgets import Slider
 
 off = 11.921
-disp = 0.08
+disp = 0.07
 disparray = numpy.linspace(off, disp*1024, 1024)
 t = numpy.loadtxt("tH.txt", delimiter=',')
 xT = numpy.loadtxt("spec.txt", delimiter=',')
@@ -23,29 +23,27 @@ cRatio = numpy.divide(x, xT)
 tmax = int(numpy.max(t)) 
 tmin = int(numpy.min(t))
 tbin = int((tmax - tmin)/(1*1562.5))
-print(tmax, tmin)
 
-fig, ax = plt.subplots(1, 2, dpi=180, sharex = False)
-ax2 = ax[0].twinx()
-ax[0].plot(disparray, x, label='Correlated Data')
-ax[0].plot(disparray, xT, alpha=0.8, ls='--', color='red', lw=2, label='Total Data')
-ax2.scatter(disparray, cRatio, c='green', s=5, marker='x', label='Ratio')
-ax[1].hist(t, bins=tbin, range=(tmin, tmax))
-#ax[2].hist(xH, bins=1024, range = (0, 1024))
-
-ax[0].set_xlabel('Energy (eV)')
-ax[0].set_ylabel('$\Gamma^{Loss}$ (A.U.)')
-ax2.set_ylabel('Coincidence Ratio', c='green')
-ax[0].legend(loc='upper center')
-
-plt.tight_layout()
-plt.savefig('coinc.svg')
-plt.show()
-
-fig, ax = plt.subplots(1, 1, dpi=180, sharex = False)
-ax.hist2d(xH, t, bins=[1024, tbin], range = [[0, 1024], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(0.3))
-#ax.hist2d(xH*disp-off, t, bins=[1024, tbin], range = [[0*disp-off, 1024*disp-off], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(0.3))
+fig, ax = plt.subplots()
+ax2 = ax.twinx()
+ax.plot(disparray, x, label='Correlated Data')
+ax.plot(disparray, xT, alpha=0.8, ls='-', color='red', lw=1, label='Total Data')
+ax2.plot(disparray, cRatio, alpha=0.8, ls='-', color='green', lw=1, label='Ratio')
 ax.set_xlabel('Energy (eV)')
-ax.set_ylabel('Time delay (ns)')
+ax.set_ylabel('$\Gamma^{Loss}$ (A.U.)')
+ax2.set_ylabel('Coincidence Ratio', c='green')
+ax.legend(loc='upper center')
+ax2.legend()
+#ax2.set_yscale("log")
+plt.tight_layout()
+
+fig, ax = plt.subplots()
+ax.hist(t, bins=tbin, range=(tmin, tmax))
+
+fig, ax = plt.subplots()
+ax.hist2d(xH, t, bins=[1024, tbin], range = [[0, 1024], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(1.0))
+#ax.hist2d(xH*disp-off, t, bins=[1024, tbin], range = [[0*disp-off, 1024*disp-off], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(0.3))
+ax.set_xlabel('Energy (pixels)')
+ax.set_ylabel('Time delay (ps)')
 plt.tight_layout()
 plt.show()
