@@ -76,18 +76,20 @@ pub trait Packet {
         (toa << 4) | (!ftoa & 15)
     }
 
+    #[inline]
     fn fast_electron_time(&self) -> usize {
         let spidr = self.spidr();
         let toa = self.toa();
-        spidr * 25_000 * 16384 + toa * 25_000
+        spidr * 262_144 + toa * 16
     }
     
+    #[inline]
     fn electron_time(&self) -> usize {
         let spidr = self.spidr();
         let ctoa = self.ctoa();
         //let ftoa2 = (!self.data()[2] & 15) as usize;
         //let ctoa2 = (toa << 4) | ftoa2;
-        spidr * 25_000 * 16384 + ctoa * 25_000 / 16
+        spidr * 262_144 + ctoa
     }
 
     #[inline]
@@ -105,25 +107,31 @@ pub trait Packet {
         ((self.data()[5] & 240) as u16) >> 4 | (self.data()[6] as u16) << 4
     }
 
+    #[inline]
     fn tdc_type(&self) -> u8 {
         self.data()[7] & 15 
     }
 
+    #[inline]
     fn tdc_time(&self) -> usize {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
-        coarse * 1_000_000 / 320 + fine * 260
+        coarse * 2 + fine / 6
     }
     
+    #[inline]
     fn tdc_time_norm(&self) -> usize {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
-        let time = coarse * 1_000_000 / 320 + fine * 260;
-        time - (time / (26_843_545_600_000)) * 26_843_545_600_000
+        //let time = coarse * 1_000_000 / 320 + fine * 260;
+        let time = coarse * 2 + fine / 6;
+        //time - (time / (26_843_545_600_000)) * 26_843_545_600_000
+        time - (time / (17_179_869_184)) * 17_179_869_184
     }
 
+    #[inline]
     fn electron_reset_time() -> usize {
-        26_843_545_600_000
+        26_843_545_600 * 16 / 25
     }
 }
 
