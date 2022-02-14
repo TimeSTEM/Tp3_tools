@@ -10,9 +10,9 @@ pub mod coincidence {
     use std::convert::TryInto;
     use std::cmp;
 
-    const TIME_WIDTH: usize = 25_000; //Time width to correlate (ps).
+    const TIME_WIDTH: usize = 20; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
     //const TIME_DELAY: usize = 100_000 - 1867; //Time delay to correlate (ps).
-    const TIME_DELAY: usize = 152_000; // + 50_000; //Time delay to correlate (ps).
+    const TIME_DELAY: usize = 103; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
     const MIN_LEN: usize = 100; // Sliding time window size.
 
     #[derive(Debug)]
@@ -295,6 +295,7 @@ pub mod coincidence {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
+            if total_size >= 2_000_000_000 {break;}
             println!("MB Read: {}", total_size / 1_000_000 );
             let mut temp_edata = TempElectronData::new();
             let mut temp_tdc = TempTdcData::new();

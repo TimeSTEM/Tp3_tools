@@ -22,7 +22,7 @@ cRatio = numpy.divide(x, xT)
 #Bins
 tmax = int(numpy.max(t)) 
 tmin = int(numpy.min(t))
-tbin = int((tmax - tmin)/(1*1562.5))
+tbin = int((tmax - tmin)) + 1
 print(tmax, tmin, tbin)
 
 fig, ax = plt.subplots()

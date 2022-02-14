@@ -171,18 +171,16 @@ impl<'a> Packet for TimeCorrectedPacketEELS<'a> {
     fn fast_electron_time(&self) -> usize {
         let spidr = self.spidr();
         let toa = self.toa();
-        spidr * 25_000 * 16384 + toa * 25_000
+        spidr * 262_144 + toa * 16
     }
     
     fn electron_time(&self) -> usize {
         let spidr = self.spidr();
         let ctoa = self.ctoa();
-        //let ftoa2 = (!self.data()[2] & 15) as usize;
-        //let ctoa2 = (toa << 4) | ftoa2;
         let x = self.x();
-        let t = spidr * 25_000 * 16384 + ctoa * 25_000 / 16;
+        let t = spidr * 262_144 + ctoa;
         match x {
-            52..=61 | 308..=317 | 560..=575 | 580..=581 | 584..=585 | 592..=593 | 820..=829 => t-25_000,
+            52..=61 | 308..=317 | 560..=575 | 580..=581 | 584..=585 | 592..=593 | 820..=829 => t-16,
             _ => t,
         }
     }
