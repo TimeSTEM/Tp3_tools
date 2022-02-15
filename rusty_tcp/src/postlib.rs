@@ -10,15 +10,9 @@ pub mod coincidence {
     use std::convert::TryInto;
     use std::cmp;
 
-<<<<<<< HEAD
-    const TIME_WIDTH: usize = 100; //Time width to correlate (ns).
-    //const TIME_DELAY: usize = 100_000 - 1867; //Time delay to correlate (ns).
-    const TIME_DELAY: usize = 162;
-=======
     const TIME_WIDTH: usize = 16; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
     //const TIME_DELAY: usize = 100_000 - 1867; //Time delay to correlate (ps).
     const TIME_DELAY: usize = 103; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
->>>>>>> 08a89569c813f38314d3f665c81d46003d8f10b4
     const MIN_LEN: usize = 100; // Sliding time window size.
 
     #[derive(Debug)]
