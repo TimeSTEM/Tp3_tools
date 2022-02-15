@@ -89,7 +89,7 @@ pub mod coincidence {
             self.x.push(val.x());
             self.y.push(val.y());
             if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
-                self.spim_index.push(index*1024 + val.x());
+                self.spim_index.push(index + val.x());
             }
         }
         
@@ -295,6 +295,7 @@ pub mod coincidence {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
+            if total_size >= 5_000_000_000 {break;}
             println!("MB Read: {}", total_size / 1_000_000 );
             let mut temp_edata = TempElectronData::new();
             let mut temp_tdc = TempTdcData::new();

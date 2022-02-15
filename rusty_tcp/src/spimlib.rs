@@ -29,7 +29,7 @@ pub trait SpimKind {
 
 
 #[inline]
-fn get_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<usize> {
+pub fn get_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<usize> {
     let val = dt % spim_tdc.period;
     if val < spim_tdc.low_time {
         let mut r = dt / spim_tdc.period; //how many periods -> which line to put.

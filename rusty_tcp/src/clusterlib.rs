@@ -1,6 +1,7 @@
 pub mod cluster {
     
     use crate::packetlib::Packet;
+    use crate::spimlib;
     use crate::tdclib::PeriodicTdcRef;
     use std::fs::OpenOptions;
     use std::io::Write;
@@ -289,6 +290,10 @@ pub mod cluster {
         pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: usize, yspim: usize) -> Option<usize> {
             
             if let Some(frame_tdc) = spim_tdc {
+                let index = spimlib::get_spimindex(0, self.frame_dt(), &frame_tdc, xspim, yspim);
+                index
+                
+                /*
                 let interval = frame_tdc.low_time;
                 let period = frame_tdc.period;
 
@@ -304,6 +309,7 @@ pub mod cluster {
 
                 let result = r * xspim + rin;
                 Some(result)
+            */
             } else {
                 None
             }
