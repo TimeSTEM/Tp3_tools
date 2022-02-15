@@ -928,7 +928,7 @@ pub mod ntime_resolved {
         fn prepare(&mut self, file: &mut fs::File) {
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
-                    let val = Some(PeriodicTdcRef::new(self.tdc_type, file, Some(self.spimy)).expect("Problem in creating periodic tdc ref."));
+                    let val = Some(PeriodicTdcRef::new(self.tdc_type.clone(), file, Some(self.spimy)).expect("Problem in creating periodic tdc ref."));
                     val
                 },
                 Some(val) => Some(val),

@@ -8,16 +8,16 @@ mod tdcvec {
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use std::convert::TryInto;
 
-    pub struct TdcSearch {
+    pub struct TdcSearch<'a> {
         data: Vec<(usize, TdcType)>,
         how_many: usize,
-        tdc_choosen: TdcType,
+        tdc_choosen: &'a TdcType,
         initial_counter: Option<usize>,
         last_counter: u16,
     }
 
-    impl TdcSearch {
-        pub fn new(tdc_choosen: TdcType, how_many: usize) -> Self {
+    impl<'a> TdcSearch<'a> {
+        pub fn new(tdc_choosen: &'a TdcType, how_many: usize) -> Self {
             TdcSearch{
                 data: Vec::new(),
                 how_many,
@@ -171,13 +171,25 @@ mod tdcvec {
 
 
 ///The four types of TDC's.
-#[derive(Copy, Clone)]
 pub enum TdcType {
     TdcOneRisingEdge,
     TdcOneFallingEdge,
     TdcTwoRisingEdge,
     TdcTwoFallingEdge,
     NoTdc,
+}
+
+impl Clone for TdcType {
+    fn clone(&self) -> TdcType {
+        match self {
+            TdcType::TdcOneRisingEdge => TdcType::TdcOneRisingEdge,
+            TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
+            TdcType::TdcTwoRisingEdge => TdcType::TdcTwoRisingEdge,
+            TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
+            TdcType::NoTdc => TdcType::NoTdc,
+        }
+        //match self {
+    }
 }
 
 impl TdcType {
@@ -285,7 +297,7 @@ impl TdcControl for PeriodicTdcRef {
 
     fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, ticks_to_frame: Option<usize>) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
-        let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 3);
+        let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
         let start = Instant::now();
 
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
@@ -363,7 +375,7 @@ impl TdcControl for SingleTriggerPeriodicTdcRef {
 
     fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, _: Option<usize>) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
-        let mut tdc_search = tdcvec::TdcSearch::new(tdc_type, 3);
+        let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
         let start = Instant::now();
 
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
