@@ -29,18 +29,18 @@ pub trait SpimKind {
 
 
 #[inline]
-fn get_spimindex(dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<usize> {
+fn get_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<usize> {
     let val = dt % spim_tdc.period;
     if val < spim_tdc.low_time {
         let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
         let rin = xspim * val / spim_tdc.low_time; //Column correction. Maybe not even needed.
             
             if r > (yspim-1) {
-                if r > ELECTRON_MAX {return None;} //This removes overflow electrons. See add_electron_hit
+                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
                 r %= yspim;
             }
             
-            let index = (r * xspim + rin) * SPIM_PIXELS;
+            let index = (r * xspim + rin) * SPIM_PIXELS + x;
         
             Some(index)
         } else {
@@ -105,7 +105,12 @@ impl SpimKind for Live {
         let mut my_vec: Vec<u8> = Vec::with_capacity(BUFFER_SIZE / 2);
         self.data.iter()
             .filter_map(|&(x, dt)| {
-                //let index = get_spimindex(dt, spim_tdc, set.xspim_size, set.yspim_size);
+                let index = get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size);
+                index
+
+
+
+                /*
                 let val = dt % spim_tdc.period;
                 if val < spim_tdc.low_time {
                 
@@ -113,19 +118,21 @@ impl SpimKind for Live {
                     let rin = set.xspim_size * val / spim_tdc.low_time; //Column correction. Maybe not even needed.
                     
                     if r > (set.yspim_size-1) {
-                        if r > ELECTRON_MAX {return None;} //This removes overflow electrons. See add_electron_hit
+                        if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
                         r %= set.yspim_size;
                     }
                     
                     let index = (r * set.xspim_size + rin) * SPIM_PIXELS + x;
 
                     //Some([((index >> 24 ) & 0xff) as u8, ((index >> 16 ) & 0xff) as u8, ((index >> 8 ) & 0xff) as u8, (index & 0xff) as u8])
-                    
                 
+                    
+                //index
                     Some(index)
                 } else {
                     None
                 }
+                */
             })
             .for_each(|index| {
                 //for val in index.iter() {

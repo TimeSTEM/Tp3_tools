@@ -6,8 +6,8 @@ pub mod cluster {
     use std::io::Write;
     use rayon::prelude::*;
     
-    const VIDEO_TIME: usize = 5_000_000; //Video time for spim (ps).
-    const CLUSTER_DET:usize = 200_000; //Cluster time window (ps).
+    const VIDEO_TIME: usize = 3_200; //Video time for spim (in 640 Mhz or 1.5625 ns).
+    const CLUSTER_DET:usize = 128; //Cluster time window (in 640 Mhz or 1.5625).
     const CLUSTER_SPATIAL: isize = 2; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
     pub const SPIM_PIXELS: usize = 1024;
 
