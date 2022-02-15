@@ -105,8 +105,7 @@ impl SpimKind for Live {
         let mut my_vec: Vec<u8> = Vec::with_capacity(BUFFER_SIZE / 2);
         self.data.iter()
             .filter_map(|&(x, dt)| {
-                let index = get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size);
-                index
+                get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
 
 
 
