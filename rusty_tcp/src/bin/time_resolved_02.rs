@@ -3,7 +3,7 @@ use timepix3::tdclib::TdcType;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
-    let time = 4e9 as usize;
+    let time = 4e12 as usize;
     
     let spim_size = 32;
     
