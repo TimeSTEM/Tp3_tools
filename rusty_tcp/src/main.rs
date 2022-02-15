@@ -10,50 +10,50 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
 
     match my_settings.mode {
         0 if my_settings.bin => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack)?;
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             let measurement = speclib::SpecMeasurement::<speclib::Live1D>::new(&my_settings);
             speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
             Ok(my_settings.mode)
         },
         0 if !my_settings.bin => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack)?;
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             let measurement = speclib::SpecMeasurement::<speclib::Live2D>::new(&my_settings);
             speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
             Ok(my_settings.mode)
         },
         1 if my_settings.bin => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
-            let laser_tdc = SingleTriggerPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack)?;
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
+            let laser_tdc = SingleTriggerPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             let measurement = speclib::SpecMeasurement::<speclib::LiveTR1D>::new(&my_settings);
             speclib::build_spectrum(pack, ns, my_settings, frame_tdc, laser_tdc, measurement)?;
             Ok(my_settings.mode)
         },
         1 if !my_settings.bin => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
-            let laser_tdc = SingleTriggerPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack)?;
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
+            let laser_tdc = SingleTriggerPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             let measurement = speclib::SpecMeasurement::<speclib::LiveTR2D>::new(&my_settings);
             speclib::build_spectrum(pack, ns, my_settings, frame_tdc, laser_tdc, measurement)?;
             Ok(my_settings.mode)
         },
         2 => {
-            let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack)?;
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack)?;
+            let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size))?;
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             let measurement = spimlib::Live::new();
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement)?;
             Ok(my_settings.mode)
         },
         6 => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack)?;
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             let measurement = speclib::SpecMeasurement::<speclib::FastChrono>::new(&my_settings);
             speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
             Ok(my_settings.mode)
         },
         7 => {
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack)?;
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack)?;
+            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             let measurement = speclib::SpecMeasurement::<speclib::Chrono>::new(&my_settings);
             speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
             Ok(my_settings.mode)

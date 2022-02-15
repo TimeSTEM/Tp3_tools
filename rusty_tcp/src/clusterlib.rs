@@ -1,13 +1,14 @@
 pub mod cluster {
     
-    use crate::packetlib::{Packet, PacketEELS as Pack};
+    use crate::packetlib::Packet;
+    use crate::spimlib;
     use crate::tdclib::PeriodicTdcRef;
     use std::fs::OpenOptions;
     use std::io::Write;
     use rayon::prelude::*;
     
-    const VIDEO_TIME: usize = 5000; //Video time for spim (ns).
-    const CLUSTER_DET:usize = 200; //Cluster time window (ns).
+    const VIDEO_TIME: usize = 3_200; //Video time for spim (in 640 Mhz or 1.5625 ns).
+    const CLUSTER_DET:usize = 128; //Cluster time window (in 640 Mhz or 1.5625).
     const CLUSTER_SPATIAL: isize = 2; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
     pub const SPIM_PIXELS: usize = 1024;
 
@@ -214,10 +215,14 @@ pub mod cluster {
 
 
     impl SingleElectron {
-        pub fn new(pack: &Pack, begin_frame: Option<usize>, slice: usize) -> Self {
+        pub fn new<T: Packet>(pack: &T, begin_frame: Option<PeriodicTdcRef>, slice: usize) -> Self {
             let ele_time = pack.electron_time();
             match begin_frame {
-                Some(frame_time) => {
+                Some(spim_tdc) => {
+                    let mut frame_time = spim_tdc.begin_frame;
+                    if ele_time < frame_time + VIDEO_TIME {
+                        frame_time -= spim_tdc.period*spim_tdc.ticks_to_frame.unwrap();
+                    }
                     SingleElectron {
                         data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice, pack.tot(), 1),
                     }
@@ -285,6 +290,9 @@ pub mod cluster {
         pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: usize, yspim: usize) -> Option<usize> {
             
             if let Some(frame_tdc) = spim_tdc {
+                spimlib::get_spimindex(0, self.frame_dt(), &frame_tdc, xspim, yspim)
+                
+                /*
                 let interval = frame_tdc.low_time;
                 let period = frame_tdc.period;
 
@@ -294,12 +302,13 @@ pub mod cluster {
                 let rin = val * xspim / interval;
 
                 if r > yspim -1 {
-                    if r > Pack::electron_reset_time() {return None;}
+                    if r > 4096 {return None;}
                     r %= yspim;
                 }
 
                 let result = r * xspim + rin;
                 Some(result)
+            */
             } else {
                 None
             }
