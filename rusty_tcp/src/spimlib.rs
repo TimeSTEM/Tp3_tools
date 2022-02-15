@@ -12,7 +12,6 @@ use std::convert::TryInto;
 const VIDEO_TIME: usize = 5000;
 const SPIM_PIXELS: usize = 1025;
 const BUFFER_SIZE: usize = 16384 * 2;
-const ELECTRON_MAX: usize = 26_843_545_600;
 
 pub trait SpimKind {
     type MyOutput;
