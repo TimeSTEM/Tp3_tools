@@ -105,48 +105,7 @@ impl SpimKind for Live {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
             }).collect::<Vec<usize>>();
 
-
-        /*
-        let mut my_vec: Vec<u8> = Vec::with_capacity(BUFFER_SIZE / 2);
-        self.data.iter()
-            .filter_map(|&(x, dt)| {
-                get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
-
-
-
-                /*
-                let val = dt % spim_tdc.period;
-                if val < spim_tdc.low_time {
-                
-                    let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
-                    let rin = set.xspim_size * val / spim_tdc.low_time; //Column correction. Maybe not even needed.
-                    
-                    if r > (set.yspim_size-1) {
-                        if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
-                        r %= set.yspim_size;
-                    }
-                    
-                    let index = (r * set.xspim_size + rin) * SPIM_PIXELS + x;
-
-                    //Some([((index >> 24 ) & 0xff) as u8, ((index >> 16 ) & 0xff) as u8, ((index >> 8 ) & 0xff) as u8, (index & 0xff) as u8])
-                
-                    
-                //index
-                    Some(index)
-                } else {
-                    None
-                }
-                */
-            })
-            .for_each(|index| {
-                //for val in index.iter() {
-                //    my_vec.push(*val);
-                //}
-                append_to_index_array(&mut my_vec, index);
-            });
-            */
-
-    my_vec
+        my_vec
     }
 
     fn copy_empty(&self) -> Self {
@@ -157,47 +116,6 @@ impl SpimKind for Live {
         Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) }
     }
 }
-
-/*
-fn event_counter(mut my_vec: Vec<usize>) -> Vec<u8> {
-    my_vec.sort_unstable();
-    let mut unique:Vec<u8> = Vec::new();
-    let mut index:Vec<u8> = Vec::new();
-    let mut counter:usize = 1;
-    if my_vec.len() > 0 {
-        let mut last = my_vec[0];
-        for val in my_vec {
-            if last == val {
-                //counter.wrapping_add(1);
-                counter+=1;
-            } else {
-                append_to_index_array(&mut unique, counter, UNIQUE_BYTE);
-                append_to_index_array(&mut index, last, INDEX_BYTE);
-                counter = 1;
-            }
-            last = val;
-        }
-        append_to_index_array(&mut unique, counter, UNIQUE_BYTE);
-        append_to_index_array(&mut index, last, INDEX_BYTE);
-    }
-    //let sum_unique = unique.iter().map(|&x| x as usize).sum::<usize>();
-    //let mmax_unique = unique.iter().map(|&x| x as usize).max().unwrap();
-    //let indexes_len = index.len();
-
-    //let mut header_unique:Vec<u8> = String::from("{StartUnique}").into_bytes();
-    let header_unique:Vec<u8> = vec![123, 83, 116, 97, 114, 116, 85, 110, 105, 113, 117, 101, 125];
-    //let mut header_indexes:Vec<u8> = String::from("{StartIndexes}").into_bytes();
-    let header_indexes:Vec<u8> = vec![123, 83, 116, 97, 114, 116, 73, 110, 100, 101, 120, 101, 115, 125];
-
-    let vec = header_unique.into_iter()
-        .chain(unique.into_iter())
-        .chain(header_indexes.into_iter())
-        .chain(index.into_iter())
-        .collect::<Vec<u8>>();
-    //println!("Total len with unique: {}. Total len only indexes (older): {}. Max unique is {}. Improvement is {}", vec.len(), sum_unique * 4, mmax_unique, sum_unique as f64 * 4.0 / vec.len() as f64);
-    vec
-}
-*/
 
 fn as_bytes(v: &[usize]) -> &[u8] {
     unsafe {
@@ -265,11 +183,6 @@ fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_c
 }
 
 fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
-    //data.push(((index & 4_278_190_080)>>24) as u8);
-    //data.push(((index & 16_711_680)>>16) as u8);
-    //data.push(((index & 65_280)>>8) as u8);
-    //data.push((index & 255) as u8);
- 
     //Big Endian
     data.push(((index >> 24 ) & 0xff) as u8);
     data.push(((index >> 16 ) & 0xff) as u8);
