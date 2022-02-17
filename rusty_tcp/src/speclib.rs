@@ -87,12 +87,12 @@ impl<L: Sup> SpecKind for SpecMeasurement<Live2D, L> {
         as_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
-        let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
+        let len: usize = CAM_DESIGN.1*CAM_DESIGN.0;
         let mut temp_vec: Vec<L> = vec![L::zero(); len + 1];
         temp_vec[len] = L::ten();
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: Live2D }
     }
-    #[inline]
+    #[inline(always)]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
         let index = pack.x() + CAM_DESIGN.0 * pack.y();
         self.data[index] = self.data[index] + L::one();
@@ -100,7 +100,6 @@ impl<L: Sup> SpecKind for SpecMeasurement<Live2D, L> {
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         self.data[1024] = self.data[1024] + L::one();
-        //append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
