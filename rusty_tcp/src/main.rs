@@ -12,8 +12,21 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
         0 if my_settings.bin => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
-            let measurement = speclib::SpecMeasurement::<speclib::Live1D, u32>::new(&my_settings);
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+            match my_settings.bytedepth {
+                1 => {
+                    let measurement = speclib::SpecMeasurement::<speclib::Live1D, u8>::new(&my_settings);
+                    speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+                },
+                2 => {
+                    let measurement = speclib::SpecMeasurement::<speclib::Live1D, u16>::new(&my_settings);
+                    speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+                },
+                4 => {
+                    let measurement = speclib::SpecMeasurement::<speclib::Live1D, u32>::new(&my_settings);
+                    speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+                },
+                _ => {return Err(Tp3ErrorKind::SetByteDepth)},
+            }
             Ok(my_settings.mode)
         },
         0 if !my_settings.bin => {
