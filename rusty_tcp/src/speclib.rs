@@ -7,7 +7,7 @@ use std::time::Instant;
 use std::io::Write;
 use std::convert::TryInto;
 //use rayon::prelude::*;
-use core::ops::Add;
+use core::ops::{Add, AddAssign};
 
 fn as_bytes<T>(v: &[T]) -> &[u8] {
     unsafe {
@@ -18,12 +18,11 @@ fn as_bytes<T>(v: &[T]) -> &[u8] {
 }
 
 pub trait BitDepth {}
-
 impl BitDepth for u32 {}
 impl BitDepth for u16 {}
 impl BitDepth for u8 {}
 
-pub trait Sup: BitDepth + Clone + Add<Output = Self> + Copy {
+pub trait Sup: BitDepth + Clone + Add<Output = Self> + Copy + AddAssign {
     fn zero() -> Self;
     fn one() -> Self;
     fn ten() -> Self;
@@ -39,7 +38,6 @@ impl Sup for u32 {
     fn ten() -> u32 {
         10
     }
-
 }
 
 impl Sup for u16 {
@@ -123,7 +121,7 @@ impl<L: Sup> SpecKind for SpecMeasurement<Live2D, L> {
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        self.data[1024] = self.data[1024] + L::one();
+        self.data[CAM_DESIGN.0-1] = self.data[CAM_DESIGN.0-1] + L::one();
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
