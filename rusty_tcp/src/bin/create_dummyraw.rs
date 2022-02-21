@@ -11,10 +11,9 @@ fn main() {
     let normal_02 = Normal::new(638.0, 10.0).unwrap();
     let normal_03 = Normal::new(893.0, 7.0).unwrap();
     let uni = Uniform::new(0.0, 1.0);
-    //let poisson = Poisson::new(1.0).unwrap(); //~30 pA or 0.2 e-/ns;
     let exp = Exp::new(0.02).unwrap();
     let decay_photon = Exp::new(0.4).unwrap();
-    let decay_photon_02 = Exp::new(0.1).unwrap();
+    let decay_photon_02 = Exp::new(0.2).unwrap();
     let response = Exp::new(0.2).unwrap();
 
     let mut electron: InversePacket;
@@ -28,18 +27,24 @@ fn main() {
         global_time += dt;
         let par = uni.sample(&mut thread_rng());
 
+        //10% probability first gaussian
         if par < 0.1 {
             x = normal_01.sample(&mut rand::thread_rng()) as usize;
+        //65% probability second gaussian
         } else if par < 0.75 {
             x = normal_02.sample(&mut rand::thread_rng()) as usize;
+            //1% probability generate a photon in second gaussian
             if uni.sample(&mut thread_rng()) < 0.01 {
                 let dt_photon = decay_photon.sample(&mut rand::thread_rng());
-                photon = Some(InversePacket::new_inverse_tdc(global_time + dt_photon as usize));
+                let dt_response = response.sample(&mut rand::thread_rng());
+                photon = Some(InversePacket::new_inverse_tdc(global_time + dt_photon as usize - dt_response as usize));
             } else {
                 photon = None;
             }
+        //25% probability thirs gaussian
         } else {
             x = normal_03.sample(&mut rand::thread_rng()) as usize;
+            //5% probability generate photon in third gaussian
             if uni.sample(&mut thread_rng()) < 0.05 {
                 let dt_photon = decay_photon_02.sample(&mut rand::thread_rng());
                 let dt_response = response.sample(&mut rand::thread_rng());
