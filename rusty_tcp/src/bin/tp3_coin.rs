@@ -1,4 +1,5 @@
 use timepix3::postlib::coincidence::*;
+use timepix3::auxiliar::ConfigAcquisition;
 use std::env;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

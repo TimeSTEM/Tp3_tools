@@ -344,10 +344,10 @@ impl Settings {
 
 #[derive(Debug)]
 pub struct ConfigAcquisition {
-    file: String,
-    is_spim: bool,
-    xspim: usize,
-    yspim: usize,
+    pub file: String,
+    pub is_spim: bool,
+    pub xspim: usize,
+    pub yspim: usize,
 }
 
 impl ConfigAcquisition {
