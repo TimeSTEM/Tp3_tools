@@ -1,26 +1,28 @@
 use timepix3::errorlib::Tp3ErrorKind;
-use timepix3::auxiliar::Settings;
+use timepix3::auxiliar::{Settings, ConfigAcquisition};
 use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
-use timepix3::{speclib, spimlib, speclib::SpecKind, spimlib::SpimKind};
+use timepix3::{speclib, spimlib, spimlib::SpimKind};
+use std::env;
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
     
-    let (my_settings, mut pack, ns) = Settings::create_debug_settings(false)?;
+    let args: Vec<String> = env::args().collect();
+    let config_set = ConfigAcquisition::new(&args);
+    
+    let (my_settings, mut pack, ns) = Settings::create_debug_settings(&config_set)?;
 
     match my_settings.mode {
         0 if my_settings.bin => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack, None)?;
-            let measurement = speclib::SpecMeasurement::<speclib::Live1D, u32>::new(&my_settings);
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+            speclib::run_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, speclib::Live1D)?;
             Ok(my_settings.mode)
         },
         0 if !my_settings.bin => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack, None)?;
-            let measurement = speclib::SpecMeasurement::<speclib::Live2D, u32>::new(&my_settings);
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+            speclib::run_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, speclib::Live2D)?;
             Ok(my_settings.mode)
         },
         1 => {
