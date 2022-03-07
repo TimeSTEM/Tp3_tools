@@ -71,16 +71,110 @@ const SR_INDEX: usize = 64; //Maximum x index value to account in the average ca
 const SR_MIN: usize = 0; //Minimum array size to perform the average in super resolution;
 const TILT_FRACTION: usize = 16; //Values with y = 256 will be tilted by 256 / 16;
 
-pub trait SpecKind {
 
-    fn is_ready(&self) -> bool;
-    fn build_output(&self) -> &[u8];
-    fn new(settings: &Settings) -> Self;
-    fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, ref_tdc: &T);
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T);
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings);
-    fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings);
+
+pub trait GenerateDepth {
+    fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> where Self: Sized;
+    fn gen16(&self, set: &Settings) -> SpecMeasurement::<Self, u16> where Self: Sized;
+    fn gen8(&self, set: &Settings) -> SpecMeasurement::<Self, u8> where Self: Sized;
 }
+
+impl GenerateDepth for Live2D {
+    fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> {
+        SpecMeasurement::<Self, u32>::new(set)
+    }
+    fn gen16(&self, set: &Settings) -> SpecMeasurement::<Self, u16> {
+        SpecMeasurement::<Self, u16>::new(set)
+    }
+    fn gen8(&self, set: &Settings) -> SpecMeasurement::<Self, u8> {
+        SpecMeasurement::<Self, u8>::new(set)
+    }
+}
+
+impl GenerateDepth for Live1D {
+    fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> {
+        SpecMeasurement::<Self, u32>::new(set)
+    }
+    fn gen16(&self, set: &Settings) -> SpecMeasurement::<Self, u16> {
+        SpecMeasurement::<Self, u16>::new(set)
+    }
+    fn gen8(&self, set: &Settings) -> SpecMeasurement::<Self, u8> {
+        SpecMeasurement::<Self, u8>::new(set)
+    }
+}
+
+impl GenerateDepth for LiveTR2D {
+    fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> {
+        SpecMeasurement::<Self, u32>::new(set)
+    }
+    fn gen16(&self, set: &Settings) -> SpecMeasurement::<Self, u16> {
+        SpecMeasurement::<Self, u16>::new(set)
+    }
+    fn gen8(&self, set: &Settings) -> SpecMeasurement::<Self, u8> {
+        SpecMeasurement::<Self, u8>::new(set)
+    }
+}
+
+impl GenerateDepth for LiveTR1D {
+    fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> {
+        SpecMeasurement::<Self, u32>::new(set)
+    }
+    fn gen16(&self, set: &Settings) -> SpecMeasurement::<Self, u16> {
+        SpecMeasurement::<Self, u16>::new(set)
+    }
+    fn gen8(&self, set: &Settings) -> SpecMeasurement::<Self, u8> {
+        SpecMeasurement::<Self, u8>::new(set)
+    }
+}
+
+impl GenerateDepth for LiveTilted2D {
+    fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> {
+        SpecMeasurement::<Self, u32>::new(set)
+    }
+    fn gen16(&self, set: &Settings) -> SpecMeasurement::<Self, u16> {
+        SpecMeasurement::<Self, u16>::new(set)
+    }
+    fn gen8(&self, set: &Settings) -> SpecMeasurement::<Self, u8> {
+        SpecMeasurement::<Self, u8>::new(set)
+    }
+}
+
+impl GenerateDepth for FastChrono {
+    fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> {
+        SpecMeasurement::<Self, u32>::new(set)
+    }
+    fn gen16(&self, set: &Settings) -> SpecMeasurement::<Self, u16> {
+        SpecMeasurement::<Self, u16>::new(set)
+    }
+    fn gen8(&self, set: &Settings) -> SpecMeasurement::<Self, u8> {
+        SpecMeasurement::<Self, u8>::new(set)
+    }
+}
+
+impl GenerateDepth for Chrono {
+    fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> {
+        SpecMeasurement::<Self, u32>::new(set)
+    }
+    fn gen16(&self, set: &Settings) -> SpecMeasurement::<Self, u16> {
+        SpecMeasurement::<Self, u16>::new(set)
+    }
+    fn gen8(&self, set: &Settings) -> SpecMeasurement::<Self, u8> {
+        SpecMeasurement::<Self, u8>::new(set)
+    }
+}
+
+impl GenerateDepth for SuperResolution {
+    fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> {
+        SpecMeasurement::<Self, u32>::new(set)
+    }
+    fn gen16(&self, set: &Settings) -> SpecMeasurement::<Self, u16> {
+        SpecMeasurement::<Self, u16>::new(set)
+    }
+    fn gen8(&self, set: &Settings) -> SpecMeasurement::<Self, u8> {
+        SpecMeasurement::<Self, u8>::new(set)
+    }
+}
+
 
 pub struct Live2D;
 pub struct Live1D;
@@ -91,7 +185,7 @@ pub struct FastChrono;
 pub struct Chrono;
 pub struct SuperResolution;
 
-pub struct SpecMeasurement<T, K: Sup> {
+pub struct SpecMeasurement<T: GenerateDepth, K: Sup> {
     data: Vec<K>,
     aux_data: Vec<usize>,
     is_ready: bool,
@@ -99,6 +193,16 @@ pub struct SpecMeasurement<T, K: Sup> {
     last_time: usize,
     last_mean: Option<usize>,
     _kind: T,
+}
+
+pub trait SpecKind {
+    fn is_ready(&self) -> bool;
+    fn build_output(&self) -> &[u8];
+    fn new(settings: &Settings) -> Self;
+    fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, ref_tdc: &T);
+    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T);
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings);
+    fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings);
 }
 
 impl<L: Sup> SpecKind for SpecMeasurement<Live2D, L> {
@@ -291,6 +395,7 @@ impl<L: Sup> SpecKind for SpecMeasurement<FastChrono, L> {
     fn new(settings: &Settings) -> Self {
         let len: usize = settings.xspim_size*CAM_DESIGN.0;
         let mut temp_vec = vec![L::zero(); len + 1];
+    //type MeasKind;
         temp_vec[len] = L::ten();
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: FastChrono}
     }
@@ -448,6 +553,38 @@ impl LiveTR1D {
 
     }
 }
+
+
+
+pub fn run_spectrum<T, V, U, Y>(pack: V, ns: U, my_settings: Settings, frame_tdc: PeriodicTdcRef, np_tdc: T, kind: Y) -> Result<u8, Tp3ErrorKind>
+    where T: TdcControl,
+          V: TimepixRead,
+          U: Write,
+          Y: GenerateDepth, 
+          SpecMeasurement<Y, u8>: SpecKind,
+          SpecMeasurement<Y, u16>: SpecKind,
+          SpecMeasurement<Y, u32>: SpecKind
+{
+
+    match my_settings.bytedepth {
+        1 => {
+            let measurement = kind.gen8(&my_settings);
+            build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+        },
+        2 => {
+            let measurement = kind.gen16(&my_settings);
+            build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+        },
+        4 => {
+            let measurement = kind.gen32(&my_settings);
+            build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+        },
+        _ => {return Err(Tp3ErrorKind::SetByteDepth)},
+    }
+    Ok(my_settings.mode)
+}
+    
+
 
 
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
