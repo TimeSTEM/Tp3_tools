@@ -11,7 +11,6 @@ fn main() {
     let normal_02 = Normal::new(638.0, 10.0).unwrap();
     let normal_03 = Normal::new(893.0, 7.0).unwrap();
     let uni = Uniform::new(0.0, 1.0);
-    //let poisson = Poisson::new(1.0).unwrap(); //~30 pA or 0.2 e-/ns;
     let exp = Exp::new(0.02).unwrap();
     let decay_photon = Exp::new(0.4).unwrap();
     let decay_photon_02 = Exp::new(0.1).unwrap();
@@ -59,9 +58,4 @@ fn main() {
     let final_vec = data.iter().map(|&x| x).flatten().collect::<Vec<_>>();
     let mut file = File::create("raw000000.tpx3").unwrap();
     file.write_all(&final_vec);
-
-
-
-
-    
 }
