@@ -10,15 +10,17 @@ fn main() {
 
     const ELE_PA: f64 = 6.25 / 1_000f64; //electrons / ns;
 
-    let xt = 256; // X spim;
-    let yt = 256; //Y spim;
-    let pdt: usize = 4_000; //pixel dwell time in ns;
+    let total_time = 60_000_000_000; //total time in ns;
+    let xt = 1024; // X spim;
+    let yt = 1024; //Y spim;
+    let pdt: usize = 1_000; //pixel dwell time in ns;
     let fb = 10_000; //flyback in ns;
-    let frames = 50; //number of frames;
     let cur = 1; //electron current, in pA;
     let radius = xt/4;
     let mut t: usize = 0;
     let mut counter: usize = 0;
+    let frames = total_time / (xt * yt * pdt);
+    println!("{}", frames);
 
     //Random variables;
     let col = Uniform::new(0.0, xt as f32); //Emplacing in the column;

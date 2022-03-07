@@ -481,6 +481,7 @@ impl LiveTR1D {
     }
 }
 
+
 pub fn run_spectrum<T, V, U, Y>(pack: V, ns: U, my_settings: Settings, frame_tdc: PeriodicTdcRef, np_tdc: T, kind: Y) -> Result<u8, Tp3ErrorKind>
     where T: TdcControl,
           V: TimepixRead,
