@@ -9,6 +9,13 @@ use std::convert::TryInto;
 //use rayon::prelude::*;
 use core::ops::{Add, AddAssign};
 
+const CAM_DESIGN: (usize, usize) = Pack::chip_array();
+const BUFFER_SIZE: usize = 16384 * 2;
+const SR_TIME: usize = 10_000; //Time window (10_000 -> 10 us);
+const SR_INDEX: usize = 64; //Maximum x index value to account in the average calculation;
+const SR_MIN: usize = 0; //Minimum array size to perform the average in super resolution;
+const TILT_FRACTION: usize = 16; //Values with y = 256 will be tilted by 256 / 16;
+
 fn as_bytes<T>(v: &[T]) -> &[u8] {
     unsafe {
         std::slice::from_raw_parts(
@@ -64,19 +71,36 @@ impl Sup for u8 {
     }
 }
 
-const CAM_DESIGN: (usize, usize) = Pack::chip_array();
-const BUFFER_SIZE: usize = 16384 * 2;
-const SR_TIME: usize = 10_000; //Time window (10_000 -> 10 us);
-const SR_INDEX: usize = 64; //Maximum x index value to account in the average calculation;
-const SR_MIN: usize = 0; //Minimum array size to perform the average in super resolution;
-const TILT_FRACTION: usize = 16; //Values with y = 256 will be tilted by 256 / 16;
-
-
+pub struct Live2D;
+pub struct Live1D;
+pub struct LiveTR2D;
+pub struct LiveTR1D;
+pub struct LiveTilted2D;
+pub struct FastChrono;
+pub struct Chrono;
+pub struct SuperResolution;
 
 pub trait GenerateDepth {
-    fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> where Self: Sized;
-    fn gen16(&self, set: &Settings) -> SpecMeasurement::<Self, u16> where Self: Sized;
-    fn gen8(&self, set: &Settings) -> SpecMeasurement::<Self, u8> where Self: Sized;
+    fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> 
+        where Self: Sized,
+              SpecMeasurement::<Self, u32>: SpecKind,
+    {
+        SpecMeasurement::<Self, u32>::new(set)
+    }
+    
+    fn gen16(&self, set: &Settings) -> SpecMeasurement::<Self, u16> 
+        where Self: Sized,
+              SpecMeasurement::<Self, u16>: SpecKind,
+    {
+        SpecMeasurement::<Self, u16>::new(set)
+    }
+    
+    fn gen8(&self, set: &Settings) -> SpecMeasurement::<Self, u8> 
+        where Self: Sized,
+              SpecMeasurement::<Self, u8>: SpecKind,
+    {
+        SpecMeasurement::<Self, u8>::new(set)
+    }
 }
 
 impl GenerateDepth for Live2D {
@@ -174,16 +198,6 @@ impl GenerateDepth for SuperResolution {
         SpecMeasurement::<Self, u8>::new(set)
     }
 }
-
-
-pub struct Live2D;
-pub struct Live1D;
-pub struct LiveTR2D;
-pub struct LiveTR1D;
-pub struct LiveTilted2D;
-pub struct FastChrono;
-pub struct Chrono;
-pub struct SuperResolution;
 
 pub struct SpecMeasurement<T: GenerateDepth, K: Sup> {
     data: Vec<K>,
