@@ -15,6 +15,8 @@ const VIDEO_TIME: usize = 5000;
 const SPIM_PIXELS: usize = 1025;
 const BUFFER_SIZE: usize = 16384 * 2;
 
+
+///This is little endian
 fn as_bytes(v: &[usize]) -> &[u8] {
     unsafe {
         std::slice::from_raw_parts(
