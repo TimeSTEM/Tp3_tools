@@ -40,11 +40,12 @@ plt.tight_layout()
 
 fig, ax = plt.subplots()
 ax.hist(t, bins=tbin, range=(tmin, tmax))
+ax.set_xlabel('Time delay (units of 1.5615 ns)')
 
 fig, ax = plt.subplots()
 ax.hist2d(xH, t, bins=[1024, tbin], range = [[0, 1024], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(1.0))
 #ax.hist2d(xH*disp-off, t, bins=[1024, tbin], range = [[0*disp-off, 1024*disp-off], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(0.3))
 ax.set_xlabel('Energy (pixels)')
-ax.set_ylabel('Time delay (ps)')
+ax.set_ylabel('Time delay (units of 1.5615 ns)')
 plt.tight_layout()
 plt.show()
