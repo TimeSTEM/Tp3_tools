@@ -214,7 +214,7 @@ impl Write for DebugIO {
 }
 
 
-///Settings contains all relevant parameters for a given acquistion
+///`Settings` contains all relevant parameters for a given acquistion
 #[derive(Copy, Clone, Debug)]
 pub struct Settings {
     pub bin: bool,
@@ -287,7 +287,7 @@ impl Settings {
 
     }
 
-    fn create_spec_debug_settings() -> Settings  {
+    fn create_spec_debug_settings(_config: &ConfigAcquisition) -> Settings  {
         Settings {
             bin: false,
             bytedepth: 4,
@@ -304,16 +304,16 @@ impl Settings {
         }
     }
     
-    fn create_spim_debug_settings() -> Settings  {
+    fn create_spim_debug_settings(config: &ConfigAcquisition) -> Settings  {
         Settings {
             bin: true,
             bytedepth: 4,
             cumul: false,
             mode: 2,
-            xspim_size: 512,
-            yspim_size: 512,
-            xscan_size: 512,
-            yscan_size: 512,
+            xspim_size: config.xspim,
+            yspim_size: config.yspim,
+            xscan_size: config.xspim,
+            yscan_size: config.yspim,
             time_delay: 0,
             time_width: 1000,
             spimoverscanx: 1,
@@ -322,35 +322,62 @@ impl Settings {
     }
 
     
-    pub fn create_debug_settings(spim: bool) -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
+    pub fn create_debug_settings(config: &ConfigAcquisition) -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
     
-        let my_settings = match spim {
-            true => Settings::create_spim_debug_settings(),
-            false => Settings::create_spec_debug_settings(),
+        let my_settings = match config.is_spim {
+            true => Settings::create_spim_debug_settings(config),
+            false => Settings::create_spec_debug_settings(config),
         };
         
         println!("Received settings is {:?}. Mode is {}.", my_settings, my_settings.mode);
 
-        let in_file = match File::open("Data/raw000000.tpx3") {
+        let in_file = match File::open(&config.file) {
             Ok(file) => file,
             Err(_) => return Err(Tp3ErrorKind::SetNoReadFile),
         };
-        
-        /*
-        let out_dir = Path::new("Microscope/Output/");
-        create_dir_all(&out_dir).unwrap();
-        let out_file_name = "out.txt";
-        let file_path = out_dir.join(&out_file_name);
-        let out_file = OpenOptions::new().write(true).create(true).truncate(true).open(file_path).unwrap();
-        */
 
         println!("Spectra Debug mode. Will one file a single time.");
         Ok((my_settings, Box::new(in_file), Box::new(DebugIO{})))
     }
+    
+}
 
+///`ConfigAcquisition` is used for post-processing, where reading external TPX3 files is necessary.
+#[derive(Debug)]
+pub struct ConfigAcquisition {
+    pub file: String,
+    pub is_spim: bool,
+    pub xspim: usize,
+    pub yspim: usize,
+}
+
+impl ConfigAcquisition {
+    pub fn file(&self) -> &str {
+        &self.file
+    }
+
+    pub fn new(args: &[String]) -> Self {
+        if args.len() != 4+1 {
+            panic!("One must provide 04 ({} detected) arguments (file, is_spim, xspim, yspim).", args.len()-1);
+        }
+        let file = args[1].clone();
+        let is_spim = args[2] == "1";
+        let xspim = args[3].parse::<usize>().unwrap();
+        let yspim = args[4].parse::<usize>().unwrap();
+        let my_config = 
+        ConfigAcquisition {
+            file,
+            is_spim,
+            xspim,
+            yspim,
+        };
+        println!("Configuration for the coincidence measurement is {:?}", my_config);
+        my_config
+    }
 }
 
 
+///`simple_log` is used for post-processing, where reading external TPX3 files is necessary.
 pub mod simple_log {
     use chrono::prelude::*;
     use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
@@ -391,13 +418,14 @@ pub mod simple_log {
     }
 }
 
+///`misc` are miscellaneous functions.
 pub mod misc {
     use std::io::Read;
     use crate::errorlib::Tp3ErrorKind;
     use std::net::TcpStream;
     use std::fs::File;
 
-    fn default_read_exact<R: Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> Result<usize, Tp3ErrorKind> {
+    pub fn default_read_exact<R: Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> Result<usize, Tp3ErrorKind> {
         let mut size = 0;
         while size == 0 || size % 8 != 0 {
             match this.read(buf) {
@@ -436,6 +464,7 @@ pub mod misc {
     }
     */
     
+    ///A modified `Read` trait. Guarantee to read at least 8 bytes.
     pub trait TimepixRead: Read {
         fn read_timepix(&mut self, buf: &mut [u8]) -> Result<usize, Tp3ErrorKind> {
             default_read_exact(self, buf)

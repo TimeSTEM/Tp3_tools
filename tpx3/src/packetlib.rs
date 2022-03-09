@@ -293,11 +293,10 @@ impl InversePacket {
         [84, 80, 88, 51, ci, 0, 8, 0, data0, data1, data2, data3, data4, data5, data6, data7]
     }
     
-    pub fn create_tdc_array(&self) -> [u8; 16] {
+    pub fn create_tdc_array(&self, counter: usize, kind: TdcType) -> [u8; 16] {
         let (ct, ft) = self.tdc_time_to_ticks();
-        let counter = 4095;
         let res = 0;
-        let tdc_type: u8 = TdcType::TdcTwoRisingEdge.associate_value();
+        let tdc_type: u8 = kind.associate_value();
 
         let data0: u8 = ((res & 248) >> 3 | (ft & 7) << 5) as u8;
         let data1: u8 = ((ct & 127) << 1 | (ft & 8) >> 3) as u8;
@@ -326,7 +325,7 @@ impl InversePacket {
     pub fn tdc_test_func(&self) {
         let my_inv_packet = InversePacket::new_inverse_tdc(26_844_000_000);
 
-        let my_data = my_inv_packet.create_tdc_array();
+        let my_data = my_inv_packet.create_tdc_array(1024, TdcType::TdcTwoFallingEdge);
         let my_packet = PacketEELS {
             chip_index: my_data[4] as usize,
             data: &my_data[8..16].try_into().unwrap()

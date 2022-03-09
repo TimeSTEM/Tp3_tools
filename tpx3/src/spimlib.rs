@@ -1,3 +1,5 @@
+//!`spimlib` is a collection of tools to set hyperspectral EELS acquisition.
+
 use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
@@ -13,6 +15,18 @@ const VIDEO_TIME: usize = 5000;
 const SPIM_PIXELS: usize = 1025;
 const BUFFER_SIZE: usize = 16384 * 2;
 
+
+///This is little endian
+fn as_bytes(v: &[usize]) -> &[u8] {
+    unsafe {
+        std::slice::from_raw_parts(
+            v.as_ptr() as *const u8,
+            v.len() * std::mem::size_of::<usize>())
+    }
+}
+
+///`SpimKind` is the main trait that measurement types must obey. Custom measurements must all
+///implement these methods.
 pub trait SpimKind {
     type MyOutput;
 
@@ -47,6 +61,8 @@ pub fn get_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usiz
         }
 }
 
+///`Live` is the only current implemented measurement. It outputs list of indices (max `u32`) that
+///must be incremented.
 pub struct Live {
     data: Vec<(usize, usize)>,
 }
@@ -117,14 +133,6 @@ impl SpimKind for Live {
     }
 }
 
-fn as_bytes(v: &[usize]) -> &[u8] {
-    unsafe {
-        std::slice::from_raw_parts(
-            v.as_ptr() as *const u8,
-            v.len() * std::mem::size_of::<usize>())
-    }
-}
-    
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
 pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, meas_type: W) -> Result<(), Tp3ErrorKind>
     where V: 'static + Send + TimepixRead,

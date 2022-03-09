@@ -1,3 +1,4 @@
+//!`errorlib` is a simply enumeration to control error handling and logging.
 #[derive(Debug)]
 pub enum Tp3ErrorKind {
     SetBin,

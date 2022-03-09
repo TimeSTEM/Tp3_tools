@@ -1,4 +1,5 @@
-///`modes` is a module containing tools to live acquire frames and spectral images.
+//!`speclib` is a collection of tools to set EELS/4D acquisition.
+
 use crate::packetlib::{Packet, PacketEELS as Pack};
 use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
@@ -7,6 +8,7 @@ use std::time::Instant;
 use std::io::Write;
 use std::convert::TryInto;
 //use rayon::prelude::*;
+use core::ops::{Add, AddAssign};
 
 const CAM_DESIGN: (usize, usize) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
@@ -15,8 +17,124 @@ const SR_INDEX: usize = 64; //Maximum x index value to account in the average ca
 const SR_MIN: usize = 0; //Minimum array size to perform the average in super resolution;
 const TILT_FRACTION: usize = 16; //Values with y = 256 will be tilted by 256 / 16;
 
-pub trait SpecKind {
+fn as_bytes<T>(v: &[T]) -> &[u8] {
+    unsafe {
+        std::slice::from_raw_parts(
+            v.as_ptr() as *const u8,
+            v.len() * std::mem::size_of::<T>())
+    }
+}
 
+pub trait BitDepth {}
+impl BitDepth for u32 {}
+impl BitDepth for u16 {}
+impl BitDepth for u8 {}
+
+pub trait Sup: BitDepth + Clone + Add<Output = Self> + Copy + AddAssign {
+    fn zero() -> Self;
+    fn one() -> Self;
+    fn ten() -> Self;
+}
+
+impl Sup for u32 {
+    fn zero() -> u32 {
+        0
+    }
+    fn one() -> u32 {
+        1
+    }
+    fn ten() -> u32 {
+        10
+    }
+}
+
+impl Sup for u16 {
+    fn zero() -> u16 {
+        0
+    }
+    fn one() -> u16 {
+        1
+    }
+    fn ten() -> u16 {
+        10
+    }
+}
+
+impl Sup for u8 {
+    fn zero() -> u8 {
+        0
+    }
+    fn one() -> u8 {
+        1
+    }
+    fn ten() -> u8 {
+        10
+    }
+}
+
+
+///`Live2D` displays the detector image.
+pub struct Live2D;
+///`Live1D` displays the detector spectrum (image binned along the non-dispersive direction).
+pub struct Live1D;
+///`LiveTR2D` displays the detector image for time-resolved measurements.
+pub struct LiveTR2D;
+///`LiveTR1D` displays the detector spectrum (image binned along the non-dispersive direction) for
+///time-resolved measurements.
+pub struct LiveTR1D;
+///`LiveTilted2D` displays the detector image tilted in order to overcome detector saturation.
+pub struct LiveTilted2D;
+///`FastChrono` is a series of spectra with arbitrary interval time. It forms an image.
+pub struct FastChrono;
+///`Chrono` is a series of spectra with typical acquisitions interval time. It forms an image and
+///can be used in live conditions.
+pub struct Chrono;
+///`SuperResolution` is currently not working.
+pub struct SuperResolution;
+
+pub trait GenerateDepth {
+    fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> 
+        where Self: Sized,
+              SpecMeasurement::<Self, u32>: SpecKind,
+    {
+        SpecMeasurement::<Self, u32>::new(set)
+    }
+    
+    fn gen16(&self, set: &Settings) -> SpecMeasurement::<Self, u16> 
+        where Self: Sized,
+              SpecMeasurement::<Self, u16>: SpecKind,
+    {
+        SpecMeasurement::<Self, u16>::new(set)
+    }
+    
+    fn gen8(&self, set: &Settings) -> SpecMeasurement::<Self, u8> 
+        where Self: Sized,
+              SpecMeasurement::<Self, u8>: SpecKind,
+    {
+        SpecMeasurement::<Self, u8>::new(set)
+    }
+}
+
+impl GenerateDepth for Live2D {}
+impl GenerateDepth for Live1D {}
+impl GenerateDepth for LiveTR2D {}
+impl GenerateDepth for LiveTR1D {}
+impl GenerateDepth for LiveTilted2D {}
+impl GenerateDepth for FastChrono {}
+impl GenerateDepth for Chrono {}
+impl GenerateDepth for SuperResolution {}
+
+pub struct SpecMeasurement<T, K: Sup> {
+    data: Vec<K>,
+    aux_data: Vec<usize>,
+    is_ready: bool,
+    global_stop: bool,
+    last_time: usize,
+    last_mean: Option<usize>,
+    _kind: T,
+}
+
+pub trait SpecKind {
     fn is_ready(&self) -> bool;
     fn build_output(&self) -> &[u8];
     fn new(settings: &Settings) -> Self;
@@ -26,46 +144,27 @@ pub trait SpecKind {
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings);
 }
 
-pub struct Live2D;
-pub struct Live1D;
-pub struct LiveTR2D;
-pub struct LiveTR1D;
-pub struct LiveTilted2D;
-pub struct FastChrono;
-pub struct Chrono;
-pub struct SuperResolution;
-
-pub struct SpecMeasurement<T> {
-    data: Vec<u8>,
-    aux_data: Vec<usize>,
-    is_ready: bool,
-    global_stop: bool,
-    last_time: usize,
-    last_mean: Option<usize>,
-    _kind: T,
-}
-
-impl SpecKind for SpecMeasurement<Live2D> {
+impl<L: Sup> SpecKind for SpecMeasurement<Live2D, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        &self.data
+        as_bytes(&self.data)
     }
-    fn new(settings: &Settings) -> Self {
-        let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
-        let mut temp_vec = vec![0; len + 1];
-        temp_vec[len] = 10;
+    fn new(_settings: &Settings) -> Self {
+        let len: usize = CAM_DESIGN.1*CAM_DESIGN.0;
+        let mut temp_vec: Vec<L> = vec![L::zero(); len + 1];
+        temp_vec[len] = L::ten();
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: Live2D }
     }
     #[inline]
-    fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
+    fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
         let index = pack.x() + CAM_DESIGN.0 * pack.y();
-        append_to_array(&mut self.data, index, settings.bytedepth);
+        self.data[index] = self.data[index] + L::one();
     }
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
+    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
+        self.data[CAM_DESIGN.0-1] = self.data[CAM_DESIGN.0-1] + L::one();
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -74,33 +173,33 @@ impl SpecKind for SpecMeasurement<Live2D> {
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
         self.is_ready = false;
         if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = 0);
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
+            self.data.iter_mut().for_each(|x| *x = L::zero());
+            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::ten();
         }
     }
 }
 
-impl SpecKind for SpecMeasurement<Live1D> {
+impl<L: Sup> SpecKind for SpecMeasurement<Live1D, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        &self.data
+        as_bytes(&self.data)
     }
-    fn new(settings: &Settings) -> Self {
-        let len: usize = settings.bytedepth*CAM_DESIGN.0;
-        let mut temp_vec = vec![0; len + 1];
-        temp_vec[len] = 10;
+    fn new(_settings: &Settings) -> Self {
+        let len: usize = CAM_DESIGN.0;
+        let mut temp_vec = vec![L::zero(); len + 1];
+        temp_vec[len] = L::ten();
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: Live1D}
     }
     #[inline]
-    fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
+    fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
         let index = pack.x();
-        append_to_array(&mut self.data, index, settings.bytedepth);
+        self.data[index] = self.data[index] + L::one();
     }
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
+    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
+        self.data[CAM_DESIGN.0-1] = self.data[CAM_DESIGN.0-1] + L::one();
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -109,30 +208,30 @@ impl SpecKind for SpecMeasurement<Live1D> {
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
         self.is_ready = false;
         if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = 0);
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
+            self.data.iter_mut().for_each(|x| *x = L::zero());
+            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::ten();
         }
     }
 }
 
-impl SpecKind for SpecMeasurement<LiveTR2D> {
+impl<L: Sup> SpecKind for SpecMeasurement<LiveTR2D, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        &self.data
+        as_bytes(&self.data)
     }
-    fn new(settings: &Settings) -> Self {
-        let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
-        let mut temp_vec = vec![0; len + 1];
-        temp_vec[len] = 10;
+    fn new(_settings: &Settings) -> Self {
+        let len: usize = CAM_DESIGN.1*CAM_DESIGN.0;
+        let mut temp_vec = vec![L::zero(); len + 1];
+        temp_vec[len] = L::ten();
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTR2D}
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &T) {
         if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
             let index = pack.x() + CAM_DESIGN.0 * pack.y();
-            append_to_array(&mut self.data, index, settings.bytedepth);
+            self.data[index] = self.data[index] + L::one();
         }
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
@@ -145,30 +244,31 @@ impl SpecKind for SpecMeasurement<LiveTR2D> {
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
         self.is_ready = false;
         if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = 0);
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
+            self.data.iter_mut().for_each(|x| *x = L::zero());
+            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::ten();
         }
     }
 }
 
-impl SpecKind for SpecMeasurement<LiveTR1D> {
+impl<L: Sup> SpecKind for SpecMeasurement<LiveTR1D, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        &self.data
+        as_bytes(&self.data)
     }
-    fn new(settings: &Settings) -> Self {
-        let len: usize = settings.bytedepth*CAM_DESIGN.0;
-        let mut temp_vec = vec![0; len + 1];
-        temp_vec[len] = 10;
+    fn new(_settings: &Settings) -> Self {
+        let len: usize = CAM_DESIGN.0;
+        let mut temp_vec = vec![L::zero(); len + 1];
+        temp_vec[len] = L::ten();
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTR1D}
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &T) {
         if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
             let index = pack.x();
-            append_to_array(&mut self.data, index, settings.bytedepth);
+            //append_to_array(&mut self.data, index, settings.bytedepth);
+            self.data[index] = self.data[index] + L::one();
         }
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
@@ -181,35 +281,35 @@ impl SpecKind for SpecMeasurement<LiveTR1D> {
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
         self.is_ready = false;
         if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = 0);
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
+            self.data.iter_mut().for_each(|x| *x = L::zero());
+            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::ten();
         }
     }
 }
 
-impl SpecKind for SpecMeasurement<LiveTilted2D> {
+impl<L: Sup> SpecKind for SpecMeasurement<LiveTilted2D, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        &self.data
+        as_bytes(&self.data)
     }
-    fn new(settings: &Settings) -> Self {
-        let len: usize = CAM_DESIGN.1*settings.bytedepth*CAM_DESIGN.0;
-        let mut temp_vec = vec![0; len + 1];
-        temp_vec[len] = 10;
+    fn new(_settings: &Settings) -> Self {
+        let len: usize = CAM_DESIGN.1*CAM_DESIGN.0;
+        let mut temp_vec = vec![L::zero(); len + 1];
+        temp_vec[len] = L::ten();
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTilted2D }
     }
     #[inline]
-    fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
+    fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
         let x = pack.x();
         let y = pack.y();
         let index = x + CAM_DESIGN.0 * y;
-        append_to_array(&mut self.data, index, settings.bytedepth);
+        self.data[index] = self.data[index] + L::one();
     }
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
+    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
+        self.data[CAM_DESIGN.0-1] = self.data[CAM_DESIGN.0-1] + L::one();
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -218,23 +318,24 @@ impl SpecKind for SpecMeasurement<LiveTilted2D> {
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
         self.is_ready = false;
         if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = 0);
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
+            self.data.iter_mut().for_each(|x| *x = L::zero());
+            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::ten();
         }
     }
 }
 
-impl SpecKind for SpecMeasurement<FastChrono> {
+impl<L: Sup> SpecKind for SpecMeasurement<FastChrono, L> {
     fn is_ready(&self) -> bool {
         self.is_ready && !self.global_stop
     }
     fn build_output(&self) -> &[u8] {
-        &self.data
+        as_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
-        let len: usize = settings.xspim_size*settings.bytedepth*CAM_DESIGN.0;
-        let mut temp_vec = vec![0; len + 1];
-        temp_vec[len] = 10;
+        let len: usize = settings.xspim_size*CAM_DESIGN.0;
+        let mut temp_vec = vec![L::zero(); len + 1];
+    //type MeasKind;
+        temp_vec[len] = L::ten();
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: FastChrono}
     }
     #[inline]
@@ -242,12 +343,12 @@ impl SpecKind for SpecMeasurement<FastChrono> {
         let line = frame_tdc.counter()/2;
         let index = pack.x() + line * CAM_DESIGN.0;
         if line < settings.xspim_size {
-            append_to_array(&mut self.data, index, settings.bytedepth);
+            self.data[index] = self.data[index] + L::one();
         }
     }
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
+    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
+        self.data[CAM_DESIGN.0-1] = self.data[CAM_DESIGN.0-1] + L::one();
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -258,24 +359,24 @@ impl SpecKind for SpecMeasurement<FastChrono> {
     }
 }
 
-impl SpecKind for SpecMeasurement<Chrono> {
+impl<L: Sup> SpecKind for SpecMeasurement<Chrono, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        &self.data
+        as_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
-        let len: usize = settings.xspim_size*settings.bytedepth*CAM_DESIGN.0;
-        let mut temp_vec = vec![0; len + 1];
-        temp_vec[len] = 10;
+        let len: usize = settings.xspim_size*CAM_DESIGN.0;
+        let mut temp_vec = vec![L::zero(); len + 1];
+        temp_vec[len] = L::ten();
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: Chrono}
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
         let line = (frame_tdc.counter()/2) % settings.xspim_size;
         let index = pack.x() + line * CAM_DESIGN.0;
-        append_to_array(&mut self.data, index, settings.bytedepth);
+        self.data[index] = self.data[index] + L::one();
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -285,35 +386,35 @@ impl SpecKind for SpecMeasurement<Chrono> {
             self.aux_data.push(0); //This indicates the frame must be refreshed;
         }
     }
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
+    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
+        self.data[CAM_DESIGN.0-1] = self.data[CAM_DESIGN.0-1] + L::one();
     }
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) {
         self.is_ready = false;
         if self.aux_data.len() > 0 { //Refresh frame if true;
             self.aux_data.pop(); //Remove for the next cycle;
-            self.data.iter_mut().for_each(|x| *x = 0);
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
+            self.data.iter_mut().for_each(|x| *x = L::zero());
+            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::zero();
         }
     }
 }
 
-impl SpecKind for SpecMeasurement<SuperResolution> {
+impl<L: Sup> SpecKind for SpecMeasurement<SuperResolution, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        &self.data
+       as_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
         let len: usize = settings.bytedepth*CAM_DESIGN.0;
-        let mut temp_vec = vec![0; len + 1];
-        temp_vec[len] = 10;
+        let mut temp_vec = vec![L::zero(); len + 1];
+        temp_vec[len] = L::ten();
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: SuperResolution}
     }
     #[inline]
-    fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
+    fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
         let index = pack.x();
         self.aux_data.push(index);
         
@@ -322,7 +423,7 @@ impl SpecKind for SpecMeasurement<SuperResolution> {
             let len = self.aux_data.iter().filter(|&&val| val <= SR_INDEX).count();
             let sum: usize = self.aux_data.iter().filter(|&&val| val <= SR_INDEX).sum();
 
-            let offset: isize = match self.last_mean {
+            let _offset: isize = match self.last_mean {
                 None if len>SR_MIN => {
                     self.last_mean = Some(sum / len);
                     0
@@ -337,8 +438,10 @@ impl SpecKind for SpecMeasurement<SuperResolution> {
                 },
             };
 
-            for val in &self.aux_data {
-                append_to_array_roll(&mut self.data, *val, settings.bytedepth, offset/1);
+            for _val in &self.aux_data {
+                //TODO: this must be rolled
+                self.data[index] = self.data[index] + L::one();
+                //append_to_array_roll(&mut self.data, *val, settings.bytedepth, offset/1);
             }
             
             /*
@@ -358,15 +461,16 @@ impl SpecKind for SpecMeasurement<SuperResolution> {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         self.is_ready = true;
     }
-    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T) {
+    fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
+        //append_to_array(&mut self.data, CAM_DESIGN.0-1, settings.bytedepth);
+        self.data[CAM_DESIGN.0-1] = self.data[CAM_DESIGN.0-1] + L::one();
     }
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
         self.is_ready = false;
         if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = 0);
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
+            self.data.iter_mut().for_each(|x| *x = L::zero());
+            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::ten();
         }
     }
 }
@@ -391,7 +495,37 @@ impl LiveTR1D {
 
 
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
-pub fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
+///
+///# Examples
+pub fn run_spectrum<T, V, U, Y>(pack: V, ns: U, my_settings: Settings, frame_tdc: PeriodicTdcRef, np_tdc: T, kind: Y) -> Result<u8, Tp3ErrorKind>
+    where T: TdcControl,
+          V: TimepixRead,
+          U: Write,
+          Y: GenerateDepth, 
+          SpecMeasurement<Y, u8>: SpecKind,
+          SpecMeasurement<Y, u16>: SpecKind,
+          SpecMeasurement<Y, u32>: SpecKind
+{
+
+    match my_settings.bytedepth {
+        1 => {
+            let measurement = kind.gen8(&my_settings);
+            build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+        },
+        2 => {
+            let measurement = kind.gen16(&my_settings);
+            build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+        },
+        4 => {
+            let measurement = kind.gen32(&my_settings);
+            build_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, measurement)?;
+        },
+        _ => {return Err(Tp3ErrorKind::SetByteDepth)},
+    }
+    Ok(my_settings.mode)
+}
+    
+fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
     where T: TdcControl,
           V: TimepixRead,
           U: Write,
@@ -444,61 +578,6 @@ fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_
     final_data.is_ready()
 }
 
-fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
-    let index = index * bytedepth;
-    
-    if bytedepth == 4 {
-        data[index+3] = data[index+3].wrapping_add(1);
-        if data[index+3]==0 {
-            data[index+2] = data[index+2].wrapping_add(1);
-            if data[index+2]==0 {
-                data[index+1] = data[index+1].wrapping_add(1);
-                if data[index+1]==0 {
-                    data[index] = data[index].wrapping_add(1);
-                };
-            };
-        };
-    } else if bytedepth == 2 {
-        data[index+1] = data[index+1].wrapping_add(1);
-        if data[index+1]==0 {
-            data[index] = data[index].wrapping_add(1);
-        }
-    } else if bytedepth == 1 {
-        data[index] = data[index].wrapping_add(1);
-    }
-    
-}
-
-fn append_to_array_roll(data: &mut [u8], index:usize, bytedepth: usize, roll: isize) {
-    let index = index as isize + roll;
-    if index >= CAM_DESIGN.0 as isize - 1 || index < 0 {
-        return
-    }
-    let index = index as usize;
-
-    let index = index * bytedepth;
-    
-    if bytedepth == 4 {
-        data[index+3] = data[index+3].wrapping_add(1);
-        if data[index+3]==0 {
-            data[index+2] = data[index+2].wrapping_add(1);
-            if data[index+2]==0 {
-                data[index+1] = data[index+1].wrapping_add(1);
-                if data[index+1]==0 {
-                    data[index] = data[index].wrapping_add(1);
-                };
-            };
-        };
-    } else if bytedepth == 2 {
-        data[index+1] = data[index+1].wrapping_add(1);
-        if data[index+1]==0 {
-            data[index] = data[index].wrapping_add(1);
-        }
-    } else if bytedepth == 1 {
-        data[index] = data[index].wrapping_add(1);
-    }
-}
-
 fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(tdc.time().to_string()));
@@ -531,3 +610,59 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
     let s: Vec<u8> = msg.into_bytes();
     s
 }
+
+
+/*
+fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
+    let index = index * bytedepth;
+    if bytedepth == 4 {
+        data[index+3] = data[index+3].wrapping_add(1);
+        if data[index+3]==0 {
+            data[index+2] = data[index+2].wrapping_add(1);
+            if data[index+2]==0 {
+                data[index+1] = data[index+1].wrapping_add(1);
+                if data[index+1]==0 {
+                    data[index] = data[index].wrapping_add(1);
+                };
+            };
+        };
+    } else if bytedepth == 2 {
+        data[index+1] = data[index+1].wrapping_add(1);
+        if data[index+1]==0 {
+            data[index] = data[index].wrapping_add(1);
+        }
+    } else if bytedepth == 1 {
+        data[index] = data[index].wrapping_add(1);
+    }
+}
+
+fn append_to_array_roll(data: &mut [u8], index:usize, bytedepth: usize, roll: isize) {
+    let index = index as isize + roll;
+    if index >= CAM_DESIGN.0 as isize - 1 || index < 0 {
+        return
+    }
+    let index = index as usize;
+
+    let index = index * bytedepth;
+    
+    if bytedepth == 4 {
+        data[index+3] = data[index+3].wrapping_add(1);
+        if data[index+3]==0 {
+            data[index+2] = data[index+2].wrapping_add(1);
+            if data[index+2]==0 {
+                data[index+1] = data[index+1].wrapping_add(1);
+                if data[index+1]==0 {
+                    data[index] = data[index].wrapping_add(1);
+                };
+            };
+        };
+    } else if bytedepth == 2 {
+        data[index+1] = data[index+1].wrapping_add(1);
+        if data[index+1]==0 {
+            data[index] = data[index].wrapping_add(1);
+        }
+    } else if bytedepth == 1 {
+        data[index] = data[index].wrapping_add(1);
+    }
+}
+*/

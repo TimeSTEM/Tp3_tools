@@ -7,6 +7,7 @@ pub mod coincidence {
     use std::fs;
     use std::time::Instant;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
+    use crate::auxiliar::ConfigAcquisition;
     use std::convert::TryInto;
     use std::cmp;
 
@@ -14,39 +15,6 @@ pub mod coincidence {
     //const TIME_DELAY: usize = 100_000 - 1867; //Time delay to correlate (ps).
     const TIME_DELAY: usize = 103; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
     const MIN_LEN: usize = 100; // Sliding time window size.
-
-    #[derive(Debug)]
-    pub struct Config {
-        file: String,
-        is_spim: bool,
-        xspim: usize,
-        yspim: usize,
-    }
-
-    impl Config {
-        pub fn file(&self) -> &str {
-            &self.file
-        }
-
-        pub fn new(args: &[String]) -> Self {
-            if args.len() != 4+1 {
-                panic!("One must provide 04 ({} detected) arguments (file, is_spim, xspim, yspim).", args.len()-1);
-            }
-            let file = args[1].clone();
-            let is_spim = args[2] == "1";
-            let xspim = args[3].parse::<usize>().unwrap();
-            let yspim = args[4].parse::<usize>().unwrap();
-            let my_config = 
-            Config {
-                file,
-                is_spim,
-                xspim,
-                yspim,
-            };
-            println!("Configuration for the coincidence measurement is {:?}", my_config);
-            my_config
-        }
-    }
 
     pub struct ElectronData {
         pub time: Vec<usize>,
@@ -115,7 +83,7 @@ pub mod coincidence {
             self.spim_tdc = Some(spim_tdc);
         }
 
-        pub fn new(my_config: &Config) -> Self {
+        pub fn new(my_config: &ConfigAcquisition) -> Self {
             Self {
                 time: Vec::new(),
                 rel_time: Vec::new(),

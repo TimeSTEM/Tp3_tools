@@ -1,9 +1,8 @@
 [package]
 name = "timepix3"
-version = "0.9.0"
+version = "1.0.0"
 authors = ["yvesauad <yvesauad@gmail.com>"]
 edition = "2018"
-
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -12,13 +11,6 @@ rayon = "1.5"
 chrono = "0.4"
 rand_distr = "0.4.3"
 rand = "0.8.4"
-
-[dev-dependencies]
-criterion = "0.3"
-
-[[bench]]
-name = "my_benchmark"
-harness = false
 
 [profile.dev]
 opt-level = 1
