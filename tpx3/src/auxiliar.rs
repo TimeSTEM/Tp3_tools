@@ -214,7 +214,7 @@ impl Write for DebugIO {
 }
 
 
-///Settings contains all relevant parameters for a given acquistion
+///`Settings` contains all relevant parameters for a given acquistion
 #[derive(Copy, Clone, Debug)]
 pub struct Settings {
     pub bin: bool,
@@ -342,6 +342,7 @@ impl Settings {
     
 }
 
+///`ConfigAcquisition` is used for post-processing, where reading external TPX3 files is necessary.
 #[derive(Debug)]
 pub struct ConfigAcquisition {
     pub file: String,
@@ -376,6 +377,7 @@ impl ConfigAcquisition {
 }
 
 
+///`simple_log` is used for post-processing, where reading external TPX3 files is necessary.
 pub mod simple_log {
     use chrono::prelude::*;
     use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
@@ -416,13 +418,14 @@ pub mod simple_log {
     }
 }
 
+///`misc` are miscellaneous functions.
 pub mod misc {
     use std::io::Read;
     use crate::errorlib::Tp3ErrorKind;
     use std::net::TcpStream;
     use std::fs::File;
 
-    fn default_read_exact<R: Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> Result<usize, Tp3ErrorKind> {
+    pub fn default_read_exact<R: Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> Result<usize, Tp3ErrorKind> {
         let mut size = 0;
         while size == 0 || size % 8 != 0 {
             match this.read(buf) {
@@ -461,6 +464,7 @@ pub mod misc {
     }
     */
     
+    ///A modified `Read` trait. Guarantee to read at least 8 bytes.
     pub trait TimepixRead: Read {
         fn read_timepix(&mut self, buf: &mut [u8]) -> Result<usize, Tp3ErrorKind> {
             default_read_exact(self, buf)

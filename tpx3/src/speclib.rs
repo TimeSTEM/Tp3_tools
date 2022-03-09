@@ -1,4 +1,5 @@
-///`modes` is a module containing tools to live acquire frames and spectral images.
+//!`speclib` is a collection of tools to set EELS/4D acquisition.
+
 use crate::packetlib::{Packet, PacketEELS as Pack};
 use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::tdclib::{TdcControl, PeriodicTdcRef};
@@ -71,13 +72,24 @@ impl Sup for u8 {
     }
 }
 
+
+///`Live2D` displays the detector image.
 pub struct Live2D;
+///`Live1D` displays the detector spectrum (image binned along the non-dispersive direction).
 pub struct Live1D;
+///`LiveTR2D` displays the detector image for time-resolved measurements.
 pub struct LiveTR2D;
+///`LiveTR1D` displays the detector spectrum (image binned along the non-dispersive direction) for
+///time-resolved measurements.
 pub struct LiveTR1D;
+///`LiveTilted2D` displays the detector image tilted in order to overcome detector saturation.
 pub struct LiveTilted2D;
+///`FastChrono` is a series of spectra with arbitrary interval time. It forms an image.
 pub struct FastChrono;
+///`Chrono` is a series of spectra with typical acquisitions interval time. It forms an image and
+///can be used in live conditions.
 pub struct Chrono;
+///`SuperResolution` is currently not working.
 pub struct SuperResolution;
 
 pub trait GenerateDepth {
@@ -482,6 +494,9 @@ impl LiveTR1D {
 }
 
 
+///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
+///
+///# Examples
 pub fn run_spectrum<T, V, U, Y>(pack: V, ns: U, my_settings: Settings, frame_tdc: PeriodicTdcRef, np_tdc: T, kind: Y) -> Result<u8, Tp3ErrorKind>
     where T: TdcControl,
           V: TimepixRead,
@@ -510,7 +525,6 @@ pub fn run_spectrum<T, V, U, Y>(pack: V, ns: U, my_settings: Settings, frame_tdc
     Ok(my_settings.mode)
 }
     
-///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
 fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
     where T: TdcControl,
           V: TimepixRead,
