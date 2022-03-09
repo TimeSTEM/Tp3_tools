@@ -1,11 +1,17 @@
 # Tp3_tools
-Repository containing support scripts and tools to aid development.
+Repository containing the development of Timepix3 (CheeTah solution) for live measurements of EELS, including images, spectra, Chrono (sequency of spectra) and hyperspectral EELS. The crate is coded in [Rust](https://www.rust-lang.org/tools/install). An API has been developed in Python and used within [NionSwift](https://github.com/nion-software/nionswift). Please this is still under strong development so missing documentation could be an issue. Nonetheless, using
 
-## RawAnalysis
-This contain raw data analysis scripts. *open_raw.py* describes opens a set or a single .tpx3 file; *tpx2txt.cpp* is the counterpart in C/C++. Executable can be used in Powershell followed by file name. *temp.tpx3* is a temporary file that can be created using the TCPDummyServer. Results from python and C/C++ give us same results. Folder **FromTP3** is actual data from timepix3 containing a zero loss peak. Python scripts seems to perform better than the C/C++.
+`cargo doc --open`
 
-## TCPDummyServer
-This is a TCPDummyServer. Executing in localhost puts it in hanging until a connection is stablished. You can either created a client python file or a simple telnet client (such as [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html), for example), can do the trick. Comment file writing to prevent huge data files being created in *temp.tpx3*.
+can explain most of the backbones of the crate, such as the available libraries and the data structures used. 
 
-## TCPFiletoStream
-My attempt to stream the raw files via TCP directly. In your data reading environment, you use the same processing as TCPDummyServer. 
+Within proper setup, running Timepix3 can be as simply as setting up the TDCs and the desired acquisition mode. In 3 lines:
+
+```
+let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
+let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
+speclib::run_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, speclib::Live1D)?;
+```
+
+## Note
+Fell free to contact us in order to help set up Timepix3 under live conditions or to simply ask questions.
