@@ -1,5 +1,6 @@
+//!`clusterlib` is a collection of tools to identify and manipulate TPX3 cluster.
+
 pub mod cluster {
-    
     use crate::packetlib::Packet;
     use crate::spimlib;
     use crate::tdclib::PeriodicTdcRef;

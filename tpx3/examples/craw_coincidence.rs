@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::prelude::*;
 use timepix3::packetlib::*;
+use timepix3::tdclib::TdcType;
 use rand_distr::{Exp, Normal, Distribution};
 use rand::distributions::Uniform;
 use rand::{thread_rng};
@@ -22,6 +23,7 @@ fn main() {
     let mut photon:Option<InversePacket> = None;
     let mut x: usize;
     let mut data: Vec<[u8; 16]> = Vec::new();
+    let mut photon_counter = 0;
 
     let mut global_time = 0;
     for _ in 0..10_000_000 {
@@ -37,33 +39,19 @@ fn main() {
             x = normal_02.sample(&mut rand::thread_rng()) as usize;
             //1% probability generate a photon in second gaussian
             if uni.sample(&mut thread_rng()) < 0.01 {
+                photon_counter += 1;
                 let dt_photon = decay_photon.sample(&mut rand::thread_rng());
                 let dt_response_fall = response.sample(&mut rand::thread_rng());
                 let dt_response_ris = response.sample(&mut rand::thread_rng());
-                photon = Some(InversePacket::new_inverse_tdc(global_time - dt_response_fall as usize + dt_response_ris as usize));
-                //photon = Some(InversePacket::new_inverse_tdc(global_time + dt_photon as usize - dt_response_fall as usize + dt_response_ris as usize));
+                photon = Some(InversePacket::new_inverse_tdc(global_time + dt_photon as usize - dt_response_fall as usize + dt_response_ris as usize));
             } else {
                 photon = None;
             }
         }
-        //25% probability thirs gaussian
-        /*
-        } else {
-            x = normal_03.sample(&mut rand::thread_rng()) as usize;
-            //5% probability generate photon in third gaussian
-            if uni.sample(&mut thread_rng()) < 0.05 {
-                let dt_photon = decay_photon_02.sample(&mut rand::thread_rng());
-                let dt_response = response.sample(&mut rand::thread_rng());
-                photon = Some(InversePacket::new_inverse_tdc(global_time + dt_photon as usize - dt_response as usize));
-            } else {
-                photon = None;
-            }
-        }
-        */
         electron = InversePacket::new_inverse_electron(x, 128, global_time);
         data.push(electron.create_electron_array());
         if let Some(ph) = photon {
-            data.push(ph.create_tdc_array());
+            data.push(ph.create_tdc_array(photon_counter, TdcType::TdcTwoRisingEdge));
         }
         photon = None;
     }

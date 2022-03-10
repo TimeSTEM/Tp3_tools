@@ -75,7 +75,7 @@ pub mod coincidence {
                 }
             };
 
-            println!("Number of coincident electrons: {:?}", self.x.len());
+            println!("Number of coincident electrons: {:?}. Last photon real time is {:?}. Last relative time is {:?}.", self.x.len(), self.time.iter().last(), self.rel_time.iter().last());
         }
 
         fn prepare_spim(&mut self, spim_tdc: PeriodicTdcRef) {
