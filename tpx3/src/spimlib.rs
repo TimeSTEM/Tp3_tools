@@ -190,6 +190,7 @@ fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_c
     });
 }
 
+/*
 fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
     //Big Endian
     data.push(((index >> 24 ) & 0xff) as u8);
@@ -207,3 +208,4 @@ fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
     //data.push((index & 0xff) as u8);
 
 }
+*/

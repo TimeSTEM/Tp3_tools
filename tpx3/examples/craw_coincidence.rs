@@ -58,5 +58,5 @@ fn main() {
 
     let final_vec = data.iter().map(|&x| x).flatten().collect::<Vec<_>>();
     let mut file = File::create("raw000000.tpx3").unwrap();
-    file.write_all(&final_vec);
+    file.write_all(&final_vec).expect("Could not write to file.");
 }

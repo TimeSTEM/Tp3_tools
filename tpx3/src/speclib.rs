@@ -25,18 +25,13 @@ fn as_bytes<T>(v: &[T]) -> &[u8] {
     }
 }
 
-pub trait BitDepth {}
-impl BitDepth for u32 {}
-impl BitDepth for u16 {}
-impl BitDepth for u8 {}
-
-pub trait Sup: BitDepth + Clone + Add<Output = Self> + Copy + AddAssign {
+pub trait BitDepth: Clone + Add<Output = Self> + Copy + AddAssign {
     fn zero() -> Self;
     fn one() -> Self;
     fn ten() -> Self;
 }
 
-impl Sup for u32 {
+impl BitDepth for u32 {
     fn zero() -> u32 {
         0
     }
@@ -48,7 +43,7 @@ impl Sup for u32 {
     }
 }
 
-impl Sup for u16 {
+impl BitDepth for u16 {
     fn zero() -> u16 {
         0
     }
@@ -60,7 +55,7 @@ impl Sup for u16 {
     }
 }
 
-impl Sup for u8 {
+impl BitDepth for u8 {
     fn zero() -> u8 {
         0
     }
@@ -124,7 +119,7 @@ impl GenerateDepth for FastChrono {}
 impl GenerateDepth for Chrono {}
 impl GenerateDepth for SuperResolution {}
 
-pub struct SpecMeasurement<T, K: Sup> {
+pub struct SpecMeasurement<T, K: BitDepth> {
     data: Vec<K>,
     aux_data: Vec<usize>,
     is_ready: bool,
@@ -144,7 +139,7 @@ pub trait SpecKind {
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings);
 }
 
-impl<L: Sup> SpecKind for SpecMeasurement<Live2D, L> {
+impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
@@ -179,7 +174,7 @@ impl<L: Sup> SpecKind for SpecMeasurement<Live2D, L> {
     }
 }
 
-impl<L: Sup> SpecKind for SpecMeasurement<Live1D, L> {
+impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
@@ -214,7 +209,7 @@ impl<L: Sup> SpecKind for SpecMeasurement<Live1D, L> {
     }
 }
 
-impl<L: Sup> SpecKind for SpecMeasurement<LiveTR2D, L> {
+impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR2D, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
@@ -250,7 +245,7 @@ impl<L: Sup> SpecKind for SpecMeasurement<LiveTR2D, L> {
     }
 }
 
-impl<L: Sup> SpecKind for SpecMeasurement<LiveTR1D, L> {
+impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR1D, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
@@ -287,7 +282,7 @@ impl<L: Sup> SpecKind for SpecMeasurement<LiveTR1D, L> {
     }
 }
 
-impl<L: Sup> SpecKind for SpecMeasurement<LiveTilted2D, L> {
+impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTilted2D, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
@@ -324,7 +319,7 @@ impl<L: Sup> SpecKind for SpecMeasurement<LiveTilted2D, L> {
     }
 }
 
-impl<L: Sup> SpecKind for SpecMeasurement<FastChrono, L> {
+impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
     fn is_ready(&self) -> bool {
         self.is_ready && !self.global_stop
     }
@@ -359,7 +354,7 @@ impl<L: Sup> SpecKind for SpecMeasurement<FastChrono, L> {
     }
 }
 
-impl<L: Sup> SpecKind for SpecMeasurement<Chrono, L> {
+impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
@@ -400,7 +395,7 @@ impl<L: Sup> SpecKind for SpecMeasurement<Chrono, L> {
     }
 }
 
-impl<L: Sup> SpecKind for SpecMeasurement<SuperResolution, L> {
+impl<L: BitDepth> SpecKind for SpecMeasurement<SuperResolution, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
@@ -501,7 +496,7 @@ pub fn run_spectrum<T, V, U, Y>(pack: V, ns: U, my_settings: Settings, frame_tdc
     where T: TdcControl,
           V: TimepixRead,
           U: Write,
-          Y: GenerateDepth, 
+          Y: GenerateDepth,
           SpecMeasurement<Y, u8>: SpecKind,
           SpecMeasurement<Y, u16>: SpecKind,
           SpecMeasurement<Y, u32>: SpecKind
