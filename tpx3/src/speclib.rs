@@ -31,39 +31,21 @@ pub trait BitDepth: Clone + Add<Output = Self> + Copy + AddAssign {
     fn ten() -> Self;
 }
 
-impl BitDepth for u32 {
-    fn zero() -> u32 {
-        0 as Self
-    }
-    fn one() -> u32 {
-        1
-    }
-    fn ten() -> u32 {
-        10
-    }
-}
-
-impl BitDepth for u16 {
-    fn zero() -> u16 {
-        0
-    }
-    fn one() -> u16 {
-        1
-    }
-    fn ten() -> u16 {
-        10
-    }
-}
-
-impl BitDepth for u8 {
-    fn zero() -> u8 {
-        0
-    }
-    fn one() -> u8 {
-        1
-    }
-    fn ten() -> u8 {
-        10
+macro_rules! genbitdepth {
+    ($($x: ty),*) => {
+        $(
+        impl BitDepth for $x {
+            fn zero() -> $x {
+                0 as $x
+            }
+            fn one() -> $x {
+                1 as $x
+            }
+            fn ten() -> $x {
+                10 as $x
+            }
+        }
+        )*
     }
 }
 
@@ -75,8 +57,6 @@ macro_rules! genall {
         )*
     }
 }
-
-genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, SuperResolution);
 
 pub trait GenerateDepth {
     fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> 
@@ -101,6 +81,8 @@ pub trait GenerateDepth {
     }
 }
 
+genbitdepth!(u8, u16, u32);
+genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, SuperResolution);
 
 pub struct SpecMeasurement<T, K: BitDepth> {
     data: Vec<K>,
