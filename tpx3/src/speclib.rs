@@ -33,7 +33,7 @@ pub trait BitDepth: Clone + Add<Output = Self> + Copy + AddAssign {
 
 impl BitDepth for u32 {
     fn zero() -> u32 {
-        0
+        0 as Self
     }
     fn one() -> u32 {
         1
@@ -67,25 +67,16 @@ impl BitDepth for u8 {
     }
 }
 
+macro_rules! genall {
+    ($($x:ident),*) => {
+        $(
+            pub struct $x;
+            impl GenerateDepth for $x{}
+        )*
+    }
+}
 
-///`Live2D` displays the detector image.
-pub struct Live2D;
-///`Live1D` displays the detector spectrum (image binned along the non-dispersive direction).
-pub struct Live1D;
-///`LiveTR2D` displays the detector image for time-resolved measurements.
-pub struct LiveTR2D;
-///`LiveTR1D` displays the detector spectrum (image binned along the non-dispersive direction) for
-///time-resolved measurements.
-pub struct LiveTR1D;
-///`LiveTilted2D` displays the detector image tilted in order to overcome detector saturation.
-pub struct LiveTilted2D;
-///`FastChrono` is a series of spectra with arbitrary interval time. It forms an image.
-pub struct FastChrono;
-///`Chrono` is a series of spectra with typical acquisitions interval time. It forms an image and
-///can be used in live conditions.
-pub struct Chrono;
-///`SuperResolution` is currently not working.
-pub struct SuperResolution;
+genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, SuperResolution);
 
 pub trait GenerateDepth {
     fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> 
@@ -110,14 +101,6 @@ pub trait GenerateDepth {
     }
 }
 
-impl GenerateDepth for Live2D {}
-impl GenerateDepth for Live1D {}
-impl GenerateDepth for LiveTR2D {}
-impl GenerateDepth for LiveTR1D {}
-impl GenerateDepth for LiveTilted2D {}
-impl GenerateDepth for FastChrono {}
-impl GenerateDepth for Chrono {}
-impl GenerateDepth for SuperResolution {}
 
 pub struct SpecMeasurement<T, K: BitDepth> {
     data: Vec<K>,
