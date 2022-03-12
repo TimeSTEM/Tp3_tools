@@ -322,7 +322,6 @@ pub mod ntime_resolved {
         fn add_tdc(&mut self, packet: &Pack);
         fn process(&mut self);
         fn output(&self) -> Result<(), ErrorType>;
-        fn sparse_output(&self) -> Result<(), ErrorType>;
         fn display_info(&self) -> Result<(), ErrorType>;
     }
 
@@ -382,7 +381,11 @@ pub mod ntime_resolved {
  
             //Creating the array using the electron corrected time. Note that you dont need to use it in the 'spim_detector' if you synchronize the clocks.
             if let Some(offset) = self.initial_time {
-                let vec_index = (corrected_el-offset) / self.interval;
+                let vec_index = if corrected_el > offset {
+                    (corrected_el-offset) / self.interval
+                } else {
+                    0
+                };
                 while self.spectra.len() < vec_index + 1 {
                     self.expand_data();
                 }
@@ -416,6 +419,7 @@ pub mod ntime_resolved {
 
 
         fn output(&self) -> Result<(), ErrorType> {
+
             if let Err(_) = fs::read_dir(&self.folder) {
                 if let Err(_) = fs::create_dir(&self.folder) {
                     return Err(ErrorType::FolderNotCreated);
@@ -429,21 +433,75 @@ pub mod ntime_resolved {
             folder.push_str(&(self.spimx).to_string());
             folder.push_str("_");
             folder.push_str(&(self.spimy).to_string());
-            folder.push_str("_SpimComplete");
 
-            for slice in 0..self.spectra.len() {
-                let temp_string = folder.clone();
-                let slice_string = String::from(slice.to_string());
-                let out = self.spectra[slice].iter()
-                    .map(|x| x.to_string())
-                    .collect::<Vec<String>>().join(",");
-                if let Err(_) = fs::write(temp_string+&slice_string, out) {
-                    return Err(ErrorType::FolderDoesNotExist);
-                }
-            }
+            
+            //Check if sparse or not is better to output;
+            let test_slice = self.spectra.len() / 2;
+
+            let out1 = self.spectra[test_slice].iter()
+                .map(|x| x.to_string())
+                .collect::<Vec<String>>().join(",")
+                .len();
+            
+            let out2_indices = self.spectra[test_slice].iter()
+                .enumerate()
+                .filter(|(_index, hits)| **hits != 0)
+                .map(|(index, _hits)| index.to_string())
+                .collect::<Vec<String>>().join(",")
+                .len();
+            
+            let out2_hits = self.spectra[test_slice].iter()
+                .enumerate()
+                .filter(|(_index, hits)| **hits != 0)
+                .map(|(_index, hits)| hits.to_string())
+                .collect::<Vec<String>>().join(",")
+                .len();
+
+            println!("Estimated size, per slice, for normal output: {}. Estimated size, per slice, for sparse-output: {}.", out1, out2_indices+out2_hits);
+
+            match out1 < out2_indices+out2_hits {
+                true => {
+                    println!("Normal hyperspectral output automatically selected.");
+                    folder.push_str("_SpimComplete");
+                    for slice in 0..self.spectra.len() {
+                        let slice_string = String::from(slice.to_string());
+                        let out = self.spectra[slice].iter()
+                            .map(|x| x.to_string())
+                            .collect::<Vec<String>>().join(",");
+                        if let Err(_) = fs::write(folder.clone()+&slice_string, out) {
+                            return Err(ErrorType::FolderDoesNotExist);
+                        }
+                    }
+                },
+                false => {
+                    println!("Sparse-output hyperspectral output automatically selected.");
+                    folder.push_str("_SparseSpimComplete");
+                    for slice in 0..self.spectra.len() {
+                        let slice_string = String::from(slice.to_string());
+                        let hit_string = String::from("_Hits");
+                        let out = self.spectra[slice].iter()
+                            .enumerate()
+                            .filter(|(_index, hits)| **hits != 0)
+                            .map(|(index, _hits)| index.to_string())
+                            .collect::<Vec<String>>().join(",");
+                        if let Err(_) = fs::write(folder.clone()+&slice_string, out) {
+                            return Err(ErrorType::FolderDoesNotExist);
+                        }
+                        let out = self.spectra[slice].iter()
+                            .enumerate()
+                            .filter(|(_index, hits)| **hits != 0)
+                            .map(|(_index, hits)| hits.to_string())
+                            .collect::<Vec<String>>().join(",");
+                        if let Err(_) = fs::write(folder.clone()+&hit_string+&slice_string, out) {
+                            return Err(ErrorType::FolderDoesNotExist);
+                        }
+                    }
+                },
+            };
             Ok(())
         }
             
+        /*
         fn sparse_output(&self) -> Result<(), ErrorType> {
             if let Err(_) = fs::read_dir(&self.folder) {
                 if let Err(_) = fs::create_dir(&self.folder) {
@@ -488,6 +546,7 @@ pub mod ntime_resolved {
          
             Ok(())
         }
+        */
 
         fn display_info(&self) -> Result<(), ErrorType> {
             println!("Total number of spims are: {}. First electron detected at {:?}. TDC info is {:?}.", self.spectra.len(), self.initial_time, self.tdc_periodic);
@@ -524,6 +583,7 @@ pub mod ntime_resolved {
             let mut file = fs::File::open(file).expect("Could not open desired file.");
             each.prepare(&mut file);
         }
+
 
         let mut my_file = fs::File::open(file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = vec![0; 128_000_000];

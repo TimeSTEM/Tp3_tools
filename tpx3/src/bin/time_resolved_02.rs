@@ -3,7 +3,7 @@ use timepix3::tdclib::TdcType;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
-    let time_per_slice = (4e8/1.5625) as usize; //Time, in units of 640 Mhz (1.5625 ns);
+    let time_per_slice = (41e6/1.5625) as usize; //Time, in units of 640 Mhz (1.5625 ns);
     let spim_size = 32; //Size of the spim;
     
     let mut my_vec: Vec<Box<dyn TimeTypes>> = Vec::new();
@@ -22,7 +22,6 @@ fn main() -> Result<(), ErrorType> {
     for spec in specs.set.iter_mut() {
         spec.display_info()?;
         spec.output()?;
-        spec.sparse_output()?;
     }
 
     Ok(())
