@@ -57,7 +57,7 @@ pub mod coincidence {
             self.x.push(val.x());
             self.y.push(val.y());
             if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
-                self.spim_index.push(index + val.x());
+                self.spim_index.push(index);
             }
         }
         
@@ -298,10 +298,11 @@ pub mod coincidence {
 }
 
 pub mod ntime_resolved {
+    use crate::spimlib::SPIM_PIXELS;
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
-    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, SPIM_PIXELS};
+    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use std::convert::TryInto;
     use std::fs;
     
@@ -405,7 +406,9 @@ pub mod ntime_resolved {
                 //self.ensemble.output_data(String::from("entire_data_cluster"), 2);
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
-                        self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;
+                        //self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;
+                        //println!("{} and {} and {}", index, val.x(), self.spectra[0].len());
+                        self.spectra[val.spim_slice()][index] += 1;
                     }
                 }
                 self.ensemble = CollectionElectron::new();

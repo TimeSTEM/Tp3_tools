@@ -3,12 +3,11 @@ use timepix3::tdclib::TdcType;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
-    let time = 4e12 as usize;
-    
-    let spim_size = 32;
+    let time = 4e12 as usize; //Time, in units of 640 Mhz (1.5625 ns);
+    let spim_size = 32; //Size of the spim;
     
     let mut my_vec: Vec<Box<dyn TimeTypes>> = Vec::new();
-    my_vec.push(Box::new(TimeSpectralSpatial::new(time, spim_size, spim_size, true, TdcType::TdcOneFallingEdge, String::from("testSpim_new_new_new"))?));
+    my_vec.push(Box::new(TimeSpectralSpatial::new(time, spim_size, spim_size, true, TdcType::TdcOneFallingEdge, String::from("test"))?));
     let mut specs = TimeSet {
         set: my_vec,
     };
