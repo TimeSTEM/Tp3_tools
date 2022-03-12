@@ -322,6 +322,7 @@ pub mod ntime_resolved {
         fn add_tdc(&mut self, packet: &Pack);
         fn process(&mut self);
         fn output(&self) -> Result<(), ErrorType>;
+        fn sparse_output(&self) -> Result<(), ErrorType>;
         fn display_info(&self) -> Result<(), ErrorType>;
     }
 
@@ -406,8 +407,6 @@ pub mod ntime_resolved {
                 //self.ensemble.output_data(String::from("entire_data_cluster"), 2);
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
-                        //self.spectra[val.spim_slice()][SPIM_PIXELS*index+val.x()] += 1;
-                        //println!("{} and {} and {}", index, val.x(), self.spectra[0].len());
                         self.spectra[val.spim_slice()][index] += 1;
                     }
                 }
@@ -430,11 +429,61 @@ pub mod ntime_resolved {
             folder.push_str(&(self.spimx).to_string());
             folder.push_str("_");
             folder.push_str(&(self.spimy).to_string());
-            folder.push_str("_spimComplete");
+            folder.push_str("_SpimComplete");
 
-            let out = self.spectra.iter().flatten().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-            if let Err(_) = fs::write(&folder, out) {
-                return Err(ErrorType::FolderDoesNotExist);
+            for slice in 0..self.spectra.len() {
+                let temp_string = folder.clone();
+                let slice_string = String::from(slice.to_string());
+                let out = self.spectra[slice].iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<String>>().join(",");
+                if let Err(_) = fs::write(temp_string+&slice_string, out) {
+                    return Err(ErrorType::FolderDoesNotExist);
+                }
+            }
+            Ok(())
+        }
+            
+        fn sparse_output(&self) -> Result<(), ErrorType> {
+            if let Err(_) = fs::read_dir(&self.folder) {
+                if let Err(_) = fs::create_dir(&self.folder) {
+                    return Err(ErrorType::FolderNotCreated);
+                }
+            }
+
+            let mut folder: String = String::from(&self.folder);
+            folder.push_str("\\");
+            folder.push_str(&(self.spectra.len()).to_string());
+            folder.push_str("_");
+            folder.push_str(&(self.spimx).to_string());
+            folder.push_str("_");
+            folder.push_str(&(self.spimy).to_string());
+            folder.push_str("_SparseSpimComplete");
+
+            for slice in 0..self.spectra.len() {
+                let temp_string = folder.clone();
+                let slice_string = String::from(slice.to_string());
+                let out = self.spectra[slice].iter()
+                    .enumerate()
+                    .filter(|(_index, hits)| **hits != 0)
+                    .map(|(index, _hits)| index.to_string()).collect::<Vec<String>>().join(",");
+                if let Err(_) = fs::write(temp_string+&slice_string, out) {
+                    return Err(ErrorType::FolderDoesNotExist);
+                }
+            }
+
+            folder.push_str("_Hits");
+            
+            for slice in 0..self.spectra.len() {
+                let temp_string = folder.clone();
+                let slice_string = String::from(slice.to_string());
+                let out = self.spectra[slice].iter()
+                    .enumerate()
+                    .filter(|(_index, hits)| **hits != 0)
+                    .map(|(_index, hits)| hits.to_string()).collect::<Vec<String>>().join(",");
+                if let Err(_) = fs::write(temp_string+&slice_string, out) {
+                    return Err(ErrorType::FolderDoesNotExist);
+                }
             }
          
             Ok(())

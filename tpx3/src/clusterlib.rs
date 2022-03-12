@@ -40,28 +40,6 @@ pub mod cluster {
         }
     }
 
-    /*
-    impl IntoIterator for CollectionElectron {
-        type Item = SingleElectron;
-        type IntoIter = std::vec::IntoIter<Self::Item>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.data.into_iter()
-        }
-    }
-    
-    impl<'a> IntoIterator for &'a CollectionElectron {
-        type Item = &'a SingleElectron;
-        type IntoIter = std::slice::Iter<'a, SingleElectron>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.data.iter()
-        }
-    }
-    */
-    
-    
-
     impl CollectionElectron {
         pub fn new() -> Self {
             CollectionElectron {
@@ -292,24 +270,6 @@ pub mod cluster {
             
             if let Some(frame_tdc) = spim_tdc {
                 spimlib::get_spimindex(self.x(), self.frame_dt(), &frame_tdc, xspim, yspim)
-                
-                /*
-                let interval = frame_tdc.low_time;
-                let period = frame_tdc.period;
-
-                let val = self.frame_dt() % period;
-                if val >= interval {return None;}
-                let mut r = self.frame_dt() / period;
-                let rin = val * xspim / interval;
-
-                if r > yspim -1 {
-                    if r > 4096 {return None;}
-                    r %= yspim;
-                }
-
-                let result = r * xspim + rin;
-                Some(result)
-            */
             } else {
                 None
             }
