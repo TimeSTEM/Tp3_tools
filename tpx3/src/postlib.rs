@@ -501,53 +501,6 @@ pub mod ntime_resolved {
             Ok(())
         }
             
-        /*
-        fn sparse_output(&self) -> Result<(), ErrorType> {
-            if let Err(_) = fs::read_dir(&self.folder) {
-                if let Err(_) = fs::create_dir(&self.folder) {
-                    return Err(ErrorType::FolderNotCreated);
-                }
-            }
-
-            let mut folder: String = String::from(&self.folder);
-            folder.push_str("\\");
-            folder.push_str(&(self.spectra.len()).to_string());
-            folder.push_str("_");
-            folder.push_str(&(self.spimx).to_string());
-            folder.push_str("_");
-            folder.push_str(&(self.spimy).to_string());
-            folder.push_str("_SparseSpimComplete");
-
-            for slice in 0..self.spectra.len() {
-                let temp_string = folder.clone();
-                let slice_string = String::from(slice.to_string());
-                let out = self.spectra[slice].iter()
-                    .enumerate()
-                    .filter(|(_index, hits)| **hits != 0)
-                    .map(|(index, _hits)| index.to_string()).collect::<Vec<String>>().join(",");
-                if let Err(_) = fs::write(temp_string+&slice_string, out) {
-                    return Err(ErrorType::FolderDoesNotExist);
-                }
-            }
-
-            folder.push_str("_Hits");
-            
-            for slice in 0..self.spectra.len() {
-                let temp_string = folder.clone();
-                let slice_string = String::from(slice.to_string());
-                let out = self.spectra[slice].iter()
-                    .enumerate()
-                    .filter(|(_index, hits)| **hits != 0)
-                    .map(|(_index, hits)| hits.to_string()).collect::<Vec<String>>().join(",");
-                if let Err(_) = fs::write(temp_string+&slice_string, out) {
-                    return Err(ErrorType::FolderDoesNotExist);
-                }
-            }
-         
-            Ok(())
-        }
-        */
-
         fn display_info(&self) -> Result<(), ErrorType> {
             println!("Total number of spims are: {}. First electron detected at {:?}. TDC info is {:?}.", self.spectra.len(), self.initial_time, self.tdc_periodic);
             Ok(())
