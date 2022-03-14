@@ -333,8 +333,6 @@ pub mod ntime_resolved {
     pub struct TimeSpectralSpatial {
         pub spectra: Vec<Vec<usize>>, //Main data,
         pub ensemble: CollectionElectron, //A collection of single electrons,
-        pub cycle_counter: usize, //Electron overflow counter,
-        pub cycle_trigger: bool, //Electron overflow control,
         pub folder: String, //Folder in which data will be saved,
         pub spimx: usize, //The horinzontal axis of the spim,
         pub spimy: usize, //The vertical axis of the spim,
@@ -342,6 +340,7 @@ pub mod ntime_resolved {
         pub tdc_type: TdcType, //The tdc type for the spim,
         pub remove_clusters: bool,
         pub frame_int: usize,
+        pub slice: usize,
     }
     
     impl TimeTypes for TimeSpectralSpatial {
@@ -388,11 +387,17 @@ pub mod ntime_resolved {
             //self.ensemble.output_data(String::from("entire_data"), 2);
             if self.ensemble.try_clean(1000, self.remove_clusters) {
                 //self.ensemble.output_data(String::from("entire_data_cluster"), 2);
+                let mut max_slice = 0;
+                let mut min_slice = 1_000_000_000;
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
                         self.spectra[val.spim_slice()][index] += 1;
+                        max_slice = val.spim_slice();
+                        if val.spim_slice() >= max_slice {max_slice = val.spim_slice()};
+                        if val.spim_slice() <= min_slice {min_slice = val.spim_slice()};
                     }
                 }
+                //println!("{} and {}", max_slice, min_slice);
                 self.ensemble = CollectionElectron::new();
             }
         }
@@ -493,8 +498,6 @@ pub mod ntime_resolved {
             Ok(Self {
                 spectra: Vec::new(),
                 ensemble: CollectionElectron::new(),
-                cycle_counter: 0,
-                cycle_trigger: true,
                 spimx: spimx,
                 spimy: spimy,
                 folder: folder,
@@ -502,6 +505,7 @@ pub mod ntime_resolved {
                 tdc_type: tdc_type,
                 remove_clusters: remove_clusters,
                 frame_int: frame_int,
+                slice: 0,
             })
         }
         
