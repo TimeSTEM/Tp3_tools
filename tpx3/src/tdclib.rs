@@ -233,7 +233,6 @@ impl TdcType {
             _ => None,
         }
     }
-
 }
 
 use std::time::{Duration, Instant};
@@ -311,19 +310,18 @@ impl TdcControl for PeriodicTdcRef {
         println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
         let counter = tdc_search.get_counter()?;
         let counter_offset = tdc_search.get_counter_offset();
-        let last_hard_counter = tdc_search.get_last_hardware_counter();
+        let _last_hard_counter = tdc_search.get_last_hardware_counter();
         let begin_time = tdc_search.get_begintime();
         let last_time = tdc_search.get_lasttime();
         let high_time = tdc_search.find_high_time()?;
         let period = tdc_search.find_period()?;
         let low_time = period - high_time;
-        
-        println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ns) is {}. ON interval (ns) is {}. Period (ns) is {}. Low time (ns) is {}.", tdc_type.associate_str(), counter, last_time, high_time, period, low_time);
-        Ok(Self {
+
+        let per_ref = Self {
             tdctype: tdc_type.associate_value(),
-            counter,
+            counter: counter,
             counter_offset,
-            last_hard_counter,
+            last_hard_counter: 0,
             counter_overflow: 0,
             begin_frame: begin_time,
             ticks_to_frame,
@@ -331,7 +329,19 @@ impl TdcControl for PeriodicTdcRef {
             high_time,
             low_time,
             time: last_time,
-        })
+        };
+        println!("***TDC Lib***: Creating a new tdc reference: {:?}.", per_ref);
+        Ok(per_ref)
+    }
+}
+
+impl PeriodicTdcRef {
+    pub fn frame(&self) -> usize {
+        if let Some(spimy) = self.ticks_to_frame {
+            (self.counter / 2) / spimy
+        } else {
+            0
+        }
     }
 }
 
