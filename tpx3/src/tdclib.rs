@@ -308,7 +308,7 @@ impl TdcControl for PeriodicTdcRef {
             }
         }
         println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
-        let counter = tdc_search.get_counter()?;
+        let _counter = tdc_search.get_counter()?;
         let counter_offset = tdc_search.get_counter_offset();
         let _last_hard_counter = tdc_search.get_last_hardware_counter();
         let begin_time = tdc_search.get_begintime();
@@ -319,7 +319,7 @@ impl TdcControl for PeriodicTdcRef {
 
         let per_ref = Self {
             tdctype: tdc_type.associate_value(),
-            counter: counter,
+            counter: 0,
             counter_offset,
             last_hard_counter: 0,
             counter_overflow: 0,
