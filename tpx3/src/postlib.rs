@@ -52,7 +52,8 @@ pub mod coincidence {
         }
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon_time: usize) {
-            self.corr_spectrum[val.image_index()] += 1;
+            self.corr_spectrum[val.image_index()] += 1; //Adding the electron
+            self.corr_spectrum[SPIM_PIXELS-1] += 1; //Adding the photon
             self.time.push(val.time());
             self.rel_time.push(val.relative_time(photon_time));
             self.x.push(val.x());
@@ -68,6 +69,8 @@ pub mod coincidence {
             println!("Supplementary events: {}.", nphotons);
             
             temp_edata.electron.clean();
+
+            self.spectrum[SPIM_PIXELS-1]=nphotons; //Adding photons to the last pixel
 
             for val in temp_edata.electron.values() {
                 self.add_electron(*val);
