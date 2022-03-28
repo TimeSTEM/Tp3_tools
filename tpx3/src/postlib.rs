@@ -1,5 +1,6 @@
 pub mod coincidence {
 
+    use crate::spimlib::SPIM_PIXELS;
     use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
     use std::io;
@@ -91,8 +92,8 @@ pub mod coincidence {
                 y: Vec::new(),
                 tot: Vec::new(),
                 cluster_size: Vec::new(),
-                spectrum: vec![0; 1024*256],
-                corr_spectrum: vec![0; 1024*256],
+                spectrum: vec![0; SPIM_PIXELS*256],
+                corr_spectrum: vec![0; SPIM_PIXELS*256],
                 is_spim: my_config.is_spim,
                 spim_size: (my_config.xspim, my_config.yspim),
                 spim_index: Vec::new(),
@@ -103,8 +104,8 @@ pub mod coincidence {
         pub fn output_corr_spectrum(&self, bin: bool) {
             let out: String = match bin {
                 true => {
-                    let mut spec: Vec<usize> = vec![0; 1024];
-                    for val in self.corr_spectrum.chunks_exact(1024) {
+                    let mut spec: Vec<usize> = vec![0; SPIM_PIXELS];
+                    for val in self.corr_spectrum.chunks_exact(SPIM_PIXELS) {
                         spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
                     }
                     spec.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
@@ -119,8 +120,8 @@ pub mod coincidence {
         pub fn output_spectrum(&self, bin: bool) {
             let out: String = match bin {
                 true => {
-                    let mut spec: Vec<usize> = vec![0; 1024];
-                    for val in self.spectrum.chunks_exact(1024) {
+                    let mut spec: Vec<usize> = vec![0; SPIM_PIXELS];
+                    for val in self.spectrum.chunks_exact(SPIM_PIXELS) {
                         spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
                     }
                     spec.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
