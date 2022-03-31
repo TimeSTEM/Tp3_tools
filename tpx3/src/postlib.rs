@@ -324,8 +324,8 @@ pub mod ntime_resolved {
         fn prepare(&mut self, file: &mut fs::File);
         fn add_electron(&mut self, packet: &Pack);
         fn add_tdc(&mut self, packet: &Pack);
-        fn process(&mut self);
-        fn output(&self) -> Result<(), ErrorType>;
+        fn process(&mut self) -> Result<(), ErrorType>;
+        fn output(&mut self, how_many: usize) -> Result<(), ErrorType>;
         fn display_info(&self) -> Result<(), ErrorType>;
     }
 
@@ -370,9 +370,10 @@ pub mod ntime_resolved {
 
 
             //Creating the array using the electron corrected time. Note that you dont need to use it in the 'spim_detector' if you synchronize the clocks.
-            while self.spectra.len() < vec_index + 1 {
+            while self.spectra.len() < vec_index - self.slice + 1 {
                 self.expand_data();
             }
+            
             let se = SingleElectron::new(packet, self.tdc_periodic, vec_index);
             self.ensemble.add_electron(se);
         }
@@ -387,26 +388,79 @@ pub mod ntime_resolved {
             };
         }
 
-        fn process(&mut self) {
+        fn process(&mut self) -> Result<(), ErrorType> {
             //self.ensemble.output_data(String::from("entire_data"), 2);
-            if self.ensemble.try_clean(1000, self.remove_clusters) {
+            if self.ensemble.try_clean(0, self.remove_clusters) {
                 //self.ensemble.output_data(String::from("entire_data_cluster"), 2);
-                let mut max_slice = 0;
-                let mut min_slice = 1_000_000_000;
+                let mut max_slice: Option<usize> = None;
+                let mut min_slice: Option<usize> = None;
+                
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
-                        self.spectra[val.spim_slice()][index] += 1;
-                        max_slice = val.spim_slice();
-                        if val.spim_slice() >= max_slice {max_slice = val.spim_slice()};
-                        if val.spim_slice() <= min_slice {min_slice = val.spim_slice()};
+                        self.spectra[val.spim_slice()-self.slice][index] += 1; //slice offset to free memory
+                        
+                        max_slice = match max_slice {
+                            None => Some(val.spim_slice()),
+                            Some(k) if val.spim_slice() >= k => Some(val.spim_slice()),
+                            Some(k) => Some(k),
+                        };
+                        min_slice = match min_slice {
+                            None => Some(val.spim_slice()),
+                            Some(k) if val.spim_slice() <= k => Some(val.spim_slice()),
+                            Some(k) => Some(k),
+                        };
                     }
                 }
-                //println!("{} and {}", max_slice, min_slice);
+                println!("{:?} and {:?} and {}", max_slice, min_slice, self.spectra.len());
+                self.output(max_slice.unwrap() - min_slice.unwrap())?;
                 self.ensemble = CollectionElectron::new();
             }
+            Ok(())
         }
 
+        fn output(&mut self, how_many: usize) -> Result<(), ErrorType> {
 
+            if let Err(_) = fs::read_dir(&self.folder) {
+                if let Err(_) = fs::create_dir(&self.folder) {
+                    return Err(ErrorType::FolderNotCreated);
+                }
+            }
+
+            let mut folder: String = String::from(&self.folder);
+            folder.push_str("\\");
+            folder.push_str(&(self.spimx).to_string());
+            folder.push_str("_");
+            folder.push_str(&(self.spimy).to_string());
+
+            folder.push_str("_SparseSpimComplete");
+
+            //println!("{} and {} and {}", self.slice, self.spectra.len(), how_many);
+            for _ in 0..how_many {
+                let slice_string = String::from(self.slice.to_string());
+                let hit_string = String::from("_Hits");
+                self.slice += 1;
+                let temp_spec = self.spectra.remove(0);
+                let out = temp_spec.iter()
+                    .enumerate()
+                    .filter(|(_index, hits)| **hits != 0)
+                    .map(|(index, _hits)| index.to_string())
+                    .collect::<Vec<String>>().join(",");
+                if let Err(_) = fs::write(folder.clone()+&slice_string, out) {
+                    return Err(ErrorType::FolderDoesNotExist);
+                }
+                let out = temp_spec.iter()
+                    .enumerate()
+                    .filter(|(_index, hits)| **hits != 0)
+                    .map(|(_index, hits)| hits.to_string())
+                    .collect::<Vec<String>>().join(",");
+                if let Err(_) = fs::write(folder.clone()+&hit_string+&slice_string, out) {
+                    return Err(ErrorType::FolderDoesNotExist);
+                }
+            }
+            //println!("{} and {}", self.slice, self.spectra.len());
+            Ok(())
+        }
+        /*
         fn output(&self) -> Result<(), ErrorType> {
 
             if let Err(_) = fs::read_dir(&self.folder) {
@@ -489,6 +543,8 @@ pub mod ntime_resolved {
             };
             Ok(())
         }
+*/
+
             
         fn display_info(&self) -> Result<(), ErrorType> {
             println!("Total number of spims are: {}. TDC info is {:?}.", self.spectra.len(), self.tdc_periodic);

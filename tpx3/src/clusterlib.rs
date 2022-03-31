@@ -76,7 +76,9 @@ pub mod cluster {
 
         pub fn clean(&mut self) {
             self.sort();
-            self.remove_clusters();
+            for _x in 0..2 {
+                self.remove_clusters();
+            }
         }
 
         pub fn try_clean(&mut self, min_size: usize, remove: bool) -> bool {
