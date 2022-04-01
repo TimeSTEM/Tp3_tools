@@ -40,6 +40,25 @@ pub trait SpimKind {
     fn new() -> Self;
 }
 
+#[inline]
+pub fn get_return_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<usize> {
+    let val = dt % spim_tdc.period;
+    if val >= spim_tdc.low_time {
+        let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
+        let rin = xspim * (val-spim_tdc.low_time) / spim_tdc.high_time; //Column correction. Maybe not even needed.
+            
+            if r > (yspim-1) {
+                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
+                r %= yspim;
+            }
+            
+            let index = (r * xspim + rin) * SPIM_PIXELS + x;
+        
+            Some(index)
+        } else {
+            None
+        }
+}
 
 #[inline]
 pub fn get_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<usize> {

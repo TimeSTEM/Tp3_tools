@@ -397,7 +397,7 @@ pub mod ntime_resolved {
                 
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
-                        self.spectra[val.spim_slice()-self.slice][index] += 1; //slice offset to free memory
+                        self.spectra[val.spim_slice()-self.slice][index] += 1;
                         
                         max_slice = match max_slice {
                             None => Some(val.spim_slice()),
