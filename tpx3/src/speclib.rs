@@ -25,11 +25,6 @@ fn as_bytes<T>(v: &[T]) -> &[u8] {
     }
 }
 
-pub trait BitDepth: Clone + Add<Output = Self> + Copy + AddAssign {
-    fn zero() -> Self;
-    fn one() -> Self;
-    fn ten() -> Self;
-}
 
 macro_rules! genbitdepth {
     ($($x: ty),*) => {
@@ -58,27 +53,27 @@ macro_rules! genall {
     }
 }
 
+macro_rules! gendepth{
+    ($x: ident, $y: ty) => {
+        fn $x(&self, set: &Settings) -> SpecMeasurement::<Self, $y> 
+            where Self: Sized,
+                  SpecMeasurement::<Self, $y>: SpecKind,
+        {
+            SpecMeasurement::<Self, $y>::new(set)
+        }
+    }
+}
+
+pub trait BitDepth: Clone + Add<Output = Self> + Copy + AddAssign {
+    fn zero() -> Self;
+    fn one() -> Self;
+    fn ten() -> Self;
+}
+
 pub trait GenerateDepth {
-    fn gen32(&self, set: &Settings) -> SpecMeasurement::<Self, u32> 
-        where Self: Sized,
-              SpecMeasurement::<Self, u32>: SpecKind,
-    {
-        SpecMeasurement::<Self, u32>::new(set)
-    }
-    
-    fn gen16(&self, set: &Settings) -> SpecMeasurement::<Self, u16> 
-        where Self: Sized,
-              SpecMeasurement::<Self, u16>: SpecKind,
-    {
-        SpecMeasurement::<Self, u16>::new(set)
-    }
-    
-    fn gen8(&self, set: &Settings) -> SpecMeasurement::<Self, u8> 
-        where Self: Sized,
-              SpecMeasurement::<Self, u8>: SpecKind,
-    {
-        SpecMeasurement::<Self, u8>::new(set)
-    }
+    gendepth!(gen32, u32);
+    gendepth!(gen16, u16);
+    gendepth!(gen8, u8);
 }
 
 genbitdepth!(u8, u16, u32);

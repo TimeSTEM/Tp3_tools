@@ -45,6 +45,6 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
 fn main() {
     match connect_and_loop() {
         Ok(val) => {println!("Measurement Over. Type is {}.", val);},
-        Err(_e) => {},
+        Err(e) => {println!("Error in the debug measurement. Message is: {:?}", e)},
     }
 }

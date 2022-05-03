@@ -309,7 +309,6 @@ pub mod ntime_resolved {
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use std::convert::TryInto;
     use std::fs;
-    
 
     #[derive(Debug)]
     pub enum ErrorType {
@@ -358,6 +357,7 @@ pub mod ntime_resolved {
                 _ => None,
             };
         }
+
         fn add_electron(&mut self, packet: &Pack) {
             //Getting Initial Time
             let mut vec_index;
@@ -367,7 +367,6 @@ pub mod ntime_resolved {
                 vec_index = 0;
             }
             vec_index = vec_index / self.frame_int;
-
 
             //Creating the array using the electron corrected time. Note that you dont need to use it in the 'spim_detector' if you synchronize the clocks.
             while self.spectra.len() < vec_index - self.slice + 1 {

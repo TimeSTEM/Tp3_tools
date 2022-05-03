@@ -11,15 +11,15 @@ fn main() {
     const ELE_PA: f64 = 6.25 / 1_000f64; //electrons / ns;
 
     let total_time = 5_000_000_000; //total time in ns;
-    let xt = 32; // X spim;
-    let yt = 32; //Y spim;
-    let pdt: usize = 1_000; //pixel dwell time in ns;
+    let xt = 256; // X spim;
+    let yt = 256; //Y spim;
+    let pdt: usize = 125; //pixel dwell time in ns;
     let fb = 10_000; //flyback in ns;
     let cur = 1; //electron current, in pA;
     let radius = xt/4;
     let mut t: usize = 0;
     let mut counter: usize = 0;
-    let frames = total_time / (xt * yt * pdt);
+    let frames = total_time / (xt * yt * pdt + yt * fb);
     println!("Number of frames: {}.", frames);
 
     //Random variables;

@@ -3,7 +3,7 @@ use timepix3::tdclib::TdcType;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
-    let number_frames = 1; //Number of frames you wish to integrate;
+    let number_frames = 100; //Number of frames you wish to integrate;
     let spim_size = 32; //Size of the spim;
     
     let mut my_vec: Vec<Box<dyn TimeTypes>> = Vec::new();

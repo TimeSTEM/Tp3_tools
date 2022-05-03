@@ -278,6 +278,7 @@ impl TdcControl for PeriodicTdcRef {
         if let Some(spimy) = self.ticks_to_frame {
             if (self.counter / 2) % spimy == 0 {
                 self.begin_frame = time;
+                
             }
         }
     }
@@ -370,7 +371,7 @@ impl TdcControl for SingleTriggerPeriodicTdcRef {
         self.time = time;
         self.counter = self.last_hard_counter as usize + self.counter_overflow * 4096 - self.counter_offset;
     }
-
+    
     fn counter(&self) -> usize {
         self.counter
     }
@@ -434,7 +435,7 @@ impl TdcControl for NonPeriodicTdcRef {
         self.time = time;
         self.counter+=1;
     }
-
+    
     fn counter(&self) -> usize {
         self.counter
     }

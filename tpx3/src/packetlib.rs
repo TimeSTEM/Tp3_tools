@@ -130,6 +130,13 @@ pub trait Packet {
     }
 
     #[inline]
+    fn tdc_time_abs(&self) -> usize {
+        let coarse = self.tdc_coarse();
+        let fine = self.tdc_fine();
+        coarse * 12 + fine
+    }
+
+    #[inline]
     fn electron_reset_time() -> usize {
         26_843_545_600 * 16 / 25
     }

@@ -109,6 +109,7 @@ pub mod cluster {
             }
         }
 
+        /*
         pub fn output_time(&self, mut filename: String, code: usize) {
             filename.push_str(&code.to_string());
             let mut tfile = OpenOptions::new()
@@ -164,6 +165,11 @@ pub mod cluster {
             let out: String = self.data.iter().map(|x| x.cluster_size().to_string()).collect::<Vec<String>>().join(",");
             tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
+        */
+
+        fn max_cluster_size(&self) -> Option<usize> {
+            self.data.iter().map(|x| x.cluster_size()).max()
+        }
     }
 
     ///ToA, X, Y, Spim dT, Spim Slice, ToT, Cluster Size
@@ -194,15 +200,18 @@ pub mod cluster {
         }
     }
 
-
     impl SingleElectron {
         pub fn new<T: Packet>(pack: &T, begin_frame: Option<PeriodicTdcRef>, slice: usize) -> Self {
-            let ele_time = pack.electron_time();
+            let mut ele_time = pack.electron_time();
             match begin_frame {
                 Some(spim_tdc) => {
                     let mut frame_time = spim_tdc.begin_frame;
                     if ele_time < frame_time + VIDEO_TIME {
-                        frame_time -= spim_tdc.period*spim_tdc.ticks_to_frame.unwrap();
+                        let factor = (frame_time + VIDEO_TIME - ele_time) / (spim_tdc.period*spim_tdc.ticks_to_frame.unwrap()) + 1;
+                        ele_time += spim_tdc.period*spim_tdc.ticks_to_frame.unwrap() * factor;
+                    }
+                    if ele_time < frame_time + VIDEO_TIME {
+                        println!("Electron time is still below the frame time. This is probably an issue.");
                     }
                     SingleElectron {
                         data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice, pack.tot(), 1),
@@ -255,6 +264,7 @@ pub mod cluster {
         fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
             let cluster_size: usize = cluster.len();
             
+
             let t_mean:usize = cluster.iter().map(|se| se.time()).sum::<usize>() / cluster_size;
             let x_mean:usize = cluster.iter().map(|se| se.x()).sum::<usize>() / cluster_size;
             let y_mean:usize = cluster.iter().map(|se| se.y()).sum::<usize>() / cluster_size;
