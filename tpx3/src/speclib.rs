@@ -102,8 +102,8 @@ macro_rules! tp3_vec {
     ($x: expr) => {
         {
             let len = match $x {
-                1 => CAM_DESIGN.1*CAM_DESIGN.0,
-                2 => CAM_DESIGN.0,
+                1 => CAM_DESIGN.0,
+                2 => CAM_DESIGN.1*CAM_DESIGN.0,
                 _ => {panic!("One or two dimensions only!")},
             };
             let mut temp_vec: Vec<L> = vec![L::zero(); len+1];

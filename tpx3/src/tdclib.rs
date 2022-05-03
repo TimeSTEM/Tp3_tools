@@ -457,3 +457,26 @@ impl TdcControl for NonPeriodicTdcRef {
     }
     
 }
+
+pub mod isi_box {
+    use std::net::{TcpListener, TcpStream, SocketAddr};
+    use std::io::Read;
+
+    pub fn connect() {
+        let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
+        let (mut isi_sock, isi_addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
+        println!("IsiBox connected at {:?} and {:?}.", isi_addr, isi_sock);
+        let mut buffer = [0_u8; 16000];
+        match isi_sock.read(&mut buffer) {
+            Ok(size) => {
+                println!("Bytes read: {}", size);
+                println!("{:?}", buffer);
+            },
+            Err(e) => {
+                println!("error is {:?}", e);
+            },
+        };
+    }
+}
+    
+
