@@ -611,7 +611,7 @@ pub mod ntime_resolved {
                 };
             });
             for each in data.set.iter_mut() {
-                each.process();
+                each.process().expect("Error in processing");
             }
             println!("File: {:?}. Total number of bytes read (MB): ~ {}", file, total_size/1_000_000);
         };

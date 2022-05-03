@@ -64,20 +64,19 @@ macro_rules! gendepth{
     }
 }
 
-pub trait BitDepth: Clone + Add<Output = Self> + Copy + AddAssign {
-    fn zero() -> Self;
-    fn one() -> Self;
-    fn ten() -> Self;
-}
-
 pub trait GenerateDepth {
     gendepth!(gen32, u32);
     gendepth!(gen16, u16);
     gendepth!(gen8, u8);
 }
-
 genbitdepth!(u8, u16, u32);
 genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, SuperResolution);
+
+pub trait BitDepth: Clone + Add<Output = Self> + Copy + AddAssign {
+    fn zero() -> Self;
+    fn one() -> Self;
+    fn ten() -> Self;
+}
 
 pub struct SpecMeasurement<T, K: BitDepth> {
     data: Vec<K>,
@@ -99,6 +98,22 @@ pub trait SpecKind {
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings);
 }
 
+macro_rules! tp3_vec {
+    ($x: expr) => {
+        {
+            let len = match $x {
+                1 => CAM_DESIGN.1*CAM_DESIGN.0,
+                2 => CAM_DESIGN.0,
+                _ => {panic!("One or two dimensions only!")},
+            };
+            let mut temp_vec: Vec<L> = vec![L::zero(); len+1];
+            temp_vec[len] = L::ten();
+            temp_vec
+        }
+    }
+}
+
+
 impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
     fn is_ready(&self) -> bool {
         self.is_ready
@@ -107,10 +122,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
         as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        let len: usize = CAM_DESIGN.1*CAM_DESIGN.0;
-        let mut temp_vec: Vec<L> = vec![L::zero(); len + 1];
-        temp_vec[len] = L::ten();
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: Live2D }
+        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: Live2D }
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
@@ -142,10 +154,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
         as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        let len: usize = CAM_DESIGN.0;
-        let mut temp_vec = vec![L::zero(); len + 1];
-        temp_vec[len] = L::ten();
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: Live1D}
+        SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: Live1D}
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
@@ -177,10 +186,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR2D, L> {
         as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        let len: usize = CAM_DESIGN.1*CAM_DESIGN.0;
-        let mut temp_vec = vec![L::zero(); len + 1];
-        temp_vec[len] = L::ten();
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTR2D}
+        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTR2D}
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &T) {
@@ -213,10 +219,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR1D, L> {
         as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        let len: usize = CAM_DESIGN.0;
-        let mut temp_vec = vec![L::zero(); len + 1];
-        temp_vec[len] = L::ten();
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTR1D}
+        SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTR1D}
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &T) {
@@ -250,10 +253,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTilted2D, L> {
         as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        let len: usize = CAM_DESIGN.1*CAM_DESIGN.0;
-        let mut temp_vec = vec![L::zero(); len + 1];
-        temp_vec[len] = L::ten();
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTilted2D }
+        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTilted2D }
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {

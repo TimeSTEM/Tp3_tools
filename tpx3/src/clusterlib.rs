@@ -166,10 +166,6 @@ pub mod cluster {
             tfile.write_all(out.as_ref()).expect("Could not write time to file.");
         }
         */
-
-        fn max_cluster_size(&self) -> Option<usize> {
-            self.data.iter().map(|x| x.cluster_size()).max()
-        }
     }
 
     ///ToA, X, Y, Spim dT, Spim Slice, ToT, Cluster Size
@@ -205,7 +201,7 @@ pub mod cluster {
             let mut ele_time = pack.electron_time();
             match begin_frame {
                 Some(spim_tdc) => {
-                    let mut frame_time = spim_tdc.begin_frame;
+                    let frame_time = spim_tdc.begin_frame;
                     if ele_time < frame_time + VIDEO_TIME {
                         let factor = (frame_time + VIDEO_TIME - ele_time) / (spim_tdc.period*spim_tdc.ticks_to_frame.unwrap()) + 1;
                         ele_time += spim_tdc.period*spim_tdc.ticks_to_frame.unwrap() * factor;
