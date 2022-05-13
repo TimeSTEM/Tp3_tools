@@ -462,19 +462,33 @@ pub mod isi_box {
     use std::net::{TcpListener, TcpStream, SocketAddr};
     use std::io::Read;
 
+    fn as_int(v: &[u8]) -> &[usize] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const usize,
+                v.len() * std::mem::size_of::<u8>())
+        }
+    }
+
     pub fn connect() {
-        let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
-        let (mut isi_sock, isi_addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
-        println!("IsiBox connected at {:?} and {:?}.", isi_addr, isi_sock);
-        let mut buffer = [0_u8; 16000];
-        match isi_sock.read(&mut buffer) {
-            Ok(size) => {
-                println!("Bytes read: {}", size);
-                println!("{:?}", buffer);
-            },
-            Err(e) => {
-                println!("error is {:?}", e);
-            },
+        loop {
+            let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
+            let (mut isi_sock, isi_addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
+            println!("IsiBox connected at {:?} and {:?}.", isi_addr, isi_sock);
+            let mut buffer = [0_u8; 2048];
+            loop {
+                match isi_sock.read(&mut buffer) {
+                    Ok(size) => {
+                        println!("Bytes read: {}", size);
+                        //println!("{:?}", &buffer);
+                        //println!("{:?}", std::str::from_utf8(&buffer[0..size]));
+                    },
+                    Err(e) => {
+                        println!("error is {:?}", e);
+                        break;
+                    }
+                };
+            }
         };
     }
 }
