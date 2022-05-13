@@ -461,6 +461,16 @@ impl TdcControl for NonPeriodicTdcRef {
 pub mod isi_box {
     use std::net::{TcpListener, TcpStream, SocketAddr};
     use std::io::Read;
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    macro_rules! tcp_thread {
+        ($x: ident) => {
+            thread::spawn(move || {
+                let x = 0;
+            });
+        }
+    }
 
     fn as_int(v: &[u8]) -> &[usize] {
         unsafe {
@@ -472,25 +482,38 @@ pub mod isi_box {
 
     pub fn connect() {
         loop {
+
+            let mut sockets:Vec<TcpStream> = Vec::new();
+            let nchannels = 17;
+            let mut channel_index = nchannels-1;
+            let counter = Arc::new(Mutex::new(0));
             let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
-            let (mut isi_sock, isi_addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
-            println!("IsiBox connected at {:?} and {:?}.", isi_addr, isi_sock);
-            let mut buffer = [0_u8; 2048];
-            loop {
-                match isi_sock.read(&mut buffer) {
-                    Ok(size) => {
-                        println!("Bytes read: {}", size);
-                        //println!("{:?}", &buffer);
-                        //println!("{:?}", std::str::from_utf8(&buffer[0..size]));
-                    },
-                    Err(e) => {
-                        println!("error is {:?}", e);
-                        break;
-                    }
-                };
+            for x in 0..nchannels {
+                let (mut isi_sock, isi_addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
+                println!("IsiBox connected at {:?} and {:?}.", isi_addr, isi_sock);
+                sockets.push(isi_sock);
             }
-        };
+            
+            for _ in 0..nchannels {
+                let counter = Arc::clone(&counter);
+                let mut val = sockets.pop().unwrap();
+                thread::spawn(move || {
+                    let mut buffer = [0_u8; 2048];
+                    loop {
+                        match val.read(&mut buffer) {
+                            Ok(size) => {
+                                println!("Bytes read: {} and channel: {}", size, channel_index);
+                            },
+                            Err(e) => {
+                                println!("error is {:?}", e);
+                                break;
+                            }
+                        };
+                    }
+                });
+                channel_index-=1;
+            }
+
+        }
     }
 }
-    
-
