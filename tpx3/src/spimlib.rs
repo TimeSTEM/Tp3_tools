@@ -12,7 +12,7 @@ use std::convert::TryInto;
 //use rayon::prelude::*;
 
 const VIDEO_TIME: usize = 5000;
-pub const SPIM_PIXELS: usize = 1025;
+pub const SPIM_PIXELS: usize = 1025 + 16;
 const BUFFER_SIZE: usize = 16384 * 2;
 
 
