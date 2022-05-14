@@ -459,62 +459,46 @@ impl TdcControl for NonPeriodicTdcRef {
 }
 
 pub mod isi_box {
-    use std::net::{TcpListener, TcpStream, SocketAddr};
-    use std::io::Read;
+    use std::net::{TcpListener, TcpStream};
+    use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
-    use std::thread;
+    use std::{thread, time};
     use crate::spimlib::SPIM_PIXELS;
 
-    fn as_int(v: &[u8], channel: u32) -> &[u8] {
+    fn transform_by_channel(v: &[u8], channel: u32) {
         unsafe {
             let temp_slice = std::slice::from_raw_parts_mut(
                 v.as_ptr() as *mut u32,
                 (v.len() * std::mem::size_of::<u8>()) / std::mem::size_of::<u32>());
             temp_slice.iter_mut().for_each(|x| *x = (*x * SPIM_PIXELS as u32) + 1025 + channel);
-            std::slice::from_raw_parts(
-                temp_slice.as_ptr() as *const u8,
-                v.len())
         }
     }
 
-    pub fn create_listeners() -> TcpStream {
-        let mut stream = TcpStream::connect("127.0.0.1:9591").expect("Could not connect locally to IsiBox.");
-        stream
-    } 
-
     pub fn connect() {
         loop {
-
-            println!("{}", std::mem::size_of::<u8>());
-            println!("{}", std::mem::size_of::<usize>());
             let mut sockets:Vec<TcpStream> = Vec::new();
             let mut handles = vec![];
             let nchannels = 17;
             let mut channel_index = nchannels-1;
             let nvec_list: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
             let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
-            for x in 0..nchannels {
-                let (mut isi_sock, isi_addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
-                println!("IsiBox connected at {:?} and {:?}.", isi_addr, isi_sock);
-                sockets.push(isi_sock);
-            }
-            let local_listener = TcpListener::bind("127.0.0.1:9591").expect("Could not bind to IsiBox.");
-            //let (mut local_sock, local_addr) = local_listener.accept().expect("Could not connect locally to IsiBox.");
             for _ in 0..nchannels {
-                let nvec_list = Arc::clone(&nvec_list);
+                let (sock, addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
+                println!("IsiBox connected at {:?} and {:?}.", addr, sock);
+                sockets.push(sock);
+            }
+            let (mut isi_sock, _isi_addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
+            for _ in 0..nchannels {
+                let nvec_arclist = Arc::clone(&nvec_list);
                 let mut val = sockets.pop().unwrap();
                 let handle = thread::spawn(move || {
-                    let mut buffer = [0_u8; 512];
+                    let mut buffer = vec![0_u8; 512];
                     loop {
                         match val.read(&mut buffer) {
                             Ok(size) => {
-                                let mut num = nvec_list.lock().unwrap();
-                                //(*num).push(buffer[0..size]);
-                                //*num[val].push(buffer[0..size]);
-                                //*num += 1;
-                                println!("Bytes read: {} and channel: {}", size, channel_index);
-                                println!("raw vec read: {:?}: ", (&buffer));
-                                println!("vec read: {:?}: ", as_int(&buffer, channel_index));
+                                let mut num = nvec_arclist.lock().unwrap();
+                                transform_by_channel(&buffer[0..size], channel_index);
+                                buffer[0..size].iter().for_each(|&x| (*num).push(x));
                             },
                             Err(e) => {
                                 println!("error is {:?}", e);
@@ -526,9 +510,24 @@ pub mod isi_box {
                 handles.push(handle);
                 channel_index-=1;
             }
+            let nvec_arclist = Arc::clone(&nvec_list);
+            thread::spawn(move || {
+                let time = time::Duration::from_millis(100);
+                loop {
+                    thread::sleep(time);
+                    let mut num = nvec_arclist.lock().unwrap();
+                    match isi_sock.write(&*num) {
+                        Ok(size) => {println!("{}", size);},
+                        Err(e) => {println!("Error is {:?}: ", e); break;},
+                    };
+                    *num = Vec::new();
+                }
+            });
             for handle in handles {
                 handle.join().unwrap();
             }
+            let num = nvec_list.lock().unwrap();
+            println!("{:?}", (*num).len());
         }
     }
 }
