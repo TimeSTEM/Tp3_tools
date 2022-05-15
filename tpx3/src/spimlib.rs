@@ -180,7 +180,6 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
 
     let elapsed = start.elapsed(); 
     println!("Total elapsed time is: {:?}.", elapsed);
-
     Ok(())
 }
 

@@ -474,6 +474,14 @@ pub mod isi_box {
         }
     }
 
+    fn as_int(v: &[u32]) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u8,
+                v.len() * std::mem::size_of::<u32>())
+        }
+    }
+
     pub struct IsiBoxHandler {
         nvec_list: Arc<Mutex<Vec<u8>>>,
         sockets: Vec<TcpStream>,
@@ -482,30 +490,42 @@ pub mod isi_box {
     }
 
     impl IsiBoxHandler {
-        fn bind_and_connect2(&mut self) {
+        pub fn bind_and_connect(&mut self) {
             let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
-            for _ in 0..self.nchannels+1 {
-                let (sock, addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
-                println!("IsiBox connected at {:?} and {:?}.", addr, sock);
+            for _ in 0..self.nchannels {
+                let (sock, _addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
+                //println!("IsiBox connected at {:?} and {:?}.", addr, sock);
                 self.sockets.push(sock);
             }
-            
-        }
-        pub fn request2(&self) {
-            let nvec_arclist = Arc::clone(&self.nvec_list);
-            let mut num = nvec_arclist.lock().unwrap();
-            match (self.ext_socket.as_ref().expect("The external sockets is not present")).write(&*num) {
-                Ok(size) => {println!("{}", size);},
-                Err(e) => {},//println!("Error is {:?}: ", e);},
-            };
-            println!("{}", (*num).len());
-            *num = Vec::new();
+            let (sock, _addr) = isi_listener.accept().expect("Could not connect to IsiBox external socket.");
+            self.ext_socket = Some(sock);
         }
 
-        pub fn run(&mut self) {
+        pub fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32) {
+            let mut config_array: [u32; 3] = [0; 3];
+            config_array[0] = xscan;
+            config_array[1] = yscan;
+            config_array[2] = pixel_time;
+            let mut sock = &self.sockets[0];
+            match sock.write(as_int(&config_array)) {
+                Ok(size) => {println!("data sent to configure scan parameters: {}", size);},
+                Err(e) => {println!("{}", e);},
+            };
+        }
+
+        pub fn send_to_external_socket(&self) {
+            let nvec_arclist = Arc::clone(&self.nvec_list);
+            let mut num = nvec_arclist.lock().unwrap();
+            if (*num).len() > 0 {
+                if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(&*num).is_err() {println!("Could not send data through the external socket.")}
+            }
+            println!("data sent size is: {}", (*num).len());
+            (*num).clear();
+        }
+
+        pub fn start_index_threads(&mut self) {
             let nchannels = self.nchannels;
             let mut channel_index = nchannels-1;
-            self.bind_and_connect2();
             
             for _ in 0..nchannels {
                 let nvec_arclist = Arc::clone(&self.nvec_list);
@@ -519,8 +539,8 @@ pub mod isi_box {
                                 transform_by_channel(&buffer[0..size], channel_index);
                                 buffer[0..size].iter().for_each(|&x| (*num).push(x));
                             },
-                            Err(e) => {
-                                println!("error is {:?}", e);
+                            Err(_) => {
+                                //println!("error is {:?}", e);
                                 break;
                             }
                         };
@@ -528,20 +548,21 @@ pub mod isi_box {
                 });
                 channel_index-=1;
             }
-            self.ext_socket = Some(self.sockets.pop().unwrap());
         }
-        pub fn new() -> Self {
+        pub fn new(nchannels: u32) -> Self {
             Self {
                 nvec_list: Arc::new(Mutex::new(Vec::new())),
                 sockets: Vec::new(),
                 ext_socket: None,
-                nchannels: 17,
+                nchannels,
             }
         }
     }
+}
 
 
 
+/*
     fn bind_and_connect(nchannels: u32) -> Vec<TcpStream> {
         let mut sockets:Vec<TcpStream> = Vec::new();
         let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
@@ -625,3 +646,5 @@ pub mod isi_box {
 //        }
 //    }
 //}
+//
+*/
