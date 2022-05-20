@@ -16,18 +16,19 @@ fn main() {
     let pdt: usize = 125; //pixel dwell time in ns;
     let fb = 10_000; //flyback in ns;
     let cur = 1; //electron current, in pA;
-    let radius = xt/4;
-    let mut t: usize = 0;
-    let mut counter: usize = 0;
-    let frames = total_time / (xt * yt * pdt + yt * fb);
+    let radius = xt/4; //The radius of the hole created, in pixels;
+    let mut t: usize = 0; //The time of the electron events. They will be incremented during the program run;
+    let mut counter: usize = 0; //Counter for the electron events;
+    let frames = total_time / (xt * yt * pdt + yt * fb); //Number of frames that will be created;
     println!("Number of frames: {}.", frames);
 
     //Random variables;
-    let col = Uniform::new(0.0, xt as f32); //Emplacing in the column;
-    let pick = Uniform::new(0.0, 1.0); //Put it or not in the second Gaussian;
-    let zlp = Normal::new(128.0, 3.0).unwrap(); //Zero-loss peak;
-    let exc = Normal::new(190.0, 4.0).unwrap(); //Closer-by resonance;
+    let col = Uniform::new(0.0, xt as f32); //Emplacing in the column. Something between 0 (left pixel) and xt (rightmost pixel);
+    let pick = Uniform::new(0.0, 1.0); //Uniform probability from 0-1. This is used to decide if the electron will fall in the ZLP or in the simulated resonance;
+    let zlp = Normal::new(128.0, 3.0).unwrap(); //Zero-loss peak. Centered at the pixel 128 and the std deviation is 3 pixels;
+    let exc = Normal::new(190.0, 4.0).unwrap(); //The resonance;
 
+    // This closure defines the electron emplacement. 90% of the electrons go to the ZLP.
     let alpha = |prob: f32| {
         if prob > 0.1 {
             zlp.sample(&mut thread_rng())
@@ -36,30 +37,30 @@ fn main() {
         }
     };
 
-    let mut data: Vec<[u8; 16]> = Vec::new();
-    let mut line_counter = 0;
-    let mut electron: InversePacket;
-    let mut line_start: InversePacket;
+    let mut data: Vec<[u8; 16]> = Vec::new(); //Out TPX3 packets;
+    let mut line_counter = 0; //The line counter;
+    let mut electron: InversePacket; //The InversePacket struct. Defined in the packetlib;
+    let mut line_start: InversePacket; //Same but for the TDC.
 
-    for _frame in 0..frames {
-        for line in 0..yt {
-            line_counter += 1;
-            line_start = InversePacket::new_inverse_tdc(t);
-            data.push(line_start.create_tdc_array(line_counter, TdcType::TdcOneFallingEdge));
-            for _ in 0..((pdt * xt * cur) as f64 * ELE_PA) as usize {
-                counter+=1;
+    for _frame in 0..frames { //Looping in the frames;
+        for line in 0..yt { //Looping in the lines;
+            line_counter += 1; //Line increment;
+            line_start = InversePacket::new_inverse_tdc(t); //Define TDC packet;
+            data.push(line_start.create_tdc_array(line_counter, TdcType::TdcOneFallingEdge)); //Push our line begin to our data;
+            for _ in 0..((pdt * xt * cur) as f64 * ELE_PA) as usize { //Looping in the number of electrons;
+                counter+=1; //Increment in the electron;
                 let x = col.sample(&mut rand::thread_rng()) as usize; //X gives you the column in the hyperspectrum
-                let disp = if circle(x, line, radius, (xt/2, yt/2)) { //disp gives you the dispersive value of the signal
-                    alpha(pick.sample(&mut rand::thread_rng()))
+                let disp = if circle(x, line, radius, (xt/2, yt/2)) { //disp gives you the dispersive value of the signal;
+                    alpha(pick.sample(&mut rand::thread_rng())) //Inside circle => use the closure alpha;
                 } else {
-                    zlp.sample(&mut thread_rng())
+                    zlp.sample(&mut thread_rng()) //Outside circle => falls in the ZLP;
                 };
-                electron = InversePacket::new_inverse_electron(disp as usize, 128, t+x*pdt);
-                data.push(electron.create_electron_array());
+                electron = InversePacket::new_inverse_electron(disp as usize, 128, t+x*pdt); //creating the electron packet;
+                data.push(electron.create_electron_array()); //Pushing to our data;
             }
-            line_counter += 1;
-            line_start = InversePacket::new_inverse_tdc(t + pdt*xt);
-            data.push(line_start.create_tdc_array(line_counter, TdcType::TdcOneRisingEdge));
+            line_counter += 1; //Line increment;
+            line_start = InversePacket::new_inverse_tdc(t + pdt*xt); //This is actually line end;
+            data.push(line_start.create_tdc_array(line_counter, TdcType::TdcOneRisingEdge)); //Push the end of a line to our data; 
             t = t + pdt * xt + fb;
         }
     }

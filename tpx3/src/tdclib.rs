@@ -513,6 +513,16 @@ pub mod isi_box {
             };
         }
 
+        pub fn configure_measurement_type(&self, is_spim: bool) {
+            let mut config_array: [u32; 1] = [0; 1];
+            config_array[0] = if is_spim == true { 1 } else { 0 };
+            let mut sock = &self.sockets[0];
+            match sock.write(as_int(&config_array)) {
+                Ok(size) => {println!("data sent to configure the measurement type: {}", size);},
+                Err(e) => {println!("{}", e);},
+            };
+        }
+
         pub fn send_to_external_socket(&self) {
             let nvec_arclist = Arc::clone(&self.nvec_list);
             let mut num = nvec_arclist.lock().unwrap();
