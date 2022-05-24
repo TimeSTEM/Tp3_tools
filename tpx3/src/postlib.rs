@@ -29,7 +29,7 @@ pub mod coincidence {
         pub is_spim: bool,
         pub spim_size: (usize, usize),
         //pub begin_frame: Option<usize>,
-        pub spim_index: Vec<usize>,
+        pub spim_index: Vec<u32>,
         pub spim_tdc: Option<PeriodicTdcRef>,
     }
 
@@ -396,7 +396,7 @@ pub mod ntime_resolved {
                 
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
-                        self.spectra[val.spim_slice()-self.slice][index] += 1;
+                        self.spectra[val.spim_slice()-self.slice][index as usize] += 1;
                         
                         max_slice = match max_slice {
                             None => Some(val.spim_slice()),

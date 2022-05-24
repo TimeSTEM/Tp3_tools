@@ -17,11 +17,11 @@ const BUFFER_SIZE: usize = 16384 * 2;
 
 
 ///This is little endian
-fn as_bytes(v: &[usize]) -> &[u8] {
+fn as_bytes(v: &[u32]) -> &[u8] {
     unsafe {
         std::slice::from_raw_parts(
             v.as_ptr() as *const u8,
-            v.len() * std::mem::size_of::<usize>())
+            v.len() * std::mem::size_of::<u32>())
     }
 }
 
@@ -35,13 +35,13 @@ pub trait SpimKind {
     fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T);
     fn upt_line(&self, packet: &PacketEELS, settings: &Settings, line_tdc: &mut PeriodicTdcRef);
     fn check(&self) -> bool;
-    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<usize>;
+    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u32>;
     fn copy_empty(&self) -> Self;
     fn new() -> Self;
 }
 
 #[inline]
-pub fn get_return_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<usize> {
+pub fn get_return_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<u32> {
     let val = dt % spim_tdc.period;
     if val >= spim_tdc.low_time {
         let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
@@ -54,14 +54,14 @@ pub fn get_return_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspi
             
             let index = (r * xspim + rin) * SPIM_PIXELS + x;
         
-            Some(index)
+            Some(index as u32)
         } else {
             None
         }
 }
 
 #[inline]
-pub fn get_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<usize> {
+pub fn get_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<u32> {
     let val = dt % spim_tdc.period;
     if val < spim_tdc.low_time {
         let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
@@ -74,7 +74,7 @@ pub fn get_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usiz
             
             let index = (r * xspim + rin) * SPIM_PIXELS + x;
         
-            Some(index)
+            Some(index as u32)
         } else {
             None
         }
@@ -116,7 +116,7 @@ impl SpimKind for Live {
     }
 
     #[inline]
-    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<usize> {
+    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u32> {
 
         //First step is to find the index of the (X, Y) of the spectral image in a flattened way
         //(last index is X*Y). The line value is thus multiplied by the spim size in the X
@@ -138,7 +138,7 @@ impl SpimKind for Live {
         let my_vec = self.data.iter()
             .filter_map(|&(x, dt)| {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
-            }).collect::<Vec<usize>>();
+            }).collect::<Vec<u32>>();
 
         my_vec
     }
