@@ -462,7 +462,7 @@ pub mod isi_box {
     use std::net::{TcpListener, TcpStream};
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
-    use std::{thread, time};
+    use std::{thread};
     use crate::spimlib::SPIM_PIXELS;
     
     fn transform_by_channel(v: &[u8], channel: u32) {
@@ -489,6 +489,167 @@ pub mod isi_box {
                 v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
         }
     }
+
+    pub trait IsiBoxTools {
+        fn bind_and_connect(&mut self);
+        fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32);
+        fn configure_measurement_type(&self, is_spim: bool);
+        fn new() -> Self;
+    }
+
+    pub trait IsiBoxHand {
+        fn send_to_external(&self);
+        fn start_threads(&mut self);
+    }
+
+    pub struct IsiBoxType<T> {
+        sockets: Vec<TcpStream>,
+        ext_socket: Option<TcpStream>,
+        nchannels: u32,
+        data: Arc<Mutex<T>>,
+    }
+
+    macro_rules! create_auxiliar {
+        (spec) => {Arc::new(Mutex::new([0; 17]))};
+        (spim) => {Arc::new(Mutex::new(Vec::new()))};
+    }
+    
+    macro_rules! impl_bind_connect {
+        ($x: ident, $y: ty, $z: tt) => {
+            impl IsiBoxTools for $x<$y> {
+                fn bind_and_connect(&mut self) {
+                    let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
+                    for _ in 0..self.nchannels {
+                        let (sock, _addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
+                        //println!("IsiBox connected at {:?} and {:?}.", addr, sock);
+                        self.sockets.push(sock);
+                    }
+                    let (sock, _addr) = isi_listener.accept().expect("Could not connect to IsiBox external socket.");
+                    self.ext_socket = Some(sock);
+                }
+                fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32) {
+                    let mut config_array: [u32; 3] = [0; 3];
+                    config_array[0] = xscan;
+                    config_array[1] = yscan;
+                    config_array[2] = pixel_time;
+                    let mut sock = &self.sockets[0];
+                    match sock.write(as_bytes(&config_array)) {
+                        Ok(size) => {println!("data sent to configure scan parameters: {}", size);},
+                        Err(e) => {println!("{}", e);},
+                    };
+                }
+                fn configure_measurement_type(&self, is_spim: bool) {
+                    let mut config_array: [u32; 1] = [0; 1];
+                    config_array[0] = if is_spim == true { 1 } else { 0 };
+                    let mut sock = &self.sockets[0];
+                    match sock.write(as_bytes(&config_array)) {
+                        Ok(size) => {println!("data sent to configure the measurement type: {}", size);},
+                        Err(e) => {println!("{}", e);},
+                    };
+                }
+                fn new() -> Self{
+                    Self {
+                        sockets: Vec::new(),
+                        ext_socket: None,
+                        nchannels: 17,
+                        data: create_auxiliar!($z),
+                    }
+                }
+            }
+        }
+    }
+
+    impl_bind_connect!(IsiBoxType, [u32; 17], spec);
+    impl_bind_connect!(IsiBoxType, Vec<u8>, spim);
+
+    
+    impl IsiBoxHand for IsiBoxType<Vec<u8>> {
+        fn send_to_external(&self) {
+            let nvec_arclist = Arc::clone(&self.data);
+            let mut num = nvec_arclist.lock().unwrap();
+            if (*num).len() > 0 {
+                if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(&*num).is_err() {println!("Could not send data through the external socket.")}
+                println!("data sent size is: {}", (*num).len());
+            }
+            (*num).clear();
+        }
+        fn start_threads(&mut self) {
+            let mut channel_index = self.nchannels-1;
+            
+            for _ in 0..self.nchannels {
+                let nvec_arclist = Arc::clone(&self.data);
+                let mut val = self.sockets.pop().unwrap();
+                thread::spawn(move || {
+                    let mut buffer = vec![0_u8; 512];
+                    loop {
+                        match val.read(&mut buffer) {
+                            Ok(size) => {
+                                let mut num = nvec_arclist.lock().unwrap();
+                                transform_by_channel(&buffer[0..size], channel_index);
+                                buffer[0..size].iter().for_each(|&x| (*num).push(x));
+
+                            },
+                            Err(_) => {
+                                //println!("error is {:?}", e);
+                                break;
+                            }
+                        };
+                    }
+                });
+                channel_index-=1;
+            }
+        }
+    }
+
+    impl IsiBoxHand for IsiBoxType<[u32; 17]> {
+        fn send_to_external(&self) {
+            let counter_arclist = Arc::clone(&self.data);
+            let mut num = counter_arclist.lock().unwrap();
+            println!("data sent size is: {:?}", (*num));
+            if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(as_bytes(&*num)).is_err() {println!("Could not send data through the external socket.")}
+            (*num).iter_mut().for_each(|x| *x = 0);
+        }
+        fn start_threads(&mut self) {
+            let counter_arclist = Arc::clone(&self.data);
+            let mut val = self.sockets.pop().unwrap();
+            thread::spawn(move || {
+                let mut buffer = vec![0_u8; 68];
+                loop {
+                    match val.read(&mut buffer) {
+                        Ok(size) => {
+                            let mut num = counter_arclist.lock().unwrap();
+                            (*num).iter_mut().zip(as_int(&buffer[0..size]).iter()).for_each(|(a, b)| *a+=*b as u32);
+                        },
+                        Err(_) => {
+                            //println!("error is {:?}", e);
+                            break;
+                        }
+                    };
+                }
+            });
+        }
+    }
+
+
+
+        
+        /*
+        pub fn send_counter_to_external_socket(&self) {
+            let counter_arclist = Arc::clone(&self.channel_counter);
+            let mut num = counter_arclist.lock().unwrap();
+            println!("data sent size is: {:?}", (*num));
+            if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(as_bytes(&*num)).is_err() {println!("Could not send data through the external socket.")}
+            (*num).iter_mut().for_each(|x| *x = 0);
+        }
+        */
+
+
+
+
+
+
+
+
 
     pub struct IsiBoxHandler {
         nvec_list: Arc<Mutex<Vec<u8>>>,
@@ -546,16 +707,14 @@ pub mod isi_box {
             let counter_arclist = Arc::clone(&self.channel_counter);
             let mut num = counter_arclist.lock().unwrap();
             println!("data sent size is: {:?}", (*num));
-            //if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(&*num).is_err() {println!("Could not send data through the external socket.")}
-            //(*num).clear();
+            if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(as_bytes(&*num)).is_err() {println!("Could not send data through the external socket.")}
+            (*num).iter_mut().for_each(|x| *x = 0);
         }
 
-
         pub fn start_index_threads(&mut self) {
-            let nchannels = self.nchannels;
-            let mut channel_index = nchannels-1;
+            let mut channel_index = self.nchannels-1;
             
-            for _ in 0..nchannels {
+            for _ in 0..self.nchannels {
                 let nvec_arclist = Arc::clone(&self.nvec_list);
                 let mut val = self.sockets.pop().unwrap();
                 thread::spawn(move || {
@@ -580,9 +739,6 @@ pub mod isi_box {
         }
         
         pub fn start_counter_threads(&mut self) {
-            let nchannels = self.nchannels;
-            let mut channel_index = nchannels-1;
-            
             let counter_arclist = Arc::clone(&self.channel_counter);
             let mut val = self.sockets.pop().unwrap();
             thread::spawn(move || {
@@ -613,92 +769,3 @@ pub mod isi_box {
         }
     }
 }
-
-
-
-/*
-    fn bind_and_connect(nchannels: u32) -> Vec<TcpStream> {
-        let mut sockets:Vec<TcpStream> = Vec::new();
-        let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
-        for _ in 0..nchannels+1 {
-            let (sock, addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
-            println!("IsiBox connected at {:?} and {:?}.", addr, sock);
-            sockets.push(sock);
-        }
-        sockets
-    }
-
-    
-    pub fn request(nvec_list: &Arc<Mutex<Vec<u8>>>) {
-        let nvec_arclist = Arc::clone(&nvec_list);
-        //let mut val = sockets.pop().unwrap();
-        //let time = time::Duration::from_millis(100);
-        //loop {
-        //    thread::sleep(time);
-        let mut num = nvec_arclist.lock().unwrap();
-        //    match val.write(&*num) {
-        //        Ok(size) => {println!("{}", size);},
-        //        Err(e) => {println!("Error is {:?}: ", e); break;},
-        //    };
-        //
-        println!("{}", (*num).len());
-        *num = Vec::new();
-    }
-
-    pub fn connect(nvec_list: &Arc<Mutex<Vec<u8>>>) {
-        let mut handles = vec![];
-        let nchannels = 16;
-        let mut channel_index = nchannels-1;
-        let mut sockets = bind_and_connect(nchannels);
-        
-        for _ in 0..nchannels {
-            let nvec_arclist = Arc::clone(nvec_list);
-            let mut val = sockets.pop().unwrap();
-            let handle = thread::spawn(move || {
-                let mut buffer = vec![0_u8; 512];
-                loop {
-                    match val.read(&mut buffer) {
-                        Ok(size) => {
-                            let mut num = nvec_arclist.lock().unwrap();
-                            transform_by_channel(&buffer[0..size], channel_index);
-                            buffer[0..size].iter().for_each(|&x| (*num).push(x));
-                        },
-                        Err(e) => {
-                            println!("error is {:?}", e);
-                            break;
-                        }
-                    };
-                }
-            });
-            handles.push(handle);
-            channel_index-=1;
-        }
-        println!("ovr");
-    }
-}
-        /*
-        let nvec_arclist = Arc::clone(&nvec_list);
-            let mut val = sockets.pop().unwrap();
-            thread::spawn(move || {
-                let time = time::Duration::from_millis(100);
-                loop {
-                    thread::sleep(time);
-                    let mut num = nvec_arclist.lock().unwrap();
-                    match val.write(&*num) {
-                        Ok(size) => {println!("{}", size);},
-                        Err(e) => {println!("Error is {:?}: ", e); break;},
-                    };
-                    *num = Vec::new();
-                }
-            });
-            for handle in handles {
-                handle.join().unwrap();
-            }
-            */
-            //let num = nvec_list.lock().unwrap();
-            //println!("{:?}", (*num).len());
-//        }
-//    }
-//}
-//
-*/

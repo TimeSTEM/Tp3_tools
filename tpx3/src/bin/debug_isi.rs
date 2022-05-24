@@ -9,10 +9,11 @@ fn main() {
         handler.configure_scan_parameters(32, 32, 8334);
         handler.configure_measurement_type(false);
         let time = time::Duration::from_millis(100);
-        handler.start_index_threads();
+        //handler.start_index_threads();
+        handler.start_counter_threads();
         for _ in 0..5 {
             thread::sleep(time);
-            handler.send_to_external_socket();
+            handler.send_counter_to_external_socket();
         }
     }
 }
