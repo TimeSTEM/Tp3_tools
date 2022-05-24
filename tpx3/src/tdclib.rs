@@ -493,7 +493,7 @@ pub mod isi_box {
     pub trait IsiBoxTools {
         fn bind_and_connect(&mut self);
         fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32);
-        fn configure_measurement_type(&self, is_spim: bool);
+        fn configure_measurement_type(&self);
         fn new() -> Self;
     }
 
@@ -509,9 +509,20 @@ pub mod isi_box {
         data: Arc<Mutex<T>>,
     }
 
+    #[macro_export]
+    macro_rules! isi_box_new {
+        (spec) => {IsiBoxType::<[u32; 17]>::new()};
+        (spim) => {IsiBoxType::<Vec<u8>>::new()};
+    }
+
     macro_rules! create_auxiliar {
         (spec) => {Arc::new(Mutex::new([0; 17]))};
         (spim) => {Arc::new(Mutex::new(Vec::new()))};
+    }
+
+    macro_rules! measurement_type {
+        (spim) => {1};
+        (spec) => {0};
     }
     
     macro_rules! impl_bind_connect {
@@ -538,9 +549,10 @@ pub mod isi_box {
                         Err(e) => {println!("{}", e);},
                     };
                 }
-                fn configure_measurement_type(&self, is_spim: bool) {
+                fn configure_measurement_type(&self) {
                     let mut config_array: [u32; 1] = [0; 1];
-                    config_array[0] = if is_spim == true { 1 } else { 0 };
+                    //config_array[0] = if is_spim == true { 1 } else { 0 };
+                    config_array[0] = measurement_type!($z);
                     let mut sock = &self.sockets[0];
                     match sock.write(as_bytes(&config_array)) {
                         Ok(size) => {println!("data sent to configure the measurement type: {}", size);},
@@ -629,27 +641,6 @@ pub mod isi_box {
             });
         }
     }
-
-
-
-        
-        /*
-        pub fn send_counter_to_external_socket(&self) {
-            let counter_arclist = Arc::clone(&self.channel_counter);
-            let mut num = counter_arclist.lock().unwrap();
-            println!("data sent size is: {:?}", (*num));
-            if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(as_bytes(&*num)).is_err() {println!("Could not send data through the external socket.")}
-            (*num).iter_mut().for_each(|x| *x = 0);
-        }
-        */
-
-
-
-
-
-
-
-
 
     pub struct IsiBoxHandler {
         nvec_list: Arc<Mutex<Vec<u8>>>,
