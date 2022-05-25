@@ -2,7 +2,9 @@
 
 use crate::packetlib::{Packet, PacketEELS as Pack};
 use crate::auxiliar::{Settings, misc::TimepixRead};
-use crate::tdclib::{TdcControl, PeriodicTdcRef};
+//use crate::tdclib::{TdcControl, PeriodicTdcRef};
+use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
+use crate::isi_box_new;
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::Write;
@@ -25,6 +27,13 @@ fn as_bytes<T>(v: &[T]) -> &[u8] {
     }
 }
 
+fn as_mut_bytes<T>(v: &[T]) -> &mut [u8] {
+    unsafe {
+        std::slice::from_raw_parts_mut(
+            v.as_ptr() as *mut u8,
+            v.len() * std::mem::size_of::<T>())
+    }
+}
 
 macro_rules! genbitdepth {
     ($($x: ty),*) => {
@@ -64,19 +73,20 @@ macro_rules! gendepth{
     }
 }
 
-pub trait GenerateDepth {
-    gendepth!(gen32, u32);
-    gendepth!(gen16, u16);
-    gendepth!(gen8, u8);
-}
-genbitdepth!(u8, u16, u32);
-genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, SuperResolution);
-
 pub trait BitDepth: Clone + Add<Output = Self> + Copy + AddAssign {
     fn zero() -> Self;
     fn one() -> Self;
     fn ten() -> Self;
 }
+genbitdepth!(u8, u16, u32); //Implement BitDepth for u8, u16, u32;
+
+pub trait GenerateDepth {
+    gendepth!(gen32, u32);
+    gendepth!(gen16, u16);
+    gendepth!(gen8, u8);
+}
+
+genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, SuperResolution); //create struct and implement GenerateDepth. GenDepth gets this struct and transforms into a SpecMeasurement struct, which is ready for acquisition;
 
 pub struct SpecMeasurement<T, K: BitDepth> {
     data: Vec<K>,
@@ -91,6 +101,7 @@ pub struct SpecMeasurement<T, K: BitDepth> {
 pub trait SpecKind {
     fn is_ready(&self) -> bool;
     fn build_output(&self) -> &[u8];
+    fn build_mut_output(&self) -> &mut [u8];
     fn new(settings: &Settings) -> Self;
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, ref_tdc: &T);
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut T);
@@ -120,6 +131,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
     }
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
+    }
+    fn build_mut_output(&self) -> &mut [u8] {
+        as_mut_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: Live2D }
@@ -153,6 +167,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
     }
+    fn build_mut_output(&self) -> &mut [u8] {
+        as_mut_bytes(&self.data)
+    }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: Live1D}
     }
@@ -184,6 +201,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR2D, L> {
     }
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
+    }
+    fn build_mut_output(&self) -> &mut [u8] {
+        as_mut_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTR2D}
@@ -217,6 +237,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR1D, L> {
     }
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
+    }
+    fn build_mut_output(&self) -> &mut [u8] {
+        as_mut_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTR1D}
@@ -252,6 +275,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTilted2D, L> {
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
     }
+    fn build_mut_output(&self) -> &mut [u8] {
+        as_mut_bytes(&self.data)
+    }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, last_time: 0, last_mean: None, _kind: LiveTilted2D }
     }
@@ -285,6 +311,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
     }
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
+    }
+    fn build_mut_output(&self) -> &mut [u8] {
+        as_mut_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
         let len: usize = settings.xspim_size*CAM_DESIGN.0;
@@ -320,6 +349,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
     }
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
+    }
+    fn build_mut_output(&self) -> &mut [u8] {
+        as_mut_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
         let len: usize = settings.xspim_size*CAM_DESIGN.0;
@@ -361,6 +393,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<SuperResolution, L> {
     }
     fn build_output(&self) -> &[u8] {
        as_bytes(&self.data)
+    }
+    fn build_mut_output(&self) -> &mut [u8] {
+        as_mut_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
         let len: usize = settings.bytedepth*CAM_DESIGN.0;
@@ -486,6 +521,13 @@ fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
           U: Write,
           W: SpecKind
 {
+
+    
+    //let mut handler = isi_box_new!(spec);
+    //handler.bind_and_connect();
+    //handler.configure_scan_parameters(32, 32, 8334);
+    //handler.configure_measurement_type();
+    //handler.start_threads();
     
     let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
@@ -495,9 +537,12 @@ fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
 
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
-            let msg = create_header(&my_settings, &frame_tdc);
+            //let x = handler.get_data();
+            //println!("{:?}", x);
+            let msg = create_header(&my_settings, &frame_tdc, 0);
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             if ns_sock.write(meas_type.build_output()).is_err() {println!("Client disconnected on data."); break;}
+            //if ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
             meas_type.reset_or_else(&frame_tdc, &my_settings);
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
         }
@@ -533,24 +578,28 @@ fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_
     final_data.is_ready()
 }
 
-fn create_header<T: TdcControl>(set: &Settings, tdc: &T) -> Vec<u8> {
+fn add_isibox_pixels(data: &mut [u8], isi_box_data: [u32; 17]) {
+    data[CAM_DESIGN.0..].iter_mut().zip(as_bytes(&isi_box_data).iter()).for_each(|(a, b)| *a+=b);
+}
+
+fn create_header<T: TdcControl>(set: &Settings, tdc: &T, extra_pixels: usize) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(tdc.time().to_string()));
     msg.push_str(",\"frameNumber\":");
     msg.push_str(&((tdc.counter()/2).to_string()));
     msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
     if set.mode == 6 || set.mode == 7 { //ChronoMode
-        msg.push_str(&((set.xspim_size*set.bytedepth*CAM_DESIGN.0).to_string()));
+        msg.push_str(&((set.xspim_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
     } else {
         match set.bin {
-            true => { msg.push_str(&((set.bytedepth*CAM_DESIGN.0).to_string()))},
-            false => { msg.push_str(&((set.bytedepth*CAM_DESIGN.0*CAM_DESIGN.1).to_string()))},
+            true => { msg.push_str(&((set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()))},
+            false => { msg.push_str(&((set.bytedepth*(CAM_DESIGN.0+extra_pixels)*CAM_DESIGN.1).to_string()))},
         }
     }
     msg.push_str(",\"bitDepth\":");
     msg.push_str(&((set.bytedepth<<3).to_string()));
     msg.push_str(",\"width\":");
-    msg.push_str(&(CAM_DESIGN.0.to_string()));
+    msg.push_str(&((CAM_DESIGN.0+extra_pixels).to_string()));
     msg.push_str(",\"height\":");
     if set.mode == 6 || set.mode == 7 { //ChronoMode
         msg.push_str(&(set.xspim_size.to_string()));

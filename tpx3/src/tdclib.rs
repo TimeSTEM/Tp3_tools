@@ -498,6 +498,8 @@ pub mod isi_box {
     }
 
     pub trait IsiBoxHand {
+        type MyOutput;
+        fn get_data(&self) -> Self::MyOutput;
         fn send_to_external(&self);
         fn start_threads(&mut self);
     }
@@ -511,8 +513,8 @@ pub mod isi_box {
 
     #[macro_export]
     macro_rules! isi_box_new {
-        (spec) => {IsiBoxType::<[u32; 17]>::new()};
-        (spim) => {IsiBoxType::<Vec<u8>>::new()};
+        (spec) => {isi_box::IsiBoxType::<[u32; 17]>::new()};
+        (spim) => {isi_box::IsiBoxType::<Vec<u8>>::new()};
     }
 
     macro_rules! create_auxiliar {
@@ -576,6 +578,12 @@ pub mod isi_box {
 
     
     impl IsiBoxHand for IsiBoxType<Vec<u8>> {
+        type MyOutput = Vec<u8>;
+        fn get_data(&self) -> Vec<u8> {
+            let nvec_arclist = Arc::clone(&self.data);
+            let num = nvec_arclist.lock().unwrap();
+            (*num).clone()
+        }
         fn send_to_external(&self) {
             let nvec_arclist = Arc::clone(&self.data);
             let mut num = nvec_arclist.lock().unwrap();
@@ -614,6 +622,13 @@ pub mod isi_box {
     }
 
     impl IsiBoxHand for IsiBoxType<[u32; 17]> {
+        type MyOutput = [u32; 17];
+        fn get_data(&self) -> [u32; 17] {
+            let counter_arclist = Arc::clone(&self.data);
+            let num = counter_arclist.lock().unwrap();
+            *num
+        }
+
         fn send_to_external(&self) {
             let counter_arclist = Arc::clone(&self.data);
             let mut num = counter_arclist.lock().unwrap();
