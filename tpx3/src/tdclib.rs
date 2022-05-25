@@ -513,7 +513,9 @@ pub mod isi_box {
 
     #[macro_export]
     macro_rules! isi_box_new {
-        (spec) => {isi_box::IsiBoxType::<[u32; 17]>::new()};
+        (spec) => {
+            isi_box::IsiBoxType::<[u32; 17]>::new()
+        };
         (spim) => {isi_box::IsiBoxType::<Vec<u8>>::new()};
     }
 

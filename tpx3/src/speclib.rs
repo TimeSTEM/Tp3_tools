@@ -522,27 +522,15 @@ fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
           W: SpecKind
 {
 
-    
-    //let mut handler = isi_box_new!(spec);
-    //handler.bind_and_connect();
-    //handler.configure_scan_parameters(32, 32, 8334);
-    //handler.configure_measurement_type();
-    //handler.start_threads();
-    
     let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
-    
-    //let mut list = Live::new(&my_settings);
     let start = Instant::now();
 
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
-            //let x = handler.get_data();
-            //println!("{:?}", x);
             let msg = create_header(&my_settings, &frame_tdc, 0);
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             if ns_sock.write(meas_type.build_output()).is_err() {println!("Client disconnected on data."); break;}
-            //if ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
             meas_type.reset_or_else(&frame_tdc, &my_settings);
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
         }
@@ -551,6 +539,40 @@ fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     Ok(())
 
 }
+
+fn build_spectrum_isi<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
+    where T: TdcControl,
+          V: TimepixRead,
+          U: Write,
+          W: SpecKind
+{
+
+    let mut handler = isi_box_new!(spec);
+    handler.bind_and_connect();
+    handler.configure_scan_parameters(32, 32, 8334);
+    handler.configure_measurement_type();
+    handler.start_threads();
+    
+    let mut last_ci = 0;
+    let mut buffer_pack_data = [0; BUFFER_SIZE];
+    let start = Instant::now();
+
+    while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
+        if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
+            let x = handler.get_data();
+            let msg = create_header(&my_settings, &frame_tdc, 0);
+            if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
+            let result = meas_type.build_output();
+            if ns_sock.write(result).is_err() {println!("Client disconnected on data."); break;}
+            if ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
+            meas_type.reset_or_else(&frame_tdc, &my_settings);
+            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
+        }
+    }
+    println!("Total elapsed time is: {:?}.", start.elapsed());
+    Ok(())
+}
+
 
 fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
 
