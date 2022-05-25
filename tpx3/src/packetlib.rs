@@ -2,7 +2,7 @@
 //!in around `Packet` struct.
 
 pub trait Packet {
-    fn ci(&self) -> usize;
+    fn ci(&self) -> u8;
     fn data(&self) -> &[u8; 8];
     fn x(&self) -> usize {
         let temp = ((self.data()[6] & 224)>>4 | (self.data()[7] << 4) | ((self.data()[5] & 112) >> 6)) as usize;
@@ -143,12 +143,12 @@ pub trait Packet {
 }
 
 pub struct PacketEELS<'a> {
-    pub chip_index: usize,
+    pub chip_index: u8,
     pub data: &'a [u8; 8],
 }
 
 impl<'a> Packet for PacketEELS<'a> {
-    fn ci(&self) -> usize {
+    fn ci(&self) -> u8 {
         self.chip_index
     }
     fn data(&self) -> &[u8; 8] {
@@ -163,12 +163,12 @@ impl<'a> PacketEELS<'a> {
 }
 
 pub struct TimeCorrectedPacketEELS<'a> {
-    pub chip_index: usize,
+    pub chip_index: u8,
     pub data: &'a [u8; 8],
 }
 
 impl<'a> Packet for TimeCorrectedPacketEELS<'a> {
-    fn ci(&self) -> usize {
+    fn ci(&self) -> u8 {
         self.chip_index
     }
     fn data(&self) -> &[u8; 8] {
@@ -200,12 +200,12 @@ impl<'a> TimeCorrectedPacketEELS<'a> {
 }
 
 pub struct PacketDiffraction<'a> {
-    pub chip_index: usize,
+    pub chip_index: u8,
     pub data: &'a [u8; 8],
 }
 
 impl<'a> Packet for PacketDiffraction<'a> {
-    fn ci(&self) -> usize {
+    fn ci(&self) -> u8 {
         self.chip_index
     }
     fn data(&self) -> &[u8; 8] {
@@ -322,7 +322,7 @@ impl InversePacket {
 
         let my_data = my_inv_packet.create_electron_array();
         let my_packet = PacketEELS {
-            chip_index: my_data[4] as usize,
+            chip_index: my_data[4],
             data: &my_data[8..16].try_into().unwrap()
         };
 
@@ -334,7 +334,7 @@ impl InversePacket {
 
         let my_data = my_inv_packet.create_tdc_array(1024, TdcType::TdcTwoFallingEdge);
         let my_packet = PacketEELS {
-            chip_index: my_data[4] as usize,
+            chip_index: my_data[4],
             data: &my_data[8..16].try_into().unwrap()
         };
 

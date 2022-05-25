@@ -160,7 +160,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
           U: 'static + Send + Write,
 {
     let (tx, rx) = mpsc::channel();
-    let mut last_ci = 0usize;
+    let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     let mut list = meas_type.copy_empty();
     
@@ -183,11 +183,11 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     Ok(())
 }
 
-fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut usize, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) {
+fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) {
 
     data.chunks_exact(8).for_each(|x| {
         match *x {
-            [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
+            [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
                 let packet = PacketEELS { chip_index: *last_ci, data: x.try_into().unwrap()};
                 let id = packet.id();

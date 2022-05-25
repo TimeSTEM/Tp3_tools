@@ -273,7 +273,7 @@ pub mod coincidence {
             //let mut packet_chunks = buffer[0..size].chunks_exact(8);
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match *pack_oct {
-                    [84, 80, 88, 51, nci, _, _, _] => {ci=nci as usize;},
+                    [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
                         let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
                         match packet.id() {
@@ -584,14 +584,14 @@ pub mod ntime_resolved {
         let mut buffer: Vec<u8> = vec![0; 128_000_000];
 
         let mut total_size = 0;
-        let mut ci = 0usize;
+        let mut ci = 0;
 
         while let Ok(size) = my_file.read(&mut buffer) {
             if size==0 {break;}
             total_size += size;
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match pack_oct {
-                    &[84, 80, 88, 51, nci, _, _, _] => {ci = nci as usize},
+                    &[84, 80, 88, 51, nci, _, _, _] => {ci = nci},
                     _ => {
                         let packet = Pack{chip_index: ci, data: pack_oct.try_into().unwrap()};
                         match packet.id() {

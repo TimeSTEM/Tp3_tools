@@ -487,7 +487,7 @@ fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
           W: SpecKind
 {
     
-    let mut last_ci = 0usize;
+    let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     
     //let mut list = Live::new(&my_settings);
@@ -507,11 +507,11 @@ fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
 
 }
 
-fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut usize, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
+fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) -> bool {
 
     data.chunks_exact(8).for_each( |x| {
         match *x {
-            [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci as usize,
+            [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
                 let packet = Pack { chip_index: *last_ci, data: x.try_into().unwrap()};
                 
