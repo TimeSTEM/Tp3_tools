@@ -464,6 +464,8 @@ pub mod isi_box {
     use std::sync::{Arc, Mutex};
     use std::{thread};
     use crate::spimlib::SPIM_PIXELS;
+
+    pub const CHANNELS: usize = 17;
     
     fn transform_by_channel(v: &[u8], channel: u32) {
         unsafe {
@@ -514,13 +516,13 @@ pub mod isi_box {
     #[macro_export]
     macro_rules! isi_box_new {
         (spec) => {
-            isi_box::IsiBoxType::<[u32; 17]>::new()
+            isi_box::IsiBoxType::<[u32; CHANNELS]>::new()
         };
         (spim) => {isi_box::IsiBoxType::<Vec<u8>>::new()};
     }
 
     macro_rules! create_auxiliar {
-        (spec) => {Arc::new(Mutex::new([0; 17]))};
+        (spec) => {Arc::new(Mutex::new([0; CHANNELS]))};
         (spim) => {Arc::new(Mutex::new(Vec::new()))};
     }
 
@@ -534,14 +536,10 @@ pub mod isi_box {
             impl IsiBoxTools for $x<$y> {
                 fn bind_and_connect(&mut self) {
                     //let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
-                    for i in 0..self.nchannels {
-                        //let (sock, _addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
+                    for _ in 0..self.nchannels {
                         let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
-                        println!("{}", i);
-                        //println!("IsiBox connected at {:?} and {:?}.", addr, sock);
                         self.sockets.push(sock);
                     }
-                    //let (sock, _addr) = isi_listener.accept().expect("Could not connect to IsiBox external socket.");
                     let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
                     self.ext_socket = Some(sock);
                 }
@@ -558,7 +556,6 @@ pub mod isi_box {
                 }
                 fn configure_measurement_type(&self) {
                     let mut config_array: [u32; 1] = [0; 1];
-                    //config_array[0] = if is_spim == true { 1 } else { 0 };
                     config_array[0] = measurement_type!($z);
                     let mut sock = &self.sockets[0];
                     match sock.write(as_bytes(&config_array)) {
@@ -570,7 +567,7 @@ pub mod isi_box {
                     Self {
                         sockets: Vec::new(),
                         ext_socket: None,
-                        nchannels: 17,
+                        nchannels: CHANNELS as u32,
                         data: create_auxiliar!($z),
                     }
                 }
@@ -578,7 +575,7 @@ pub mod isi_box {
         }
     }
 
-    impl_bind_connect!(IsiBoxType, [u32; 17], spec);
+    impl_bind_connect!(IsiBoxType, [u32; CHANNELS], spec);
     impl_bind_connect!(IsiBoxType, Vec<u8>, spim);
 
     
@@ -586,8 +583,10 @@ pub mod isi_box {
         type MyOutput = Vec<u8>;
         fn get_data(&self) -> Vec<u8> {
             let nvec_arclist = Arc::clone(&self.data);
-            let num = nvec_arclist.lock().unwrap();
-            (*num).clone()
+            let mut num = nvec_arclist.lock().unwrap();
+            let output = (*num).clone();
+            (*num).clear();
+            output
         }
         fn send_to_external(&self) {
             let nvec_arclist = Arc::clone(&self.data);
@@ -599,7 +598,7 @@ pub mod isi_box {
             (*num).clear();
         }
         fn start_threads(&mut self) {
-            let mut channel_index = self.nchannels-1;
+            let mut channel_index = self.nchannels - 1;
             
             for _ in 0..self.nchannels {
                 let nvec_arclist = Arc::clone(&self.data);
@@ -621,17 +620,21 @@ pub mod isi_box {
                         };
                     }
                 });
-                channel_index-=1;
+                if channel_index>0 {channel_index-=1;}
             }
+
         }
     }
 
-    impl IsiBoxHand for IsiBoxType<[u32; 17]> {
-        type MyOutput = [u32; 17];
-        fn get_data(&self) -> [u32; 17] {
+    impl IsiBoxHand for IsiBoxType<[u32; CHANNELS]> {
+        type MyOutput = [u32; CHANNELS];
+        fn get_data(&self) -> [u32; CHANNELS] {
             let counter_arclist = Arc::clone(&self.data);
-            let num = counter_arclist.lock().unwrap();
-            *num
+            let mut num = counter_arclist.lock().unwrap();
+            let output = *num;
+            (*num).iter_mut().for_each(|x| *x = 0);
+            println!("{:?}", output);
+            output
         }
 
         fn send_to_external(&self) {
@@ -643,7 +646,7 @@ pub mod isi_box {
         }
         fn start_threads(&mut self) {
             let counter_arclist = Arc::clone(&self.data);
-            let mut val = self.sockets.pop().unwrap();
+            let mut val = self.sockets.remove(0);
             thread::spawn(move || {
                 let mut buffer = vec![0_u8; 68];
                 loop {
@@ -662,6 +665,7 @@ pub mod isi_box {
         }
     }
 
+    /*
     pub struct IsiBoxHandler {
         nvec_list: Arc<Mutex<Vec<u8>>>,
         sockets: Vec<TcpStream>,
@@ -779,4 +783,5 @@ pub mod isi_box {
             }
         }
     }
+    */
 }

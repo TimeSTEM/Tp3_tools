@@ -3,7 +3,7 @@
 use crate::packetlib::{Packet, PacketEELS as Pack};
 use crate::auxiliar::{Settings, misc::TimepixRead};
 //use crate::tdclib::{TdcControl, PeriodicTdcRef};
-use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
+use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{CHANNELS, IsiBoxTools, IsiBoxHand}};
 use crate::isi_box_new;
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
@@ -560,7 +560,7 @@ pub fn build_spectrum_isi<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_setti
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let x = handler.get_data();
-            let msg = create_header(&my_settings, &frame_tdc, 17);
+            let msg = create_header(&my_settings, &frame_tdc, CHANNELS);
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             let result = meas_type.build_output();
             if ns_sock.write(result).is_err() {println!("Client disconnected on data."); break;}

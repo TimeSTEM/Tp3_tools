@@ -2,9 +2,10 @@
 
 use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::{Settings, misc::TimepixRead};
-use crate::tdclib::{TdcControl, PeriodicTdcRef};
+use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{CHANNELS, IsiBoxTools, IsiBoxHand}};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
+use crate::isi_box_new;
 use std::io::{Write};
 use std::sync::mpsc;
 use std::thread;
@@ -183,6 +184,45 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     Ok(())
 }
 
+pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, meas_type: W) -> Result<(), Tp3ErrorKind>
+    where V: 'static + Send + TimepixRead,
+          T: 'static + Send + TdcControl,
+          W: 'static + Send + SpimKind,
+          U: 'static + Send + Write,
+{
+    let (tx, rx) = mpsc::channel();
+    let mut last_ci = 0;
+    let mut buffer_pack_data = [0; BUFFER_SIZE];
+    let mut list = meas_type.copy_empty();
+    
+    let mut handler = isi_box_new!(spim);
+    handler.bind_and_connect();
+    handler.configure_scan_parameters(32, 32, 8334);
+    handler.configure_measurement_type();
+    handler.start_threads();
+    
+    thread::spawn(move || {
+        while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
+            build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+            if tx.send(list).is_err() {println!("Cannot send data over the thread channel."); break;}
+            list = meas_type.copy_empty();
+        }
+    });
+ 
+    let start = Instant::now();
+    for tl in rx {
+        let result = tl.build_output(&my_settings, &spim_tdc);
+        let x = handler.get_data();
+        if ns_sock.write(as_bytes(&result)).is_err() {println!("Client disconnected on data."); break;}
+        if ns_sock.write(&x).is_err() {println!("Client disconnected on data."); break;}
+    }
+
+    let elapsed = start.elapsed(); 
+    println!("Total elapsed time is: {:?}.", elapsed);
+    Ok(())
+}
+
+
 fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) {
 
     data.chunks_exact(8).for_each(|x| {
@@ -207,23 +247,3 @@ fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_c
         };
     });
 }
-
-/*
-fn append_to_index_array(data: &mut Vec<u8>, index: usize) {
-    //Big Endian
-    data.push(((index >> 24 ) & 0xff) as u8);
-    data.push(((index >> 16 ) & 0xff) as u8);
-    data.push(((index >> 8 ) & 0xff) as u8);
-    data.push((index & 0xff) as u8);
-    
-    //Little Endian
-    //data.push((index & 0xff) as u8);
-    //index = index >> 4;
-    //data.push((index & 0xff) as u8);
-    //index = index >> 4;
-    //data.push((index & 0xff) as u8);
-    //index = index >> 4;
-    //data.push((index & 0xff) as u8);
-
-}
-*/
