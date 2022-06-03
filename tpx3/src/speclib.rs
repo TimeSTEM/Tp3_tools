@@ -540,7 +540,7 @@ fn build_spectrum<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
 
 }
 
-fn build_spectrum_isi<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
+pub fn build_spectrum_isi<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
     where T: TdcControl,
           V: TimepixRead,
           U: Write,

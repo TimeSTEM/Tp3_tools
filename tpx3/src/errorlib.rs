@@ -20,4 +20,6 @@ pub enum Tp3ErrorKind {
 
     TimepixReadLoop,
     TimepixReadOver,
+
+    IsiBoxAttempt(u8),
 }
