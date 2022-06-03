@@ -560,7 +560,7 @@ pub fn build_spectrum_isi<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_setti
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let x = handler.get_data();
-            let msg = create_header(&my_settings, &frame_tdc, CHANNELS);
+            let msg = create_header(&my_settings, &frame_tdc, 17);
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             let result = meas_type.build_output();
             if ns_sock.write(result).is_err() {println!("Client disconnected on data."); break;}
@@ -600,9 +600,9 @@ fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_
     final_data.is_ready()
 }
 
-fn add_isibox_pixels(data: &mut [u8], isi_box_data: [u32; 17]) {
-    data[CAM_DESIGN.0..].iter_mut().zip(as_bytes(&isi_box_data).iter()).for_each(|(a, b)| *a+=b);
-}
+//fn add_isibox_pixels(data: &mut [u8], isi_box_data: [u32; 17]) {
+//    data[CAM_DESIGN.0..].iter_mut().zip(as_bytes(&isi_box_data).iter()).for_each(|(a, b)| *a+=b);
+//}
 
 fn create_header<T: TdcControl>(set: &Settings, tdc: &T, extra_pixels: usize) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
@@ -636,59 +636,3 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T, extra_pixels: usize) ->
     let s: Vec<u8> = msg.into_bytes();
     s
 }
-
-
-/*
-fn append_to_array(data: &mut [u8], index:usize, bytedepth: usize) {
-    let index = index * bytedepth;
-    if bytedepth == 4 {
-        data[index+3] = data[index+3].wrapping_add(1);
-        if data[index+3]==0 {
-            data[index+2] = data[index+2].wrapping_add(1);
-            if data[index+2]==0 {
-                data[index+1] = data[index+1].wrapping_add(1);
-                if data[index+1]==0 {
-                    data[index] = data[index].wrapping_add(1);
-                };
-            };
-        };
-    } else if bytedepth == 2 {
-        data[index+1] = data[index+1].wrapping_add(1);
-        if data[index+1]==0 {
-            data[index] = data[index].wrapping_add(1);
-        }
-    } else if bytedepth == 1 {
-        data[index] = data[index].wrapping_add(1);
-    }
-}
-
-fn append_to_array_roll(data: &mut [u8], index:usize, bytedepth: usize, roll: isize) {
-    let index = index as isize + roll;
-    if index >= CAM_DESIGN.0 as isize - 1 || index < 0 {
-        return
-    }
-    let index = index as usize;
-
-    let index = index * bytedepth;
-    
-    if bytedepth == 4 {
-        data[index+3] = data[index+3].wrapping_add(1);
-        if data[index+3]==0 {
-            data[index+2] = data[index+2].wrapping_add(1);
-            if data[index+2]==0 {
-                data[index+1] = data[index+1].wrapping_add(1);
-                if data[index+1]==0 {
-                    data[index] = data[index].wrapping_add(1);
-                };
-            };
-        };
-    } else if bytedepth == 2 {
-        data[index+1] = data[index+1].wrapping_add(1);
-        if data[index+1]==0 {
-            data[index] = data[index].wrapping_add(1);
-        }
-    } else if bytedepth == 1 {
-        data[index] = data[index].wrapping_add(1);
-    }
-}
-*/

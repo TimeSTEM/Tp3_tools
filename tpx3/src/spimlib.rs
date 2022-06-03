@@ -2,7 +2,7 @@
 
 use crate::packetlib::{Packet, PacketEELS};
 use crate::auxiliar::{Settings, misc::TimepixRead};
-use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{CHANNELS, IsiBoxTools, IsiBoxHand}};
+use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use crate::isi_box_new;

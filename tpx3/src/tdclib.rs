@@ -459,7 +459,7 @@ impl TdcControl for NonPeriodicTdcRef {
 }
 
 pub mod isi_box {
-    use std::net::{TcpListener, TcpStream};
+    use std::net::TcpStream;
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
     use std::{thread};
