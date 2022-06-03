@@ -560,11 +560,11 @@ pub fn build_spectrum_isi<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_setti
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let x = handler.get_data();
-            let msg = create_header(&my_settings, &frame_tdc, 0);
+            let msg = create_header(&my_settings, &frame_tdc, 17);
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             let result = meas_type.build_output();
             if ns_sock.write(result).is_err() {println!("Client disconnected on data."); break;}
-            if ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
+            if ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on isi data."); break;}
             meas_type.reset_or_else(&frame_tdc, &my_settings);
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
         }

@@ -533,13 +533,16 @@ pub mod isi_box {
         ($x: ident, $y: ty, $z: tt) => {
             impl IsiBoxTools for $x<$y> {
                 fn bind_and_connect(&mut self) {
-                    let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
-                    for _ in 0..self.nchannels {
-                        let (sock, _addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
+                    //let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
+                    for i in 0..self.nchannels {
+                        //let (sock, _addr) = isi_listener.accept().expect("Could not connect to IsiBox.");
+                        let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
+                        println!("{}", i);
                         //println!("IsiBox connected at {:?} and {:?}.", addr, sock);
                         self.sockets.push(sock);
                     }
-                    let (sock, _addr) = isi_listener.accept().expect("Could not connect to IsiBox external socket.");
+                    //let (sock, _addr) = isi_listener.accept().expect("Could not connect to IsiBox external socket.");
+                    let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
                     self.ext_socket = Some(sock);
                 }
                 fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32) {
