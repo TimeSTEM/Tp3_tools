@@ -4,7 +4,7 @@ use std::{thread, time};
 
 fn main() {
         println!("Starting new debug session...");
-        let mut handler = isi_box_new!(spim);
+        let mut handler = isi_box_new!(spec);
         handler.bind_and_connect();
         handler.configure_scan_parameters(32, 32, 8334);
         handler.configure_measurement_type();

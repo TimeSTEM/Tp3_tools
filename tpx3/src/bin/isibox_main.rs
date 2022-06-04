@@ -16,7 +16,6 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             speclib::build_spectrum_isi(pack, ns, my_settings, frame_tdc, np_tdc, meas)?;
             Ok(my_settings.mode)
         },
-    }
         2 => {
             let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size))?;
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
@@ -25,6 +24,7 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             Ok(my_settings.mode)
         },
         _ => Err(Tp3ErrorKind::IsiBoxAttempt(my_settings.mode)),
+    }
 }
 
 fn main() {
