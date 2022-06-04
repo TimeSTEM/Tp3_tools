@@ -11,17 +11,18 @@ pub mod coincidence {
     use crate::auxiliar::ConfigAcquisition;
     use std::convert::TryInto;
     use std::cmp;
+    use crate::auxiliar::value_types::*;
 
-    const TIME_WIDTH: usize = 16; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
+    const TIME_WIDTH: TIME = 16; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
     //const TIME_DELAY: usize = 100_000 - 1867; //Time delay to correlate (ps).
-    const TIME_DELAY: usize = 103; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
+    const TIME_DELAY: TIME = 103; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
     const MIN_LEN: usize = 100; // Sliding time window size.
 
     pub struct ElectronData {
-        pub time: Vec<usize>,
+        pub time: Vec<TIME>,
         pub rel_time: Vec<isize>,
-        pub x: Vec<usize>,
-        pub y: Vec<usize>,
+        pub x: Vec<POSITION>,
+        pub y: Vec<POSITION>,
         pub tot: Vec<u16>,
         pub cluster_size: Vec<usize>,
         pub spectrum: Vec<usize>,
@@ -51,7 +52,7 @@ pub mod coincidence {
             }
         }
 
-        fn add_coincident_electron(&mut self, val: SingleElectron, photon_time: usize) {
+        fn add_coincident_electron(&mut self, val: SingleElectron, photon_time: TIME) {
             self.corr_spectrum[val.image_index()] += 1; //Adding the electron
             self.corr_spectrum[SPIM_PIXELS-1] += 1; //Adding the photon
             self.time.push(val.time());
@@ -181,7 +182,7 @@ pub mod coincidence {
     }
 
     pub struct TempTdcData {
-        pub tdc: Vec<usize>,
+        pub tdc: Vec<TIME>,
         pub min_index: usize,
     }
 
@@ -201,14 +202,14 @@ pub mod coincidence {
             self.tdc.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         }
 
-        fn check(&mut self, value: SingleElectron) -> Option<usize> {
+        fn check(&mut self, value: SingleElectron) -> Option<TIME> {
 
             let array_length = self.tdc.len();
             let max_index = cmp::min(self.min_index + MIN_LEN, array_length);
             
             let result = self.tdc[self.min_index..max_index].iter()
                 .enumerate()
-                .find(|(_, x)| ((**x as isize - value.time() as isize).abs() as usize) < TIME_WIDTH);
+                .find(|(_, x)| ((**x as isize - value.time() as isize).abs() as TIME) < TIME_WIDTH);
             
             //Index must be greater than 10% of MIN_LEN, so first photons do not count.
             //Effective size must be greater or equal than MIN_LEN otherwise a smaller array is

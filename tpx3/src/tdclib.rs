@@ -7,9 +7,10 @@ mod tdcvec {
     use crate::tdclib::TdcType;
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use std::convert::TryInto;
+    use crate::auxiliar::value_types::*;
 
     pub struct TdcSearch<'a> {
-        data: Vec<(usize, TdcType)>,
+        data: Vec<(TIME, TdcType)>,
         how_many: usize,
         tdc_choosen: &'a TdcType,
         initial_counter: Option<usize>,
@@ -52,7 +53,7 @@ mod tdcvec {
             } else {Ok(false)}
         }
 
-        fn get_timelist(&self, which: &TdcType) -> Vec<usize> {
+        fn get_timelist(&self, which: &TdcType) -> Vec<TIME> {
             let result: Vec<_> = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value() == which.associate_value())
                 .map(|(time, _tdct)| *time)
@@ -60,7 +61,7 @@ mod tdcvec {
             result
         }
         
-        fn get_auto_timelist(&self) -> Vec<usize> {
+        fn get_auto_timelist(&self) -> Vec<TIME> {
             let result: Vec<_> = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value() == self.tdc_choosen.associate_value())
                 .map(|(time, _tdct)| *time)
@@ -75,7 +76,7 @@ mod tdcvec {
             else {Ok(())}
         }
 
-        pub fn find_high_time(&self) -> Result<usize, Tp3ErrorKind> {
+        pub fn find_high_time(&self) -> Result<TIME, Tp3ErrorKind> {
             let fal_tdc_type = match self.tdc_choosen {
                 TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
                 TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
@@ -110,7 +111,7 @@ mod tdcvec {
             }
         }
         
-        pub fn find_period(&self) -> Result<usize, Tp3ErrorKind> {
+        pub fn find_period(&self) -> Result<TIME, Tp3ErrorKind> {
             let mut tdc_time = self.get_auto_timelist();
             let last = tdc_time.pop().expect("Please get at least 02 Tdc's");
             let before_last = tdc_time.pop().expect("Please get at least 02 Tdc's");
@@ -136,7 +137,7 @@ mod tdcvec {
             self.last_counter
         }
 
-        pub fn get_lasttime(&self) -> usize {
+        pub fn get_lasttime(&self) -> TIME {
             let last_time = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
                 .map(|(time, _tdct)| *time)
@@ -144,7 +145,7 @@ mod tdcvec {
             last_time
         }
 
-        pub fn get_begintime(&self) -> usize {
+        pub fn get_begintime(&self) -> TIME {
             let begin_time = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
                 .map(|(time, _tdct)| *time)
@@ -238,13 +239,14 @@ impl TdcType {
 use std::time::{Duration, Instant};
 use crate::errorlib::Tp3ErrorKind;
 use crate::auxiliar::misc::TimepixRead;
+use crate::auxiliar::value_types::*;
 
 pub trait TdcControl {
     fn id(&self) -> u8;
-    fn upt(&mut self, time: usize, hard_counter: u16);
+    fn upt(&mut self, time: TIME, hard_counter: u16);
     fn counter(&self) -> usize;
-    fn time(&self) -> usize;
-    fn period(&self) -> Option<usize>;
+    fn time(&self) -> TIME;
+    fn period(&self) -> Option<TIME>;
     fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, sp: Option<usize>) -> Result<Self, Tp3ErrorKind> where Self: Sized;
 }
 
@@ -256,11 +258,11 @@ pub struct PeriodicTdcRef {
     last_hard_counter: u16,
     counter_overflow: usize,
     pub ticks_to_frame: Option<usize>,
-    pub begin_frame: usize,
-    pub period: usize,
-    pub high_time: usize,
-    pub low_time: usize,
-    time: usize,
+    pub begin_frame: TIME,
+    pub period: TIME,
+    pub high_time: TIME,
+    pub low_time: TIME,
+    time: TIME,
 }
 
 impl TdcControl for PeriodicTdcRef {
@@ -268,7 +270,7 @@ impl TdcControl for PeriodicTdcRef {
         self.tdctype
     }
 
-    fn upt(&mut self, time: usize, hard_counter: u16) {
+    fn upt(&mut self, time: TIME, hard_counter: u16) {
         if hard_counter < self.last_hard_counter {
             self.counter_overflow += 1;
         }
@@ -287,11 +289,11 @@ impl TdcControl for PeriodicTdcRef {
         self.counter
     }
 
-    fn time(&self) -> usize {
+    fn time(&self) -> TIME {
         self.time
     }
 
-    fn period(&self) -> Option<usize> {
+    fn period(&self) -> Option<TIME> {
         Some(self.period)
     }
 
@@ -353,9 +355,9 @@ pub struct SingleTriggerPeriodicTdcRef {
     counter_offset: usize,
     last_hard_counter: u16,
     counter_overflow: usize,
-    pub begin_frame: usize,
-    pub period: usize,
-    pub time: usize,
+    pub begin_frame: TIME,
+    pub period: TIME,
+    pub time: TIME,
 }
 
 impl TdcControl for SingleTriggerPeriodicTdcRef {
@@ -363,7 +365,7 @@ impl TdcControl for SingleTriggerPeriodicTdcRef {
         self.tdctype
     }
 
-    fn upt(&mut self, time: usize, hard_counter: u16) {
+    fn upt(&mut self, time: TIME, hard_counter: u16) {
         if hard_counter < self.last_hard_counter {
             self.counter_overflow += 1;
         }
@@ -376,11 +378,11 @@ impl TdcControl for SingleTriggerPeriodicTdcRef {
         self.counter
     }
 
-    fn time(&self) -> usize {
+    fn time(&self) -> TIME {
         self.time
     }
 
-    fn period(&self) -> Option<usize> {
+    fn period(&self) -> Option<TIME> {
         Some(self.period)
     }
 
@@ -423,7 +425,7 @@ impl TdcControl for SingleTriggerPeriodicTdcRef {
 pub struct NonPeriodicTdcRef {
     pub tdctype: u8,
     pub counter: usize,
-    pub time: usize,
+    pub time: TIME,
 }
 
 impl TdcControl for NonPeriodicTdcRef {
@@ -431,7 +433,7 @@ impl TdcControl for NonPeriodicTdcRef {
         self.tdctype
     }
 
-    fn upt(&mut self, time: usize, _: u16) {
+    fn upt(&mut self, time: TIME, _: u16) {
         self.time = time;
         self.counter+=1;
     }
@@ -440,11 +442,11 @@ impl TdcControl for NonPeriodicTdcRef {
         self.counter
     }
 
-    fn time(&self) -> usize {
+    fn time(&self) -> TIME {
         self.time
     }
 
-    fn period(&self) -> Option<usize> {
+    fn period(&self) -> Option<TIME> {
         None
     }
     

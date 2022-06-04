@@ -3,6 +3,7 @@ use crate::errorlib::Tp3ErrorKind;
 use std::net::{TcpListener, TcpStream, SocketAddr};
 use std::io::{Read, Write};
 use std::fs::File;
+use crate::auxiliar::value_types::*;
 //use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
 
 const CONFIG_SIZE: usize = 16;
@@ -131,15 +132,15 @@ impl BytesConfig {
     }
     
     ///Time delay. Must be sent with 2 bytes in big-endian mode. Byte[12..14]
-    fn time_delay(&self) -> usize {
-        let td = (self.data[12] as usize)<<8 | (self.data[13] as usize);
+    fn time_delay(&self) -> TIME {
+        let td = (self.data[12] as TIME)<<8 | (self.data[13] as TIME);
         println!("Time delay is (ns): {}.", td);
         td
     }
     
     ///Time width. Must be sent with 2 bytes in big-endian mode. Byte[14..16].
-    fn time_width(&self) -> usize {
-        let tw = (self.data[14] as usize)<<8 | (self.data[15] as usize);
+    fn time_width(&self) -> TIME {
+        let tw = (self.data[14] as TIME)<<8 | (self.data[15] as TIME);
         println!("Time delay is (ns): {}.", tw);
         tw
     }
@@ -225,8 +226,8 @@ pub struct Settings {
     pub yspim_size: usize,
     pub xscan_size: usize,
     pub yscan_size: usize,
-    pub time_delay: usize,
-    pub time_width: usize,
+    pub time_delay: TIME,
+    pub time_width: TIME,
     pub spimoverscanx: usize,
     pub spimoverscany: usize,
 }
@@ -474,4 +475,9 @@ pub mod misc {
     impl<R: Read + ?Sized> TimepixRead for Box<R> {}
     impl TimepixRead for TcpStream {}
     impl TimepixRead for File {}
+}
+
+pub mod value_types {
+    pub type POSITION = usize;
+    pub type TIME = usize;
 }

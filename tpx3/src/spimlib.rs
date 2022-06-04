@@ -10,9 +10,10 @@ use std::io::{Write};
 use std::sync::mpsc;
 use std::thread;
 use std::convert::TryInto;
+use crate::auxiliar::value_types::*;
 //use rayon::prelude::*;
 
-const VIDEO_TIME: usize = 5000;
+pub const VIDEO_TIME: TIME = 5000;
 pub const SPIM_PIXELS: usize = 1025 + 16;
 const BUFFER_SIZE: usize = 16384 * 2;
 
@@ -42,8 +43,10 @@ pub trait SpimKind {
 }
 
 #[inline]
-pub fn get_return_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<u32> {
+pub fn get_return_spimindex(x: usize, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<u32> {
     let val = dt % spim_tdc.period;
+    let xspim = xspim as TIME;
+    let yspim = yspim as TIME;
     if val >= spim_tdc.low_time {
         let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
         let rin = xspim * (val-spim_tdc.low_time) / spim_tdc.high_time; //Column correction. Maybe not even needed.
@@ -53,7 +56,7 @@ pub fn get_return_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspi
                 r %= yspim;
             }
             
-            let index = (r * xspim + rin) * SPIM_PIXELS + x;
+            let index = (r * xspim + rin) * SPIM_PIXELS as TIME + x as TIME;
         
             Some(index as u32)
         } else {
@@ -62,18 +65,20 @@ pub fn get_return_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspi
 }
 
 #[inline]
-pub fn get_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<u32> {
+pub fn get_spimindex(x: usize, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<u32> {
     let val = dt % spim_tdc.period;
+    let xspim = xspim as TIME;
+    let yspim = yspim as TIME;
     if val < spim_tdc.low_time {
         let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
-        let rin = xspim * val / spim_tdc.low_time; //Column correction. Maybe not even needed.
+        let rin = xspim as TIME * val / spim_tdc.low_time; //Column correction. Maybe not even needed.
             
             if r > (yspim-1) {
                 if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
                 r %= yspim;
             }
             
-            let index = (r * xspim + rin) * SPIM_PIXELS + x;
+            let index = (r * xspim + rin) * SPIM_PIXELS as TIME + x as TIME;
         
             Some(index as u32)
         } else {
@@ -84,13 +89,13 @@ pub fn get_spimindex(x: usize, dt: usize, spim_tdc: &PeriodicTdcRef, xspim: usiz
 ///`Live` is the only current implemented measurement. It outputs list of indices (max `u32`) that
 ///must be incremented.
 pub struct Live {
-    data: Vec<(usize, usize)>,
+    data: Vec<(POSITION, TIME)>,
 }
 
 impl SpimKind for Live {
-    type MyOutput = (usize, usize);
+    type MyOutput = (POSITION, TIME);
 
-    fn data(&self) -> &Vec<(usize, usize)> {
+    fn data(&self) -> &Vec<(POSITION, TIME)> {
         &self.data
     }
 

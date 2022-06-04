@@ -1,11 +1,13 @@
 //!`packetlib` is a collection of tools to facilitate manipulation of individual TP3 packets. Module is built
 //!in around `Packet` struct.
 
+use crate::auxiliar::value_types::*;
+
 pub trait Packet {
     fn ci(&self) -> u8;
     fn data(&self) -> &[u8; 8];
     fn x(&self) -> usize {
-        let temp = ((self.data()[6] & 224)>>4 | (self.data()[7] << 4) | ((self.data()[5] & 112) >> 6)) as usize;
+        let temp = ((self.data()[6] & 224)>>4 | (self.data()[7] << 4) | ((self.data()[5] & 112) >> 6)) as POSITION;
         //(!temp & 255) | (temp & 768)
 
         match self.ci() {
@@ -17,23 +19,23 @@ pub trait Packet {
         }
     }
     
-    fn x_raw(&self) -> usize {
-        let x = (((self.data()[6] & 224)>>4 | (self.data()[7] & 15)<<4) | ((self.data()[5] & 64)>>6)) as usize;
+    fn x_raw(&self) -> POSITION {
+        let x = (((self.data()[6] & 224)>>4 | (self.data()[7] & 15)<<4) | ((self.data()[5] & 64)>>6)) as POSITION;
         x
     }
     
-    fn y(&self) -> usize {
-        let y = (   ( (self.data()[5] & 128)>>5 | (self.data()[6] & 31)<<3 ) | ( ((self.data()[5] & 112)>>4) & 3 )   ) as usize;
+    fn y(&self) -> POSITION {
+        let y = (   ( (self.data()[5] & 128)>>5 | (self.data()[6] & 31)<<3 ) | ( ((self.data()[5] & 112)>>4) & 3 )   ) as POSITION;
         y
     }
 
-    fn x_y(&self) -> (usize, usize) {
+    fn x_y(&self) -> (POSITION, POSITION) {
         let dcol = (self.data()[6] & 224)>>4 | (self.data()[7] << 4);
         let spix = (self.data()[5] & 128) >> 5 | (self.data()[6] & 31) << 3;
         let pix = (self.data()[5] & 112) >> 4;
 
-        let temp = (dcol | (pix >> 2)) as usize;
-        let y = (spix | (pix & 3)) as usize;
+        let temp = (dcol | (pix >> 2)) as POSITION;
+        let y = (spix | (pix & 3)) as POSITION;
         
         match self.ci() {
             0 => (255 - temp, y),
@@ -50,13 +52,13 @@ pub trait Packet {
     }
 
     #[inline]
-    fn spidr(&self) -> usize {
-        (self.data()[0] as usize) | (self.data()[1] as usize) << 8
+    fn spidr(&self) -> TIME {
+        (self.data()[0] as TIME) | (self.data()[1] as TIME) << 8
     }
 
     #[inline]
-    fn ftoa(&self) -> usize {
-        (self.data()[2] & 15) as usize
+    fn ftoa(&self) -> TIME {
+        (self.data()[2] & 15) as TIME
     }
 
     #[inline]
@@ -65,26 +67,26 @@ pub trait Packet {
     }
 
     #[inline]
-    fn toa(&self) -> usize {
-        ((self.data()[3] >> 6) as usize) | (self.data()[4] as usize)<<2 | ((self.data()[5] & 15) as usize)<<10
+    fn toa(&self) -> TIME {
+        ((self.data()[3] >> 6) as TIME) | (self.data()[4] as TIME)<<2 | ((self.data()[5] & 15) as TIME)<<10
     }
 
     #[inline]
-    fn ctoa(&self) -> usize {
+    fn ctoa(&self) -> TIME {
         let toa = self.toa();
         let ftoa = self.ftoa();
         (toa << 4) | (!ftoa & 15)
     }
 
     #[inline]
-    fn fast_electron_time(&self) -> usize {
+    fn fast_electron_time(&self) -> TIME {
         let spidr = self.spidr();
         let toa = self.toa();
         spidr * 262_144 + toa * 16
     }
     
     #[inline]
-    fn electron_time(&self) -> usize {
+    fn electron_time(&self) -> TIME {
         let spidr = self.spidr();
         let ctoa = self.ctoa();
         //let ftoa2 = (!self.data()[2] & 15) as usize;
@@ -93,13 +95,13 @@ pub trait Packet {
     }
 
     #[inline]
-    fn tdc_coarse(&self) -> usize {
-        ((self.data()[1] & 254) as usize)>>1 | ((self.data()[2]) as usize)<<7 | ((self.data()[3]) as usize)<<15 | ((self.data()[4]) as usize)<<23 | ((self.data()[5] & 15) as usize)<<31
+    fn tdc_coarse(&self) -> TIME {
+        ((self.data()[1] & 254) as TIME)>>1 | ((self.data()[2]) as TIME)<<7 | ((self.data()[3]) as TIME)<<15 | ((self.data()[4]) as TIME)<<23 | ((self.data()[5] & 15) as TIME)<<31
     }
     
     #[inline]
-    fn tdc_fine(&self) -> usize {
-        ((self.data()[0] & 224) as usize >> 5) | ((self.data()[1] & 1) as usize) << 3
+    fn tdc_fine(&self) -> TIME {
+        ((self.data()[0] & 224) as TIME >> 5) | ((self.data()[1] & 1) as TIME) << 3
     }
 
     #[inline]
@@ -113,14 +115,14 @@ pub trait Packet {
     }
 
     #[inline]
-    fn tdc_time(&self) -> usize {
+    fn tdc_time(&self) -> TIME {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
         coarse * 2 + fine / 6
     }
     
     #[inline]
-    fn tdc_time_norm(&self) -> usize {
+    fn tdc_time_norm(&self) -> TIME {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
         //let time = coarse * 1_000_000 / 320 + fine * 260;
@@ -130,14 +132,14 @@ pub trait Packet {
     }
 
     #[inline]
-    fn tdc_time_abs(&self) -> usize {
+    fn tdc_time_abs(&self) -> TIME {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
         coarse * 12 + fine
     }
 
     #[inline]
-    fn electron_reset_time() -> usize {
+    fn electron_reset_time() -> TIME {
         26_843_545_600 * 16 / 25
     }
 }
@@ -157,7 +159,7 @@ impl<'a> Packet for PacketEELS<'a> {
 }
 
 impl<'a> PacketEELS<'a> {
-    pub const fn chip_array() -> (usize, usize) {
+    pub const fn chip_array() -> (POSITION, POSITION) {
         (1025, 256)
     }
 }
@@ -175,13 +177,13 @@ impl<'a> Packet for TimeCorrectedPacketEELS<'a> {
         self.data
     }
     
-    fn fast_electron_time(&self) -> usize {
+    fn fast_electron_time(&self) -> TIME {
         let spidr = self.spidr();
         let toa = self.toa();
         spidr * 262_144 + toa * 16
     }
     
-    fn electron_time(&self) -> usize {
+    fn electron_time(&self) -> TIME {
         let spidr = self.spidr();
         let ctoa = self.ctoa();
         let x = self.x();
@@ -194,7 +196,7 @@ impl<'a> Packet for TimeCorrectedPacketEELS<'a> {
 }
 
 impl<'a> TimeCorrectedPacketEELS<'a> {
-    pub const fn chip_array() -> (usize, usize) {
+    pub const fn chip_array() -> (POSITION, POSITION) {
         (1025, 256)
     }
 }
@@ -211,8 +213,8 @@ impl<'a> Packet for PacketDiffraction<'a> {
     fn data(&self) -> &[u8; 8] {
         self.data
     }
-    fn x(&self) -> usize {
-        let temp = (((self.data[6] & 224)>>4 | (self.data[7] & 15)<<4) | (((self.data[5] & 112)>>4)>>2)) as usize;
+    fn x(&self) -> POSITION {
+        let temp = (((self.data[6] & 224)>>4 | (self.data[7] & 15)<<4) | (((self.data[5] & 112)>>4)>>2)) as POSITION;
         match self.chip_index {
             0 => 255 - temp,
             1 => temp,
@@ -222,8 +224,8 @@ impl<'a> Packet for PacketDiffraction<'a> {
         }
     }
 
-    fn y(&self) -> usize {
-        let temp = (   ( (self.data[5] & 128)>>5 | (self.data[6] & 31)<<3 ) | ( ((self.data[5] & 112)>>4) & 3 )   ) as usize;
+    fn y(&self) -> POSITION {
+        let temp = (   ( (self.data[5] & 128)>>5 | (self.data[6] & 31)<<3 ) | ( ((self.data[5] & 112)>>4) & 3 )   ) as POSITION;
         match self.chip_index {
             0 => temp,
             1 => 256 * 2 - 1 - temp,
@@ -235,7 +237,7 @@ impl<'a> Packet for PacketDiffraction<'a> {
 }
 
 impl<'a> PacketDiffraction<'a> {
-    pub const fn chip_array() -> (usize, usize) {
+    pub const fn chip_array() -> (POSITION, POSITION) {
         (512, 512)
     }
 }

@@ -1,16 +1,16 @@
 //!`clusterlib` is a collection of tools to identify and manipulate TPX3 cluster.
 
 pub mod cluster {
-    use crate::spimlib::SPIM_PIXELS;
+    use crate::spimlib::{SPIM_PIXELS, VIDEO_TIME};
     use crate::packetlib::Packet;
     use crate::spimlib;
     use crate::tdclib::PeriodicTdcRef;
     use std::fs::OpenOptions;
     use std::io::Write;
     use rayon::prelude::*;
+    use crate::auxiliar::value_types::*;
     
-    const VIDEO_TIME: usize = 3_200; //Video time for spim (in 640 Mhz or 1.5625 ns).
-    const CLUSTER_DET:usize = 128; //Cluster time window (in 640 Mhz or 1.5625).
+    const CLUSTER_DET: TIME = 128; //Cluster time window (in 640 Mhz or 1.5625).
     const CLUSTER_SPATIAL: isize = 2; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
 
     #[derive(Debug)]
@@ -171,7 +171,7 @@ pub mod cluster {
     ///ToA, X, Y, Spim dT, Spim Slice, ToT, Cluster Size
     #[derive(Copy, Clone, Debug)]
     pub struct SingleElectron {
-        data: (usize, usize, usize, usize, usize, u16, usize),
+        data: (TIME, POSITION, POSITION, TIME, usize, u16, usize),
     }
 
     impl ToString for SingleElectron {
@@ -203,8 +203,8 @@ pub mod cluster {
                 Some(spim_tdc) => {
                     let frame_time = spim_tdc.begin_frame;
                     if ele_time < frame_time + VIDEO_TIME {
-                        let factor = (frame_time + VIDEO_TIME - ele_time) / (spim_tdc.period*spim_tdc.ticks_to_frame.unwrap()) + 1;
-                        ele_time += spim_tdc.period*spim_tdc.ticks_to_frame.unwrap() * factor;
+                        let factor = (frame_time + VIDEO_TIME - ele_time) / (spim_tdc.period*spim_tdc.ticks_to_frame.unwrap() as TIME) + 1;
+                        ele_time += spim_tdc.period*spim_tdc.ticks_to_frame.unwrap() as TIME * factor;
                     }
                     if ele_time < frame_time + VIDEO_TIME {
                         println!("Electron time is still below the frame time. This is probably an issue.");
@@ -221,25 +221,25 @@ pub mod cluster {
             }
         }
 
-        pub fn x(&self) -> usize {
+        pub fn x(&self) -> POSITION {
             self.data.1
         }
-        pub fn y(&self) -> usize {
+        pub fn y(&self) -> POSITION {
             self.data.2
         }
-        pub fn time(&self) -> usize {
+        pub fn time(&self) -> TIME {
             self.data.0
         }
         pub fn tot(&self) -> u16 {
             self.data.5
         }
-        pub fn frame_dt(&self) -> usize {
+        pub fn frame_dt(&self) -> TIME {
             self.data.3
         }
         pub fn image_index(&self) -> usize {
             self.data.1 + SPIM_PIXELS*self.data.2
         }
-        pub fn relative_time(&self, reference_time: usize) -> isize {
+        pub fn relative_time(&self, reference_time: TIME) -> isize {
             self.data.0 as isize - reference_time as isize
         }
         pub fn spim_slice(&self) -> usize {
@@ -261,10 +261,10 @@ pub mod cluster {
             let cluster_size: usize = cluster.len();
             
 
-            let t_mean:usize = cluster.iter().map(|se| se.time()).sum::<usize>() / cluster_size;
-            let x_mean:usize = cluster.iter().map(|se| se.x()).sum::<usize>() / cluster_size;
-            let y_mean:usize = cluster.iter().map(|se| se.y()).sum::<usize>() / cluster_size;
-            let time_dif: usize = cluster.iter().map(|se| se.frame_dt()).next().unwrap();
+            let t_mean:TIME = cluster.iter().map(|se| se.time()).sum::<TIME>() / cluster_size as TIME;
+            let x_mean:POSITION = cluster.iter().map(|se| se.x()).sum::<POSITION>() / cluster_size;
+            let y_mean:POSITION = cluster.iter().map(|se| se.y()).sum::<POSITION>() / cluster_size;
+            let time_dif: TIME = cluster.iter().map(|se| se.frame_dt()).next().unwrap();
             let slice: usize = cluster.iter().map(|se| se.spim_slice()).next().unwrap();
             let tot_sum: u16 = cluster.iter().map(|se| se.tot() as usize).sum::<usize>() as u16;
             let cluster_size: usize = cluster_size;
