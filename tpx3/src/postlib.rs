@@ -30,13 +30,13 @@ pub mod coincidence {
         pub is_spim: bool,
         pub spim_size: (POSITION, POSITION),
         //pub begin_frame: Option<usize>,
-        pub spim_index: Vec<u32>,
+        pub spim_index: Vec<POSITION>,
         pub spim_tdc: Option<PeriodicTdcRef>,
     }
 
     impl ElectronData {
         fn add_electron(&mut self, val: SingleElectron) {
-            self.spectrum[val.image_index()] += 1;
+            self.spectrum[val.image_index() as usize] += 1;
         }
 
         fn add_spim_line(&mut self, pack: &Pack) {
@@ -53,7 +53,7 @@ pub mod coincidence {
         }
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon_time: TIME) {
-            self.corr_spectrum[val.image_index()] += 1; //Adding the electron
+            self.corr_spectrum[val.image_index() as usize] += 1; //Adding the electron
             self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
             self.time.push(val.time());
             self.rel_time.push(val.relative_time(photon_time));
@@ -326,7 +326,7 @@ pub mod ntime_resolved {
         fn add_electron(&mut self, packet: &Pack);
         fn add_tdc(&mut self, packet: &Pack);
         fn process(&mut self) -> Result<(), ErrorType>;
-        fn output(&mut self, how_many: usize) -> Result<(), ErrorType>;
+        fn output(&mut self, how_many: COUNTER) -> Result<(), ErrorType>;
         fn display_info(&self) -> Result<(), ErrorType>;
     }
 
@@ -370,7 +370,7 @@ pub mod ntime_resolved {
             vec_index /= self.frame_int;
 
             //Creating the array using the electron corrected time. Note that you dont need to use it in the 'spim_detector' if you synchronize the clocks.
-            while self.spectra.len() < (vec_index - self.slice + 1) {
+            while self.spectra.len() < (vec_index - self.slice + 1) as usize {
                 self.expand_data();
             }
             
@@ -392,12 +392,12 @@ pub mod ntime_resolved {
             //self.ensemble.output_data(String::from("entire_data"), 2);
             if self.ensemble.try_clean(0, self.remove_clusters) {
                 //self.ensemble.output_data(String::from("entire_data_cluster"), 2);
-                let mut max_slice: Option<usize> = None;
-                let mut min_slice: Option<usize> = None;
+                let mut max_slice: Option<COUNTER> = None;
+                let mut min_slice: Option<COUNTER> = None;
                 
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
-                        self.spectra[val.spim_slice()-self.slice][index as usize] += 1;
+                        self.spectra[(val.spim_slice()-self.slice) as usize][index as usize] += 1;
                         
                         max_slice = match max_slice {
                             None => Some(val.spim_slice()),
@@ -418,7 +418,7 @@ pub mod ntime_resolved {
             Ok(())
         }
 
-        fn output(&mut self, how_many: usize) -> Result<(), ErrorType> {
+        fn output(&mut self, how_many: COUNTER) -> Result<(), ErrorType> {
 
             if let Err(_) = fs::read_dir(&self.folder) {
                 if let Err(_) = fs::create_dir(&self.folder) {
@@ -553,7 +553,7 @@ pub mod ntime_resolved {
     }
     
     impl TimeSpectralSpatial {
-        pub fn new(frame_int: usize, spimx: usize, spimy: usize, remove_clusters: bool, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
+        pub fn new(frame_int: COUNTER, spimx: POSITION, spimy: POSITION, remove_clusters: bool, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
 
             Ok(Self {
                 spectra: Vec::new(),
@@ -570,7 +570,7 @@ pub mod ntime_resolved {
         }
         
         fn expand_data(&mut self) {
-            self.spectra.push(vec![0; self.spimx*self.spimy*SPIM_PIXELS]);
+            self.spectra.push(vec![0; (self.spimx*self.spimy*SPIM_PIXELS) as usize]);
         }
     }
 

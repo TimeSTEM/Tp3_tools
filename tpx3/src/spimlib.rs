@@ -19,11 +19,11 @@ const BUFFER_SIZE: usize = 16384 * 2;
 
 
 ///This is little endian
-fn as_bytes(v: &[u32]) -> &[u8] {
+fn as_bytes<T>(v: &[T]) -> &[u8] {
     unsafe {
         std::slice::from_raw_parts(
             v.as_ptr() as *const u8,
-            v.len() * std::mem::size_of::<u32>())
+            v.len() * std::mem::size_of::<T>())
     }
 }
 
@@ -37,50 +37,50 @@ pub trait SpimKind {
     fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T);
     fn upt_line(&self, packet: &PacketEELS, settings: &Settings, line_tdc: &mut PeriodicTdcRef);
     fn check(&self) -> bool;
-    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u32>;
+    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<POSITION>;
     fn copy_empty(&self) -> Self;
     fn new() -> Self;
 }
 
 #[inline]
-pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u32> {
+pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
     let val = dt % spim_tdc.period;
-    let xspim = xspim as TIME;
-    let yspim = yspim as TIME;
+    let xspim = xspim;
+    let yspim = yspim;
     if val >= spim_tdc.low_time {
-        let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
-        let rin = xspim * (val-spim_tdc.low_time) / spim_tdc.high_time; //Column correction. Maybe not even needed.
+        let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
+        let rin = xspim * ((val-spim_tdc.low_time) / spim_tdc.high_time) as POSITION; //Column correction. Maybe not even needed.
             
             if r > (yspim-1) {
                 if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
                 r %= yspim;
             }
             
-            let index = (r * xspim + rin) * SPIM_PIXELS as TIME + x as TIME;
+            let index = (r * xspim + rin) * SPIM_PIXELS + x;
         
-            Some(index as u32)
+            Some(index)
         } else {
             None
         }
 }
 
 #[inline]
-pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u32> {
+pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
     let val = dt % spim_tdc.period;
-    let xspim = xspim as TIME;
-    let yspim = yspim as TIME;
+    let xspim = xspim;
+    let yspim = yspim;
     if val < spim_tdc.low_time {
-        let mut r = dt / spim_tdc.period; //how many periods -> which line to put.
-        let rin = xspim as TIME * val / spim_tdc.low_time; //Column correction. Maybe not even needed.
+        let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
+        let rin = xspim * (val / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
             
             if r > (yspim-1) {
                 if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
                 r %= yspim;
             }
             
-            let index = (r * xspim + rin) * SPIM_PIXELS as TIME + x as TIME;
+            let index = (r * xspim + rin) * SPIM_PIXELS + x;
         
-            Some(index as u32)
+            Some(index)
         } else {
             None
         }
@@ -122,7 +122,7 @@ impl SpimKind for Live {
     }
 
     #[inline]
-    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<u32> {
+    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<POSITION> {
 
         //First step is to find the index of the (X, Y) of the spectral image in a flattened way
         //(last index is X*Y). The line value is thus multiplied by the spim size in the X
@@ -144,7 +144,7 @@ impl SpimKind for Live {
         let my_vec = self.data.iter()
             .filter_map(|&(x, dt)| {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
-            }).collect::<Vec<u32>>();
+            }).collect::<Vec<POSITION>>();
 
         my_vec
     }

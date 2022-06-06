@@ -96,7 +96,7 @@ pub mod cluster {
             !remove
         }
 
-        pub fn output_data(&self, filename: String, slice: usize) {
+        pub fn output_data(&self, filename: String, slice: COUNTER) {
             let mut tfile = OpenOptions::new()
                 .append(true)
                 .create(true)
@@ -236,13 +236,13 @@ pub mod cluster {
         pub fn frame_dt(&self) -> TIME {
             self.data.3
         }
-        pub fn image_index(&self) -> usize {
+        pub fn image_index(&self) -> POSITION {
             self.data.1 + SPIM_PIXELS*self.data.2
         }
         pub fn relative_time(&self, reference_time: TIME) -> isize {
             self.data.0 as isize - reference_time as isize
         }
-        pub fn spim_slice(&self) -> usize {
+        pub fn spim_slice(&self) -> COUNTER {
             self.data.4
         }
         pub fn cluster_size(&self) -> usize {
@@ -258,14 +258,14 @@ pub mod cluster {
         }
 
         fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
-            let cluster_size: usize = cluster.len();
+            let cluster_size = cluster.len();
             
 
             let t_mean:TIME = cluster.iter().map(|se| se.time()).sum::<TIME>() / cluster_size as TIME;
-            let x_mean:POSITION = cluster.iter().map(|se| se.x()).sum::<POSITION>() / cluster_size;
-            let y_mean:POSITION = cluster.iter().map(|se| se.y()).sum::<POSITION>() / cluster_size;
+            let x_mean:POSITION = cluster.iter().map(|se| se.x()).sum::<POSITION>() / cluster_size as POSITION;
+            let y_mean:POSITION = cluster.iter().map(|se| se.y()).sum::<POSITION>() / cluster_size as POSITION;
             let time_dif: TIME = cluster.iter().map(|se| se.frame_dt()).next().unwrap();
-            let slice: usize = cluster.iter().map(|se| se.spim_slice()).next().unwrap();
+            let slice: COUNTER = cluster.iter().map(|se| se.spim_slice()).next().unwrap();
             let tot_sum: u16 = cluster.iter().map(|se| se.tot() as usize).sum::<usize>() as u16;
             let cluster_size: usize = cluster_size;
 
@@ -274,7 +274,7 @@ pub mod cluster {
             }
         }
 
-        pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<u32> {
+        pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
             if let Some(frame_tdc) = spim_tdc {
                 spimlib::get_spimindex(self.x(), self.frame_dt(), &frame_tdc, xspim, yspim)
             } else {

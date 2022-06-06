@@ -478,7 +478,7 @@ pub mod misc {
 }
 
 pub mod value_types {
-    pub type POSITION = usize;
-    pub type COUNTER = usize;
+    pub type POSITION = u32;
+    pub type COUNTER = u32;
     pub type TIME = usize;
 }

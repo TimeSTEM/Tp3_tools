@@ -183,7 +183,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
-        let index = (pack.x()) as usize;
+        let index = pack.x();
         add_index!(self, index);
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
