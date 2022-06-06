@@ -52,7 +52,7 @@ pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xs
         let rin = xspim * ((val-spim_tdc.low_time) / spim_tdc.high_time) as POSITION; //Column correction. Maybe not even needed.
             
             if r > (yspim-1) {
-                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
+                //if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
                 r %= yspim;
             }
             
@@ -74,7 +74,7 @@ pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: PO
         let rin = xspim * (val / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
             
             if r > (yspim-1) {
-                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
+                //if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
                 r %= yspim;
             }
             
@@ -84,6 +84,24 @@ pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: PO
         } else {
             None
         }
+}
+
+#[inline]
+pub fn get_complete_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> POSITION {
+    let val = dt % spim_tdc.period;
+    let xspim = xspim;
+    let yspim = yspim;
+        
+    let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
+    let rin = xspim * (val / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
+            
+        if r > (yspim-1) {
+            r %= yspim;
+        }
+            
+        let index = (r * xspim + rin) * SPIM_PIXELS + x;
+        
+        index
 }
 
 ///`Live` is the only current implemented measurement. It outputs list of indices (max `u32`) that
@@ -101,7 +119,11 @@ impl SpimKind for Live {
 
     #[inline]
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
-        let ele_time = packet.electron_time();
+        let mut ele_time = packet.electron_time();
+        if ele_time < line_tdc.begin_frame + VIDEO_TIME {
+            let factor = (line_tdc.begin_frame + VIDEO_TIME - ele_time) / (line_tdc.period*line_tdc.ticks_to_frame.unwrap() as TIME) + 1;
+            ele_time += line_tdc.period*line_tdc.ticks_to_frame.unwrap() as TIME * factor;
+        }
         self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
     }
     
@@ -145,6 +167,11 @@ impl SpimKind for Live {
             .filter_map(|&(x, dt)| {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
             }).collect::<Vec<POSITION>>();
+        
+        //let my_vec = self.data.par_iter()
+        //    .map(|&(x, dt)| get_complete_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size))
+        //    .collect::<Vec<POSITION>>();
+
 
         my_vec
     }
@@ -169,7 +196,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     let mut list = meas_type.copy_empty();
-    
+
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
             build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
@@ -186,6 +213,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
 
     let elapsed = start.elapsed(); 
     println!("Total elapsed time is: {:?}.", elapsed);
+
     Ok(())
 }
 
@@ -202,7 +230,7 @@ pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings:
     
     let mut handler = isi_box_new!(spim);
     handler.bind_and_connect();
-    handler.configure_scan_parameters(32, 32, 8334);
+    handler.configure_scan_parameters(my_settings.xspim_size, my_settings.yspim_size, spim_tdc.pixel_time(my_settings.xspim_size).try_into().unwrap());
     handler.configure_measurement_type();
     handler.start_threads();
     

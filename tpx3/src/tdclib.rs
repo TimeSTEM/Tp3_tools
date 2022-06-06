@@ -346,6 +346,10 @@ impl PeriodicTdcRef {
             0
         }
     }
+
+    pub fn pixel_time(&self, xspim: POSITION) -> TIME {
+        self.low_time / xspim as TIME
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
