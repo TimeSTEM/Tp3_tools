@@ -49,7 +49,7 @@ pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xs
     let yspim = yspim;
     if val >= spim_tdc.low_time {
         let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-        let rin = xspim * ((val-spim_tdc.low_time) / spim_tdc.high_time) as POSITION; //Column correction. Maybe not even needed.
+        let rin = ((xspim as TIME * (val-spim_tdc.low_time)) / spim_tdc.high_time) as POSITION; //Column correction. Maybe not even needed.
             
             if r > (yspim-1) {
                 //if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
@@ -71,7 +71,8 @@ pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: PO
     let yspim = yspim;
     if val < spim_tdc.low_time {
         let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-        let rin = xspim * (val / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
+        //let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
+        let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
             
             if r > (yspim-1) {
                 //if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
@@ -230,8 +231,8 @@ pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings:
     
     let mut handler = isi_box_new!(spim);
     handler.bind_and_connect();
-    handler.configure_scan_parameters(my_settings.xspim_size, my_settings.yspim_size, spim_tdc.pixel_time(my_settings.xspim_size).try_into().unwrap());
-    handler.configure_measurement_type();
+    handler.configure_scan_parameters(my_settings.xspim_size.try_into().unwrap(), my_settings.yspim_size.try_into().unwrap(), spim_tdc.pixel_time(my_settings.xspim_size).try_into().unwrap());
+    handler.configure_measurement_type(false);
     handler.start_threads();
     
     thread::spawn(move || {

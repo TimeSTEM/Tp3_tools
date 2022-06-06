@@ -501,7 +501,7 @@ pub mod isi_box {
     pub trait IsiBoxTools {
         fn bind_and_connect(&mut self);
         fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32);
-        fn configure_measurement_type(&self);
+        fn configure_measurement_type(&self, save_locally: bool);
         fn new() -> Self;
     }
 
@@ -521,9 +521,7 @@ pub mod isi_box {
 
     #[macro_export]
     macro_rules! isi_box_new {
-        (spec) => {
-            isi_box::IsiBoxType::<[u32; CHANNELS]>::new()
-        };
+        (spec) => {isi_box::IsiBoxType::<[u32; CHANNELS]>::new()};
         (spim) => {isi_box::IsiBoxType::<Vec<u8>>::new()};
     }
 
@@ -560,9 +558,10 @@ pub mod isi_box {
                         Err(e) => {println!("{}", e);},
                     };
                 }
-                fn configure_measurement_type(&self) {
+                fn configure_measurement_type(&self, save_locally: bool) {
                     let mut config_array: [u32; 1] = [0; 1];
                     config_array[0] = measurement_type!($z);
+                    if save_locally {config_array[0] = 2;}
                     let mut sock = &self.sockets[0];
                     match sock.write(as_bytes(&config_array)) {
                         Ok(size) => {println!("data sent to configure the measurement type: {}", size);},
@@ -630,7 +629,6 @@ pub mod isi_box {
             let mut num = counter_arclist.lock().unwrap();
             let output = *num;
             (*num).iter_mut().for_each(|x| *x = 0);
-            println!("{:?}", output);
             output
         }
 

@@ -1,7 +1,9 @@
 use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::*;
-use timepix3::tdclib::*;
+use timepix3::tdclib::{*, isi_box::*};
+//use timepix3::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{CHANNELS, IsiBoxTools, IsiBoxHand}};
 use timepix3::{speclib, speclib::SpecKind, spimlib, spimlib::SpimKind};
+use timepix3::isi_box_new;
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
@@ -21,6 +23,13 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             let measurement = spimlib::Live::new();
             spimlib::build_spim_isi(pack, ns, my_settings, spim_tdc, np_tdc, measurement)?;
+            Ok(my_settings.mode)
+        },
+        8 => {
+            let mut handler = isi_box_new!(spec);
+            handler.bind_and_connect();
+            handler.configure_scan_parameters(32, 32, 8334);
+            handler.configure_measurement_type(true);
             Ok(my_settings.mode)
         },
         _ => Err(Tp3ErrorKind::IsiBoxAttempt(my_settings.mode)),
