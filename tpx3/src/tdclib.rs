@@ -244,7 +244,7 @@ use crate::auxiliar::value_types::*;
 pub trait TdcControl {
     fn id(&self) -> u8;
     fn upt(&mut self, time: TIME, hard_counter: u16);
-    fn counter(&self) -> usize;
+    fn counter(&self) -> COUNTER;
     fn time(&self) -> TIME;
     fn period(&self) -> Option<TIME>;
     fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, sp: Option<usize>) -> Result<Self, Tp3ErrorKind> where Self: Sized;
@@ -253,11 +253,11 @@ pub trait TdcControl {
 #[derive(Copy, Clone, Debug)]
 pub struct PeriodicTdcRef {
     tdctype: u8,
-    counter: usize,
-    counter_offset: usize,
+    counter: COUNTER,
+    counter_offset: COUNTER,
     last_hard_counter: u16,
-    counter_overflow: usize,
-    pub ticks_to_frame: Option<usize>,
+    counter_overflow: COUNTER,
+    pub ticks_to_frame: Option<COUNTER>,
     pub begin_frame: TIME,
     pub period: TIME,
     pub high_time: TIME,
@@ -276,7 +276,7 @@ impl TdcControl for PeriodicTdcRef {
         }
         self.last_hard_counter = hard_counter;
         self.time = time;
-        self.counter = self.last_hard_counter as usize + self.counter_overflow * 4096 - self.counter_offset;
+        self.counter = self.last_hard_counter as COUNTER + self.counter_overflow * 4096 - self.counter_offset;
         if let Some(spimy) = self.ticks_to_frame {
             if (self.counter / 2) % spimy == 0 {
                 self.begin_frame = time;
@@ -285,7 +285,7 @@ impl TdcControl for PeriodicTdcRef {
         }
     }
 
-    fn counter(&self) -> usize {
+    fn counter(&self) -> COUNTER {
         self.counter
     }
 
@@ -339,7 +339,7 @@ impl TdcControl for PeriodicTdcRef {
 }
 
 impl PeriodicTdcRef {
-    pub fn frame(&self) -> usize {
+    pub fn frame(&self) -> COUNTER {
         if let Some(spimy) = self.ticks_to_frame {
             (self.counter / 2) / spimy
         } else {
@@ -351,7 +351,7 @@ impl PeriodicTdcRef {
 #[derive(Copy, Clone, Debug)]
 pub struct SingleTriggerPeriodicTdcRef {
     tdctype: u8,
-    counter: usize,
+    counter: COUNTER,
     counter_offset: usize,
     last_hard_counter: u16,
     counter_overflow: usize,
@@ -374,7 +374,7 @@ impl TdcControl for SingleTriggerPeriodicTdcRef {
         self.counter = self.last_hard_counter as usize + self.counter_overflow * 4096 - self.counter_offset;
     }
     
-    fn counter(&self) -> usize {
+    fn counter(&self) -> COUNTER {
         self.counter
     }
 
@@ -424,7 +424,7 @@ impl TdcControl for SingleTriggerPeriodicTdcRef {
 #[derive(Copy, Clone, Debug)]
 pub struct NonPeriodicTdcRef {
     pub tdctype: u8,
-    pub counter: usize,
+    pub counter: COUNTER,
     pub time: TIME,
 }
 
@@ -438,7 +438,7 @@ impl TdcControl for NonPeriodicTdcRef {
         self.counter+=1;
     }
     
-    fn counter(&self) -> usize {
+    fn counter(&self) -> COUNTER {
         self.counter
     }
 

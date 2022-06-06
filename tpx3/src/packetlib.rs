@@ -6,7 +6,7 @@ use crate::auxiliar::value_types::*;
 pub trait Packet {
     fn ci(&self) -> u8;
     fn data(&self) -> &[u8; 8];
-    fn x(&self) -> usize {
+    fn x(&self) -> POSITION {
         let temp = ((self.data()[6] & 224)>>4 | (self.data()[7] << 4) | ((self.data()[5] & 112) >> 6)) as POSITION;
         //(!temp & 255) | (temp & 768)
 

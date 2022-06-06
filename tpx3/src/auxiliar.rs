@@ -104,29 +104,29 @@ impl BytesConfig {
 
 
     ///X spim size. Must be sent with 2 bytes in big-endian mode. Byte[4..6]
-    fn xspim_size(&self) -> usize {
-        let x = (self.data[4] as usize)<<8 | (self.data[5] as usize);
+    fn xspim_size(&self) -> POSITION {
+        let x = (self.data[4] as POSITION)<<8 | (self.data[5] as POSITION);
         println!("X Spim size is: {}.", x);
         x
     }
     
     ///Y spim size. Must be sent with 2 bytes in big-endian mode. Byte[6..8]
-    fn yspim_size(&self) -> usize {
-        let y = (self.data[6] as usize)<<8 | (self.data[7] as usize);
+    fn yspim_size(&self) -> POSITION {
+        let y = (self.data[6] as POSITION)<<8 | (self.data[7] as POSITION);
         println!("Y Spim size is: {}.", y);
         y
     }
     
     ///X scan size. Must be sent with 2 bytes in big-endian mode. Byte[8..10]
-    fn xscan_size(&self) -> usize {
-        let x = (self.data[8] as usize)<<8 | (self.data[9] as usize);
+    fn xscan_size(&self) -> POSITION {
+        let x = (self.data[8] as POSITION)<<8 | (self.data[9] as POSITION);
         println!("X Scan size is: {}.", x);
         x
     }
     
     ///Y scan size. Must be sent with 2 bytes in big-endian mode. Byte[10..12]
-    fn yscan_size(&self) -> usize {
-        let y = (self.data[10] as usize)<<8 | (self.data[11] as usize);
+    fn yscan_size(&self) -> POSITION {
+        let y = (self.data[10] as POSITION)<<8 | (self.data[11] as POSITION);
         println!("Y Scan size is: {}.", y);
         y
     }
@@ -146,9 +146,9 @@ impl BytesConfig {
     }
     
     ///Convenience method. Returns the ratio between scan and spim size in X.
-    fn spimoverscanx(&self) -> Result<usize, Tp3ErrorKind> {
-        let xspim = (self.data[4] as usize)<<8 | (self.data[5] as usize);
-        let xscan = (self.data[8] as usize)<<8 | (self.data[9] as usize);
+    fn spimoverscanx(&self) -> Result<POSITION, Tp3ErrorKind> {
+        let xspim = (self.data[4] as POSITION)<<8 | (self.data[5] as POSITION);
+        let xscan = (self.data[8] as POSITION)<<8 | (self.data[9] as POSITION);
         if xspim == 0 {return Err(Tp3ErrorKind::SetXSize);}
         let var = xscan / xspim;
         match var {
@@ -164,9 +164,9 @@ impl BytesConfig {
     }
     
     ///Convenience method. Returns the ratio between scan and spim size in Y.
-    fn spimoverscany(&self) -> Result<usize, Tp3ErrorKind> {
-        let yspim = (self.data[6] as usize)<<8 | (self.data[7] as usize);
-        let yscan = (self.data[10] as usize)<<8 | (self.data[11] as usize);
+    fn spimoverscany(&self) -> Result<POSITION, Tp3ErrorKind> {
+        let yspim = (self.data[6] as POSITION)<<8 | (self.data[7] as POSITION);
+        let yscan = (self.data[10] as POSITION)<<8 | (self.data[11] as POSITION);
         if yspim == 0 {return Err(Tp3ErrorKind::SetYSize);}
         let var = yscan / yspim;
         match var {
@@ -222,14 +222,14 @@ pub struct Settings {
     pub bytedepth: usize,
     pub cumul: bool,
     pub mode: u8,
-    pub xspim_size: usize,
-    pub yspim_size: usize,
-    pub xscan_size: usize,
-    pub yscan_size: usize,
+    pub xspim_size: POSITION,
+    pub yspim_size: POSITION,
+    pub xscan_size: POSITION,
+    pub yscan_size: POSITION,
     pub time_delay: TIME,
     pub time_width: TIME,
-    pub spimoverscanx: usize,
-    pub spimoverscany: usize,
+    pub spimoverscanx: POSITION,
+    pub spimoverscany: POSITION,
 }
 
 impl Settings {
@@ -348,8 +348,8 @@ impl Settings {
 pub struct ConfigAcquisition {
     pub file: String,
     pub is_spim: bool,
-    pub xspim: usize,
-    pub yspim: usize,
+    pub xspim: POSITION,
+    pub yspim: POSITION,
 }
 
 impl ConfigAcquisition {
@@ -363,8 +363,8 @@ impl ConfigAcquisition {
         }
         let file = args[1].clone();
         let is_spim = args[2] == "1";
-        let xspim = args[3].parse::<usize>().unwrap();
-        let yspim = args[4].parse::<usize>().unwrap();
+        let xspim = args[3].parse::<POSITION>().unwrap();
+        let yspim = args[4].parse::<POSITION>().unwrap();
         let my_config = 
         ConfigAcquisition {
             file,
@@ -479,5 +479,6 @@ pub mod misc {
 
 pub mod value_types {
     pub type POSITION = usize;
+    pub type COUNTER = usize;
     pub type TIME = usize;
 }

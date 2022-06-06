@@ -13,7 +13,7 @@ use std::convert::TryInto;
 use core::ops::{Add, AddAssign};
 use crate::auxiliar::value_types::*;
 
-const CAM_DESIGN: (usize, usize) = Pack::chip_array();
+const CAM_DESIGN: (POSITION, POSITION) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
 //const SR_TIME: usize = 10_000; //Time window (10_000 -> 10 us);
 //const SR_INDEX: usize = 64; //Maximum x index value to account in the average calculation;
@@ -115,10 +115,19 @@ macro_rules! tp3_vec {
                 1 => CAM_DESIGN.0,
                 2 => CAM_DESIGN.1*CAM_DESIGN.0,
                 _ => {panic!("One or two dimensions only!")},
-            };
+            } as usize;
             let mut temp_vec: Vec<L> = vec![L::zero(); len+1];
             temp_vec[len] = L::ten();
             temp_vec
+        }
+    }
+}
+
+macro_rules! add_index {
+    ($x: ident, $y: expr) => {
+        {
+            $x.data[$y as usize] += L::one();
+            //*$x.data.iter_mut().nth($y as usize).unwrap() += L::one();
         }
     }
 }
@@ -140,11 +149,11 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
         let index = pack.x() + CAM_DESIGN.0 * pack.y();
-        self.data[index] = self.data[index] + L::one();
+        add_index!(self, index);
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        self.data[CAM_DESIGN.0-1] = self.data[CAM_DESIGN.0-1] + L::one();
+        add_index!(self, CAM_DESIGN.0-1);
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -174,12 +183,12 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
     }
     #[inline]
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
-        let index = pack.x();
-        self.data[index] = self.data[index] + L::one();
+        let index = (pack.x()) as usize;
+        add_index!(self, index);
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        self.data[CAM_DESIGN.0-1] = self.data[CAM_DESIGN.0-1] + L::one();
+        add_index!(self, CAM_DESIGN.0-1);
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -211,7 +220,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR2D, L> {
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &T) {
         if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
             let index = pack.x() + CAM_DESIGN.0 * pack.y();
-            self.data[index] = self.data[index] + L::one();
+            add_index!(self, index);
         }
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
@@ -247,8 +256,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR1D, L> {
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &T) {
         if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
             let index = pack.x();
-            //append_to_array(&mut self.data, index, settings.bytedepth);
-            self.data[index] = self.data[index] + L::one();
+            add_index!(self, index);
         }
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
@@ -285,11 +293,11 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTilted2D, L> {
         let x = pack.x();
         let y = pack.y();
         let index = x + CAM_DESIGN.0 * y;
-        self.data[index] = self.data[index] + L::one();
+        add_index!(self, index);
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        self.data[CAM_DESIGN.0-1] = self.data[CAM_DESIGN.0-1] + L::one();
+        add_index!(self, CAM_DESIGN.0-1);
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -315,7 +323,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
         as_mut_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
-        let len: usize = settings.xspim_size*CAM_DESIGN.0;
+        let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
         let mut temp_vec = vec![L::zero(); len + 1];
     //type MeasKind;
         temp_vec[len] = L::ten();
@@ -326,12 +334,12 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
         let line = frame_tdc.counter()/2;
         let index = pack.x() + line * CAM_DESIGN.0;
         if line < settings.xspim_size {
-            self.data[index] = self.data[index] + L::one();
+            add_index!(self, index);
         }
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        self.data[CAM_DESIGN.0-1] = self.data[CAM_DESIGN.0-1] + L::one();
+        add_index!(self, CAM_DESIGN.0-1);
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -353,7 +361,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
         as_mut_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
-        let len: usize = settings.xspim_size*CAM_DESIGN.0;
+        let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
         let mut temp_vec = vec![L::zero(); len + 1];
         temp_vec[len] = L::ten();
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, _kind: Chrono}
@@ -362,7 +370,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
     fn add_electron_hit<T: TdcControl>(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &T) {
         let line = (frame_tdc.counter()/2) % settings.xspim_size;
         let index = pack.x() + line * CAM_DESIGN.0;
-        self.data[index] = self.data[index] + L::one();
+        add_index!(self, index);
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -374,7 +382,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut T) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        self.data[CAM_DESIGN.0-1] = self.data[CAM_DESIGN.0-1] + L::one();
+        add_index!(self, CAM_DESIGN.0-1);
     }
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) {
         self.is_ready = false;
