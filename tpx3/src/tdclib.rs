@@ -593,7 +593,7 @@ pub mod isi_box {
         fn send_to_external(&self) {
             let nvec_arclist = Arc::clone(&self.data);
             let mut num = nvec_arclist.lock().unwrap();
-            if (*num).len() > 0 {
+            if (*num).is_empty() {
                 if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(&*num).is_err() {println!("Could not send data through the external socket.")}
                 println!("data sent size is: {}", (*num).len());
             }
@@ -607,19 +607,10 @@ pub mod isi_box {
                 let mut val = self.sockets.pop().unwrap();
                 thread::spawn(move || {
                     let mut buffer = vec![0_u8; 512];
-                    loop {
-                        match val.read(&mut buffer) {
-                            Ok(size) => {
-                                let mut num = nvec_arclist.lock().unwrap();
-                                transform_by_channel(&buffer[0..size], channel_index);
-                                buffer[0..size].iter().for_each(|&x| (*num).push(x));
-
-                            },
-                            Err(_) => {
-                                //println!("error is {:?}", e);
-                                break;
-                            }
-                        };
+                    while let Ok(size) = val.read(&mut buffer) {
+                        let mut num = nvec_arclist.lock().unwrap();
+                        transform_by_channel(&buffer[0..size], channel_index);
+                        buffer[0..size].iter().for_each(|&x| (*num).push(x));
                     }
                 });
                 if channel_index>0 {channel_index-=1;}
@@ -651,17 +642,9 @@ pub mod isi_box {
             let mut val = self.sockets.remove(0);
             thread::spawn(move || {
                 let mut buffer = vec![0_u8; 68];
-                loop {
-                    match val.read(&mut buffer) {
-                        Ok(size) => {
-                            let mut num = counter_arclist.lock().unwrap();
-                            (*num).iter_mut().zip(as_int(&buffer[0..size]).iter()).for_each(|(a, b)| *a+=*b as u32);
-                        },
-                        Err(_) => {
-                            //println!("error is {:?}", e);
-                            break;
-                        }
-                    };
+                while let Ok(size) = val.read(&mut buffer) {
+                    let mut num = counter_arclist.lock().unwrap();
+                    (*num).iter_mut().zip(as_int(&buffer[0..size]).iter()).for_each(|(a, b)| *a+=*b as u32);
                 }
             });
         }

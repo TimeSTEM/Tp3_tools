@@ -352,8 +352,7 @@ pub mod ntime_resolved {
         fn prepare(&mut self, file: &mut fs::File) {
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
-                    let val = Some(PeriodicTdcRef::new(self.tdc_type.clone(), file, Some(self.spimy)).expect("Problem in creating periodic tdc ref."));
-                    val
+                    Some(PeriodicTdcRef::new(self.tdc_type.clone(), file, Some(self.spimy)).expect("Problem in creating periodic tdc ref."))
                 },
                 Some(val) => Some(val),
                 _ => None,
@@ -368,10 +367,10 @@ pub mod ntime_resolved {
             } else {
                 vec_index = 0;
             }
-            vec_index = vec_index / self.frame_int;
+            vec_index /= self.frame_int;
 
             //Creating the array using the electron corrected time. Note that you dont need to use it in the 'spim_detector' if you synchronize the clocks.
-            while self.spectra.len() < (vec_index - self.slice + 1).try_into().unwrap() {
+            while self.spectra.len() < (vec_index - self.slice + 1) {
                 self.expand_data();
             }
             
@@ -559,13 +558,13 @@ pub mod ntime_resolved {
             Ok(Self {
                 spectra: Vec::new(),
                 ensemble: CollectionElectron::new(),
-                spimx: spimx,
-                spimy: spimy,
-                folder: folder,
+                spimx,
+                spimy,
+                folder,
                 tdc_periodic: None,
-                tdc_type: tdc_type,
-                remove_clusters: remove_clusters,
-                frame_int: frame_int,
+                tdc_type,
+                remove_clusters,
+                frame_int,
                 slice: 0,
             })
         }
