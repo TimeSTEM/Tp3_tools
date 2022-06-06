@@ -28,7 +28,7 @@ pub mod coincidence {
         pub spectrum: Vec<usize>,
         pub corr_spectrum: Vec<usize>,
         pub is_spim: bool,
-        pub spim_size: (usize, usize),
+        pub spim_size: (POSITION, POSITION),
         //pub begin_frame: Option<usize>,
         pub spim_index: Vec<u32>,
         pub spim_tdc: Option<PeriodicTdcRef>,
@@ -54,7 +54,7 @@ pub mod coincidence {
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon_time: TIME) {
             self.corr_spectrum[val.image_index()] += 1; //Adding the electron
-            self.corr_spectrum[SPIM_PIXELS-1] += 1; //Adding the photon
+            self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
             self.time.push(val.time());
             self.rel_time.push(val.relative_time(photon_time));
             self.x.push(val.x());
@@ -71,7 +71,7 @@ pub mod coincidence {
             
             temp_edata.electron.clean();
 
-            self.spectrum[SPIM_PIXELS-1]=nphotons; //Adding photons to the last pixel
+            self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
             for val in temp_edata.electron.values() {
                 self.add_electron(*val);
@@ -96,8 +96,8 @@ pub mod coincidence {
                 y: Vec::new(),
                 tot: Vec::new(),
                 cluster_size: Vec::new(),
-                spectrum: vec![0; SPIM_PIXELS*256],
-                corr_spectrum: vec![0; SPIM_PIXELS*256],
+                spectrum: vec![0; SPIM_PIXELS as usize*256],
+                corr_spectrum: vec![0; SPIM_PIXELS as usize*256],
                 is_spim: my_config.is_spim,
                 spim_size: (my_config.xspim, my_config.yspim),
                 spim_index: Vec::new(),
@@ -108,8 +108,8 @@ pub mod coincidence {
         pub fn output_corr_spectrum(&self, bin: bool) {
             let out: String = match bin {
                 true => {
-                    let mut spec: Vec<usize> = vec![0; SPIM_PIXELS];
-                    for val in self.corr_spectrum.chunks_exact(SPIM_PIXELS) {
+                    let mut spec: Vec<usize> = vec![0; SPIM_PIXELS as usize];
+                    for val in self.corr_spectrum.chunks_exact(SPIM_PIXELS as usize) {
                         spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
                     }
                     spec.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
@@ -124,8 +124,8 @@ pub mod coincidence {
         pub fn output_spectrum(&self, bin: bool) {
             let out: String = match bin {
                 true => {
-                    let mut spec: Vec<usize> = vec![0; SPIM_PIXELS];
-                    for val in self.spectrum.chunks_exact(SPIM_PIXELS) {
+                    let mut spec: Vec<usize> = vec![0; SPIM_PIXELS as usize];
+                    for val in self.spectrum.chunks_exact(SPIM_PIXELS as usize) {
                         spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
                     }
                     spec.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
@@ -310,6 +310,7 @@ pub mod ntime_resolved {
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use std::convert::TryInto;
     use std::fs;
+    use crate::auxiliar::value_types::*;
 
     #[derive(Debug)]
     pub enum ErrorType {
@@ -338,13 +339,13 @@ pub mod ntime_resolved {
         pub spectra: Vec<Vec<usize>>, //Main data,
         pub ensemble: CollectionElectron, //A collection of single electrons,
         pub folder: String, //Folder in which data will be saved,
-        pub spimx: usize, //The horinzontal axis of the spim,
-        pub spimy: usize, //The vertical axis of the spim,
+        pub spimx: POSITION, //The horinzontal axis of the spim,
+        pub spimy: POSITION, //The vertical axis of the spim,
         pub tdc_periodic: Option<PeriodicTdcRef>, //The periodic tdc. Can be none if xspim and yspim <= 1,
         pub tdc_type: TdcType, //The tdc type for the spim,
         pub remove_clusters: bool,
-        pub frame_int: usize,
-        pub slice: usize,
+        pub frame_int: COUNTER,
+        pub slice: COUNTER,
     }
     
     impl TimeTypes for TimeSpectralSpatial {
@@ -370,7 +371,7 @@ pub mod ntime_resolved {
             vec_index = vec_index / self.frame_int;
 
             //Creating the array using the electron corrected time. Note that you dont need to use it in the 'spim_detector' if you synchronize the clocks.
-            while self.spectra.len() < vec_index - self.slice + 1 {
+            while self.spectra.len() < (vec_index - self.slice + 1).try_into().unwrap() {
                 self.expand_data();
             }
             

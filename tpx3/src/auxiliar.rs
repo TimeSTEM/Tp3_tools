@@ -31,7 +31,7 @@ impl BytesConfig {
     }
 
     ///Set bytedepth. `\x00` for 1, `\x01` for 2 and `\x02` for 4. Panics otherwise. Byte[1].
-    fn bytedepth(&self) -> Result<usize, Tp3ErrorKind> {
+    fn bytedepth(&self) -> Result<POSITION, Tp3ErrorKind> {
         match self.data[1] {
             0 => {
                 println!("Bitdepth is 8.");
@@ -219,7 +219,7 @@ impl Write for DebugIO {
 #[derive(Copy, Clone, Debug)]
 pub struct Settings {
     pub bin: bool,
-    pub bytedepth: usize,
+    pub bytedepth: POSITION,
     pub cumul: bool,
     pub mode: u8,
     pub xspim_size: POSITION,

@@ -14,7 +14,7 @@ use crate::auxiliar::value_types::*;
 //use rayon::prelude::*;
 
 pub const VIDEO_TIME: TIME = 5000;
-pub const SPIM_PIXELS: usize = 1025 + 16;
+pub const SPIM_PIXELS: POSITION = 1025 + 16;
 const BUFFER_SIZE: usize = 16384 * 2;
 
 
@@ -43,7 +43,7 @@ pub trait SpimKind {
 }
 
 #[inline]
-pub fn get_return_spimindex(x: usize, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<u32> {
+pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u32> {
     let val = dt % spim_tdc.period;
     let xspim = xspim as TIME;
     let yspim = yspim as TIME;
@@ -65,7 +65,7 @@ pub fn get_return_spimindex(x: usize, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim
 }
 
 #[inline]
-pub fn get_spimindex(x: usize, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: usize, yspim: usize) -> Option<u32> {
+pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u32> {
     let val = dt % spim_tdc.period;
     let xspim = xspim as TIME;
     let yspim = yspim as TIME;

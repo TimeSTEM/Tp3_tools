@@ -613,7 +613,7 @@ fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_
 //    data[CAM_DESIGN.0..].iter_mut().zip(as_bytes(&isi_box_data).iter()).for_each(|(a, b)| *a+=b);
 //}
 
-fn create_header<T: TdcControl>(set: &Settings, tdc: &T, extra_pixels: usize) -> Vec<u8> {
+fn create_header<T: TdcControl>(set: &Settings, tdc: &T, extra_pixels: POSITION) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(tdc.time().to_string()));
     msg.push_str(",\"frameNumber\":");

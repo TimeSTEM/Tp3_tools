@@ -171,7 +171,7 @@ pub mod cluster {
     ///ToA, X, Y, Spim dT, Spim Slice, ToT, Cluster Size
     #[derive(Copy, Clone, Debug)]
     pub struct SingleElectron {
-        data: (TIME, POSITION, POSITION, TIME, usize, u16, usize),
+        data: (TIME, POSITION, POSITION, TIME, COUNTER, u16, usize),
     }
 
     impl ToString for SingleElectron {
@@ -197,7 +197,7 @@ pub mod cluster {
     }
 
     impl SingleElectron {
-        pub fn new<T: Packet>(pack: &T, begin_frame: Option<PeriodicTdcRef>, slice: usize) -> Self {
+        pub fn new<T: Packet>(pack: &T, begin_frame: Option<PeriodicTdcRef>, slice: COUNTER) -> Self {
             let mut ele_time = pack.electron_time();
             match begin_frame {
                 Some(spim_tdc) => {
@@ -274,7 +274,7 @@ pub mod cluster {
             }
         }
 
-        pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: usize, yspim: usize) -> Option<u32> {
+        pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<u32> {
             if let Some(frame_tdc) = spim_tdc {
                 spimlib::get_spimindex(self.x(), self.frame_dt(), &frame_tdc, xspim, yspim)
             } else {
