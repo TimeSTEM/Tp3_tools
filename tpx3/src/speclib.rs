@@ -108,6 +108,12 @@ pub trait SpecKind {
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings);
 }
 
+pub trait IsiBoxKind: SpecKind {
+    fn isi_new(settings: &Settings) -> Self;
+    fn append_from_isi(&mut self, ext_data: &[u32]);
+}
+
+
 macro_rules! tp3_vec {
     ($x: expr) => {
         {
@@ -131,6 +137,7 @@ macro_rules! add_index {
         }
     }
 }
+
 
 
 impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
@@ -493,6 +500,18 @@ impl LiveTR1D {
 }
 
 
+impl IsiBoxKind for SpecMeasurement<Live1D, u32> {
+    fn isi_new(_settings: &Settings) -> Self {
+        let len = (CAM_DESIGN.0 + CHANNELS as POSITION) as usize;
+        let mut temp_vec: Vec<u32> = vec![0; len+1];
+        temp_vec[len] = 10;
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, _kind: Live1D }
+    }
+    fn append_from_isi(&mut self, ext_data: &[u32]) {
+        self.data[CAM_DESIGN.0 as usize..].iter_mut().zip(ext_data.iter()).for_each(|(a, b)| *a+=b);
+    }
+}
+
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
 ///
 ///# Examples
@@ -553,7 +572,7 @@ pub fn build_spectrum_isi<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_setti
     where T: TdcControl,
           V: TimepixRead,
           U: Write,
-          W: SpecKind
+          W: IsiBoxKind
 {
 
     let mut handler = isi_box_new!(spec);
@@ -569,11 +588,11 @@ pub fn build_spectrum_isi<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_setti
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let x = handler.get_data();
-            let msg = create_header(&my_settings, &frame_tdc, 17);
+            let msg = create_header(&my_settings, &frame_tdc, CHANNELS as POSITION);
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
+            meas_type.append_from_isi(&x);
             let result = meas_type.build_output();
             if ns_sock.write(result).is_err() {println!("Client disconnected on data."); break;}
-            if ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on isi data."); break;}
             meas_type.reset_or_else(&frame_tdc, &my_settings);
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
         }

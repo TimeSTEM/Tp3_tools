@@ -39,6 +39,7 @@ pub trait SpimKind {
     fn check(&self) -> bool;
     fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<POSITION>;
     fn copy_empty(&self) -> Self;
+    fn clear(&mut self);
     fn new() -> Self;
 }
 
@@ -52,7 +53,7 @@ pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xs
         let rin = ((xspim as TIME * (val-spim_tdc.low_time)) / spim_tdc.high_time) as POSITION; //Column correction. Maybe not even needed.
             
             if r > (yspim-1) {
-                //if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
+                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
                 r %= yspim;
             }
             
@@ -67,15 +68,13 @@ pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xs
 #[inline]
 pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
     let val = dt % spim_tdc.period;
-    let xspim = xspim;
-    let yspim = yspim;
     if val < spim_tdc.low_time {
         let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-        //let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
         let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
+        //let rin = xspim  * (val / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
             
             if r > (yspim-1) {
-                //if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
+                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
                 r %= yspim;
             }
             
@@ -94,7 +93,7 @@ pub fn get_complete_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, 
     let yspim = yspim;
         
     let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-    let rin = xspim * (val / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
+    let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
             
         if r > (yspim-1) {
             r %= yspim;
@@ -169,12 +168,16 @@ impl SpimKind for Live {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
             }).collect::<Vec<POSITION>>();
         
-        //let my_vec = self.data.par_iter()
+        //let my_vec = self.data.iter()
         //    .map(|&(x, dt)| get_complete_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size))
         //    .collect::<Vec<POSITION>>();
 
 
         my_vec
+    }
+
+    fn clear(&mut self) {
+        self.data.clear();
     }
 
     fn copy_empty(&self) -> Self {
@@ -214,7 +217,6 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
 
     let elapsed = start.elapsed(); 
     println!("Total elapsed time is: {:?}.", elapsed);
-
     Ok(())
 }
 
@@ -255,7 +257,6 @@ pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings:
     println!("Total elapsed time is: {:?}.", elapsed);
     Ok(())
 }
-
 
 fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) {
 
