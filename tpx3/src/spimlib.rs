@@ -13,7 +13,7 @@ use std::convert::TryInto;
 use crate::auxiliar::value_types::*;
 //use rayon::prelude::*;
 
-pub const VIDEO_TIME: TIME = 5000;
+pub const VIDEO_TIME: TIME = 3200;
 pub const SPIM_PIXELS: POSITION = 1025 + 16;
 const BUFFER_SIZE: usize = 16384 * 2;
 
@@ -247,12 +247,15 @@ pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings:
  
     let start = Instant::now();
     for tl in rx {
-        let result = tl.build_output(&my_settings, &spim_tdc);
+        //let result = tl.build_output(&my_settings, &spim_tdc);
         let x = handler.get_data();
-        if ns_sock.write(as_bytes(&result)).is_err() {println!("Client disconnected on data."); break;}
-        if ns_sock.write(&x).is_err() {println!("Client disconnected on data."); break;}
+        //if ns_sock.write(as_bytes(&result)).is_err() {println!("Client disconnected on data."); break;}
+        if x.len() > 0 {
+            if ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
+        }
     }
 
+    handler.stop_threads();
     let elapsed = start.elapsed(); 
     println!("Total elapsed time is: {:?}.", elapsed);
     Ok(())

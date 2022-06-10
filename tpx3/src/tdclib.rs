@@ -494,6 +494,7 @@ pub mod isi_box {
         unsafe {
             std::slice::from_raw_parts(
                 v.as_ptr() as *const u32,
+                //v.len() )
                 v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
         }
     }
@@ -524,7 +525,7 @@ pub mod isi_box {
     #[macro_export]
     macro_rules! isi_box_new {
         (spec) => {isi_box::IsiBoxType::<[u32; CHANNELS]>::new()};
-        (spim) => {isi_box::IsiBoxType::<Vec<u8>>::new()};
+        (spim) => {isi_box::IsiBoxType::<Vec<u32>>::new()};
     }
 
     macro_rules! create_auxiliar {
@@ -584,12 +585,12 @@ pub mod isi_box {
     }
 
     impl_bind_connect!(IsiBoxType, [u32; CHANNELS], spec);
-    impl_bind_connect!(IsiBoxType, Vec<u8>, spim);
+    impl_bind_connect!(IsiBoxType, Vec<u32>, spim);
 
     
-    impl IsiBoxHand for IsiBoxType<Vec<u8>> {
-        type MyOutput = Vec<u8>;
-        fn get_data(&self) -> Vec<u8> {
+    impl IsiBoxHand for IsiBoxType<Vec<u32>> {
+        type MyOutput = Vec<u32>;
+        fn get_data(&self) -> Vec<u32> {
             let nvec_arclist = Arc::clone(&self.data);
             let mut num = nvec_arclist.lock().unwrap();
             let output = (*num).clone();
@@ -599,10 +600,10 @@ pub mod isi_box {
         fn send_to_external(&self) {
             let nvec_arclist = Arc::clone(&self.data);
             let mut num = nvec_arclist.lock().unwrap();
-            if (*num).len() > 0 {
-                if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(&*num).is_err() {println!("Could not send data through the external socket.")}
-                println!("data sent size is: {}", (*num).len());
-            }
+            //if (*num).len() > 0 {
+            //    if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(&*num).is_err() {println!("Could not send data through the external socket.")}
+            //    println!("data sent size is: {}", (*num).len());
+            //}
             (*num).clear();
         }
         fn start_threads(&mut self) {
@@ -618,8 +619,11 @@ pub mod isi_box {
                         let stop_val = stop_arc.lock().unwrap();
                         if *stop_val == true {break;}
                         let mut num = nvec_arclist.lock().unwrap();
-                        transform_by_channel(&buffer[0..size], channel_index);
-                        buffer[0..size].iter().for_each(|&x| (*num).push(x));
+                        //transform_by_channel(&buffer[0..size], channel_index);
+                        //as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push(x));
+                        as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x as u32* SPIM_PIXELS)+1025 + channel_index));
+                        //println!("{:?}", buffer);
+                        //println!("{:?}", as_int(&buffer));
                     }
                 });
                 if channel_index>0 {channel_index-=1;}
