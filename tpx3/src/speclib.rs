@@ -597,6 +597,7 @@ pub fn build_spectrum_isi<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_setti
             if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
         }
     }
+    handler.stop_threads();
     println!("Total elapsed time is: {:?}.", start.elapsed());
     Ok(())
 }

@@ -510,6 +510,7 @@ pub mod isi_box {
         fn get_data(&self) -> Self::MyOutput;
         fn send_to_external(&self);
         fn start_threads(&mut self);
+        fn stop_threads(&mut self);
     }
 
     pub struct IsiBoxType<T> {
@@ -517,6 +518,7 @@ pub mod isi_box {
         ext_socket: Option<TcpStream>,
         nchannels: u32,
         data: Arc<Mutex<T>>,
+        thread_stop: Arc<Mutex<bool>>,
     }
 
     #[macro_export]
@@ -541,10 +543,10 @@ pub mod isi_box {
                 fn bind_and_connect(&mut self) {
                     //let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
                     for _ in 0..self.nchannels {
-                        let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
+                        let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
                         self.sockets.push(sock);
                     }
-                    let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
+                    let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
                     self.ext_socket = Some(sock);
                 }
                 fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32) {
@@ -574,6 +576,7 @@ pub mod isi_box {
                         ext_socket: None,
                         nchannels: CHANNELS as u32,
                         data: create_auxiliar!($z),
+                        thread_stop: Arc::new(Mutex::new(false)),
                     }
                 }
             }
@@ -607,10 +610,13 @@ pub mod isi_box {
             
             for _ in 0..self.nchannels {
                 let nvec_arclist = Arc::clone(&self.data);
+                let stop_arc = Arc::clone(&self.thread_stop);
                 let mut val = self.sockets.pop().unwrap();
                 thread::spawn(move || {
                     let mut buffer = vec![0_u8; 512];
                     while let Ok(size) = val.read(&mut buffer) {
+                        let stop_val = stop_arc.lock().unwrap();
+                        if *stop_val == true {break;}
                         let mut num = nvec_arclist.lock().unwrap();
                         transform_by_channel(&buffer[0..size], channel_index);
                         buffer[0..size].iter().for_each(|&x| (*num).push(x));
@@ -618,7 +624,11 @@ pub mod isi_box {
                 });
                 if channel_index>0 {channel_index-=1;}
             }
-
+        }
+        fn stop_threads(&mut self) {
+            let val = Arc::clone(&self.thread_stop);
+            let mut num = val.lock().unwrap();
+            *num = true;
         }
     }
 
@@ -641,14 +651,22 @@ pub mod isi_box {
         }
         fn start_threads(&mut self) {
             let counter_arclist = Arc::clone(&self.data);
+            let stop_arc = Arc::clone(&self.thread_stop);
             let mut val = self.sockets.remove(0);
             thread::spawn(move || {
                 let mut buffer = vec![0_u8; 68];
                 while let Ok(size) = val.read(&mut buffer) {
+                    let stop_val = stop_arc.lock().unwrap();
+                    if *stop_val == true {break;}
                     let mut num = counter_arclist.lock().unwrap();
                     (*num).iter_mut().zip(as_int(&buffer[0..size]).iter()).for_each(|(a, b)| *a+=*b as u32);
                 }
             });
+        }
+        fn stop_threads(&mut self) {
+            let val = Arc::clone(&self.thread_stop);
+            let mut num = val.lock().unwrap();
+            *num = true;
         }
     }
 }
