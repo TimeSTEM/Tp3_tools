@@ -13,10 +13,10 @@ pub mod coincidence {
     use std::cmp;
     use crate::auxiliar::value_types::*;
 
-    const TIME_WIDTH: TIME = 64; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
+    const TIME_WIDTH: TIME = 25; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
     //const TIME_DELAY: usize = 100_000 - 1867; //Time delay to correlate (ps).
-    const TIME_DELAY: TIME = 103; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
-    const MIN_LEN: usize = 200; // Sliding time window size.
+    const TIME_DELAY: TIME = 90; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
+    const MIN_LEN: usize = 100; // Sliding time window size.
 
     pub struct ElectronData {
         pub time: Vec<TIME>,

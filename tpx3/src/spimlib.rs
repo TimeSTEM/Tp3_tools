@@ -247,9 +247,9 @@ pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings:
  
     let start = Instant::now();
     for tl in rx {
-        //let result = tl.build_output(&my_settings, &spim_tdc);
+        let result = tl.build_output(&my_settings, &spim_tdc);
         let x = handler.get_data();
-        //if ns_sock.write(as_bytes(&result)).is_err() {println!("Client disconnected on data."); break;}
+        if ns_sock.write(as_bytes(&result)).is_err() {println!("Client disconnected on data."); break;}
         if x.len() > 0 {
             if ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
         }

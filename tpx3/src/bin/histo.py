@@ -14,6 +14,7 @@ x = numpy.loadtxt("cspec.txt", delimiter=',')
 x = numpy.reshape(x, (256, SPIM_PIXELS))
 x = numpy.sum(x, axis=0)
 xH = numpy.loadtxt("xH.txt", delimiter=',')
+tot = numpy.loadtxt("tot.txt", delimiter=',')
 #yH = numpy.loadtxt("yH.txt", delimiter=',')
 #indexes = numpy.where(xH<1025)[0]
 #xH = xH[indexes]
@@ -43,6 +44,10 @@ plt.tight_layout()
 fig, ax = plt.subplots()
 ax.hist(t, bins=tbin, range=(tmin, tmax))
 ax.set_xlabel('Time delay (units of 1.5615 ns)')
+
+fig, ax = plt.subplots()
+ax.hist(tot, bins=25)
+ax.set_xlabel('Time over threshold (units of 1.5615 ns)')
 
 fig, ax = plt.subplots()
 ax.hist2d(xH, t, bins=[SPIM_PIXELS, tbin], range = [[0, SPIM_PIXELS], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(0.2))

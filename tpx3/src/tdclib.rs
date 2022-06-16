@@ -542,12 +542,13 @@ pub mod isi_box {
         ($x: ident, $y: ty, $z: tt) => {
             impl IsiBoxTools for $x<$y> {
                 fn bind_and_connect(&mut self) {
-                    //let isi_listener = TcpListener::bind("127.0.0.1:9592").expect("Could not bind to IsiBox.");
                     for _ in 0..self.nchannels {
-                        let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
+                        //let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
+                        let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
                         self.sockets.push(sock);
                     }
-                    let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
+                    //let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
+                    let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
                     self.ext_socket = Some(sock);
                 }
                 fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32) {
@@ -619,11 +620,7 @@ pub mod isi_box {
                         let stop_val = stop_arc.lock().unwrap();
                         if *stop_val == true {break;}
                         let mut num = nvec_arclist.lock().unwrap();
-                        //transform_by_channel(&buffer[0..size], channel_index);
-                        //as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push(x));
-                        as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x as u32* SPIM_PIXELS)+1025 + channel_index));
-                        //println!("{:?}", buffer);
-                        //println!("{:?}", as_int(&buffer));
+                        as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x as u32* SPIM_PIXELS) + 1025 + channel_index));
                     }
                 });
                 if channel_index>0 {channel_index-=1;}
