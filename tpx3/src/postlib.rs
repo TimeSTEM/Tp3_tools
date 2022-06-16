@@ -59,6 +59,7 @@ pub mod coincidence {
             self.rel_time.push(val.relative_time(photon_time));
             self.x.push(val.x());
             self.y.push(val.y());
+            self.tot.push(val.tot());
             if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 self.spim_index.push(index);
             }
