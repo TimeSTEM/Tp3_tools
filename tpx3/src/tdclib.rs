@@ -620,7 +620,7 @@ pub mod isi_box {
                         let stop_val = stop_arc.lock().unwrap();
                         if *stop_val == true {break;}
                         let mut num = nvec_arclist.lock().unwrap();
-                        as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x as u32* SPIM_PIXELS) + 1025 + channel_index));
+                        as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x * SPIM_PIXELS as u32) + 1025 + channel_index));
                     }
                 });
                 if channel_index>0 {channel_index-=1;}
