@@ -56,7 +56,7 @@ pub mod coincidence {
             self.corr_spectrum[val.image_index() as usize] += 1; //Adding the electron
             self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
             self.time.push(val.time());
-            self.rel_time.push(val.relative_time(photon_time));
+            self.rel_time.push(val.relative_time_from_abs_tdc(photon_time));
             self.x.push(val.x());
             self.y.push(val.y());
             self.tot.push(val.tot());
@@ -196,7 +196,7 @@ pub mod coincidence {
         }
 
         fn add_tdc(&mut self, my_pack: &Pack) {
-            self.tdc.push(my_pack.tdc_time_norm() - TIME_DELAY);
+            self.tdc.push(my_pack.tdc_time_abs_norm() - TIME_DELAY * 6);
         }
 
         fn sort(&mut self) {
@@ -210,7 +210,7 @@ pub mod coincidence {
             
             let result = self.tdc[self.min_index..max_index].iter()
                 .enumerate()
-                .find(|(_, x)| ((**x as isize - value.time() as isize).abs() as TIME) < TIME_WIDTH);
+                .find(|(_, x)| (((**x/6) as isize - value.time() as isize).abs() as TIME) < TIME_WIDTH);
             
             //Index must be greater than 10% of MIN_LEN, so first photons do not count.
             //Effective size must be greater or equal than MIN_LEN otherwise a smaller array is

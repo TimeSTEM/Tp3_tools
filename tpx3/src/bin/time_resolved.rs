@@ -3,8 +3,8 @@ use timepix3::tdclib::TdcType;
 use std::fs;
 
 fn main() -> Result<(), ErrorType> {
-    let number_frames = 100; //Number of frames you wish to integrate;
-    let spim_size = 32; //Size of the spim;
+    let number_frames = 1; //Number of frames you wish to integrate;
+    let spim_size = 512; //Size of the spim;
     
     let mut my_vec: Vec<Box<dyn TimeTypes>> = Vec::new();
     my_vec.push(Box::new(TimeSpectralSpatial::new(number_frames, spim_size, spim_size, true, TdcType::TdcOneFallingEdge, String::from("test/results"))?));
@@ -12,7 +12,7 @@ fn main() -> Result<(), ErrorType> {
         set: my_vec,
     };
 
-    let mut entries = fs::read_dir("backupPaper").expect("Could not read the directory.");
+    let mut entries = fs::read_dir("Data").expect("Could not read the directory.");
     while let Some(x) = entries.next() {
         let path = x.unwrap().path();
         let dir = path.to_str().unwrap();
