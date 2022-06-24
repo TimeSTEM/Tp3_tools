@@ -312,7 +312,7 @@ pub mod ntime_resolved {
     use std::convert::TryInto;
     use std::time::Instant;
     use std::fs;
-    use crate::auxiliar::value_types::*;
+    use crate::auxiliar::{value_types::*, ConfigAcquisition};
 
     #[derive(Debug)]
     pub enum ErrorType {
@@ -394,16 +394,16 @@ pub mod ntime_resolved {
             Ok(())
         }
             
-        pub fn new(spimx: POSITION, spimy: POSITION, remove_clusters: bool, tdc_type: TdcType) -> Result<Self, ErrorType> {
+        pub fn new(my_config: &ConfigAcquisition) -> Result<Self, ErrorType> {
 
             Ok(Self {
                 spectra: Vec::new(),
                 ensemble: CollectionElectron::new(),
-                spimx,
-                spimy,
+                spimx: my_config.xspim,
+                spimy: my_config.yspim,
                 tdc_periodic: None,
-                tdc_type,
-                remove_clusters,
+                tdc_type: TdcType::TdcOneFallingEdge,
+                remove_clusters: my_config.remove_cluster,
             })
         }
     }

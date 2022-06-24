@@ -350,6 +350,7 @@ pub struct ConfigAcquisition {
     pub is_spim: bool,
     pub xspim: POSITION,
     pub yspim: POSITION,
+    pub remove_cluster: bool,
 }
 
 impl ConfigAcquisition {
@@ -358,19 +359,21 @@ impl ConfigAcquisition {
     }
 
     pub fn new(args: &[String]) -> Self {
-        if args.len() != 4+1 {
-            panic!("One must provide 04 ({} detected) arguments (file, is_spim, xspim, yspim).", args.len()-1);
+        if args.len() != 5+1 {
+            panic!("One must provide 5 ({} detected) arguments (file, is_spim, xspim, yspim, remove_cluster).", args.len()-1);
         }
         let file = args[1].clone();
         let is_spim = args[2] == "1";
         let xspim = args[3].parse::<POSITION>().unwrap();
         let yspim = args[4].parse::<POSITION>().unwrap();
+        let remove_cluster = args[5] == "1";
         let my_config = 
         ConfigAcquisition {
             file,
             is_spim,
             xspim,
             yspim,
+            remove_cluster
         };
         println!("Configuration for the coincidence measurement is {:?}", my_config);
         my_config

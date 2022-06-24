@@ -87,6 +87,15 @@ pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: PO
 }
 
 #[inline]
+pub fn get_spimindex_with_time_frame(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+    let temp = get_spimindex(x, dt, spim_tdc, xspim, yspim);
+    match temp {
+        None => None,
+        Some(val) => Some(val + spim_tdc.frame() * xspim * yspim * SPIM_PIXELS),
+    }
+}
+
+#[inline]
 pub fn get_complete_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> POSITION {
     let val = dt % spim_tdc.period;
     let xspim = xspim;
