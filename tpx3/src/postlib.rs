@@ -323,30 +323,15 @@ pub mod ntime_resolved {
         MinGreaterThanMax,
     }
 
-    pub trait TimeTypes {
-        fn prepare(&mut self, file: &mut fs::File);
-        fn add_electron(&mut self, packet: &Pack);
-        fn add_tdc(&mut self, packet: &Pack);
-        fn process(&mut self) -> Result<(), ErrorType>;
-        fn display_info(&self) -> Result<(), ErrorType>;
-    }
-
-    pub struct TimeSet {
-        pub set: Vec<Box<dyn TimeTypes>>,
-    }
-
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial {
-        pub spectra: Vec<usize>, //Main data,
-        pub ensemble: CollectionElectron, //A collection of single electrons,
-        pub folder: String, //Folder in which data will be saved,
-        pub spimx: POSITION, //The horinzontal axis of the spim,
-        pub spimy: POSITION, //The vertical axis of the spim,
-        pub tdc_periodic: Option<PeriodicTdcRef>, //The periodic tdc. Can be none if xspim and yspim <= 1,
-        pub tdc_type: TdcType, //The tdc type for the spim,
-        pub remove_clusters: bool,
-        pub frame_int: COUNTER,
-        pub slice: COUNTER,
+        spectra: Vec<usize>, //Main data,
+        ensemble: CollectionElectron, //A collection of single electrons,
+        spimx: POSITION, //The horinzontal axis of the spim,
+        spimy: POSITION, //The vertical axis of the spim,
+        tdc_periodic: Option<PeriodicTdcRef>, //The periodic tdc. Can be none if xspim and yspim <= 1,
+        tdc_type: TdcType, //The tdc type for the spim,
+        remove_clusters: bool,
     }
 
     fn as_bytes<T>(v: &[T]) -> &[u8] {
@@ -357,7 +342,7 @@ pub mod ntime_resolved {
         }
     }
     
-    impl TimeTypes for TimeSpectralSpatial {
+    impl TimeSpectralSpatial {
         fn prepare(&mut self, file: &mut fs::File) {
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
@@ -405,40 +390,28 @@ pub mod ntime_resolved {
                 .open("si_complete.txt").expect("Could not output time histogram.");
             tfile.write_all(as_bytes(&self.spectra)).expect("Could not write time to file.");
             self.spectra.clear();
-        }
-        Ok(())
-    }
-
-            
-        fn display_info(&self) -> Result<(), ErrorType> {
-            println!("Total number of spims are: {}. TDC info is {:?}.", self.spectra.len(), self.tdc_periodic);
+            }
             Ok(())
         }
-    }
-    
-    impl TimeSpectralSpatial {
-        pub fn new(frame_int: COUNTER, spimx: POSITION, spimy: POSITION, remove_clusters: bool, tdc_type: TdcType, folder: String) -> Result<Self, ErrorType> {
+            
+        pub fn new(spimx: POSITION, spimy: POSITION, remove_clusters: bool, tdc_type: TdcType) -> Result<Self, ErrorType> {
 
             Ok(Self {
                 spectra: Vec::new(),
                 ensemble: CollectionElectron::new(),
                 spimx,
                 spimy,
-                folder,
                 tdc_periodic: None,
                 tdc_type,
                 remove_clusters,
-                frame_int,
-                slice: 0,
             })
         }
     }
 
-    pub fn analyze_data(file: &str, data: &mut TimeSet) {
-        for each in data.set.iter_mut() {
-            let mut file = fs::File::open(file).expect("Could not open desired file.");
-            each.prepare(&mut file);
-        }
+    pub fn analyze_data(file: &str, data: &mut TimeSpectralSpatial) {
+        let mut prepare_file = fs::File::open(file).expect("Could not open desired file.");
+        data.prepare(&mut prepare_file);
+        
         let start = Instant::now();
         let mut my_file = fs::File::open(file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = vec![0; 128_000_000];
@@ -456,23 +429,17 @@ pub mod ntime_resolved {
                         let packet = Pack{chip_index: ci, data: pack_oct.try_into().unwrap()};
                         match packet.id() {
                             6 => {
-                                for each in data.set.iter_mut() {
-                                    each.add_tdc(&packet);
-                                }
+                                data.add_tdc(&packet);
                             },
                             11 => {
-                                for each in data.set.iter_mut() {
-                                    each.add_electron(&packet);
-                                }
+                                data.add_electron(&packet);
                             },
                             _ => {},
                         };
                     },
                 };
             });
-            for each in data.set.iter_mut() {
-                each.process().expect("Error in processing");
-            }
+            data.process().expect("Error in processing");
             println!("File: {:?}. Total number of bytes read (MB): ~ {}", file, total_size/1_000_000);
         };
         println!("Time elapsed: {:?}", start.elapsed());
