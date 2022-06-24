@@ -87,11 +87,11 @@ pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: PO
 }
 
 #[inline]
-pub fn get_spimindex_with_time_frame(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+pub fn get_spimindex_with_time_frame(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<usize> {
     let temp = get_spimindex(x, dt, spim_tdc, xspim, yspim);
     match temp {
         None => None,
-        Some(val) => Some(val + spim_tdc.frame() * xspim * yspim * SPIM_PIXELS),
+        Some(val) => Some(val as usize + spim_tdc.frame() as usize * (xspim * yspim * SPIM_PIXELS) as usize),
     }
 }
 

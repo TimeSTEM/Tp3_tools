@@ -285,7 +285,7 @@ pub mod cluster {
             }
         }
         
-        pub fn get_or_not_spim_index_with_time_frame(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+        pub fn get_or_not_spim_index_with_time_frame(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<usize> {
             if let Some(frame_tdc) = spim_tdc {
                 spimlib::get_spimindex_with_time_frame(self.x(), self.frame_dt(), &frame_tdc, xspim, yspim)
             } else {
