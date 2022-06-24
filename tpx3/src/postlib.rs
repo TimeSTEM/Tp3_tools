@@ -14,7 +14,6 @@ pub mod coincidence {
     use crate::auxiliar::value_types::*;
 
     const TIME_WIDTH: TIME = 25; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
-    //const TIME_DELAY: usize = 100_000 - 1867; //Time delay to correlate (ps).
     const TIME_DELAY: TIME = 90; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
     const MIN_LEN: usize = 100; // Sliding time window size.
 
@@ -304,12 +303,14 @@ pub mod coincidence {
 }
 
 pub mod ntime_resolved {
+    use std::fs::OpenOptions;
     use crate::spimlib::SPIM_PIXELS;
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use std::convert::TryInto;
+    use std::time::Instant;
     use std::fs;
     use crate::auxiliar::value_types::*;
 
@@ -327,7 +328,7 @@ pub mod ntime_resolved {
         fn add_electron(&mut self, packet: &Pack);
         fn add_tdc(&mut self, packet: &Pack);
         fn process(&mut self) -> Result<(), ErrorType>;
-        fn output(&mut self, how_many: COUNTER) -> Result<(), ErrorType>;
+        //fn output(&mut self, how_many: COUNTER) -> Result<(), ErrorType>;
         fn display_info(&self) -> Result<(), ErrorType>;
     }
 
@@ -337,7 +338,8 @@ pub mod ntime_resolved {
 
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial {
-        pub spectra: Vec<Vec<usize>>, //Main data,
+        //pub spectra: Vec<Vec<usize>>, //Main data,
+        pub spectra: Vec<usize>, //Main data,
         pub ensemble: CollectionElectron, //A collection of single electrons,
         pub folder: String, //Folder in which data will be saved,
         pub spimx: POSITION, //The horinzontal axis of the spim,
@@ -347,6 +349,14 @@ pub mod ntime_resolved {
         pub remove_clusters: bool,
         pub frame_int: COUNTER,
         pub slice: COUNTER,
+    }
+
+    fn as_bytes<T>(v: &[T]) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u8,
+                v.len() * std::mem::size_of::<T>())
+        }
     }
     
     impl TimeTypes for TimeSpectralSpatial {
@@ -362,18 +372,19 @@ pub mod ntime_resolved {
 
         fn add_electron(&mut self, packet: &Pack) {
             //Getting Initial Time
-            let mut vec_index;
+            let vec_index;
             if let Some(spim_tdc) = self.tdc_periodic {
                 vec_index = spim_tdc.frame();
             } else {
                 vec_index = 0;
             }
-            vec_index /= self.frame_int;
+
+            //vec_index /= self.frame_int;
 
             //Creating the array using the electron corrected time. Note that you dont need to use it in the 'spim_detector' if you synchronize the clocks.
-            while self.spectra.len() < (vec_index - self.slice + 1) as usize {
-                self.expand_data();
-            }
+            //while self.spectra.len() < (vec_index - self.slice + 1) as usize {
+            //    self.expand_data();
+            //}
             
             let se = SingleElectron::new(packet, self.tdc_periodic, vec_index);
             self.ensemble.add_electron(se);
@@ -393,11 +404,17 @@ pub mod ntime_resolved {
             //self.ensemble.output_data(String::from("entire_data"), 2);
             if self.ensemble.try_clean(0, self.remove_clusters) {
                 //self.ensemble.output_data(String::from("entire_data_cluster"), 2);
-                let mut max_slice: Option<COUNTER> = None;
-                let mut min_slice: Option<COUNTER> = None;
+                //let mut max_slice: Option<COUNTER> = None;
+                //let mut min_slice: Option<COUNTER> = None;
                 
                 for val in self.ensemble.values() {
+                    //if let Some(index) = val.get_or_not_spim_index_with_time_frame(self.tdc_periodic, self.spimx, self.spimy) {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
+                        self.spectra.push(index as usize + val.spim_slice() as usize * (self.spimx * self.spimy * SPIM_PIXELS) as usize);
+                        //self.spectra.push(index);
+                    }
+                    /*
+                        
                         self.spectra[(val.spim_slice()-self.slice) as usize][index as usize] += 1;
                         
                         max_slice = match max_slice {
@@ -411,14 +428,24 @@ pub mod ntime_resolved {
                             Some(k) => Some(k),
                         };
                     }
-                }
-                println!("{:?} and {:?} and {}", max_slice, min_slice, self.spectra.len());
-                self.output(max_slice.unwrap() - min_slice.unwrap())?;
-                self.ensemble = CollectionElectron::new();
+                    */
             }
-            Ok(())
+            //println!("{:?} and {:?} and {}", max_slice, min_slice, self.spectra.len());
+            //self.output(max_slice.unwrap() - min_slice.unwrap())?;
+            self.ensemble = CollectionElectron::new();
+            let mut tfile = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open("si_complete.txt").expect("Could not output time histogram.");
+            //let out: String = self.spectra.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(",");
+            //tfile.write_all(out.as_ref()).expect("Could not write time to file.");
+            tfile.write_all(as_bytes(&self.spectra)).expect("Could not write time to file.");
+            self.spectra.clear();
         }
+        Ok(())
+    }
 
+    /*
         fn output(&mut self, how_many: COUNTER) -> Result<(), ErrorType> {
 
             if let Err(_) = fs::read_dir(&self.folder) {
@@ -461,6 +488,7 @@ pub mod ntime_resolved {
             //println!("{} and {}", self.slice, self.spectra.len());
             Ok(())
         }
+        */
         /*
         fn output(&self) -> Result<(), ErrorType> {
 
@@ -570,9 +598,9 @@ pub mod ntime_resolved {
             })
         }
         
-        fn expand_data(&mut self) {
-            self.spectra.push(vec![0; (self.spimx*self.spimy*SPIM_PIXELS) as usize]);
-        }
+        //fn expand_data(&mut self) {
+        //    self.spectra.push(vec![0; (self.spimx*self.spimy*SPIM_PIXELS) as usize]);
+        //}
     }
 
     pub fn analyze_data(file: &str, data: &mut TimeSet) {
@@ -580,8 +608,7 @@ pub mod ntime_resolved {
             let mut file = fs::File::open(file).expect("Could not open desired file.");
             each.prepare(&mut file);
         }
-
-
+        let start = Instant::now();
         let mut my_file = fs::File::open(file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = vec![0; 128_000_000];
 
@@ -617,5 +644,6 @@ pub mod ntime_resolved {
             }
             println!("File: {:?}. Total number of bytes read (MB): ~ {}", file, total_size/1_000_000);
         };
+        println!("Time elapsed: {:?}", start.elapsed());
     }
 }
