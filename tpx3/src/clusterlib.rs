@@ -55,7 +55,7 @@ pub mod cluster {
             let mut last: SingleElectron = self.first_value();
             let mut cluster_vec: Vec<SingleElectron> = Vec::new();
             for x in self.values() {
-                    if x.cluster_size() == 1 {
+                    //if x.cluster_size() == 1 {
                         if x.is_new_cluster(&last) {
                             let new_from_cluster = SingleElectron::new_from_cluster(&cluster_vec);
                             nelist.push(new_from_cluster);
@@ -63,9 +63,9 @@ pub mod cluster {
                         }
                         last = *x;
                         cluster_vec.push(*x);
-                    } else {
-                        nelist.push(*x);
-                    }
+                    //} else {
+                    //    nelist.push(*x);
+                    //}
             }
             self.data = nelist;
         }
@@ -85,10 +85,11 @@ pub mod cluster {
             if self.data.len() > min_size && remove {
                 let nelectrons = self.data.len();
                 self.sort();
-                for _x in 0..2 {
-                    self.remove_clusters();
-                }
-                self.sort();
+                self.remove_clusters();
+                //for _x in 0..2 {
+                //    self.remove_clusters();
+                //}
+                //self.sort();
                 let new_nelectrons = self.data.len();
                 println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
                 return true
@@ -107,6 +108,10 @@ pub mod cluster {
                 let out_str: String = out.join("");
                 tfile.write_all(out_str.as_ref()).expect("Could not write time to file.");
             }
+        }
+
+        pub fn clear(&mut self) {
+            self.data.clear();
         }
 
         /*
@@ -197,7 +202,7 @@ pub mod cluster {
     }
 
     impl SingleElectron {
-        pub fn new<T: Packet>(pack: &T, begin_frame: Option<PeriodicTdcRef>, slice: COUNTER) -> Self {
+        pub fn new<T: Packet>(pack: &T, begin_frame: Option<PeriodicTdcRef>) -> Self {
             let mut ele_time = pack.electron_time();
             match begin_frame {
                 Some(spim_tdc) => {
@@ -210,12 +215,12 @@ pub mod cluster {
                         println!("Electron time is still below the frame time. This is probably an issue.");
                     }
                     SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice, pack.tot(), 1),
+                        data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1),
                     }
                 },
                 None => {
                     SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), 0, slice, pack.tot(), 1),
+                        data: (ele_time, pack.x(), pack.y(), 0, 0, pack.tot(), 1),
                     }
                 },
             }

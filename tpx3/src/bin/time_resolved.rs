@@ -1,6 +1,6 @@
 use timepix3::postlib::ntime_resolved::*;
 use timepix3::tdclib::TdcType;
-use timepix3::auxiliar::ConfigAcquisition;
+use timepix3::auxiliar::{ConfigAcquisition};
 use std::{env};
 
 fn main() -> Result<(), ErrorType> {

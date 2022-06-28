@@ -13,8 +13,8 @@ pub mod coincidence {
     use std::cmp;
     use crate::auxiliar::value_types::*;
 
-    const TIME_WIDTH: TIME = 25; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
-    const TIME_DELAY: TIME = 90; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
+    const TIME_WIDTH: TIME = 40; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
+    const TIME_DELAY: TIME = 104; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
     const MIN_LEN: usize = 100; // Sliding time window size.
 
     pub struct ElectronData {
@@ -28,14 +28,15 @@ pub mod coincidence {
         pub corr_spectrum: Vec<usize>,
         pub is_spim: bool,
         pub spim_size: (POSITION, POSITION),
-        //pub begin_frame: Option<usize>,
         pub spim_index: Vec<POSITION>,
         pub spim_tdc: Option<PeriodicTdcRef>,
+        remove_clusters: bool,
     }
 
     impl ElectronData {
         fn add_electron(&mut self, val: SingleElectron) {
-            self.spectrum[val.image_index() as usize] += 1;
+            self.spectrum[val.x() as usize] += 1;
+            //self.spectrum[val.image_index() as usize] += 1;
         }
 
         fn add_spim_line(&mut self, pack: &Pack) {
@@ -52,7 +53,8 @@ pub mod coincidence {
         }
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon_time: TIME) {
-            self.corr_spectrum[val.image_index() as usize] += 1; //Adding the electron
+            //self.corr_spectrum[val.image_index() as usize] += 1; //Adding the electron
+            self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
             self.time.push(val.time());
             self.rel_time.push(val.relative_time_from_abs_tdc(photon_time));
@@ -69,7 +71,8 @@ pub mod coincidence {
             let nphotons = temp_tdc.tdc.len();
             println!("Supplementary events: {}.", nphotons);
             
-            temp_edata.electron.clean();
+            //if self.remove_clusters {temp_edata.electron.clean();}
+            temp_edata.electron.try_clean(0, self.remove_clusters);
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
@@ -96,12 +99,13 @@ pub mod coincidence {
                 y: Vec::new(),
                 tot: Vec::new(),
                 cluster_size: Vec::new(),
-                spectrum: vec![0; SPIM_PIXELS as usize*256],
-                corr_spectrum: vec![0; SPIM_PIXELS as usize*256],
+                spectrum: vec![0; SPIM_PIXELS as usize*1],
+                corr_spectrum: vec![0; SPIM_PIXELS as usize*1],
                 is_spim: my_config.is_spim,
                 spim_size: (my_config.xspim, my_config.yspim),
                 spim_index: Vec::new(),
                 spim_tdc: None,
+                remove_clusters: my_config.remove_cluster,
             }
         }
         
@@ -285,7 +289,7 @@ pub mod coincidence {
                                 coinc_data.add_spim_line(&packet);
                             },
                             11 => {
-                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc, 0);
+                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc);
                                 temp_edata.electron.add_electron(se);
                             },
                             _ => {}, //println!("{}", packet.tdc_type());},
@@ -325,7 +329,8 @@ pub mod ntime_resolved {
 
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial {
-        spectra: Vec<usize>, //Main data,
+        spectra: Vec<POSITION>, //Main data,
+        indices: Vec<u16>,
         ensemble: CollectionElectron, //A collection of single electrons,
         spimx: POSITION, //The horinzontal axis of the spim,
         spimy: POSITION, //The vertical axis of the spim,
@@ -355,14 +360,14 @@ pub mod ntime_resolved {
 
         fn add_electron(&mut self, packet: &Pack) {
             //Getting Initial Time
-            let vec_index;
-            if let Some(spim_tdc) = self.tdc_periodic {
-                vec_index = spim_tdc.frame();
-            } else {
-                vec_index = 0;
-            }
+            //let vec_index;
+            //if let Some(spim_tdc) = self.tdc_periodic {
+            //    vec_index = spim_tdc.frame();
+            //} else {
+            //    vec_index = 0;
+            //}
 
-            let se = SingleElectron::new(packet, self.tdc_periodic, vec_index);
+            let se = SingleElectron::new(packet, self.tdc_periodic);
             self.ensemble.add_electron(se);
         }
 
@@ -380,16 +385,23 @@ pub mod ntime_resolved {
             if self.ensemble.try_clean(0, self.remove_clusters) {
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
-                        self.spectra.push(index as usize + val.spim_slice() as usize * (self.spimx * self.spimy * SPIM_PIXELS) as usize);
+                        self.spectra.push(index);
+                        self.indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
                     }
             }
-            self.ensemble = CollectionElectron::new();
+            self.ensemble.clear();
             let mut tfile = OpenOptions::new()
                 .append(true)
                 .create(true)
                 .open("si_complete.txt").expect("Could not output time histogram.");
             tfile.write_all(as_bytes(&self.spectra)).expect("Could not write time to file.");
+            let mut tfile2 = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open("si_complete_indices.txt").expect("Could not output time histogram.");
+            tfile2.write_all(as_bytes(&self.indices)).expect("Could not write time to indices file.");
             self.spectra.clear();
+            self.indices.clear();
             }
             Ok(())
         }
@@ -398,6 +410,7 @@ pub mod ntime_resolved {
 
             Ok(Self {
                 spectra: Vec::new(),
+                indices: Vec::new(),
                 ensemble: CollectionElectron::new(),
                 spimx: my_config.xspim,
                 spimy: my_config.yspim,
@@ -414,7 +427,7 @@ pub mod ntime_resolved {
         
         let start = Instant::now();
         let mut my_file = fs::File::open(file).expect("Could not open desired file.");
-        let mut buffer: Vec<u8> = vec![0; 128_000_000];
+        let mut buffer: Vec<u8> = vec![0; 1_000_000_000];
 
         let mut total_size = 0;
         let mut ci = 0;
@@ -441,7 +454,7 @@ pub mod ntime_resolved {
             });
             data.process().expect("Error in processing");
             println!("File: {:?}. Total number of bytes read (MB): ~ {}", file, total_size/1_000_000);
+            println!("Time elapsed: {:?}", start.elapsed());
         };
-        println!("Time elapsed: {:?}", start.elapsed());
     }
 }
