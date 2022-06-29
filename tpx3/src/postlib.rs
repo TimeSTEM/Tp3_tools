@@ -15,7 +15,7 @@ pub mod coincidence {
 
     const TIME_WIDTH: TIME = 40; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
     const TIME_DELAY: TIME = 104; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
-    const MIN_LEN: usize = 100; // Sliding time window size.
+    const MIN_LEN: usize = 25; // Sliding time window size.
 
     pub struct ElectronData {
         pub time: Vec<TIME>,
@@ -40,13 +40,6 @@ pub mod coincidence {
         }
 
         fn add_spim_line(&mut self, pack: &Pack) {
-            //match &mut self.spim_tdc {
-            //    Some(spim_tdc) => {
-            //        spim_tdc.ticks_to_frame = None;
-            //    },
-            //    _ => {},
-            //};
-            
             if let Some(spim_tdc) = &mut self.spim_tdc {
                 spim_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
             }
@@ -215,13 +208,13 @@ pub mod coincidence {
                 .enumerate()
                 .find(|(_, x)| (((**x/6) as isize - value.time() as isize).abs() as TIME) < TIME_WIDTH);
             
-            //Index must be greater than 10% of MIN_LEN, so first photons do not count.
-            //Effective size must be greater or equal than MIN_LEN otherwise a smaller array is
-            //iterated.
+            //Index must be greater than 50% of MIN_LEN, so first photons do not count. Then the
+            //index is increased by half of its value, meaning we still have the beginning of the
+            //list useful.
             match result {
                 Some((index, pht_value)) => {
-                    //if index > MIN_LEN/10 && array_length>self.min_index + MIN_LEN + index {
-                    if index > MIN_LEN/10 && (max_index - self.min_index) >= MIN_LEN {
+                    //if index > MIN_LEN/10 && (max_index - self.min_index) >= MIN_LEN {
+                    if index > MIN_LEN/2 {
                        self.min_index += index/2;
                     }
                     Some(*pht_value)
@@ -265,7 +258,7 @@ pub mod coincidence {
 
         let mut ci = 0;
         let mut file = fs::File::open(file)?;
-        let mut buffer: Vec<u8> = vec![0; 256_000_000];
+        let mut buffer: Vec<u8> = vec![0; 1_024_000_000];
         let mut total_size = 0;
         let start = Instant::now();
         
