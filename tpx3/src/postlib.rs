@@ -64,7 +64,6 @@ pub mod coincidence {
             let nphotons = temp_tdc.tdc.len();
             println!("Supplementary events: {}.", nphotons);
             
-            //if self.remove_clusters {temp_edata.electron.clean();}
             temp_edata.electron.try_clean(0, self.remove_clusters);
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
@@ -328,7 +327,8 @@ pub mod ntime_resolved {
         spimx: POSITION, //The horinzontal axis of the spim,
         spimy: POSITION, //The vertical axis of the spim,
         tdc_periodic: Option<PeriodicTdcRef>, //The periodic tdc. Can be none if xspim and yspim <= 1,
-        tdc_type: TdcType, //The tdc type for the spim,
+        spim_tdc_type: TdcType, //The tdc type for the spim,
+        extra_tdc_type: TdcType, //The tdc type for the external,
         remove_clusters: bool,
     }
 
@@ -344,7 +344,7 @@ pub mod ntime_resolved {
         fn prepare(&mut self, file: &mut fs::File) {
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
-                    Some(PeriodicTdcRef::new(self.tdc_type.clone(), file, Some(self.spimy)).expect("Problem in creating periodic tdc ref."))
+                    Some(PeriodicTdcRef::new(self.spim_tdc_type.clone(), file, Some(self.spimy)).expect("Problem in creating periodic tdc ref."))
                 },
                 Some(val) => Some(val),
                 _ => None,
@@ -352,26 +352,23 @@ pub mod ntime_resolved {
         }
 
         fn add_electron(&mut self, packet: &Pack) {
-            //Getting Initial Time
-            //let vec_index;
-            //if let Some(spim_tdc) = self.tdc_periodic {
-            //    vec_index = spim_tdc.frame();
-            //} else {
-            //    vec_index = 0;
-            //}
-
             let se = SingleElectron::new(packet, self.tdc_periodic);
             self.ensemble.add_electron(se);
         }
 
-        fn add_tdc(&mut self, packet: &Pack) {
+        fn add_spim_tdc(&mut self, packet: &Pack) {
             //Synchronizing clocks using two different approaches. It is always better to use a multiple of 2 and use the FPGA counter.
             match &mut self.tdc_periodic {
-                Some(my_tdc_periodic) if packet.tdc_type() == self.tdc_type.associate_value() => {
+                //Some(my_tdc_periodic) if packet.tdc_type() == self.tdc_type.associate_value() => {
+                Some(my_tdc_periodic) => {
                     my_tdc_periodic.upt(packet.tdc_time_norm(), packet.tdc_counter());
                 },
                 _ => {},
             };
+        }
+        
+        fn add_extra_tdc(&mut self, packet: &Pack) {
+            //self.spectra.push(SPIM_PIXELS);
         }
 
         fn process(&mut self) -> Result<(), ErrorType> {
@@ -408,7 +405,8 @@ pub mod ntime_resolved {
                 spimx: my_config.xspim,
                 spimy: my_config.yspim,
                 tdc_periodic: None,
-                tdc_type: TdcType::TdcOneFallingEdge,
+                spim_tdc_type: TdcType::TdcOneFallingEdge,
+                extra_tdc_type: TdcType::TdcTwoRisingEdge,
                 remove_clusters: my_config.remove_cluster,
             })
         }
@@ -421,7 +419,7 @@ pub mod ntime_resolved {
         let start = Instant::now();
         let mut my_file = fs::File::open(file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = vec![0; 1_000_000_000];
-
+        
         let mut total_size = 0;
         let mut ci = 0;
 
@@ -434,8 +432,11 @@ pub mod ntime_resolved {
                     _ => {
                         let packet = Pack{chip_index: ci, data: pack_oct.try_into().unwrap()};
                         match packet.id() {
-                            6 => {
-                                data.add_tdc(&packet);
+                            6 if packet.tdc_type() == data.spim_tdc_type.associate_value() => {
+                                data.add_spim_tdc(&packet);
+                            },
+                            6 if packet.tdc_type() == data.extra_tdc_type.associate_value() => {
+                                data.add_extra_tdc(&packet);
                             },
                             11 => {
                                 data.add_electron(&packet);
