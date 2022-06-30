@@ -301,6 +301,7 @@ pub mod coincidence {
 pub mod ntime_resolved {
     use std::fs::OpenOptions;
     use crate::spimlib::SPIM_PIXELS;
+    use crate::spimlib;
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
@@ -369,6 +370,7 @@ pub mod ntime_resolved {
         
         fn add_extra_tdc(&mut self, packet: &Pack) {
             //self.spectra.push(SPIM_PIXELS);
+            //spimlib::get_spimindex(, dt: TIME, spim_tdc: &PeriodicTdcRef, self.spimx, self.spimy;
         }
 
         fn process(&mut self) -> Result<(), ErrorType> {

@@ -74,22 +74,18 @@ pub mod cluster {
             self.data.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
         }
 
-        pub fn clean(&mut self) {
+        fn clean(&mut self) {
             self.sort();
-            for _x in 0..2 {
-                self.remove_clusters();
-            }
+            self.remove_clusters();
+            //for _x in 0..2 {
+            //    self.remove_clusters();
+            //}
         }
 
         pub fn try_clean(&mut self, min_size: usize, remove: bool) -> bool {
             if self.data.len() > min_size && remove {
                 let nelectrons = self.data.len();
-                self.sort();
-                self.remove_clusters();
-                //for _x in 0..2 {
-                //    self.remove_clusters();
-                //}
-                //self.sort();
+                self.clean();
                 let new_nelectrons = self.data.len();
                 println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
                 return true
@@ -203,24 +199,16 @@ pub mod cluster {
 
     impl SingleElectron {
         pub fn new<T: Packet>(pack: &T, begin_frame: Option<PeriodicTdcRef>) -> Self {
-            let mut ele_time = pack.electron_time();
             match begin_frame {
                 Some(spim_tdc) => {
-                    let frame_time = spim_tdc.begin_frame;
-                    if ele_time < frame_time + VIDEO_TIME {
-                        let factor = (frame_time + VIDEO_TIME - ele_time) / (spim_tdc.period*spim_tdc.ticks_to_frame.unwrap() as TIME) + 1;
-                        ele_time += spim_tdc.period*spim_tdc.ticks_to_frame.unwrap() as TIME * factor;
-                    }
-                    if ele_time < frame_time + VIDEO_TIME {
-                        println!("Electron time is still below the frame time. This is probably an issue.");
-                    }
+                    let ele_time = spimlib::correct_or_not_etime(pack.electron_time(), &spim_tdc);
                     SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1),
+                        data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.begin_frame-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1),
                     }
                 },
                 None => {
                     SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), 0, 0, pack.tot(), 1),
+                        data: (pack.electron_time(), pack.x(), pack.y(), 0, 0, pack.tot(), 1),
                     }
                 },
             }
@@ -285,14 +273,6 @@ pub mod cluster {
         pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
             if let Some(frame_tdc) = spim_tdc {
                 spimlib::get_spimindex(self.x(), self.frame_dt(), &frame_tdc, xspim, yspim)
-            } else {
-                None
-            }
-        }
-        
-        pub fn get_or_not_spim_index_with_time_frame(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<usize> {
-            if let Some(frame_tdc) = spim_tdc {
-                spimlib::get_spimindex_with_time_frame(self.x(), self.frame_dt(), &frame_tdc, xspim, yspim)
             } else {
                 None
             }
