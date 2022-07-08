@@ -543,12 +543,12 @@ pub mod isi_box {
             impl IsiBoxTools for $x<$y> {
                 fn bind_and_connect(&mut self) {
                     for _ in 0..self.nchannels {
-                        //let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
-                        let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
+                        let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
+                        //let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
                         self.sockets.push(sock);
                     }
-                    //let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
-                    let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
+                    let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
+                    //let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
                     self.ext_socket = Some(sock);
                 }
                 fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32) {

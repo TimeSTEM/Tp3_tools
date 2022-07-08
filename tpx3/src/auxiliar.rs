@@ -1,6 +1,7 @@
 //!`auxiliar` is a collection of tools to set acquisition conditions.
 use crate::errorlib::Tp3ErrorKind;
 use std::net::{TcpListener, TcpStream, SocketAddr};
+use crate::auxiliar::misc::TimepixRead;
 use std::io::{Read, Write};
 use std::fs::File;
 use crate::auxiliar::value_types::*;
@@ -213,6 +214,12 @@ impl Write for DebugIO {
         Ok(())
     }
 }
+impl TimepixRead for DebugIO {}
+impl Read for DebugIO {
+    fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
+        Ok(0)
+    }
+}
 
 
 ///`Settings` contains all relevant parameters for a given acquistion
@@ -269,6 +276,14 @@ impl Settings {
         };
         let my_settings = my_config.create_settings()?;
         println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
+
+        //This is a special case. This mode saves locally so we do not need to ready
+        //anything special. We do not write anything special as well, so we do not need
+        //to return the ns_sock.
+        if my_settings.mode == 8 {
+            println!("Special mode 8. Save locally but using the IsiBox system.");
+            return Ok((my_settings, Box::new(DebugIO{}), Box::new(DebugIO{})));
+        }
 
         match debug {
             false => {

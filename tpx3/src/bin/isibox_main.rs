@@ -4,6 +4,7 @@ use timepix3::tdclib::{*, isi_box::*};
 //use timepix3::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{CHANNELS, IsiBoxTools, IsiBoxHand}};
 use timepix3::{speclib, speclib::{SpecKind, IsiBoxKind}, spimlib, spimlib::SpimKind};
 use timepix3::isi_box_new;
+use std::{thread, time};
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
@@ -30,6 +31,7 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             handler.bind_and_connect();
             handler.configure_scan_parameters(32, 32, 8334);
             handler.configure_measurement_type(true);
+            thread::sleep(time::Duration::from_millis(1000));
             Ok(my_settings.mode)
         },
         _ => Err(Tp3ErrorKind::IsiBoxAttempt(my_settings.mode)),
