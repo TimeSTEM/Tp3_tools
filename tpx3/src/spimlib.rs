@@ -104,6 +104,15 @@ pub fn get_complete_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, 
         index
 }
 
+#[inline]
+pub fn correct_or_not_etime(mut ele_time: TIME, line_tdc: &PeriodicTdcRef) -> TIME {
+    if ele_time < line_tdc.begin_frame + VIDEO_TIME {
+        let factor = (line_tdc.begin_frame + VIDEO_TIME - ele_time) / (line_tdc.period*line_tdc.ticks_to_frame.unwrap() as TIME) + 1;
+        ele_time += line_tdc.period*line_tdc.ticks_to_frame.unwrap() as TIME * factor;
+    }
+    ele_time
+}
+
 ///`Live` is the only current implemented measurement. It outputs list of indices (max `u32`) that
 ///must be incremented.
 pub struct Live {
@@ -119,11 +128,7 @@ impl SpimKind for Live {
 
     #[inline]
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
-        let mut ele_time = packet.electron_time();
-        if ele_time < line_tdc.begin_frame + VIDEO_TIME {
-            let factor = (line_tdc.begin_frame + VIDEO_TIME - ele_time) / (line_tdc.period*line_tdc.ticks_to_frame.unwrap() as TIME) + 1;
-            ele_time += line_tdc.period*line_tdc.ticks_to_frame.unwrap() as TIME * factor;
-        }
+        let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
         self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
     }
     

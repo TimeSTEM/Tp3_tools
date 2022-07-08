@@ -365,6 +365,7 @@ pub struct ConfigAcquisition {
     pub is_spim: bool,
     pub xspim: POSITION,
     pub yspim: POSITION,
+    pub remove_cluster: bool,
 }
 
 impl ConfigAcquisition {
@@ -373,19 +374,21 @@ impl ConfigAcquisition {
     }
 
     pub fn new(args: &[String]) -> Self {
-        if args.len() != 4+1 {
-            panic!("One must provide 04 ({} detected) arguments (file, is_spim, xspim, yspim).", args.len()-1);
+        if args.len() != 5+1 {
+            panic!("One must provide 5 ({} detected) arguments (file, is_spim, xspim, yspim, remove_cluster).", args.len()-1);
         }
         let file = args[1].clone();
         let is_spim = args[2] == "1";
         let xspim = args[3].parse::<POSITION>().unwrap();
         let yspim = args[4].parse::<POSITION>().unwrap();
+        let remove_cluster = args[5] == "1";
         let my_config = 
         ConfigAcquisition {
             file,
             is_spim,
             xspim,
             yspim,
+            remove_cluster
         };
         println!("Configuration for the coincidence measurement is {:?}", my_config);
         my_config
@@ -496,4 +499,70 @@ pub mod value_types {
     pub type POSITION = u32;
     pub type COUNTER = u32;
     pub type TIME = usize;
+}
+
+pub mod compressing {
+    
+    use std::io::{Read, Write};
+    use std::fs;
+    use std::fs::OpenOptions;
+    
+    fn as_int(v: &[u8]) -> &[usize] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const usize,
+                //v.len() )
+                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<usize>())
+        }
+    }
+    
+    fn as_bytes<T>(v: &[T]) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u8,
+                v.len() * std::mem::size_of::<T>())
+        }
+    }
+    
+    pub fn compress_file(file: &str) {
+        let mut my_file = fs::File::open(file).expect("Could not open desired file.");
+        let mut buffer: Vec<u8> = vec![0; 512_000_000];
+
+        let mut repetitions = 0;
+
+        let mut index: Vec<usize> = Vec::new();
+        let mut count: Vec<u16> = Vec::new();
+        let mut last_index = 0;
+        let mut counter = 0;
+        while let Ok(size) = my_file.read(&mut buffer) {
+            if size == 0 {break}
+            for val in as_int(&buffer) {
+                if last_index != *val {
+                    index.push(last_index);
+                    count.push(counter);
+                    counter = 0;
+                } else {
+                    repetitions = repetitions + 1;
+                    counter = counter + 1;
+                }
+                last_index = *val;
+
+            }
+        }
+        let mut tfile = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open("si_complete_index.txt").expect("Could not output time histogram.");
+        tfile.write_all(as_bytes(&index)).expect("Could not write time to file.");
+        
+        let mut tfile = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open("si_complete_count.txt").expect("Could not output time histogram.");
+        tfile.write_all(as_bytes(&count)).expect("Could not write time to file.");
+        
+        println!("{} and {} and {}", index.len(), count.len(), repetitions);
+        
+    }
+
 }

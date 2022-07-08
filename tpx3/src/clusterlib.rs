@@ -55,7 +55,7 @@ pub mod cluster {
             let mut last: SingleElectron = self.first_value();
             let mut cluster_vec: Vec<SingleElectron> = Vec::new();
             for x in self.values() {
-                    if x.cluster_size() == 1 {
+                    //if x.cluster_size() == 1 {
                         if x.is_new_cluster(&last) {
                             let new_from_cluster = SingleElectron::new_from_cluster(&cluster_vec);
                             nelist.push(new_from_cluster);
@@ -63,9 +63,9 @@ pub mod cluster {
                         }
                         last = *x;
                         cluster_vec.push(*x);
-                    } else {
-                        nelist.push(*x);
-                    }
+                    //} else {
+                    //    nelist.push(*x);
+                    //}
             }
             self.data = nelist;
         }
@@ -74,21 +74,18 @@ pub mod cluster {
             self.data.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
         }
 
-        pub fn clean(&mut self) {
+        fn clean(&mut self) {
             self.sort();
-            for _x in 0..2 {
-                self.remove_clusters();
-            }
+            self.remove_clusters();
+            //for _x in 0..2 {
+            //    self.remove_clusters();
+            //}
         }
 
         pub fn try_clean(&mut self, min_size: usize, remove: bool) -> bool {
             if self.data.len() > min_size && remove {
                 let nelectrons = self.data.len();
-                self.sort();
-                for _x in 0..2 {
-                    self.remove_clusters();
-                }
-                self.sort();
+                self.clean();
                 let new_nelectrons = self.data.len();
                 println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
                 return true
@@ -107,6 +104,10 @@ pub mod cluster {
                 let out_str: String = out.join("");
                 tfile.write_all(out_str.as_ref()).expect("Could not write time to file.");
             }
+        }
+
+        pub fn clear(&mut self) {
+            self.data.clear();
         }
 
         /*
@@ -197,25 +198,17 @@ pub mod cluster {
     }
 
     impl SingleElectron {
-        pub fn new<T: Packet>(pack: &T, begin_frame: Option<PeriodicTdcRef>, slice: COUNTER) -> Self {
-            let mut ele_time = pack.electron_time();
+        pub fn new<T: Packet>(pack: &T, begin_frame: Option<PeriodicTdcRef>) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
-                    let frame_time = spim_tdc.begin_frame;
-                    if ele_time < frame_time + VIDEO_TIME {
-                        let factor = (frame_time + VIDEO_TIME - ele_time) / (spim_tdc.period*spim_tdc.ticks_to_frame.unwrap() as TIME) + 1;
-                        ele_time += spim_tdc.period*spim_tdc.ticks_to_frame.unwrap() as TIME * factor;
-                    }
-                    if ele_time < frame_time + VIDEO_TIME {
-                        println!("Electron time is still below the frame time. This is probably an issue.");
-                    }
+                    let ele_time = spimlib::correct_or_not_etime(pack.electron_time(), &spim_tdc);
                     SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), ele_time-frame_time-VIDEO_TIME, slice, pack.tot(), 1),
+                        data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.begin_frame-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1),
                     }
                 },
                 None => {
                     SingleElectron {
-                        data: (ele_time, pack.x(), pack.y(), 0, slice, pack.tot(), 1),
+                        data: (pack.electron_time(), pack.x(), pack.y(), 0, 0, pack.tot(), 1),
                     }
                 },
             }
@@ -241,6 +234,9 @@ pub mod cluster {
         }
         pub fn relative_time(&self, reference_time: TIME) -> isize {
             self.data.0 as isize - reference_time as isize
+        }
+        pub fn relative_time_from_abs_tdc(&self, reference_time: TIME) -> isize {
+            (self.data.0*6) as isize - reference_time as isize
         }
         pub fn spim_slice(&self) -> COUNTER {
             self.data.4

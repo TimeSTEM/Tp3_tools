@@ -132,10 +132,12 @@ pub trait Packet {
     }
 
     #[inline]
-    fn tdc_time_abs(&self) -> TIME {
+    fn tdc_time_abs_norm(&self) -> TIME {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
-        coarse * 12 + fine
+        let time = coarse * 12 + fine;
+        time - (time / (103_079_215_104)) * 103_079_215_104
+
     }
 
     #[inline]
