@@ -675,21 +675,24 @@ pub mod isi_box {
         data: Vec<(u64, u8, u32)>, //Time, channel, spim index
         pub counter: u32,
         pub overflow: u32,
-        pub last_time: Option<u32>,
+        pub last_time: u32,
         pub start_time: Option<u32>,
         pub line_time: Option<u32>,
     }
 
     impl IsiList {
         fn increase_counter(&mut self, data: u32) {
-            self.counter += 1;
+            
+            if data < self.last_time {self.overflow+=1;}
+            self.last_time = data;
 
-            if let Some(last_time) = self.last_time {
-                if data < last_time {self.overflow+=1;}
-                self.last_time = Some(data);
-            } else {
-                self.last_time = Some(data);
+
+            if self.line_time.is_some() && self.start_time.is_some() {
+                let time1 = self.overflow * 67108864 + data;
+                let time2 = (self.counter) * self.line_time.unwrap() + self.start_time.unwrap();
+                println!("{} and {} and {} and {} and {}", self.overflow, self.counter, time1, time2, self.start_time.unwrap());
             }
+
 
             if self.start_time.is_some() {
                 self.line_time = match self.line_time {
@@ -712,6 +715,8 @@ pub mod isi_box {
                 },
                 Some(x) => Some(x),
             };
+            
+            self.counter += 1;
 
         }
     }
@@ -719,7 +724,7 @@ pub mod isi_box {
     pub fn get_channel_timelist<V>(mut data: V) 
         where V: Read
         {
-            let mut list = IsiList{data: Vec::new(), counter: 0, overflow: 0, last_time: None, start_time: None, line_time: None};
+            let mut list = IsiList{data: Vec::new(), counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
                 if size == 0 {println!("Finished Reading."); break;}
