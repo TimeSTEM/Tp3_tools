@@ -670,4 +670,66 @@ pub mod isi_box {
             *num = true;
         }
     }
+
+    struct IsiList {
+        data: Vec<(u64, u8, u32)>, //Time, channel, spim index
+        pub counter: u32,
+        pub overflow: u32,
+        pub last_time: Option<u32>,
+        pub start_time: Option<u32>,
+        pub line_time: Option<u32>,
+    }
+
+    impl IsiList {
+        fn increase_counter(&mut self, data: u32) {
+            self.counter += 1;
+
+            if let Some(last_time) = self.last_time {
+                if data < last_time {self.overflow+=1;}
+                self.last_time = Some(data);
+            } else {
+                self.last_time = Some(data);
+            }
+
+            if self.start_time.is_some() {
+                self.line_time = match self.line_time {
+                    None => {
+                        let val = if (data > self.start_time.unwrap()) {
+                            data - self.start_time.unwrap()
+                        } else {
+                            self.start_time.unwrap() + 67108864 - data
+                        };
+                        Some(val)
+                    },
+                    Some(x) => Some(x),
+                };
+            }
+
+            self.start_time = match self.start_time {
+                None => {
+                    println!("Start time is now: {}", data);
+                    Some(data)
+                },
+                Some(x) => Some(x),
+            };
+
+        }
+    }
+
+    pub fn get_channel_timelist<V>(mut data: V) 
+        where V: Read
+        {
+            let mut list = IsiList{data: Vec::new(), counter: 0, overflow: 0, last_time: None, start_time: None, line_time: None};
+            let mut buffer = [0; 256_000];
+            while let Ok(size) = data.read(&mut buffer) {
+                if size == 0 {println!("Finished Reading."); break;}
+                buffer.chunks_exact(4).for_each( |x| {
+                    let channel = (as_int(x)[0] & 0xFC000000) >> 27;
+                    let time = (as_int(x)[0] & 0x3FFFFFFF);
+                    if channel == 16 {list.increase_counter(time)};
+                    //println!("{:?} and {:?}", channel, time);
+                })
+            }
+            println!("{:?} and {:?} and {} and {} and {:?}", list.start_time, list.line_time, list.counter, list.overflow, list.last_time);
+        }
 }
