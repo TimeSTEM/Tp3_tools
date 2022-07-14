@@ -485,11 +485,11 @@ pub mod isi_box {
         }
     }
 
-    fn as_bytes(v: &[u32]) -> &[u8] {
+    fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
             std::slice::from_raw_parts(
                 v.as_ptr() as *const u8,
-                v.len() * std::mem::size_of::<u32>())
+                v.len() * std::mem::size_of::<T>())
         }
     }
     
@@ -674,8 +674,12 @@ pub mod isi_box {
         }
     }
 
+    struct IsiListVec(Vec<(u64, u32, u32, u32)>);
+    struct IsiListVec_g2(Vec<(i64, u32, u32, u32)>);
+    
     struct IsiList {
-        data: Vec<(u64, u32, u32, u32)>, //Time, channel, spim index, spim frame
+        //data: Vec<(u64, u32, u32, u32)>, //Time, channel, spim index, spim frame
+        data: IsiListVec, //Time, channel, spim index, spim frame
         x: u32,
         y: u32,
         pixel_time: u32,
@@ -685,6 +689,7 @@ pub mod isi_box {
         pub start_time: Option<u32>,
         pub line_time: Option<u32>,
     }
+
 
     impl IsiList {
         fn increase_counter(&mut self, data: u32) {
@@ -755,12 +760,12 @@ pub mod isi_box {
 
         fn add_event(&mut self, channel: u32, data: u32) {
             if let (Some(spim_index), Some(spim_frame), Some(_)) = (self.spim_index(channel, data), self.spim_frame(), self.line_time) {
-                self.data.push((self.get_abs_time(data), channel, spim_index, spim_frame));
+                self.data.0.push((self.get_abs_time(data), channel, spim_index, spim_frame));
             };
         }
 
         fn output_spim(&self) {
-            let spim_vec = self.data.iter().map(|(time, channel, spim_index, spim_frame)| *spim_index).collect::<Vec<u32>>();
+            let spim_vec = self.data.0.iter().map(|(time, channel, spim_index, spim_frame)| *spim_index).collect::<Vec<u32>>();
             let mut tfile = OpenOptions::new()
                 .write(true)
                 .truncate(true)
@@ -770,31 +775,48 @@ pub mod isi_box {
         }
 
         fn search_coincidence(&self, ch1: u32, ch2: u32) {
-            let mut iter1 = self.data.iter().filter(|(time, channel, spim_index, spim_frame)| *channel == ch1);
-            let mut iter2 = self.data.iter().filter(|(time, channel, spim_index, spim_frame)| *channel == ch2);
-            //iter2.next();
-            //let iter1 = iter1.step_by(2);
-            //let iter2 = iter2.step_by(2);
-            let mut iter3 = iter1.zip(iter2);
-            println!("{:?}", iter3.next());
-            println!("{:?}", iter3.next());
-            println!("{:?}", iter3.next());
-            println!("{:?}", iter3.next());
-            println!("{:?}", iter3.next());
-            println!("{:?}", iter3.next());
-            println!("{:?}", iter3.next());
-            println!("{:?}", iter3.next());
-            println!("{:?}", iter3.next());
-            println!("{:?}", iter3.next());
-            println!("{:?}", iter3.next());
+            let iter1 = self.data.0.iter().filter(|(time, channel, spim_index, spim_frame)| *channel == ch1);
+            let size = self.data.0.iter().filter(|(time, channel, spim_index, spim_frame)| *channel == ch1).count();
+            let vec2 = self.data.0.iter().filter(|(time, channel, spim_index, spim_frame)| *channel == ch2).cloned().collect::<Vec<_>>();
+            let mut count = 0;
+            let mut min_index = 0;
+            let mut index = 0;
+
+            let mut new_list = IsiListVec_g2(Vec::new());
+            
+            for val1 in iter1 {
+                index = 0;
+                if count % 20000 == 0 {
+                    println!("Complete: {}%.", count*100/size);
+                }
+                count+=1;
+                for val2 in &vec2[min_index..] {
+                    let dt = val2.0 as i64 - val1.0 as i64;
+                    if (dt.abs() < 500) {
+                        new_list.0.push((dt, val2.1, val2.2, val2.3));
+                        min_index += index / 2;
+                    }
+                    if dt > 10000 {break;}
+                    index += 1;
+                }
+            }
+            
+            let dt_vec = new_list.0.iter().map(|(dtime, channel, spim_index, spim_frame)| *dtime).collect::<Vec<i64>>();
+            let mut tfile = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("isi_g2.txt").expect("Could not output time histogram.");
+            tfile.write_all(as_bytes(&dt_vec)).expect("Could not write time to file.");
+
         }
     }
 
     pub fn get_channel_timelist<V>(mut data: V) 
         where V: Read
         {
-            let zlp = Normal::new(0.0, 100.0).unwrap();
-            let mut list = IsiList{data: Vec::new(), x: 256, y: 256, pixel_time: 16667, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
+            let zlp = Normal::new(0.0, 50.0).unwrap();
+            let mut list = IsiList{data: IsiListVec(Vec::new()), x: 256, y: 256, pixel_time: 16667, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
                 if size == 0 {println!("Finished Reading."); break;}
@@ -808,10 +830,13 @@ pub mod isi_box {
                     } else {
                         list.add_event(channel, time);
                         let val = zlp.sample(&mut thread_rng());
+                        let val_pos = (val as i32).abs() as u32;
                         if val as i32 > 0 {
-                            list.add_event(0, time+val as u32);
+                            list.add_event(0, time+val_pos);
                         } else {
-                            list.add_event(0, time-val as u32);
+                            if time>val_pos {
+                                list.add_event(0, time-val_pos);
+                            }
                         }
                     };
                 
