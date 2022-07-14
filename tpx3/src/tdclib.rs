@@ -465,6 +465,7 @@ impl TdcControl for NonPeriodicTdcRef {
 }
 
 pub mod isi_box {
+    use std::fs::OpenOptions;
     use std::net::TcpStream;
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
@@ -672,7 +673,7 @@ pub mod isi_box {
     }
 
     struct IsiList {
-        data: Vec<(u64, u8, u32, u32)>, //Time, channel, spim index, spim frame
+        data: Vec<(u64, u32, u32, u32)>, //Time, channel, spim index, spim frame
         x: u32,
         y: u32,
         pixel_time: u32,
@@ -716,29 +717,47 @@ pub mod isi_box {
             //let time2 = (self.counter-1) as u64 * self.line_time.unwrap() as u64 + self.start_time.unwrap() as u64;
         }
 
-        fn spim_index(&self, data: u32) -> Option<u32> {
-            if let Some(line_time) = self.line_time {
+        fn spim_index(&self, channel: u32, data: u32) -> Option<u32> {
+            if let Some(_) = self.line_time {
 
-                let line = self.y % self.counter;
+                let line = self.counter % self.y;
                 let low = self.get_line_low();
 
-                let time = if (data - VIDEO_TIME as u32 * 13 - line_time) > 0 {
-                    data - VIDEO_TIME as u32 * 13 - line_time
+                let time = if (data > VIDEO_TIME as u32 * 13 + self.last_time) {
+                    data - VIDEO_TIME as u32 * 13 - self.last_time
                 } else {
-                    data + 67108864 - VIDEO_TIME as u32 * 13 - line_time
+                    data + 67108864 - VIDEO_TIME as u32 * 13 - self.last_time
                 };
-                let column = (time * self.x) / low;
 
-                let index = line * self.x + column;
+                if (time > low) {return None;}
+                let column = ((time as u64 * self.x as u64) / low as u64) as u32;
+
+                let index = (line * self.x + column) * CHANNELS as u32 + channel;
                 Some(index)
             } else {None}
         }
 
-        fn spim_frame(&self, data: u32) -> Option<u32> {
+        fn spim_frame(&self) -> Option<u32> {
             if let Some(line_time) = self.line_time {
                 let frame = self.counter / self.y;
                 Some(frame)
             } else {None}
+        }
+
+        fn add_event(&mut self, channel: u32, data: u32) {
+            if let (Some(spim_index), Some(spim_frame)) = (self.spim_index(channel, data), self.spim_frame()) {
+                self.data.push((self.get_abs_time(data), channel, spim_index, spim_frame));
+            };
+        }
+
+        fn output_spim(&self) {
+            let spim_vec = self.data.iter().map(|(time, channel, spim_index, spim_frame)| *spim_index).collect::<Vec<u32>>();
+            let mut tfile = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("isi_si_complete.txt").expect("Could not output time histogram.");
+            tfile.write_all(as_bytes(&spim_vec)).expect("Could not write time to file.");
         }
     }
 
@@ -751,17 +770,18 @@ pub mod isi_box {
                 if size == 0 {println!("Finished Reading."); break;}
                 buffer.chunks_exact(4).for_each( |x| {
                     let channel = (as_int(x)[0] & 0xFC000000) >> 27;
-                    let time = (as_int(x)[0] & 0x3FFFFFFF);
+                    let time = (as_int(x)[0] & 0x03FFFFFF);
                     
                     if channel == 16 {
                         list.increase_counter(time);
                     } else if channel == 24 {
                     } else {
-
+                        list.add_event(channel, time);
                     };
                 
                 })
             }
+            list.output_spim();
             println!("{:?} and {:?} and {} and {} and {:?}", list.start_time, list.line_time, list.counter, list.overflow, list.last_time);
         }
 }
