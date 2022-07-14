@@ -465,6 +465,8 @@ impl TdcControl for NonPeriodicTdcRef {
 }
 
 pub mod isi_box {
+    use rand_distr::{Normal, Distribution};
+    use rand::{thread_rng};
     use std::fs::OpenOptions;
     use std::net::TcpStream;
     use std::io::{Read, Write};
@@ -764,6 +766,7 @@ pub mod isi_box {
     pub fn get_channel_timelist<V>(mut data: V) 
         where V: Read
         {
+            let zlp = Normal::new(0.0, 100.0).unwrap();
             let mut list = IsiList{data: Vec::new(), x: 256, y: 256, pixel_time: 16667, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
@@ -777,6 +780,12 @@ pub mod isi_box {
                     } else if channel == 24 {
                     } else {
                         list.add_event(channel, time);
+                        let val = zlp.sample(&mut thread_rng());
+                        if val as i32 > 0 {
+                            list.add_event(0, time+val as u32);
+                        } else {
+                            list.add_event(0, time-val as u32);
+                        }
                     };
                 
                 })
