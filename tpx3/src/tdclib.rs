@@ -469,7 +469,7 @@ pub mod isi_box {
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
     use std::{thread};
-    use crate::spimlib::SPIM_PIXELS;
+    use crate::spimlib::{SPIM_PIXELS, VIDEO_TIME};
 
     pub const CHANNELS: usize = 17;
     
@@ -672,7 +672,10 @@ pub mod isi_box {
     }
 
     struct IsiList {
-        data: Vec<(u64, u8, u32)>, //Time, channel, spim index
+        data: Vec<(u64, u8, u32, u32)>, //Time, channel, spim index, spim frame
+        x: u32,
+        y: u32,
+        pixel_time: u32,
         pub counter: u32,
         pub overflow: u32,
         pub last_time: u32,
@@ -685,54 +688,78 @@ pub mod isi_box {
             
             if data < self.last_time {self.overflow+=1;}
             self.last_time = data;
-
-
-            if self.line_time.is_some() && self.start_time.is_some() {
-                let time1 = self.overflow * 67108864 + data;
-                let time2 = (self.counter) * self.line_time.unwrap() + self.start_time.unwrap();
-                println!("{} and {} and {} and {} and {}", self.overflow, self.counter, time1, time2, self.start_time.unwrap());
-            }
-
-
-            if self.start_time.is_some() {
-                self.line_time = match self.line_time {
-                    None => {
-                        let val = if (data > self.start_time.unwrap()) {
-                            data - self.start_time.unwrap()
-                        } else {
-                            self.start_time.unwrap() + 67108864 - data
-                        };
-                        Some(val)
-                    },
-                    Some(x) => Some(x),
-                };
-            }
-
-            self.start_time = match self.start_time {
-                None => {
-                    println!("Start time is now: {}", data);
-                    Some(data)
-                },
-                Some(x) => Some(x),
-            };
-            
             self.counter += 1;
 
+            //This happens at the second loop. There is no start_time in the first interaction.
+            if let (Some(start_time), None) = (self.start_time, self.line_time) {
+                let val = if (data > start_time) {
+                    data - start_time
+                } else {
+                    start_time + 67108864 - data
+                };
+                self.line_time = Some(val);
+            }
+
+            //Setting the start_time
+            if let None = self.start_time {
+                println!("Start time is now: {}", data);
+                self.start_time = Some(data);
+            };
+        }
+
+        fn get_line_low(&self) -> u32 {
+            self.x * self.pixel_time
+        }
+
+        fn get_abs_time(&self, data: u32) -> u64 {
+            self.overflow as u64 * 67108864 + data as u64
+            //let time2 = (self.counter-1) as u64 * self.line_time.unwrap() as u64 + self.start_time.unwrap() as u64;
+        }
+
+        fn spim_index(&self, data: u32) -> Option<u32> {
+            if let Some(line_time) = self.line_time {
+
+                let line = self.y % self.counter;
+                let low = self.get_line_low();
+
+                let time = if (data - VIDEO_TIME as u32 * 13 - line_time) > 0 {
+                    data - VIDEO_TIME as u32 * 13 - line_time
+                } else {
+                    data + 67108864 - VIDEO_TIME as u32 * 13 - line_time
+                };
+                let column = (time * self.x) / low;
+
+                let index = line * self.x + column;
+                Some(index)
+            } else {None}
+        }
+
+        fn spim_frame(&self, data: u32) -> Option<u32> {
+            if let Some(line_time) = self.line_time {
+                let frame = self.counter / self.y;
+                Some(frame)
+            } else {None}
         }
     }
 
     pub fn get_channel_timelist<V>(mut data: V) 
         where V: Read
         {
-            let mut list = IsiList{data: Vec::new(), counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
+            let mut list = IsiList{data: Vec::new(), x: 256, y: 256, pixel_time: 16667, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
                 if size == 0 {println!("Finished Reading."); break;}
                 buffer.chunks_exact(4).for_each( |x| {
                     let channel = (as_int(x)[0] & 0xFC000000) >> 27;
                     let time = (as_int(x)[0] & 0x3FFFFFFF);
-                    if channel == 16 {list.increase_counter(time)};
-                    //println!("{:?} and {:?}", channel, time);
+                    
+                    if channel == 16 {
+                        list.increase_counter(time);
+                    } else if channel == 24 {
+                    } else {
+
+                    };
+                
                 })
             }
             println!("{:?} and {:?} and {} and {} and {:?}", list.start_time, list.line_time, list.counter, list.overflow, list.last_time);
