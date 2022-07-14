@@ -715,7 +715,14 @@ pub mod isi_box {
         }
 
         fn get_abs_time(&self, data: u32) -> u64 {
-            self.overflow as u64 * 67108864 + data as u64
+            //If data is smaller than the last line, we must add an overflow to the absolute time. However the
+            //self.overflow is not controlled here, but only by the scan lines.
+            if (data > self.last_time) {
+                self.overflow as u64 * 67108864 + data as u64
+            } else {
+                (self.overflow+1) as u64 * 67108864 + data as u64
+            }
+            //self.overflow as u64 * 67108864 + data as u64
             //let time2 = (self.counter-1) as u64 * self.line_time.unwrap() as u64 + self.start_time.unwrap() as u64;
         }
 
@@ -747,7 +754,7 @@ pub mod isi_box {
         }
 
         fn add_event(&mut self, channel: u32, data: u32) {
-            if let (Some(spim_index), Some(spim_frame)) = (self.spim_index(channel, data), self.spim_frame()) {
+            if let (Some(spim_index), Some(spim_frame), Some(_)) = (self.spim_index(channel, data), self.spim_frame(), self.line_time) {
                 self.data.push((self.get_abs_time(data), channel, spim_index, spim_frame));
             };
         }
@@ -760,6 +767,26 @@ pub mod isi_box {
                 .create(true)
                 .open("isi_si_complete.txt").expect("Could not output time histogram.");
             tfile.write_all(as_bytes(&spim_vec)).expect("Could not write time to file.");
+        }
+
+        fn search_coincidence(&self, ch1: u32, ch2: u32) {
+            let mut iter1 = self.data.iter().filter(|(time, channel, spim_index, spim_frame)| *channel == ch1);
+            let mut iter2 = self.data.iter().filter(|(time, channel, spim_index, spim_frame)| *channel == ch2);
+            //iter2.next();
+            //let iter1 = iter1.step_by(2);
+            //let iter2 = iter2.step_by(2);
+            let mut iter3 = iter1.zip(iter2);
+            println!("{:?}", iter3.next());
+            println!("{:?}", iter3.next());
+            println!("{:?}", iter3.next());
+            println!("{:?}", iter3.next());
+            println!("{:?}", iter3.next());
+            println!("{:?}", iter3.next());
+            println!("{:?}", iter3.next());
+            println!("{:?}", iter3.next());
+            println!("{:?}", iter3.next());
+            println!("{:?}", iter3.next());
+            println!("{:?}", iter3.next());
         }
     }
 
@@ -791,6 +818,7 @@ pub mod isi_box {
                 })
             }
             list.output_spim();
+            list.search_coincidence(0, 2);
             println!("{:?} and {:?} and {} and {} and {:?}", list.start_time, list.line_time, list.counter, list.overflow, list.last_time);
         }
 }
