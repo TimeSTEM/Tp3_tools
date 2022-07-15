@@ -49,17 +49,21 @@ pub mod cluster {
         pub fn add_electron(&mut self, electron: SingleElectron) {
             self.data.push(electron);
         }
+        
         fn remove_clusters(&mut self) {
+            
             let mut nelist: Vec<SingleElectron> = Vec::new();
-
             let mut last: SingleElectron = self.first_value();
             let mut cluster_vec: Vec<SingleElectron> = Vec::new();
+            
             for x in self.values() {
                     //if x.cluster_size() == 1 {
                         if x.is_new_cluster(&last) {
-                            let new_from_cluster = SingleElectron::new_from_cluster(&cluster_vec);
-                            nelist.push(new_from_cluster);
-                            cluster_vec = Vec::new();
+                            if let Some(new_from_cluster) = SingleElectron::new_from_cluster_fixed_tot(&cluster_vec) {
+                            //if let Some(new_from_cluster) = SingleElectron::new_from_cluster(&cluster_vec) {
+                                nelist.push(new_from_cluster);
+                            }
+                            cluster_vec.clear();
                         }
                         last = *x;
                         cluster_vec.push(*x);
@@ -275,10 +279,58 @@ pub mod cluster {
                 false
             }
         }
+        
+        fn new_from_cluster_fixed_tot(cluster: &[SingleElectron]) -> Option<SingleElectron> {
+            let tot_initial = 40;
+            let tot_final = 45;
 
-        fn new_from_cluster(cluster: &[SingleElectron]) -> SingleElectron {
-            let cluster_size = cluster.len();
+            let cluster_size = cluster.iter().
+                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
+                count();
+
+            if cluster_size == 0 {return None};
+
+            let t_mean:TIME = cluster.iter().
+                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
+                map(|se| se.time()).sum::<TIME>() / cluster_size as TIME;
             
+            let x_mean:POSITION = cluster.iter().
+                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
+                map(|se| se.x()).
+                sum::<POSITION>() / cluster_size as POSITION;
+            
+            let y_mean:POSITION = cluster.iter().
+                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
+                map(|se| se.y()).
+                sum::<POSITION>() / cluster_size as POSITION;
+            
+            let time_dif: TIME = cluster.iter().
+                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
+                map(|se| se.frame_dt()).
+                next().
+                unwrap();
+            
+            let slice: COUNTER = cluster.iter().
+                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
+                map(|se| se.spim_slice()).
+                next().
+                unwrap();
+            
+            let tot_sum: u16 = cluster.iter().
+                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
+                map(|se| se.tot() as usize).
+                sum::<usize>() as u16;
+
+            let cluster_size: usize = cluster_size;
+
+            Some(SingleElectron {
+                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
+            })
+        }
+
+
+        fn new_from_cluster(cluster: &[SingleElectron]) -> Option<SingleElectron> {
+            let cluster_size = cluster.len();
 
             let t_mean:TIME = cluster.iter().map(|se| se.time()).sum::<TIME>() / cluster_size as TIME;
             let x_mean:POSITION = cluster.iter().map(|se| se.x()).sum::<POSITION>() / cluster_size as POSITION;
@@ -288,9 +340,9 @@ pub mod cluster {
             let tot_sum: u16 = cluster.iter().map(|se| se.tot() as usize).sum::<usize>() as u16;
             let cluster_size: usize = cluster_size;
 
-            SingleElectron {
+            Some(SingleElectron {
                 data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
-            }
+            })
         }
 
         pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {

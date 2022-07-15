@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     coinc_data.output_dispersive();
     coinc_data.output_non_dispersive();
     coinc_data.output_spim_index();
-    coinc_data.output_tot(false);
+    coinc_data.output_tot();
 
     Ok(())
 }

@@ -8,13 +8,12 @@ disp = 0.07
 SPIM_PIXELS = 1041
 
 disparray = numpy.linspace(off, disp*SPIM_PIXELS, SPIM_PIXELS)
-t = numpy.loadtxt("tH.txt", delimiter=',')
+t = numpy.fromfile("tH.txt", dtype='int64')
 xT = numpy.loadtxt("spec.txt", delimiter=',')
 x = numpy.loadtxt("cspec.txt", delimiter=',')
-#x = numpy.reshape(x, (256, SPIM_PIXELS))
-#x = numpy.sum(x, axis=0)
-xH = numpy.loadtxt("xH.txt", delimiter=',')
-tot = numpy.loadtxt("tot.txt", delimiter=',')
+xH = numpy.fromfile("xH.txt", dtype='uint32')
+yH = numpy.fromfile("yH.txt", dtype='uint32')
+tot = numpy.fromfile("tot.txt", dtype='uint16')
 #yH = numpy.loadtxt("yH.txt", delimiter=',')
 #indexes = numpy.where(xH<1025)[0]
 #xH = xH[indexes]

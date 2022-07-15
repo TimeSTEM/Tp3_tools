@@ -1,5 +1,6 @@
 pub mod coincidence {
 
+    use std::fs::OpenOptions;
     use crate::spimlib::SPIM_PIXELS;
     use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
@@ -14,6 +15,14 @@ pub mod coincidence {
 
     const TIME_WIDTH: TIME = 40; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
     const TIME_DELAY: TIME = 104; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
+    
+    fn as_bytes<T>(v: &[T]) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u8,
+                v.len() * std::mem::size_of::<T>())
+        }
+    }
 
     pub struct ElectronData {
         time: Vec<TIME>,
@@ -35,7 +44,6 @@ pub mod coincidence {
     impl ElectronData {
         fn add_electron(&mut self, val: SingleElectron) {
             self.spectrum[val.x() as usize] += 1;
-            //self.spectrum[val.image_index() as usize] += 1;
         }
 
         fn add_spim_line(&mut self, pack: &Pack) {
@@ -49,10 +57,10 @@ pub mod coincidence {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
             self.time.push(val.time());
-            self.rel_time.push(val.relative_time_from_abs_tdc(photon_time));
+            self.tot.push(val.tot());
             self.x.push(val.x());
             self.y.push(val.y());
-            self.tot.push(val.tot());
+            self.rel_time.push(val.relative_time_from_abs_tdc(photon_time));
             if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 self.spim_index.push(index);
             }
@@ -80,7 +88,7 @@ pub mod coincidence {
                 let mut index = 0;
                 self.add_electron(*val);
                 for ph in temp_tdc.tdc[min_index..].iter() {
-                    let dt = (ph/6) as i64 - val.time() as i64;
+                    let dt = (ph/6) as i64 - val.time() as i64 - TIME_DELAY as i64;
                     if (dt.abs() as TIME) < TIME_WIDTH {
                         self.add_coincident_electron(*val, *ph);
                         min_index += index/2;
@@ -150,21 +158,33 @@ pub mod coincidence {
         }
 
         pub fn output_relative_time(&self) {
+            let mut tfile = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("tH.txt").expect("Could not output time histogram.");
+            tfile.write_all(as_bytes(&self.rel_time)).expect("Could not write time to file.");
             println!("Outputting relative time under tH name. Vector len is {}", self.rel_time.len());
-            let out: String = self.rel_time.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-            fs::write("tH.txt", out).unwrap();
         }
         
         pub fn output_dispersive(&self) {
+            let mut tfile = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("xH.txt").expect("Could not output X histogram.");
+            tfile.write_all(as_bytes(&self.x)).expect("Could not write time to file.");
             println!("Outputting each dispersive value under xH name. Vector len is {}", self.rel_time.len());
-            let out: String = self.x.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-            fs::write("xH.txt", out).unwrap();
         }
         
         pub fn output_non_dispersive(&self) {
+            let mut tfile = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("yH.txt").expect("Could not output Y histogram.");
+            tfile.write_all(as_bytes(&self.y)).expect("Could not write time to file.");
             println!("Outputting each non-dispersive value under yH name. Vector len is {}", self.rel_time.len());
-            let out: String = self.y.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-            fs::write("yH.txt", out).unwrap();
         }
         
         pub fn output_spim_index(&self) {
@@ -178,18 +198,14 @@ pub mod coincidence {
             fs::write("cs.txt", out).unwrap();
         }
 
-        pub fn output_tot(&self, sum_cluster: bool) {
-            let out: String = match sum_cluster {
-                false => {
-                    self.tot.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
-                },
-                true => {
-                    self.tot.iter().zip(self.cluster_size.iter()).map(|(tot, cs)| (*tot as usize * cs).to_string()).collect::<Vec<String>>().join(", ")
-                },
-            };
-            fs::write("tot.txt", out).unwrap();
+        pub fn output_tot(&self) {
+            let mut tfile = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("tot.txt").expect("Could not output time histogram.");
+            tfile.write_all(as_bytes(&self.tot)).expect("Could not write time to file.");
         }
-
             
     }
 
@@ -207,7 +223,7 @@ pub mod coincidence {
         }
 
         fn add_tdc(&mut self, my_pack: &Pack) {
-            self.tdc.push(my_pack.tdc_time_abs_norm() - TIME_DELAY * 6);
+            self.tdc.push(my_pack.tdc_time_abs_norm());
         }
 
         fn sort(&mut self) {
