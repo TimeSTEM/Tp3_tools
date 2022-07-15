@@ -78,15 +78,11 @@ pub mod cluster {
 
         pub fn correct_electron_time(&mut self, overflow: COUNTER) -> bool {
             if self.check_if_overflow() {
-                let first = self.data.get(0);
-                let last = self.data.iter().last();
                 let overflow_index = self.data.iter().
                     enumerate().
                     min_by_key(|x| x.1.time()).unwrap().0;
-                println!("{:?} and {:?} and {:?}", overflow_index, first, last);
                 self.data[0..overflow_index].iter_mut().for_each(|se| se.correct_time_overflow(overflow));
                 self.data[overflow_index..].iter_mut().for_each(|se| se.correct_time_overflow(overflow+1));
-                println!("{:?}", self.data.get(0..20));
                 true
             } else {
                 self.data.iter_mut().for_each(|se| se.correct_time_overflow(overflow));

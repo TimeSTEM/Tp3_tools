@@ -65,18 +65,9 @@ pub mod coincidence {
             let nphotons = temp_tdc.tdc.len();
             println!("Supplementary events: {}.", nphotons);
             
-
-            let first = temp_edata.electron.values().next();
-            let last = temp_edata.electron.values().last();
-            println!("before: {:?} and {:?}", first, last);
-            
-            temp_edata.electron.correct_electron_time(self.overflow_electrons);
-            //if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
+            if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
             temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, self.remove_clusters);
-            let first = temp_edata.electron.values().next();
-            let last = temp_edata.electron.values().last();
-            println!("after: {:?} and {:?}", first, last);
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
