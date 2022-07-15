@@ -64,6 +64,12 @@ pub mod coincidence {
             temp_tdc.sort();
             let nphotons = temp_tdc.tdc.len();
             println!("Supplementary events: {}.", nphotons);
+
+            //if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
+            //if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1};
+            //let first = temp_edata.electron.values().next();
+            //let last = temp_edata.electron.values().last();
+            //println!("{:?} and {:?}", first, last);
             
             if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
             temp_edata.electron.sort();
@@ -87,6 +93,7 @@ pub mod coincidence {
                     index += 1;
                 }
             }
+
             //*/
 
             /*
@@ -281,7 +288,7 @@ pub mod coincidence {
 
         let mut ci = 0;
         let mut file = fs::File::open(file)?;
-        let mut buffer: Vec<u8> = vec![0; 1_024_000_000];
+        let mut buffer: Vec<u8> = vec![0; 512_000_000];
         let mut total_size = 0;
         let start = Instant::now();
         
