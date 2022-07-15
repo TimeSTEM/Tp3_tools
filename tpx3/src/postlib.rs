@@ -71,12 +71,32 @@ pub mod coincidence {
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
+            ///*
+            let mut index = 0;
+            let mut min_index = 0;
+            for val in temp_edata.electron.values() {
+                index = 0;
+                self.add_electron(*val);
+                for ph in temp_tdc.tdc[min_index..].iter() {
+                    let dt = (ph/6) as i64 - val.time() as i64;
+                    if (dt.abs() as TIME) < TIME_WIDTH {
+                        self.add_coincident_electron(*val, *ph);
+                        min_index += index/2;
+                    }
+                    if dt > 10_000 {break;}
+                    index += 1;
+                }
+            }
+            //*/
+
+            /*
             for val in temp_edata.electron.values() {
                 self.add_electron(*val);
                 if let Some(pht) = temp_tdc.check(*val) {
                     self.add_coincident_electron(*val, pht);
                 }
             };
+            */
 
             println!("Number of coincident electrons: {:?}. Last photon real time is {:?}. Last relative time is {:?}.", self.x.len(), self.time.iter().last(), self.rel_time.iter().last());
         }
