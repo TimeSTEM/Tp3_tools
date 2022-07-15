@@ -10,12 +10,10 @@ pub mod coincidence {
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use crate::auxiliar::ConfigAcquisition;
     use std::convert::TryInto;
-    use std::cmp;
     use crate::auxiliar::value_types::*;
 
     const TIME_WIDTH: TIME = 40; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
     const TIME_DELAY: TIME = 104; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
-    const MIN_LEN: usize = 25; // Sliding time window size.
 
     pub struct ElectronData {
         time: Vec<TIME>,
@@ -77,11 +75,9 @@ pub mod coincidence {
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
-            ///*
-            let mut index = 0;
             let mut min_index = 0;
             for val in temp_edata.electron.values() {
-                index = 0;
+                let mut index = 0;
                 self.add_electron(*val);
                 for ph in temp_tdc.tdc[min_index..].iter() {
                     let dt = (ph/6) as i64 - val.time() as i64;
@@ -93,17 +89,6 @@ pub mod coincidence {
                     index += 1;
                 }
             }
-
-            //*/
-
-            /*
-            for val in temp_edata.electron.values() {
-                self.add_electron(*val);
-                if let Some(pht) = temp_tdc.check(*val) {
-                    self.add_coincident_electron(*val, pht);
-                }
-            };
-            */
 
             println!("Number of coincident electrons: {:?}. Last photon real time is {:?}. Last relative time is {:?}.", self.x.len(), self.time.iter().last(), self.rel_time.iter().last());
         }
@@ -228,30 +213,6 @@ pub mod coincidence {
         fn sort(&mut self) {
             self.tdc.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         }
-
-        fn check(&mut self, value: SingleElectron) -> Option<TIME> {
-
-            let array_length = self.tdc.len();
-            let max_index = cmp::min(self.min_index + MIN_LEN, array_length);
-            
-            let result = self.tdc[self.min_index..max_index].iter()
-                .enumerate()
-                .find(|(_, x)| (((**x/6) as isize - value.time() as isize).abs() as TIME) < TIME_WIDTH);
-            
-            //Index must be greater than 50% of MIN_LEN, so first photons do not count. Then the
-            //index is increased by half of its value, meaning we still have the beginning of the
-            //list useful.
-            match result {
-                Some((index, pht_value)) => {
-                    //if index > MIN_LEN/10 && (max_index - self.min_index) >= MIN_LEN {
-                    if index > MIN_LEN/2 {
-                       self.min_index += index/2;
-                    }
-                    Some(*pht_value)
-                },
-                None => None,
-            }
-        }
     }
 
     pub struct TempElectronData {
@@ -331,8 +292,6 @@ pub mod coincidence {
 
 pub mod ntime_resolved {
     use std::fs::OpenOptions;
-    use crate::spimlib::SPIM_PIXELS;
-    use crate::spimlib;
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
@@ -399,7 +358,7 @@ pub mod ntime_resolved {
             };
         }
         
-        fn add_extra_tdc(&mut self, packet: &Pack) {
+        fn add_extra_tdc(&mut self, _packet: &Pack) {
             //self.spectra.push(SPIM_PIXELS);
             //spimlib::get_spimindex(, dt: TIME, spim_tdc: &PeriodicTdcRef, self.spimx, self.spimy;
         }

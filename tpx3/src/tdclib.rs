@@ -476,15 +476,6 @@ pub mod isi_box {
 
     pub const CHANNELS: usize = 17;
     
-    fn transform_by_channel(v: &[u8], channel: u32) {
-        unsafe {
-            let temp_slice = std::slice::from_raw_parts_mut(
-                v.as_ptr() as *mut u32,
-                (v.len() * std::mem::size_of::<u8>()) / std::mem::size_of::<u32>());
-            temp_slice.iter_mut().for_each(|x| *x = (*x * SPIM_PIXELS as u32) + 1025 + channel);
-        }
-    }
-
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
             std::slice::from_raw_parts(
@@ -675,7 +666,7 @@ pub mod isi_box {
     }
 
     struct IsiListVec(Vec<(u64, u32, u32, u32)>);
-    struct IsiListVec_g2(Vec<(i64, u32, u32, u32)>);
+    struct IsiListVecg2(Vec<(i64, u32, u32, u32)>);
     
     struct IsiList {
         //data: Vec<(u64, u32, u32, u32)>, //Time, channel, spim index, spim frame
@@ -700,7 +691,7 @@ pub mod isi_box {
 
             //This happens at the second loop. There is no start_time in the first interaction.
             if let (Some(start_time), None) = (self.start_time, self.line_time) {
-                let val = if (data > start_time) {
+                let val = if data > start_time {
                     data - start_time
                 } else {
                     start_time + 67108864 - data
@@ -722,7 +713,7 @@ pub mod isi_box {
         fn get_abs_time(&self, data: u32) -> u64 {
             //If data is smaller than the last line, we must add an overflow to the absolute time. However the
             //self.overflow is not controlled here, but only by the scan lines.
-            if (data > self.last_time) {
+            if data > self.last_time {
                 self.overflow as u64 * 67108864 + data as u64
             } else {
                 (self.overflow+1) as u64 * 67108864 + data as u64
@@ -731,19 +722,19 @@ pub mod isi_box {
             //let time2 = (self.counter-1) as u64 * self.line_time.unwrap() as u64 + self.start_time.unwrap() as u64;
         }
 
-        fn spim_index(&self, channel: u32, data: u32) -> Option<u32> {
+        fn spim_index(&self, data: u32) -> Option<u32> {
             if let Some(_) = self.line_time {
 
                 let line = self.counter % self.y;
                 let low = self.get_line_low();
 
-                let time = if (data > VIDEO_TIME as u32 * 13 + self.last_time) {
+                let time = if data > VIDEO_TIME as u32 * 13 + self.last_time {
                     data - VIDEO_TIME as u32 * 13 - self.last_time
                 } else {
                     data + 67108864 - VIDEO_TIME as u32 * 13 - self.last_time
                 };
 
-                if (time > low) {return None;}
+                if time > low {return None;}
                 let column = ((time as u64 * self.x as u64) / low as u64) as u32;
 
                 let index = line * self.x + column;
@@ -752,20 +743,20 @@ pub mod isi_box {
         }
 
         fn spim_frame(&self) -> Option<u32> {
-            if let Some(line_time) = self.line_time {
+            if let Some(_) = self.line_time {
                 let frame = self.counter / self.y;
                 Some(frame)
             } else {None}
         }
 
         fn add_event(&mut self, channel: u32, data: u32) {
-            if let (Some(spim_index), Some(spim_frame), Some(_)) = (self.spim_index(channel, data), self.spim_frame(), self.line_time) {
+            if let (Some(spim_index), Some(spim_frame), Some(_)) = (self.spim_index(data), self.spim_frame(), self.line_time) {
                 self.data.0.push((self.get_abs_time(data), channel, spim_index, spim_frame));
             };
         }
 
         fn output_spim(&self) {
-            let spim_vec = self.data.0.iter().map(|(time, channel, spim_index, spim_frame)| *spim_index * CHANNELS as u32 + channel).collect::<Vec<u32>>();
+            let spim_vec = self.data.0.iter().map(|(_time, channel, spim_index, _spim_frame)| *spim_index * CHANNELS as u32 + channel).collect::<Vec<u32>>();
             let mut tfile = OpenOptions::new()
                 .write(true)
                 .truncate(true)
@@ -775,24 +766,23 @@ pub mod isi_box {
         }
 
         fn search_coincidence(&self, ch1: u32, ch2: u32) {
-            let iter1 = self.data.0.iter().filter(|(time, channel, spim_index, spim_frame)| *channel == ch1);
-            let size = self.data.0.iter().filter(|(time, channel, spim_index, spim_frame)| *channel == ch1).count();
-            let vec2 = self.data.0.iter().filter(|(time, channel, spim_index, spim_frame)| *channel == ch2).cloned().collect::<Vec<_>>();
+            let iter1 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame)| *channel == ch1);
+            let size = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame)| *channel == ch1).count();
+            let vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame)| *channel == ch2).cloned().collect::<Vec<_>>();
             let mut count = 0;
             let mut min_index = 0;
-            let mut index = 0;
 
-            let mut new_list = IsiListVec_g2(Vec::new());
+            let mut new_list = IsiListVecg2(Vec::new());
             
             for val1 in iter1 {
-                index = 0;
+                let mut index = 0;
                 if count % 20000 == 0 {
                     println!("Complete: {}%.", count*100/size);
                 }
                 count+=1;
                 for val2 in &vec2[min_index..] {
                     let dt = val2.0 as i64 - val1.0 as i64;
-                    if (dt.abs() < 500) {
+                    if dt.abs() < 500 {
                         new_list.0.push((dt, val2.1, val2.2, val2.3));
                         min_index += index / 2;
                     }
@@ -801,8 +791,8 @@ pub mod isi_box {
                 }
             }
             
-            let dt_vec = new_list.0.iter().map(|(dtime, channel, spim_index, spim_frame)| *dtime).collect::<Vec<i64>>();
-            let spim_index_vec = new_list.0.iter().map(|(dtime, channel, spim_index, spim_frame)| *spim_index).collect::<Vec<u32>>();
+            let dt_vec = new_list.0.iter().map(|(dtime, _channel, _spim_index, _spim_frame)| *dtime).collect::<Vec<i64>>();
+            let spim_index_vec = new_list.0.iter().map(|(_dtime, _channel, spim_index, _spim_frame)| *spim_index).collect::<Vec<u32>>();
 
             let mut tfile = OpenOptions::new()
                 .write(true)
@@ -831,7 +821,7 @@ pub mod isi_box {
                 if size == 0 {println!("Finished Reading."); break;}
                 buffer.chunks_exact(4).for_each( |x| {
                     let channel = (as_int(x)[0] & 0xFC000000) >> 27;
-                    let time = (as_int(x)[0] & 0x03FFFFFF);
+                    let time = as_int(x)[0] & 0x03FFFFFF;
                     
                     if channel == 16 {
                         list.increase_counter(time);
