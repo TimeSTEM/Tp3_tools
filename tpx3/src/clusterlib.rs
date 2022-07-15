@@ -2,7 +2,7 @@
 
 pub mod cluster {
     use crate::spimlib::{SPIM_PIXELS, VIDEO_TIME};
-    use crate::packetlib::Packet;
+    use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::spimlib;
     use crate::tdclib::PeriodicTdcRef;
     use std::fs::OpenOptions;
@@ -70,12 +70,36 @@ pub mod cluster {
             self.data = nelist;
         }
 
-        fn sort(&mut self) {
+        pub fn check_if_overflow(&self) -> bool {
+            let first = self.data.get(0).expect("No first value detected.");
+            let last = self.data.iter().last().expect("No last value detected.");
+            first.time() > last.time()
+        }
+
+        pub fn correct_electron_time(&mut self, overflow: COUNTER) -> bool {
+            if self.check_if_overflow() {
+                let first = self.data.get(0);
+                let last = self.data.iter().last();
+                let overflow_index = self.data.iter().
+                    enumerate().
+                    min_by_key(|x| x.1.time()).unwrap().0;
+                println!("{:?} and {:?} and {:?}", overflow_index, first, last);
+                self.data[0..overflow_index].iter_mut().for_each(|se| se.correct_time_overflow(overflow));
+                self.data[overflow_index..].iter_mut().for_each(|se| se.correct_time_overflow(overflow+1));
+                println!("{:?}", self.data.get(0..20));
+                true
+            } else {
+                self.data.iter_mut().for_each(|se| se.correct_time_overflow(overflow));
+                false
+            }
+        }
+
+        pub fn sort(&mut self) {
             self.data.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
         }
 
         fn clean(&mut self) {
-            self.sort();
+            //self.sort();
             self.remove_clusters();
             //for _x in 0..2 {
             //    self.remove_clusters();
@@ -92,6 +116,10 @@ pub mod cluster {
             }
             !remove
         }
+        
+        pub fn clear(&mut self) {
+            self.data.clear();
+        }
 
         pub fn output_data(&self, filename: String, slice: COUNTER) {
             let mut tfile = OpenOptions::new()
@@ -104,10 +132,6 @@ pub mod cluster {
                 let out_str: String = out.join("");
                 tfile.write_all(out_str.as_ref()).expect("Could not write time to file.");
             }
-        }
-
-        pub fn clear(&mut self) {
-            self.data.clear();
         }
 
         /*
@@ -214,6 +238,9 @@ pub mod cluster {
             }
         }
 
+        pub fn correct_time_overflow(&mut self, overflow: COUNTER) {
+            self.data.0 += overflow as TIME * Pack::electron_overflow();
+        }
         pub fn x(&self) -> POSITION {
             self.data.1
         }
@@ -235,8 +262,8 @@ pub mod cluster {
         pub fn relative_time(&self, reference_time: TIME) -> isize {
             self.data.0 as isize - reference_time as isize
         }
-        pub fn relative_time_from_abs_tdc(&self, reference_time: TIME) -> isize {
-            (self.data.0*6) as isize - reference_time as isize
+        pub fn relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
+            (self.data.0*6) as i64 - reference_time as i64
         }
         pub fn spim_slice(&self) -> COUNTER {
             self.data.4

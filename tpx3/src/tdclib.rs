@@ -746,7 +746,7 @@ pub mod isi_box {
                 if (time > low) {return None;}
                 let column = ((time as u64 * self.x as u64) / low as u64) as u32;
 
-                let index = (line * self.x + column) * CHANNELS as u32 + channel;
+                let index = line * self.x + column;
                 Some(index)
             } else {None}
         }
@@ -765,7 +765,7 @@ pub mod isi_box {
         }
 
         fn output_spim(&self) {
-            let spim_vec = self.data.0.iter().map(|(time, channel, spim_index, spim_frame)| *spim_index).collect::<Vec<u32>>();
+            let spim_vec = self.data.0.iter().map(|(time, channel, spim_index, spim_frame)| *spim_index * CHANNELS as u32 + channel).collect::<Vec<u32>>();
             let mut tfile = OpenOptions::new()
                 .write(true)
                 .truncate(true)
@@ -802,12 +802,21 @@ pub mod isi_box {
             }
             
             let dt_vec = new_list.0.iter().map(|(dtime, channel, spim_index, spim_frame)| *dtime).collect::<Vec<i64>>();
+            let spim_index_vec = new_list.0.iter().map(|(dtime, channel, spim_index, spim_frame)| *spim_index).collect::<Vec<u32>>();
+
             let mut tfile = OpenOptions::new()
                 .write(true)
                 .truncate(true)
                 .create(true)
-                .open("isi_g2.txt").expect("Could not output time histogram.");
+                .open("bin/isi_g2.txt").expect("Could not output time histogram.");
             tfile.write_all(as_bytes(&dt_vec)).expect("Could not write time to file.");
+            
+            let mut tfile = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("bin/isi_g2_index.txt").expect("Could not output time histogram.");
+            tfile.write_all(as_bytes(&spim_index_vec)).expect("Could not write time to file.");
 
         }
     }
@@ -815,7 +824,7 @@ pub mod isi_box {
     pub fn get_channel_timelist<V>(mut data: V) 
         where V: Read
         {
-            let zlp = Normal::new(0.0, 50.0).unwrap();
+            let zlp = Normal::new(100.0, 25.0).unwrap();
             let mut list = IsiList{data: IsiListVec(Vec::new()), x: 256, y: 256, pixel_time: 16667, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
@@ -831,7 +840,7 @@ pub mod isi_box {
                         list.add_event(channel, time);
                         let val = zlp.sample(&mut thread_rng());
                         let val_pos = (val as i32).abs() as u32;
-                        if val as i32 > 0 {
+                        if val as i32 >= 0 {
                             list.add_event(0, time+val_pos);
                         } else {
                             if time>val_pos {

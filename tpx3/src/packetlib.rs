@@ -137,12 +137,11 @@ pub trait Packet {
         let fine = self.tdc_fine();
         let time = coarse * 12 + fine;
         time - (time / (103_079_215_104)) * 103_079_215_104
-
     }
 
     #[inline]
-    fn electron_reset_time() -> TIME {
-        26_843_545_600 * 16 / 25
+    fn electron_overflow() -> TIME {
+        17_179_869_184
     }
 }
 

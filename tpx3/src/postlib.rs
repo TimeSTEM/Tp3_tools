@@ -18,19 +18,20 @@ pub mod coincidence {
     const MIN_LEN: usize = 25; // Sliding time window size.
 
     pub struct ElectronData {
-        pub time: Vec<TIME>,
-        pub rel_time: Vec<isize>,
-        pub x: Vec<POSITION>,
-        pub y: Vec<POSITION>,
-        pub tot: Vec<u16>,
-        pub cluster_size: Vec<usize>,
-        pub spectrum: Vec<usize>,
-        pub corr_spectrum: Vec<usize>,
-        pub is_spim: bool,
-        pub spim_size: (POSITION, POSITION),
-        pub spim_index: Vec<POSITION>,
-        pub spim_tdc: Option<PeriodicTdcRef>,
+        time: Vec<TIME>,
+        rel_time: Vec<i64>,
+        x: Vec<POSITION>,
+        y: Vec<POSITION>,
+        tot: Vec<u16>,
+        cluster_size: Vec<usize>,
+        spectrum: Vec<usize>,
+        corr_spectrum: Vec<usize>,
+        is_spim: bool,
+        spim_size: (POSITION, POSITION),
+        spim_index: Vec<POSITION>,
+        spim_tdc: Option<PeriodicTdcRef>,
         remove_clusters: bool,
+        overflow_electrons: COUNTER,
     }
 
     impl ElectronData {
@@ -64,7 +65,18 @@ pub mod coincidence {
             let nphotons = temp_tdc.tdc.len();
             println!("Supplementary events: {}.", nphotons);
             
+
+            let first = temp_edata.electron.values().next();
+            let last = temp_edata.electron.values().last();
+            println!("before: {:?} and {:?}", first, last);
+            
+            temp_edata.electron.correct_electron_time(self.overflow_electrons);
+            //if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
+            temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, self.remove_clusters);
+            let first = temp_edata.electron.values().next();
+            let last = temp_edata.electron.values().last();
+            println!("after: {:?} and {:?}", first, last);
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
@@ -98,6 +110,7 @@ pub mod coincidence {
                 spim_index: Vec::new(),
                 spim_tdc: None,
                 remove_clusters: my_config.remove_cluster,
+                overflow_electrons: 0,
             }
         }
         
