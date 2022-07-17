@@ -59,8 +59,8 @@ pub mod cluster {
             for x in self.values() {
                     //if x.cluster_size() == 1 {
                         if x.is_new_cluster(&last) {
-                            if let Some(new_from_cluster) = SingleElectron::new_from_cluster_fixed_tot(&cluster_vec) {
-                            //if let Some(new_from_cluster) = SingleElectron::new_from_cluster(&cluster_vec) {
+                            //if let Some(new_from_cluster) = SingleElectron::new_from_cluster_fixed_tot(&cluster_vec, 40) {
+                            if let Some(new_from_cluster) = SingleElectron::new_from_cluster(&cluster_vec) {
                                 nelist.push(new_from_cluster);
                             }
                             cluster_vec.clear();
@@ -280,44 +280,43 @@ pub mod cluster {
             }
         }
         
-        fn new_from_cluster_fixed_tot(cluster: &[SingleElectron]) -> Option<SingleElectron> {
-            let tot_initial = 40;
-            let tot_final = 45;
+        fn new_from_cluster_fixed_tot(cluster: &[SingleElectron], tot_threshold: u16) -> Option<SingleElectron> {
 
             let cluster_size = cluster.iter().
-                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
+                count();
+            
+            let cluster_filter_size = cluster.iter().
+                filter(|se| se.tot() > tot_threshold).
                 count();
 
-            if cluster_size == 0 {return None};
+            if cluster_filter_size == 0 {return None};
 
             let t_mean:TIME = cluster.iter().
-                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
-                map(|se| se.time()).sum::<TIME>() / cluster_size as TIME;
+                filter(|se| se.tot() > tot_threshold).
+                map(|se| se.time()).sum::<TIME>() / cluster_filter_size as TIME;
             
             let x_mean:POSITION = cluster.iter().
-                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
                 map(|se| se.x()).
                 sum::<POSITION>() / cluster_size as POSITION;
             
             let y_mean:POSITION = cluster.iter().
-                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
                 map(|se| se.y()).
                 sum::<POSITION>() / cluster_size as POSITION;
             
             let time_dif: TIME = cluster.iter().
-                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
+                filter(|se| se.tot() > tot_threshold).
                 map(|se| se.frame_dt()).
                 next().
                 unwrap();
             
             let slice: COUNTER = cluster.iter().
-                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
+                filter(|se| se.tot() > tot_threshold).
                 map(|se| se.spim_slice()).
                 next().
                 unwrap();
             
             let tot_sum: u16 = cluster.iter().
-                filter(|se| se.tot() > tot_initial && se.tot() < tot_final).
+                filter(|se| se.tot() > tot_threshold).
                 map(|se| se.tot() as usize).
                 sum::<usize>() as u16;
 

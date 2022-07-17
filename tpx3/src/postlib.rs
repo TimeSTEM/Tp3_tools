@@ -93,7 +93,7 @@ pub mod coincidence {
                         self.add_coincident_electron(*val, *ph);
                         min_index += index/2;
                     }
-                    if dt > 10_000 {break;}
+                    if dt > 100_000 {break;}
                     index += 1;
                 }
             }
