@@ -61,6 +61,7 @@ pub mod cluster {
                         if x.is_new_cluster(&last) {
                             //if let Some(new_from_cluster) = SingleElectron::new_from_cluster_fixed_tot(&cluster_vec, 40) {
                             if let Some(new_from_cluster) = SingleElectron::new_from_cluster(&cluster_vec) {
+                            //if let Some(new_from_cluster) = SingleElectron::new_from_cluster_max_tot(&cluster_vec) {
                                 nelist.push(new_from_cluster);
                             }
                             cluster_vec.clear();
@@ -278,6 +279,45 @@ pub mod cluster {
             } else {
                 false
             }
+        }
+        
+        fn new_from_cluster_max_tot(cluster: &[SingleElectron]) -> Option<SingleElectron> {
+
+            let cluster_size = cluster.iter().
+                count();
+            
+            let t_mean:TIME = cluster.iter().
+                reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
+                map(|se| se.time()).
+                unwrap();
+            
+            let x_mean:POSITION = cluster.iter().
+                map(|se| se.x()).
+                sum::<POSITION>() / cluster_size as POSITION;
+            
+            let y_mean:POSITION = cluster.iter().
+                map(|se| se.y()).
+                sum::<POSITION>() / cluster_size as POSITION;
+            
+            let time_dif: TIME = cluster.iter().
+                map(|se| se.frame_dt()).
+                next().
+                unwrap();
+            
+            let slice: COUNTER = cluster.iter().
+                map(|se| se.spim_slice()).
+                next().
+                unwrap();
+            
+            let tot_sum: u16 = cluster.iter().
+                map(|se| se.tot() as usize).
+                sum::<usize>() as u16;
+
+            let cluster_size: usize = cluster_size;
+
+            Some(SingleElectron {
+                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
+            })
         }
         
         fn new_from_cluster_fixed_tot(cluster: &[SingleElectron], tot_threshold: u16) -> Option<SingleElectron> {
