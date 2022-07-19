@@ -8,10 +8,10 @@ use std::{thread, time};
 use std::fs::File;
 
 fn main() {
-    //let f = File::open("isi_raw205.isi").unwrap();
-    //isi_box::get_channel_timelist(f);
-    //
+    let f = File::open("isi_raw28.isi").unwrap();
+    isi_box::get_channel_timelist(f);
     
+    /*
     let args: Vec<String> = env::args().collect();
     let config_set = ConfigAcquisition::new(&args);
     let mut coinc_data = ElectronData::new(&config_set);
@@ -24,7 +24,7 @@ fn main() {
     coinc_data.output_non_dispersive();
     coinc_data.output_spim_index();
     coinc_data.output_tot();
-    
+    */
 
 
     /*
