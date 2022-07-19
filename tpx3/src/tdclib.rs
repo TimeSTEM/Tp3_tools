@@ -465,9 +465,9 @@ impl TdcControl for NonPeriodicTdcRef {
 }
 
 pub mod isi_box {
-    use rand_distr::{Normal, Distribution};
-    use rand::{thread_rng};
-    use std::fs::OpenOptions;
+    //use rand_distr::{Normal, Distribution};
+    //use rand::{thread_rng};
+    //use std::fs::OpenOptions;
     use std::net::TcpStream;
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
@@ -665,10 +665,11 @@ pub mod isi_box {
         }
     }
 
+    /*
     struct IsiListVec(Vec<(u64, u32, u32, u32)>);
     struct IsiListVecg2(Vec<(i64, u32, u32, u32)>);
     
-    struct IsiList {
+    pub struct IsiList {
         //data: Vec<(u64, u32, u32, u32)>, //Time, channel, spim index, spim frame
         data: IsiListVec, //Time, channel, spim index, spim frame
         x: u32,
@@ -755,6 +756,10 @@ pub mod isi_box {
             };
         }
 
+        pub fn get_timelist(&self) -> Vec<u64> {
+            self.data.0.iter().map(|(time, channel, spim_index, spim_frame)| *time).collect::<Vec<u64>>()
+        }
+
         fn output_spim(&self) {
             let spim_vec = self.data.0.iter().map(|(_time, channel, spim_index, _spim_frame)| *spim_index * CHANNELS as u32 + channel).collect::<Vec<u32>>();
             let mut tfile = OpenOptions::new()
@@ -798,24 +803,24 @@ pub mod isi_box {
                 .write(true)
                 .truncate(true)
                 .create(true)
-                .open("bin/isi_g2.txt").expect("Could not output time histogram.");
+                .open("isi_g2.txt").expect("Could not output time histogram.");
             tfile.write_all(as_bytes(&dt_vec)).expect("Could not write time to file.");
             
             let mut tfile = OpenOptions::new()
                 .write(true)
                 .truncate(true)
                 .create(true)
-                .open("bin/isi_g2_index.txt").expect("Could not output time histogram.");
+                .open("isi_g2_index.txt").expect("Could not output time histogram.");
             tfile.write_all(as_bytes(&spim_index_vec)).expect("Could not write time to file.");
 
         }
     }
 
-    pub fn get_channel_timelist<V>(mut data: V) 
+    pub fn get_channel_timelist<V>(mut data: V) -> IsiList 
         where V: Read
         {
-            let zlp = Normal::new(100.0, 25.0).unwrap();
-            let mut list = IsiList{data: IsiListVec(Vec::new()), x: 256, y: 256, pixel_time: 16667, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
+            //let zlp = Normal::new(100.0, 25.0).unwrap();
+            let mut list = IsiList{data: IsiListVec(Vec::new()), x: 256, y: 256, pixel_time: 66667, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
                 if size == 0 {println!("Finished Reading."); break;}
@@ -828,15 +833,15 @@ pub mod isi_box {
                     } else if channel == 24 {
                     } else {
                         list.add_event(channel, time);
-                        let val = zlp.sample(&mut thread_rng());
-                        let val_pos = (val as i32).abs() as u32;
-                        if val as i32 >= 0 {
-                            list.add_event(0, time+val_pos);
-                        } else {
-                            if time>val_pos {
-                                list.add_event(0, time-val_pos);
-                            }
-                        }
+                        //let val = zlp.sample(&mut thread_rng());
+                        //let val_pos = (val as i32).abs() as u32;
+                        //if val as i32 >= 0 {
+                        //    list.add_event(0, time+val_pos);
+                        //} else {
+                        //    if time>val_pos {
+                        //        list.add_event(0, time-val_pos);
+                        //    }
+                        //}
                     };
                 
                 })
@@ -844,5 +849,7 @@ pub mod isi_box {
             list.output_spim();
             list.search_coincidence(0, 2);
             println!("{:?} and {:?} and {} and {} and {:?}", list.start_time, list.line_time, list.counter, list.overflow, list.last_time);
+            list
         }
+    */
 }

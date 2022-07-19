@@ -1,9 +1,15 @@
+
+
+
+
+
 pub mod coincidence {
 
     use std::fs::OpenOptions;
     use crate::spimlib::SPIM_PIXELS;
     use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
+    use crate::postlib::isi_box;
     use std::io;
     use std::io::prelude::*;
     use std::fs;
@@ -66,7 +72,7 @@ pub mod coincidence {
             }
         }
         
-        fn add_events(&mut self, mut temp_edata: TempElectronData, mut temp_tdc: TempTdcData) {
+        fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME) {
             temp_tdc.sort();
             let nphotons = temp_tdc.tdc.len();
             println!("Supplementary events: {}.", nphotons);
@@ -88,8 +94,8 @@ pub mod coincidence {
                 let mut index = 0;
                 self.add_electron(*val);
                 for ph in temp_tdc.tdc[min_index..].iter() {
-                    let dt = (ph/6) as i64 - val.time() as i64 - TIME_DELAY as i64;
-                    if (dt.abs() as TIME) < TIME_WIDTH {
+                    let dt = (ph/6) as i64 - val.time() as i64 - time_delay as i64;
+                    if (dt.abs() as TIME) < time_width {
                         self.add_coincident_electron(*val, *ph);
                         min_index += index/2;
                     }
@@ -222,6 +228,14 @@ pub mod coincidence {
             }
         }
 
+        fn new_from_isilist(list: isi_box::IsiList) -> Self {
+            let vec_list = list.get_timelist_with_tp3_tick();
+            Self {
+                tdc: vec_list,
+                min_index: 0,
+            }
+        }
+
         fn add_tdc(&mut self, my_pack: &Pack) {
             self.tdc.push(my_pack.tdc_time_abs_norm());
         }
@@ -297,13 +311,286 @@ pub mod coincidence {
                     },
                 };
             });
-        coinc_data.add_events(temp_edata, temp_tdc);
+        coinc_data.add_events(temp_edata, &mut temp_tdc, 104, 40);
         println!("Time elapsed: {:?}", start.elapsed());
 
         }
         println!("Total number of bytes read {}", total_size);
         Ok(())
     }
+    
+    pub fn search_coincidence_isi(file: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
+    
+        //TP3 configurating TDC Ref
+        let mut file0 = fs::File::open(file)?;
+        let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
+        coinc_data.prepare_spim(spim_tdc);
+        let begin_tp3_time = spim_tdc.begin_frame;
+    
+        //IsiBox loading file
+        let f = fs::File::open("isi_raw205.isi").unwrap();
+        let temp_list = isi_box::get_channel_timelist(f);
+        let begin_isi_time = temp_list.start_time;
+        let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
+
+        println!("{:?} and {:?} and {:?}", begin_tp3_time, (begin_isi_time.unwrap() as TIME * 1200) / 15625, begin_isi_time.unwrap());
+
+        let mut ci = 0;
+        let mut file = fs::File::open(file)?;
+        let mut buffer: Vec<u8> = vec![0; 512_000_000];
+        let mut total_size = 0;
+        let start = Instant::now();
+        
+        while let Ok(size) = file.read(&mut buffer) {
+            if size == 0 {println!("Finished Reading."); break;}
+            total_size += size;
+            println!("MB Read: {}", total_size / 1_000_000 );
+            let mut temp_edata = TempElectronData::new();
+            buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+                match *pack_oct {
+                    [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
+                    _ => {
+                        let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
+                        match packet.id() {
+                            //6 if packet.tdc_type() == np_tdc.id() => {
+                            //    temp_tdc.add_tdc(&packet);
+                            //},
+                            6 if packet.tdc_type() == spim_tdc.id() => {
+                                coinc_data.add_spim_line(&packet);
+                            },
+                            11 => {
+                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc);
+                                temp_edata.electron.add_electron(se);
+                            },
+                            _ => {}, //println!("{}", packet.tdc_type());},
+                        };
+                    },
+                };
+            });
+        //coinc_data.add_events(temp_edata, &mut temp_tdc, begin_tp3_time - (begin_isi_time.unwrap() as TIME * 1200) / 15625, 400);
+        coinc_data.add_events(temp_edata, &mut temp_tdc, 0, 400);
+        println!("Time elapsed: {:?}", start.elapsed());
+        break;
+
+        }
+        println!("Total number of bytes read {}", total_size);
+        Ok(())
+    }
+}
+
+pub mod isi_box {
+    //use rand_distr::{Normal, Distribution};
+    //use rand::{thread_rng};
+    use std::fs::OpenOptions;
+    use std::io::{Read, Write};
+    use crate::spimlib::{VIDEO_TIME};
+    use crate::tdclib::isi_box::CHANNELS;
+    use crate::auxiliar::value_types::*;
+
+    fn as_bytes<T>(v: &[T]) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u8,
+                v.len() * std::mem::size_of::<T>())
+        }
+    }
+    
+    fn as_int(v: &[u8]) -> &[u32] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u32,
+                //v.len() )
+                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
+        }
+    }
+    
+    struct IsiListVec(Vec<(TIME, u32, u32, u32)>);
+    struct IsiListVecg2(Vec<(i64, u32, u32, u32)>);
+    
+    pub struct IsiList {
+        //data: Vec<(u64, u32, u32, u32)>, //Time, channel, spim index, spim frame
+        data: IsiListVec, //Time, channel, spim index, spim frame
+        x: u32,
+        y: u32,
+        pixel_time: u32,
+        pub counter: u32,
+        pub overflow: u32,
+        pub last_time: u32,
+        pub start_time: Option<u32>,
+        pub line_time: Option<u32>,
+    }
+
+
+    impl IsiList {
+        fn increase_counter(&mut self, data: u32) {
+            
+            if data < self.last_time {self.overflow+=1;}
+            self.last_time = data;
+            self.counter += 1;
+
+            //This happens at the second loop. There is no start_time in the first interaction.
+            if let (Some(start_time), None) = (self.start_time, self.line_time) {
+                let val = if data > start_time {
+                    data - start_time
+                } else {
+                    start_time + 67108864 - data
+                };
+                self.line_time = Some(val);
+            }
+
+            //Setting the start_time
+            if let None = self.start_time {
+                println!("Start time is now: {}", data);
+                self.start_time = Some(data);
+            };
+        }
+
+        fn get_line_low(&self) -> u32 {
+            self.x * self.pixel_time
+        }
+
+        fn get_abs_time(&self, data: u32) -> TIME {
+            //If data is smaller than the last line, we must add an overflow to the absolute time. However the
+            //self.overflow is not controlled here, but only by the scan lines.
+            if data > self.last_time {
+                self.overflow as TIME * 67108864 + data as TIME
+            } else { 
+                (self.overflow+1) as TIME * 67108864 + data as TIME
+            }
+            //self.overflow as u64 * 67108864 + data as u64
+            //let time2 = (self.counter-1) as u64 * self.line_time.unwrap() as u64 + self.start_time.unwrap() as u64;
+        }
+
+        fn spim_index(&self, data: u32) -> Option<u32> {
+            if let Some(_) = self.line_time {
+
+                let line = self.counter % self.y;
+                let low = self.get_line_low();
+
+                let time = if data > VIDEO_TIME as u32 * 13 + self.last_time {
+                    data - VIDEO_TIME as u32 * 13 - self.last_time
+                } else {
+                    data + 67108864 - VIDEO_TIME as u32 * 13 - self.last_time
+                };
+
+                if time > low {return None;}
+                let column = ((time as u64 * self.x as u64) / low as u64) as u32;
+
+                let index = line * self.x + column;
+                Some(index)
+            } else {None}
+        }
+
+        fn spim_frame(&self) -> Option<u32> {
+            if let Some(_) = self.line_time {
+                let frame = self.counter / self.y;
+                Some(frame)
+            } else {None}
+        }
+
+        fn add_event(&mut self, channel: u32, data: u32) {
+            if let (Some(spim_index), Some(spim_frame), Some(_)) = (self.spim_index(data), self.spim_frame(), self.line_time) {
+                println!("{} and of: {}", self.get_abs_time(data), self.overflow);
+                self.data.0.push((self.get_abs_time(data), channel, spim_index, spim_frame));
+            };
+        }
+        
+        pub fn get_timelist_with_tp3_tick(&self) -> Vec<TIME> {
+            self.data.0.iter().map(|(time, _channel, _spim_index, _spim_frame)| (*time * 1200) / 15625 + 577797779 - 386661).collect::<Vec<TIME>>()
+        }
+
+        fn output_spim(&self) {
+            let spim_vec = self.data.0.iter().map(|(_time, channel, spim_index, _spim_frame)| *spim_index * CHANNELS as u32 + channel).collect::<Vec<u32>>();
+            let mut tfile = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("isi_si_complete.txt").expect("Could not output time histogram.");
+            tfile.write_all(as_bytes(&spim_vec)).expect("Could not write time to file.");
+        }
+
+        fn search_coincidence(&self, ch1: u32, ch2: u32) {
+            let iter1 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame)| *channel == ch1);
+            let size = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame)| *channel == ch1).count();
+            let vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame)| *channel == ch2).cloned().collect::<Vec<_>>();
+            let mut count = 0;
+            let mut min_index = 0;
+
+            let mut new_list = IsiListVecg2(Vec::new());
+            
+            for val1 in iter1 {
+                let mut index = 0;
+                if count % 20000 == 0 {
+                    println!("Complete: {}%.", count*100/size);
+                }
+                count+=1;
+                for val2 in &vec2[min_index..] {
+                    let dt = val2.0 as i64 - val1.0 as i64;
+                    if dt.abs() < 500 {
+                        new_list.0.push((dt, val2.1, val2.2, val2.3));
+                        min_index += index / 2;
+                    }
+                    if dt > 10000 {break;}
+                    index += 1;
+                }
+            }
+            
+            let dt_vec = new_list.0.iter().map(|(dtime, _channel, _spim_index, _spim_frame)| *dtime).collect::<Vec<i64>>();
+            let spim_index_vec = new_list.0.iter().map(|(_dtime, _channel, spim_index, _spim_frame)| *spim_index).collect::<Vec<u32>>();
+
+            let mut tfile = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("isi_g2.txt").expect("Could not output time histogram.");
+            tfile.write_all(as_bytes(&dt_vec)).expect("Could not write time to file.");
+            
+            let mut tfile = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("isi_g2_index.txt").expect("Could not output time histogram.");
+            tfile.write_all(as_bytes(&spim_index_vec)).expect("Could not write time to file.");
+
+        }
+    }
+
+    pub fn get_channel_timelist<V>(mut data: V) -> IsiList 
+        where V: Read
+        {
+            //let zlp = Normal::new(100.0, 25.0).unwrap();
+            let mut list = IsiList{data: IsiListVec(Vec::new()), x: 256, y: 256, pixel_time: 66667, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
+            let mut buffer = [0; 256_000];
+            while let Ok(size) = data.read(&mut buffer) {
+                if size == 0 {println!("Finished Reading."); break;}
+                buffer.chunks_exact(4).for_each( |x| {
+                    let channel = (as_int(x)[0] & 0xFC000000) >> 27;
+                    let time = as_int(x)[0] & 0x03FFFFFF;
+                    println!("{} and {} and of: {}", channel, time, list.overflow);
+                    
+                    if channel == 16 {
+                        list.increase_counter(time);
+                    } else if channel == 24 {
+                    } else {
+                        list.add_event(channel, time);
+                        //let val = zlp.sample(&mut thread_rng());
+                        //let val_pos = (val as i32).abs() as u32;
+                        //if val as i32 >= 0 {
+                        //    list.add_event(0, time+val_pos);
+                        //} else {
+                        //    if time>val_pos {
+                        //        list.add_event(0, time-val_pos);
+                        //    }
+                        //}
+                    };
+                
+                })
+            }
+            list.output_spim();
+            list.search_coincidence(0, 2);
+            println!("{:?} and {:?} and {} and {} and {:?}", list.start_time, list.line_time, list.counter, list.overflow, list.last_time);
+            list
+        }
 }
 
 pub mod ntime_resolved {
