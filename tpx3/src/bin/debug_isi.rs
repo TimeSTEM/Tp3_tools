@@ -8,7 +8,7 @@ use std::{thread, time};
 use std::fs::File;
 
 fn main() {
-    let f = File::open("isi_raw28.isi").unwrap();
+    let f = File::open("isi_raw131.isi").unwrap();
     isi_box::get_channel_timelist(f);
     
     /*

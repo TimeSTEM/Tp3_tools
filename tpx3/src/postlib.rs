@@ -424,6 +424,17 @@ pub mod isi_box {
     impl IsiList {
         fn increase_counter(&mut self, data: u32) {
   
+
+            if let Some(line_time) = self.line_time {
+                let mut val = data as i32 - self.last_time as i32;
+                if val < 0 {
+                    val += 67108864;
+                }
+                if (val - line_time as i32).abs() > 10 {
+                    println!("{} and {:?} and {} and {}", val, self.spim_frame(), self.counter, line_time);
+                }
+            }
+            
             if data < self.last_time {self.overflow+=1;}
             self.last_time = data;
             self.counter += 1;
@@ -535,6 +546,8 @@ pub mod isi_box {
             let vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame)| *channel == ch2).cloned().collect::<Vec<_>>();
             let mut count = 0;
             let mut min_index = 0;
+            let mut corr = 0;
+
 
             let mut new_list = IsiListVecg2(Vec::new());
             
@@ -547,13 +560,17 @@ pub mod isi_box {
                 for val2 in &vec2[min_index..] {
                     let dt = val2.0 as i64 - val1.0 as i64;
                     if dt.abs() < 500 {
+                        corr+=1;
                         new_list.0.push((dt, val2.1, val2.2, val2.3));
-                        min_index += index / 2;
+                        min_index += index / 5;
                     }
                     if dt > 10_000 {break;}
                     index += 1;
                 }
             }
+
+            println!("{}", vec2.len());
+            println!("{}", corr);
             
             let dt_vec = new_list.0.iter().map(|(dtime, _channel, _spim_index, _spim_frame)| *dtime).collect::<Vec<i64>>();
             let spim_index_vec = new_list.0.iter().map(|(_dtime, _channel, spim_index, _spim_frame)| *spim_index).collect::<Vec<u32>>();
@@ -571,7 +588,6 @@ pub mod isi_box {
                 .create(true)
                 .open("isi_g2_index.txt").expect("Could not output time histogram.");
             tfile.write_all(as_bytes(&spim_index_vec)).expect("Could not write time to file.");
-
         }
     }
 
