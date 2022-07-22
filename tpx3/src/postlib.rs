@@ -49,7 +49,6 @@ pub mod coincidence {
 
         fn add_spim_line(&mut self, pack: &Pack) {
             if let Some(spim_tdc) = &mut self.spim_tdc {
-                println!("TPX3 line time: {}", pack.tdc_time_norm());
                 spim_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
             }
         }
@@ -62,7 +61,8 @@ pub mod coincidence {
             self.tot.push(val.tot());
             self.x.push(val.x());
             self.y.push(val.y());
-            self.rel_time.push(val.relative_time_from_abs_tdc(photon_time));
+            //self.rel_time.push(val.relative_time_from_abs_tdc(photon_time));
+            self.rel_time.push(val.relative_time(photon_time));
             if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 self.spim_index.push(index);
             }
@@ -89,8 +89,10 @@ pub mod coincidence {
             for val in temp_edata.electron.values() {
                 let mut index = 0;
                 self.add_electron(*val);
-                for ph in temp_tdc.tdc[min_index..].iter() {
-                    let dt = (ph/6) as i64 - val.time() as i64 - time_delay as i64;
+                //for ph in temp_tdc.tdc[min_index..].iter().filter(|(_time, channel)| *channel != 16 && *channel != 24).map(|(time, _channel)| time) {
+                for ph in temp_tdc.tdc[min_index..].iter().map(|(time, _channel)| time) {
+                    //let dt = (ph/6) as i64 - val.time() as i64 - time_delay as i64;
+                    let dt = *ph as i64 - val.time() as i64 - time_delay as i64;
                     if (dt.abs() as TIME) < time_width {
                         self.add_coincident_electron(*val, *ph);
                         min_index += index/2;
@@ -212,8 +214,8 @@ pub mod coincidence {
     }
 
     pub struct TempTdcData {
-        pub tdc: Vec<TIME>,
-        pub min_index: usize,
+        tdc: Vec<(TIME, COUNTER)>,
+        min_index: usize,
     }
 
     impl TempTdcData {
@@ -232,14 +234,64 @@ pub mod coincidence {
             }
         }
 
-        fn add_tdc(&mut self, my_pack: &Pack) {
-            self.tdc.push(my_pack.tdc_time_abs_norm());
+        fn get_vec_len(&self) -> usize {
+            self.tdc.len()
+        }
+
+        fn test(&self) {
+            println!("{:?}", self.tdc.get(0..100));
+            let mut first = self.tdc.iter().
+                filter(|(_time, channel)| *channel == 16).
+                map(|(time, _channel)| (*time));
+            println!("{:?}", first.next());
+            println!("{:?}", first.next());
+            println!("{:?}", first.next());
+            println!("{:?}", first.next());
+            println!("{:?}", first.next());
+            println!("{:?}", first.next());
+        }
+
+        fn correct_tdc(&mut self, val: &mut IsiBoxCorrectVector) {
+            self.tdc.iter_mut().zip(val.0.iter_mut()).
+                filter(|((time, channel), corr)| corr.is_some()).
+                for_each(|((time, channel), corr)| {
+                *time += corr.unwrap() as usize;
+                *corr = Some(0);
+            });
+            //println!("{:?}", self.tdc.get(0..100));
+        }
+        
+        pub fn get_sync(&self) -> Vec<(usize, TIME)> {
+            let first = self.tdc.iter().
+                filter(|(_time, channel)| *channel == 16).
+                map(|(time, _channel)| (*time)).
+                next().
+                unwrap();
+
+            self.tdc.iter().
+                enumerate().
+                filter(|(index, (_time, channel))| *channel == 16).
+                map(|(index, (time, _channel))| (index, *time)).
+                collect::<Vec<_>>()
+        }
+
+        fn add_tdc(&mut self, my_pack: &Pack, channel: COUNTER) {
+            self.tdc.push((my_pack.tdc_time_abs_norm(), channel));
         }
 
         fn sort(&mut self) {
             self.tdc.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         }
     }
+
+    struct IsiBoxCorrectVector(Vec<Option<i64>>);
+
+    impl IsiBoxCorrectVector {
+        fn add_offset(&mut self, max_index: usize, value: i64) {
+            self.0.iter_mut().enumerate().filter(|(index, x)| x.is_none() && *index <= max_index).for_each(|(index, x)| *x = Some(value));
+        }
+    }
+
 
     pub struct TempElectronData {
         pub electron: CollectionElectron, //Time, X, Y and ToT and Time difference (for Spim positioning)
@@ -293,7 +345,7 @@ pub mod coincidence {
                         let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
                         match packet.id() {
                             6 if packet.tdc_type() == np_tdc.id() => {
-                                temp_tdc.add_tdc(&packet);
+                                temp_tdc.add_tdc(&packet, 0);
                             },
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 coinc_data.add_spim_line(&packet);
@@ -328,16 +380,20 @@ pub mod coincidence {
         let temp_list = isi_box::get_channel_timelist(f);
         let begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
+        let mut temp_tdc_iter = temp_tdc.get_sync();
+        let mut temp_tdc_iter = temp_tdc_iter.iter();
         
-        let f = fs::File::open("isi_raw239.isi").unwrap();
-        let temp_list = isi_box::get_channel_timelist(f);
-        let mut temp_tdc_iter = temp_list.get_iterator_sync();
+        let mut correct_vector = IsiBoxCorrectVector(vec![None; temp_tdc.get_vec_len()]);
+        
+        //let f = fs::File::open("isi_raw239.isi").unwrap();
+        //let temp_list = isi_box::get_channel_timelist(f);
+        //let mut temp_tdc_iter = temp_list.get_iterator_sync();
 
         println!("{:?} and {:?} and {:?}", begin_tp3_time, (begin_isi_time.unwrap() as TIME * 1200) / 15625, begin_isi_time.unwrap());
 
         let mut ci = 0;
         let mut file = fs::File::open(file)?;
-        let mut buffer: Vec<u8> = vec![0; 512_000_000];
+        let mut buffer: Vec<u8> = vec![0; 1_000_000_000];
         let mut total_size = 0;
         let start = Instant::now();
         
@@ -357,7 +413,13 @@ pub mod coincidence {
                             //},
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 coinc_data.add_spim_line(&packet);
-                                println!("{:?}", temp_tdc_iter.next());
+                                let val = temp_tdc_iter.next().unwrap();
+                                //correct_vector.add_offset(val.0, 2*begin_tp3_time as i64 - packet.tdc_time_norm() as i64);
+                                //correct_vector.add_offset(val.0, begin_tp3_time as i64);
+                                correct_vector.add_offset(val.0, packet.tdc_time_norm() as i64 - val.1 as i64);
+                                //correct_vector.add_offset(val.0, begin_tp3_time as i64);
+                                //correct_vector.add_offset(val.0, packet.tdc_time_norm() as i64);
+                                //println!("TPX3: {:?}. IsiBox must be: {:?}. Difference: {:?}. Index: {:?}. Current isi: {:?}.", packet.tdc_time_norm(), val.1 + begin_tp3_time, val.1 + begin_tp3_time - packet.tdc_time_norm(), val.0, val.1);
                             },
                             11 => {
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc);
@@ -369,11 +431,14 @@ pub mod coincidence {
                 };
             });
         //coinc_data.add_events(temp_edata, &mut temp_tdc, begin_tp3_time - (begin_isi_time.unwrap() as TIME * 1200) / 15625, 400);
-        coinc_data.add_events(temp_edata, &mut temp_tdc, 0, 4000);
+        temp_tdc.correct_tdc(&mut correct_vector);
+        //temp_tdc.test();
+        coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 40);
         println!("Time elapsed: {:?}", start.elapsed());
         break;
 
         }
+        //println!("{:?}", correct_vector.0.get(0..213));
         println!("Total number of bytes read {}", total_size);
         Ok(())
     }
@@ -502,25 +567,35 @@ pub mod isi_box {
         }
 
         fn add_event(&mut self, channel: u32, data: u32) {
-            //println!("{:?} and {:?} {:?} {:?}", self.spim_index(data), self.spim_frame(), self.line_time, channel);
             self.data.0.push((self.get_abs_time(data), channel, self.spim_index(data), self.spim_frame()));
-            //if let (Some(spim_index), Some(spim_frame), Some(_)) = (self.spim_index(data), self.spim_frame(), self.line_time) {
-            //    self.data.0.push((self.get_abs_time(data), channel, spim_index, spim_frame));
-            //};
         }
         
-        pub fn get_timelist_with_tp3_tick(&self) -> Vec<TIME> {
+        pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER)> {
+            let first = self.data.0.iter().
+                filter(|(_time, channel, _spim_index, _spim_frame)| *channel == 16).
+                map(|(time, _channel, _spim_index, _spim_frame)| (*time * 1200) / 15625).
+                next().
+                unwrap();
+
             self.data.0.iter().
                 //filter(|(_time, channel, _spim_index, _spim_frame)| *channel != 16 && *channel != 24).
-                map(|(time, _channel, _spim_index, _spim_frame)| (*time * 1200) / 15625).
-                collect::<Vec<TIME>>()
+                map(|(time, channel, _spim_index, _spim_frame)| (((*time * 1200) / 15625) - first, *channel)).
+                collect::<Vec<_>>()
         }
 
+        /*
         pub fn get_iterator_sync(&self) -> impl Iterator<Item=TIME> + '_ {
+            let first = self.data.0.iter().
+                filter(|(_time, channel, _spim_index, _spim_frame)| *channel == 16).
+                map(|(time, _channel, _spim_index, _spim_frame)| (*time * 1200) / 15625).
+                next().
+                unwrap();
+
             self.data.0.iter().
                 filter(|(_time, channel, _spim_index, _spim_frame)| *channel == 16).
-                map(|(time, _channel, _spim_index, _spim_frame)| (*time * 1200) / 15625)
+                map(move |(time, _channel, _spim_index, _spim_frame)| (*time * 1200) / 15625 - first)
         }
+        */
 
         fn output_spim(&self) {
             let spim_vec = self.data.0.iter().

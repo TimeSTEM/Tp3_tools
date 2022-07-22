@@ -260,8 +260,8 @@ pub mod cluster {
         pub fn image_index(&self) -> POSITION {
             self.data.1 + SPIM_PIXELS*self.data.2
         }
-        pub fn relative_time(&self, reference_time: TIME) -> isize {
-            self.data.0 as isize - reference_time as isize
+        pub fn relative_time(&self, reference_time: TIME) -> i64 {
+            self.data.0 as i64 - reference_time as i64
         }
         pub fn relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
             (self.data.0*6) as i64 - reference_time as i64
