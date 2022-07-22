@@ -429,10 +429,8 @@ pub mod coincidence {
             });
         temp_tdc.correct_tdc(&mut correct_vector);
         //temp_tdc.test();
-        coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 40);
+        coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20);
         println!("Time elapsed: {:?}", start.elapsed());
-        //break;
-
         }
         println!("Total number of bytes read {}", total_size);
         Ok(())
@@ -467,9 +465,9 @@ pub mod isi_box {
     
     struct IsiListVec(Vec<(TIME, u32, Option<u32>, Option<u32>)>);
     struct IsiListVecg2(Vec<(i64, u32, Option<u32>, Option<u32>)>);
-    
+
     pub struct IsiList {
-        data: IsiListVec, //Time, channel, spim index, spim frame
+        data: IsiListVec, //Time, channel, spim index, spim frame, is_coincident
         x: u32,
         y: u32,
         pixel_time: u32,
@@ -573,24 +571,9 @@ pub mod isi_box {
                 unwrap();
 
             self.data.0.iter().
-                //filter(|(_time, channel, _spim_index, _spim_frame)| *channel != 16 && *channel != 24).
                 map(|(time, channel, _spim_index, _spim_frame)| (((*time * 1200 * 6) / 15625) - first, *channel)).
                 collect::<Vec<_>>()
         }
-
-        /*
-        pub fn get_iterator_sync(&self) -> impl Iterator<Item=TIME> + '_ {
-            let first = self.data.0.iter().
-                filter(|(_time, channel, _spim_index, _spim_frame)| *channel == 16).
-                map(|(time, _channel, _spim_index, _spim_frame)| (*time * 1200) / 15625).
-                next().
-                unwrap();
-
-            self.data.0.iter().
-                filter(|(_time, channel, _spim_index, _spim_frame)| *channel == 16).
-                map(move |(time, _channel, _spim_index, _spim_frame)| (*time * 1200) / 15625 - first)
-        }
-        */
 
         fn output_spim(&self) {
             let spim_vec = self.data.0.iter().
@@ -618,19 +601,21 @@ pub mod isi_box {
             tfile.write_all(as_bytes(&index_vec)).expect("Could not write time to file.");
         }
 
-        fn search_coincidence(&self, ch1: u32, ch2: u32) {
-            let iter1 = self.data.0.iter().
-                filter(|(_time, channel, _spim_index, _spim_frame)| *channel == ch1);
+        fn search_coincidence(&mut self, ch1: u32, ch2: u32) -> IsiList {
             let size = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame)| *channel == ch1).count();
             let vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame)| *channel == ch2).cloned().collect::<Vec<_>>();
+            let mut iter1 = self.data.0.iter();
+                //filter(|(_time, channel, _spim_index, _spim_frame, is_corr)| *channel == ch1);
             let mut count = 0;
             let mut min_index = 0;
             let mut corr = 0;
 
-
+            let mut corr_list = self.copy_empty();
             let mut new_list = IsiListVecg2(Vec::new());
             
             for val1 in iter1 {
+                if val1.1 == 16 || val1.1 == 24 {corr_list.data.0.push(*val1);};
+                if val1.1 != ch1 {continue;}
                 let mut index = 0;
                 if count % 200_000 == 0 {
                     println!("***IsiBox***: Searching coincidences is at: {}%. Current photon is is: {:?}", count*100/size, val1);
@@ -638,7 +623,11 @@ pub mod isi_box {
                 count+=1;
                 for val2 in &vec2[min_index..] {
                     let dt = val2.0 as i64 - val1.0 as i64;
-                    if dt.abs() < 500 {
+                    if dt.abs() < 50 {
+
+                        corr_list.data.0.push(*val1);
+                        corr_list.data.0.push(*val2);
+
                         corr+=1;
                         new_list.0.push((dt, val2.1, val2.2, val2.3));
                         min_index += index / 5;
@@ -673,6 +662,22 @@ pub mod isi_box {
                 .create(true)
                 .open("isi_g2_index.txt").expect("Could not output time histogram.");
             tfile.write_all(as_bytes(&spim_index_vec)).expect("Could not write time to file.");
+            
+            corr_list
+        }
+
+        fn copy_empty(&self) -> Self {
+            IsiList {
+                data: IsiListVec(Vec::new()),
+                x: self.x,
+                y: self.y,
+                pixel_time: self.pixel_time,
+                counter: self.counter,
+                overflow: self.overflow,
+                last_time: self.last_time,
+                start_time: self.start_time,
+                line_time: self.line_time,
+            }
         }
     }
 
@@ -691,33 +696,10 @@ pub mod isi_box {
                     if channel == 16 {
                         list.increase_counter(time);
                     }
-                    //else if channel == 24 {
-                    //    list.add_event(channel, time);
-                    //}
-                    //else {
-                    //    list.add_event(channel, time);
-                    //}
-
-                        //println!("{} and {} and {}", channel, list.get_abs_time(time), ((list.get_abs_time(time)) * 1200) / 15625 + 577797779);
-                    //} else if channel == 24 {
-                    //} else {
-                    //    list.add_event(channel, time);
-                        //let val = zlp.sample(&mut thread_rng());
-                        //let val_pos = (val as i32).abs() as u32;
-                        //if val as i32 >= 0 {
-                        //    list.add_event(0, time+val_pos);
-                        //} else {
-                        //    if time>val_pos {
-                        //        list.add_event(0, time-val_pos);
-                        //    }
-                        //}
-                
-
                 })
             }
             list.output_spim();
             list.search_coincidence(2, 12);
-            //println!("{:?} and {:?} and {} and {} and {:?}", list.start_time, list.line_time, list.counter, list.overflow, list.last_time);
             list
         }
 }
