@@ -21,6 +21,7 @@ fn main() {
     coinc_data.output_spectrum(true);
     coinc_data.output_corr_spectrum(false);
     coinc_data.output_relative_time();
+    coinc_data.output_channel();
     coinc_data.output_dispersive();
     coinc_data.output_non_dispersive();
     coinc_data.output_spim_index();

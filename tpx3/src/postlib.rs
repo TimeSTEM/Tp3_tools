@@ -27,6 +27,7 @@ pub mod coincidence {
 
     pub struct ElectronData {
         time: Vec<TIME>,
+        channel: Vec<COUNTER>,
         rel_time: Vec<i64>,
         x: Vec<POSITION>,
         y: Vec<POSITION>,
@@ -53,7 +54,7 @@ pub mod coincidence {
             }
         }
 
-        fn add_coincident_electron(&mut self, val: SingleElectron, photon_time: TIME) {
+        fn add_coincident_electron(&mut self, val: SingleElectron, photon: (TIME, COUNTER)) {
             //self.corr_spectrum[val.image_index() as usize] += 1; //Adding the electron
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
@@ -61,8 +62,9 @@ pub mod coincidence {
             self.tot.push(val.tot());
             self.x.push(val.x());
             self.y.push(val.y());
-            self.rel_time.push(val.relative_time_from_abs_tdc(photon_time));
-            //self.rel_time.push(val.relative_time(photon_time));
+            self.channel.push(photon.1);
+            self.rel_time.push(val.relative_time_from_abs_tdc(photon.0));
+            //self.rel_time.push(val.relative_time(photon.0));
             if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 self.spim_index.push(index);
             }
@@ -73,40 +75,28 @@ pub mod coincidence {
             let nphotons = temp_tdc.tdc.len();
             println!("Supplementary events: {}.", nphotons);
 
-            let mut vec2 = temp_tdc.tdc.iter().
-                //filter(|(_time, channel)| *channel == 12).
-                map(|(time, _channel)| time).
-                collect::<Vec<_>>();
-
-            //if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
-            //if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1};
-            //let first = temp_edata.electron.values().next();
-            //let last = temp_edata.electron.values().last();
-            //println!("{:?} and {:?}", first, last);
-            
             if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
             temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, self.remove_clusters);
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
-            let mut min_index = 0;
+            let mut min_index = temp_tdc.min_index;
             for val in temp_edata.electron.values() {
                 let mut index = 0;
                 self.add_electron(*val);
-                //for ph in temp_tdc.tdc[min_index..].iter().filter(|(_time, channel)| *channel != 16 && *channel != 24).map(|(time, _channel)| time) {
-                //for ph in temp_tdc.tdc[min_index..].iter().map(|(time, _channel)| time) {
-                for ph in &vec2[min_index..] {
-                    let dt = (*ph/6) as i64 - val.time() as i64 - time_delay as i64;
+                for ph in temp_tdc.tdc[min_index..].iter() {
+                    let dt = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64;
                     //let dt = *ph as i64 - val.time() as i64 - time_delay as i64;
                     if (dt.abs() as TIME) < time_width {
-                        self.add_coincident_electron(*val, **ph);
+                        self.add_coincident_electron(*val, *ph);
                         min_index += index/2;
                     }
                     if dt > 100_000 {break;}
                     index += 1;
                 }
             }
+            temp_tdc.min_index = min_index;
 
             println!("Number of coincident electrons: {:?}. Last photon real time is {:?}. Last relative time is {:?}.", self.x.len(), self.time.iter().last(), self.rel_time.iter().last());
         }
@@ -119,6 +109,7 @@ pub mod coincidence {
         pub fn new(my_config: &ConfigAcquisition) -> Self {
             Self {
                 time: Vec::new(),
+                channel: Vec::new(),
                 rel_time: Vec::new(),
                 x: Vec::new(),
                 y: Vec::new(),
@@ -177,6 +168,16 @@ pub mod coincidence {
             println!("Outputting relative time under tH name. Vector len is {}", self.rel_time.len());
         }
         
+        pub fn output_channel(&self) {
+            let mut tfile = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("channel.txt").expect("Could not output channel histogram.");
+            tfile.write_all(as_bytes(&self.channel)).expect("Could not write time to file.");
+            println!("Outputting relative time under tH name. Vector len is {}", self.channel.len());
+        }
+        
         pub fn output_dispersive(&self) {
             let mut tfile = OpenOptions::new()
                 .write(true)
@@ -184,7 +185,7 @@ pub mod coincidence {
                 .create(true)
                 .open("xH.txt").expect("Could not output X histogram.");
             tfile.write_all(as_bytes(&self.x)).expect("Could not write time to file.");
-            println!("Outputting each dispersive value under xH name. Vector len is {}", self.rel_time.len());
+            println!("Outputting each dispersive value under xH name. Vector len is {}", self.x.len());
         }
         
         pub fn output_non_dispersive(&self) {
@@ -194,7 +195,7 @@ pub mod coincidence {
                 .create(true)
                 .open("yH.txt").expect("Could not output Y histogram.");
             tfile.write_all(as_bytes(&self.y)).expect("Could not write time to file.");
-            println!("Outputting each non-dispersive value under yH name. Vector len is {}", self.rel_time.len());
+            println!("Outputting each non-dispersive value under yH name. Vector len is {}", self.y.len());
         }
         
         pub fn output_spim_index(&self) {
@@ -221,7 +222,7 @@ pub mod coincidence {
 
     pub struct TempTdcData {
         tdc: Vec<(TIME, COUNTER)>,
-        min_index: usize,
+        pub min_index: usize,
     }
 
     impl TempTdcData {
@@ -254,6 +255,7 @@ pub mod coincidence {
             println!("{:?}", first.next());
             println!("{:?}", first.next());
             println!("{:?}", first.next());
+        //println!("{:?}", correct_vector.0.get(0..213));
             println!("{:?}", first.next());
         }
 
@@ -381,25 +383,19 @@ pub mod coincidence {
         coinc_data.prepare_spim(spim_tdc);
         let begin_tp3_time = spim_tdc.begin_frame;
     
-        //IsiBox loading file
+        //IsiBox loading file & setting up synchronization
         let f = fs::File::open("isi_raw239.isi").unwrap();
         let temp_list = isi_box::get_channel_timelist(f);
         let begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
-        let mut temp_tdc_iter = temp_tdc.get_sync();
-        let mut temp_tdc_iter = temp_tdc_iter.iter();
+        let temp_tdc_iter = temp_tdc.get_sync();
+        let mut tdc_iter = temp_tdc_iter.iter();
         
         let mut correct_vector = IsiBoxCorrectVector(vec![None; temp_tdc.get_vec_len()]);
         
-        //let f = fs::File::open("isi_raw239.isi").unwrap();
-        //let temp_list = isi_box::get_channel_timelist(f);
-        //let mut temp_tdc_iter = temp_list.get_iterator_sync();
-
-        println!("{:?} and {:?} and {:?}", begin_tp3_time, (begin_isi_time.unwrap() as TIME * 1200) / 15625, begin_isi_time.unwrap());
-
         let mut ci = 0;
         let mut file = fs::File::open(file)?;
-        let mut buffer: Vec<u8> = vec![0; 1_000_000_000];
+        let mut buffer: Vec<u8> = vec![0; 512_000_000];
         let mut total_size = 0;
         let start = Instant::now();
         
@@ -419,13 +415,8 @@ pub mod coincidence {
                             //},
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 coinc_data.add_spim_line(&packet);
-                                let val = temp_tdc_iter.next().unwrap();
-                                //correct_vector.add_offset(val.0, 2*begin_tp3_time as i64 - packet.tdc_time_norm() as i64);
-                                //correct_vector.add_offset(val.0, begin_tp3_time as i64);
+                                let val = tdc_iter.next().unwrap();
                                 correct_vector.add_offset(val.0, packet.tdc_time_abs_norm() - val.1);
-                                //correct_vector.add_offset(val.0, begin_tp3_time as i64);
-                                //correct_vector.add_offset(val.0, packet.tdc_time_norm() as i64);
-                                //println!("TPX3: {:?}. IsiBox must be: {:?}. Difference: {:?}. Index: {:?}. Current isi: {:?}.", packet.tdc_time_norm(), val.1 + begin_tp3_time, val.1 + begin_tp3_time - packet.tdc_time_norm(), val.0, val.1);
                             },
                             11 => {
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc);
@@ -436,15 +427,13 @@ pub mod coincidence {
                     },
                 };
             });
-        //coinc_data.add_events(temp_edata, &mut temp_tdc, begin_tp3_time - (begin_isi_time.unwrap() as TIME * 1200) / 15625, 400);
         temp_tdc.correct_tdc(&mut correct_vector);
         //temp_tdc.test();
         coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 40);
         println!("Time elapsed: {:?}", start.elapsed());
-        break;
+        //break;
 
         }
-        //println!("{:?}", correct_vector.0.get(0..213));
         println!("Total number of bytes read {}", total_size);
         Ok(())
     }
