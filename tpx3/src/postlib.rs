@@ -61,8 +61,8 @@ pub mod coincidence {
             self.tot.push(val.tot());
             self.x.push(val.x());
             self.y.push(val.y());
-            //self.rel_time.push(val.relative_time_from_abs_tdc(photon_time));
-            self.rel_time.push(val.relative_time(photon_time));
+            self.rel_time.push(val.relative_time_from_abs_tdc(photon_time));
+            //self.rel_time.push(val.relative_time(photon_time));
             if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 self.spim_index.push(index);
             }
@@ -72,6 +72,11 @@ pub mod coincidence {
             temp_tdc.sort();
             let nphotons = temp_tdc.tdc.len();
             println!("Supplementary events: {}.", nphotons);
+
+            let mut vec2 = temp_tdc.tdc.iter().
+                //filter(|(_time, channel)| *channel == 12).
+                map(|(time, _channel)| time).
+                collect::<Vec<_>>();
 
             //if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
             //if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1};
@@ -90,11 +95,12 @@ pub mod coincidence {
                 let mut index = 0;
                 self.add_electron(*val);
                 //for ph in temp_tdc.tdc[min_index..].iter().filter(|(_time, channel)| *channel != 16 && *channel != 24).map(|(time, _channel)| time) {
-                for ph in temp_tdc.tdc[min_index..].iter().map(|(time, _channel)| time) {
-                    //let dt = (ph/6) as i64 - val.time() as i64 - time_delay as i64;
-                    let dt = *ph as i64 - val.time() as i64 - time_delay as i64;
+                //for ph in temp_tdc.tdc[min_index..].iter().map(|(time, _channel)| time) {
+                for ph in &vec2[min_index..] {
+                    let dt = (*ph/6) as i64 - val.time() as i64 - time_delay as i64;
+                    //let dt = *ph as i64 - val.time() as i64 - time_delay as i64;
                     if (dt.abs() as TIME) < time_width {
-                        self.add_coincident_electron(*val, *ph);
+                        self.add_coincident_electron(*val, **ph);
                         min_index += index/2;
                     }
                     if dt > 100_000 {break;}
@@ -284,10 +290,10 @@ pub mod coincidence {
         }
     }
 
-    struct IsiBoxCorrectVector(Vec<Option<i64>>);
+    struct IsiBoxCorrectVector(Vec<Option<TIME>>);
 
     impl IsiBoxCorrectVector {
-        fn add_offset(&mut self, max_index: usize, value: i64) {
+        fn add_offset(&mut self, max_index: usize, value: TIME) {
             self.0.iter_mut().enumerate().filter(|(index, x)| x.is_none() && *index <= max_index).for_each(|(index, x)| *x = Some(value));
         }
     }
@@ -416,7 +422,7 @@ pub mod coincidence {
                                 let val = temp_tdc_iter.next().unwrap();
                                 //correct_vector.add_offset(val.0, 2*begin_tp3_time as i64 - packet.tdc_time_norm() as i64);
                                 //correct_vector.add_offset(val.0, begin_tp3_time as i64);
-                                correct_vector.add_offset(val.0, packet.tdc_time_norm() as i64 - val.1 as i64);
+                                correct_vector.add_offset(val.0, packet.tdc_time_abs_norm() - val.1);
                                 //correct_vector.add_offset(val.0, begin_tp3_time as i64);
                                 //correct_vector.add_offset(val.0, packet.tdc_time_norm() as i64);
                                 //println!("TPX3: {:?}. IsiBox must be: {:?}. Difference: {:?}. Index: {:?}. Current isi: {:?}.", packet.tdc_time_norm(), val.1 + begin_tp3_time, val.1 + begin_tp3_time - packet.tdc_time_norm(), val.0, val.1);
@@ -573,13 +579,13 @@ pub mod isi_box {
         pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER)> {
             let first = self.data.0.iter().
                 filter(|(_time, channel, _spim_index, _spim_frame)| *channel == 16).
-                map(|(time, _channel, _spim_index, _spim_frame)| (*time * 1200) / 15625).
+                map(|(time, _channel, _spim_index, _spim_frame)| (*time * 1200 * 6) / 15625).
                 next().
                 unwrap();
 
             self.data.0.iter().
                 //filter(|(_time, channel, _spim_index, _spim_frame)| *channel != 16 && *channel != 24).
-                map(|(time, channel, _spim_index, _spim_frame)| (((*time * 1200) / 15625) - first, *channel)).
+                map(|(time, channel, _spim_index, _spim_frame)| (((*time * 1200 * 6) / 15625) - first, *channel)).
                 collect::<Vec<_>>()
         }
 
