@@ -13,6 +13,7 @@ pub mod coincidence {
     use crate::auxiliar::ConfigAcquisition;
     use std::convert::TryInto;
     use crate::auxiliar::value_types::*;
+    use rayon::prelude::*;
 
     const TIME_WIDTH: TIME = 40; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
     const TIME_DELAY: TIME = 104; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
@@ -55,7 +56,6 @@ pub mod coincidence {
         }
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon: (TIME, COUNTER)) {
-            //self.corr_spectrum[val.image_index() as usize] += 1; //Adding the electron
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
             self.time.push(val.time());
@@ -72,10 +72,14 @@ pub mod coincidence {
         
         fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME) {
             temp_tdc.sort();
-            let nphotons = temp_tdc.tdc.len();
-            println!("Supplementary events: {}.", nphotons);
+            let ntotal = temp_tdc.tdc.len();
+            let nphotons = temp_tdc.tdc.iter().
+                filter(|(time, channel)| *channel != 16 && *channel != 24).
+                count();
+            println!("Supplementary events: {}. Photons are: {}.", ntotal, nphotons);
 
-            if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
+            //if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
+            if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1;}
             temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, self.remove_clusters);
 
@@ -83,13 +87,13 @@ pub mod coincidence {
 
             let mut min_index = temp_tdc.min_index;
             for val in temp_edata.electron.values() {
-                let mut index = 0;
                 self.add_electron(*val);
-                for ph in temp_tdc.tdc[min_index..].iter() {
+                for (mut index, ph) in temp_tdc.tdc[min_index..].iter().enumerate() {
                     let dt = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64;
-                    //let dt = *ph as i64 - val.time() as i64 - time_delay as i64;
                     if (dt.abs() as TIME) < time_width {
-                        self.add_coincident_electron(*val, *ph);
+                        if ph.1 != 16 && ph.1 != 24 {
+                            self.add_coincident_electron(*val, *ph);
+                        }
                         min_index += index/2;
                     }
                     if dt > 100_000 {break;}
@@ -295,8 +299,9 @@ pub mod coincidence {
     struct IsiBoxCorrectVector(Vec<Option<TIME>>);
 
     impl IsiBoxCorrectVector {
+        #[inline]
         fn add_offset(&mut self, max_index: usize, value: TIME) {
-            self.0.iter_mut().enumerate().filter(|(index, x)| x.is_none() && *index <= max_index).for_each(|(index, x)| *x = Some(value));
+            self.0.par_iter_mut().enumerate().filter(|(index, x)| x.is_none() && *index <= max_index).for_each(|(index, x)| *x = Some(value));
         }
     }
 
@@ -384,8 +389,8 @@ pub mod coincidence {
         let begin_tp3_time = spim_tdc.begin_frame;
     
         //IsiBox loading file & setting up synchronization
-        let f = fs::File::open("isi_raw239.isi").unwrap();
-        let temp_list = isi_box::get_channel_timelist(f);
+        let f = fs::File::open("isi_raw240.isi").unwrap();
+        let temp_list = isi_box::get_channel_timelist(f, true);
         let begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
         let temp_tdc_iter = temp_tdc.get_sync();
@@ -403,6 +408,7 @@ pub mod coincidence {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
             println!("MB Read: {}", total_size / 1_000_000 );
+            if (total_size / 1_000_000) > 11500 {break;}
             let mut temp_edata = TempElectronData::new();
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match *pack_oct {
@@ -416,7 +422,8 @@ pub mod coincidence {
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 coinc_data.add_spim_line(&packet);
                                 let val = tdc_iter.next().unwrap();
-                                correct_vector.add_offset(val.0, packet.tdc_time_abs_norm() - val.1);
+                                //println!("{} and {} and {}", packet.tdc_time_norm() , val.1 / 6 + begin_tp3_time, packet.tdc_time_norm() - val.1 / 6);
+                                correct_vector.add_offset(val.0, packet.tdc_time_abs() - val.1);
                             },
                             11 => {
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc);
@@ -427,6 +434,7 @@ pub mod coincidence {
                     },
                 };
             });
+        println!("Correcting the time delay between TPX3 and IsiBox..");
         temp_tdc.correct_tdc(&mut correct_vector);
         //temp_tdc.test();
         coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20);
@@ -681,7 +689,7 @@ pub mod isi_box {
         }
     }
 
-    pub fn get_channel_timelist<V>(mut data: V) -> IsiList 
+    pub fn get_channel_timelist<V>(mut data: V, corr: bool) -> IsiList 
         where V: Read
         {
             //let zlp = Normal::new(100.0, 25.0).unwrap();
@@ -699,7 +707,8 @@ pub mod isi_box {
                 })
             }
             list.output_spim();
-            list.search_coincidence(2, 12);
+            let val = list.search_coincidence(2, 12);
+            if corr {return val;}
             list
         }
 }
