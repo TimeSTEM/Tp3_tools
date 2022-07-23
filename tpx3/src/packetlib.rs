@@ -145,8 +145,15 @@ pub trait Packet {
     }
 
     #[inline]
+    //In units of 1.5625 ns
     fn electron_overflow() -> TIME {
         17_179_869_184
+    }
+
+    #[inline]
+    //In units of 1.5625 ns
+    fn tdc_overflow() -> TIME {
+        68_719_476_736
     }
 }
 

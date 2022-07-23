@@ -55,6 +55,18 @@ pub mod coincidence {
             }
         }
 
+        fn estimate_overflow(&self, pack: &Pack) -> Option<TIME> {
+            if let Some(spim_tdc) = self.spim_tdc {
+                let val = spim_tdc.estimate_time();
+                if val > pack.tdc_time() + Pack::electron_overflow() {
+                    return Some(val / Pack::tdc_overflow());
+                }
+                else {return Some(0)}
+            }
+            None
+        }
+
+
         fn add_coincident_electron(&mut self, val: SingleElectron, photon: (TIME, COUNTER)) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
@@ -71,7 +83,6 @@ pub mod coincidence {
         }
         
         fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME) {
-            temp_tdc.sort();
             let ntotal = temp_tdc.tdc.len();
             let nphotons = temp_tdc.tdc.iter().
                 filter(|(time, channel)| *channel != 16 && *channel != 24).
@@ -86,18 +97,21 @@ pub mod coincidence {
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
             let mut min_index = temp_tdc.min_index;
+            //let vec2 = temp_tdc.tdc.iter().enumerate().filter(|(index, ph)| ph.1 != 16 && ph.1 != 24).collect::<Vec<_>>();
             for val in temp_edata.electron.values() {
                 self.add_electron(*val);
-                for (mut index, ph) in temp_tdc.tdc[min_index..].iter().enumerate() {
+                for (index, ph) in temp_tdc.tdc[min_index..].iter().enumerate().filter(|(index, ph)| ph.1 != 16 && ph.1 != 24) {
+                    //println!("{} and {:?}", index, ph);
+                //for (index, ph) in &vec2[min_index..] {
                     let dt = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64;
                     if (dt.abs() as TIME) < time_width {
-                        if ph.1 != 16 && ph.1 != 24 {
-                            self.add_coincident_electron(*val, *ph);
-                        }
-                        min_index += index/2;
+                        //if ph.1 != 16 && ph.1 != 24 {
+                        self.add_coincident_electron(*val, *ph);
+                        min_index += index / 5;
+                        //}
                     }
                     if dt > 100_000 {break;}
-                    index += 1;
+                    //index += 1;
                 }
             }
             temp_tdc.min_index = min_index;
@@ -268,6 +282,7 @@ pub mod coincidence {
                 filter(|((time, channel), corr)| corr.is_some()).
                 for_each(|((time, channel), corr)| {
                 *time += corr.unwrap() as usize;
+                //*time = *time - (*time / (Pack::electron_overflow() * 6)) * (Pack::electron_overflow() * 6);
                 *corr = Some(0);
             });
             //println!("{:?}", self.tdc.get(0..100));
@@ -372,6 +387,7 @@ pub mod coincidence {
                     },
                 };
             });
+        temp_tdc.sort();
         coinc_data.add_events(temp_edata, &mut temp_tdc, 104, 40);
         println!("Time elapsed: {:?}", start.elapsed());
 
@@ -408,7 +424,7 @@ pub mod coincidence {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
             println!("MB Read: {}", total_size / 1_000_000 );
-            if (total_size / 1_000_000) > 11500 {break;}
+            //if (total_size / 1_000_000) > 11500 {break;}
             let mut temp_edata = TempElectronData::new();
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match *pack_oct {
@@ -421,9 +437,9 @@ pub mod coincidence {
                             //},
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 coinc_data.add_spim_line(&packet);
+                                let of = coinc_data.estimate_overflow(&packet).unwrap();
                                 let val = tdc_iter.next().unwrap();
-                                //println!("{} and {} and {}", packet.tdc_time_norm() , val.1 / 6 + begin_tp3_time, packet.tdc_time_norm() - val.1 / 6);
-                                correct_vector.add_offset(val.0, packet.tdc_time_abs() - val.1);
+                                correct_vector.add_offset(val.0, packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6 - val.1);
                             },
                             11 => {
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc);
@@ -580,6 +596,7 @@ pub mod isi_box {
 
             self.data.0.iter().
                 map(|(time, channel, _spim_index, _spim_frame)| (((*time * 1200 * 6) / 15625) - first, *channel)).
+                //map(|(time, channel)| (time - (time / 103_079_215_104) * 103_079_215_104, channel)).
                 collect::<Vec<_>>()
         }
 

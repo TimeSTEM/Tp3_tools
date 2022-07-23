@@ -257,6 +257,7 @@ pub struct PeriodicTdcRef {
     counter_offset: COUNTER,
     last_hard_counter: u16,
     counter_overflow: COUNTER,
+    begin_time: TIME,
     pub ticks_to_frame: Option<COUNTER>,
     pub begin_frame: TIME,
     pub period: TIME,
@@ -326,6 +327,7 @@ impl TdcControl for PeriodicTdcRef {
             counter_offset,
             last_hard_counter: 0,
             counter_overflow: 0,
+            begin_time: begin_time,
             begin_frame: begin_time,
             ticks_to_frame,
             period,
@@ -349,6 +351,10 @@ impl PeriodicTdcRef {
 
     pub fn pixel_time(&self, xspim: POSITION) -> TIME {
         self.low_time / xspim as TIME
+    }
+
+    pub fn estimate_time(&self) -> TIME {
+        (self.counter as TIME / 2) * self.period + self.begin_time
     }
 }
 
