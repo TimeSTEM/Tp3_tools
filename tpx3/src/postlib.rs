@@ -87,7 +87,8 @@ pub mod coincidence {
             let nphotons = temp_tdc.tdc.iter().
                 filter(|(time, channel)| *channel != 16 && *channel != 24).
                 count();
-            println!("Supplementary events: {}. Photons are: {}.", ntotal, nphotons);
+            let mut min_index = temp_tdc.min_index;
+            println!("Total supplementary events: {}. Photons: {}. Minimum size of the array: {}.", ntotal, nphotons, min_index);
 
             //if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
             if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1;}
@@ -96,22 +97,21 @@ pub mod coincidence {
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
-            let mut min_index = temp_tdc.min_index;
-            //let vec2 = temp_tdc.tdc.iter().enumerate().filter(|(index, ph)| ph.1 != 16 && ph.1 != 24).collect::<Vec<_>>();
+            let mut vec2 = temp_tdc.tdc.iter().filter(|ph| ph.1 != 16 && ph.1 != 24).collect::<Vec<_>>();
+            vec2.sort();
+
             for val in temp_edata.electron.values() {
                 self.add_electron(*val);
-                for (index, ph) in temp_tdc.tdc[min_index..].iter().enumerate().filter(|(index, ph)| ph.1 != 16 && ph.1 != 24) {
-                    //println!("{} and {:?}", index, ph);
-                //for (index, ph) in &vec2[min_index..] {
+                let mut index = 0;
+                //for (index, ph) in temp_tdc.tdc[min_index..].iter().enumerate().filter(|(index, ph)| ph.1 != 16 && ph.1 != 24) {
+                for ph in &vec2[min_index..] {
                     let dt = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64;
                     if (dt.abs() as TIME) < time_width {
-                        //if ph.1 != 16 && ph.1 != 24 {
-                        self.add_coincident_electron(*val, *ph);
+                        self.add_coincident_electron(*val, **ph);
                         min_index += index / 5;
-                        //}
                     }
                     if dt > 100_000 {break;}
-                    //index += 1;
+                    index += 1;
                 }
             }
             temp_tdc.min_index = min_index;
@@ -405,8 +405,8 @@ pub mod coincidence {
         let begin_tp3_time = spim_tdc.begin_frame;
     
         //IsiBox loading file & setting up synchronization
-        let f = fs::File::open("isi_raw240.isi").unwrap();
-        let temp_list = isi_box::get_channel_timelist(f, true);
+        let f = fs::File::open("isi_raw239.isi").unwrap();
+        let temp_list = isi_box::get_channel_timelist(f, false);
         let begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
         let temp_tdc_iter = temp_tdc.get_sync();
@@ -424,7 +424,7 @@ pub mod coincidence {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
             println!("MB Read: {}", total_size / 1_000_000 );
-            //if (total_size / 1_000_000) > 11500 {break;}
+            //if (total_size / 1_000_000) > 3583 {break;}
             let mut temp_edata = TempElectronData::new();
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match *pack_oct {
