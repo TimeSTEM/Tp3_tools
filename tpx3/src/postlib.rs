@@ -650,7 +650,7 @@ pub mod isi_box {
         fn search_coincidence(&mut self, ch1: u32, ch2: u32) -> IsiList {
             let size = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch1).count();
             let vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
-            let mut iter1 = self.data.0.iter();
+            let iter1 = self.data.0.iter();
                 //filter(|(_time, channel, _spim_index, _spim_frame, is_corr)| *channel == ch1);
             let mut count = 0;
             let mut min_index = 0;
@@ -669,16 +669,16 @@ pub mod isi_box {
                 count+=1;
                 for val2 in &vec2[min_index..] {
                     let dt = val2.0 as i64 - val1.0 as i64;
-                    if dt.abs() < 1_000 {
+                    if dt.abs() < 5_000 {
 
                         corr_list.data.0.push((val1.0, val1.1, val1.2, val1.3, Some(dt)));
                         corr_list.data.0.push((val2.0, val2.1, val2.2, val2.3, Some(dt)));
 
                         corr+=1;
                         new_list.0.push((dt, val2.1, val2.2, val2.3));
-                        min_index += index / 5;
+                        min_index += index / 10;
                     }
-                    if dt > 10_000 {break;}
+                    if dt > 100_000 {break;}
                     index += 1;
                 }
             }

@@ -20,6 +20,9 @@ channel = numpy.fromfile("channel.txt", dtype='uint32')
 indexes2 = numpy.where(channel == 2)
 indexes12 = numpy.where(channel == 12)
 indexes_position = numpy.where(xH < 256)
+indexes_time = numpy.where((t > -520) | (t < -460))
+#indexes_time = numpy.where((t < -520) | (t > -460))
+print(max(t), min(t))
 
 #yH = numpy.loadtxt("yH.txt", delimiter=',')
 #indexes = numpy.where(xH<1025)[0]
@@ -58,10 +61,14 @@ ax.hist(tot, bins=25)
 ax.set_xlabel('Time over threshold (units of 1.5615 ns)')
 
 fig, ax = plt.subplots()
-ax.hist2d(xH, g2t, bins=[int(SPIM_PIXELS/16), 1000])
+ax.hist2d(xH[indexes_time], g2t[indexes_time], bins=[int(SPIM_PIXELS/16), 1000])
 #ax.hist(g2t[indexes_position], bins=1000)
 ax.set_xlabel('Energy (pixels)')
 ax.set_ylabel('Photon correlation delay (units of IsiBox 120 ps)')
+
+fig, ax = plt.subplots()
+ax.hist(g2t[indexes_time], bins=1000)
+ax.set_xlabel('Photon correlation delay (units of IsiBox 120 ps)')
 
 fig, ax = plt.subplots(ncols=2, sharey=True)
 ax[0].hist2d(xH[indexes2], t[indexes2], bins=[SPIM_PIXELS, tbin], range = [[0, SPIM_PIXELS], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(0.2))
