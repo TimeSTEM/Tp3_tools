@@ -30,6 +30,7 @@ pub mod coincidence {
         time: Vec<TIME>,
         channel: Vec<COUNTER>,
         rel_time: Vec<i64>,
+        g2_time: Vec<Option<i64>>,
         x: Vec<POSITION>,
         y: Vec<POSITION>,
         tot: Vec<u16>,
@@ -67,10 +68,11 @@ pub mod coincidence {
         }
 
 
-        fn add_coincident_electron(&mut self, val: SingleElectron, photon: (TIME, COUNTER)) {
+        fn add_coincident_electron(&mut self, val: SingleElectron, photon: (TIME, COUNTER, Option<i64>)) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
             self.time.push(val.time());
+            self.g2_time.push(photon.2);
             self.tot.push(val.tot());
             self.x.push(val.x());
             self.y.push(val.y());
@@ -85,7 +87,7 @@ pub mod coincidence {
         fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME) {
             let ntotal = temp_tdc.tdc.len();
             let nphotons = temp_tdc.tdc.iter().
-                filter(|(time, channel)| *channel != 16 && *channel != 24).
+                filter(|(time, channel, dt)| *channel != 16 && *channel != 24).
                 count();
             let mut min_index = temp_tdc.min_index;
             println!("Total supplementary events: {}. Photons: {}. Minimum size of the array: {}.", ntotal, nphotons, min_index);
@@ -129,6 +131,7 @@ pub mod coincidence {
                 time: Vec::new(),
                 channel: Vec::new(),
                 rel_time: Vec::new(),
+                g2_time: Vec::new(),
                 x: Vec::new(),
                 y: Vec::new(),
                 tot: Vec::new(),
@@ -186,6 +189,22 @@ pub mod coincidence {
             println!("Outputting relative time under tH name. Vector len is {}", self.rel_time.len());
         }
         
+        pub fn output_g2_time(&self) {
+            let vec = self.g2_time.iter().map(|x| x.unwrap()).collect::<Vec<i64>>();
+                //match x {
+                //    None => -5_000,
+                //    Some(x) => *x,
+                //}
+            //}).collect::<Vec<i64>>();
+            let mut tfile = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("g2tH.txt").expect("Could not output g2 time histogram.");
+            tfile.write_all(as_bytes(&vec)).expect("Could not write g2 time to file.");
+            println!("Outputting relative time under tH name. Vector len is {}", vec.len());
+        }
+        
         pub fn output_channel(&self) {
             let mut tfile = OpenOptions::new()
                 .write(true)
@@ -239,7 +258,7 @@ pub mod coincidence {
     }
 
     pub struct TempTdcData {
-        tdc: Vec<(TIME, COUNTER)>,
+        tdc: Vec<(TIME, COUNTER, Option<i64>)>, //The absolute time, the channel and the dT
         pub min_index: usize,
     }
 
@@ -263,6 +282,7 @@ pub mod coincidence {
             self.tdc.len()
         }
 
+        /*
         fn test(&self) {
             println!("{:?}", self.tdc.get(0..100));
             let mut first = self.tdc.iter().
@@ -276,11 +296,12 @@ pub mod coincidence {
         //println!("{:?}", correct_vector.0.get(0..213));
             println!("{:?}", first.next());
         }
+        */
 
         fn correct_tdc(&mut self, val: &mut IsiBoxCorrectVector) {
             self.tdc.iter_mut().zip(val.0.iter_mut()).
-                filter(|((time, channel), corr)| corr.is_some()).
-                for_each(|((time, channel), corr)| {
+                filter(|((time, channel, dt), corr)| corr.is_some()).
+                for_each(|((time, channel, dt), corr)| {
                 *time += corr.unwrap() as usize;
                 //*time = *time - (*time / (Pack::electron_overflow() * 6)) * (Pack::electron_overflow() * 6);
                 *corr = Some(0);
@@ -290,20 +311,20 @@ pub mod coincidence {
         
         pub fn get_sync(&self) -> Vec<(usize, TIME)> {
             let first = self.tdc.iter().
-                filter(|(_time, channel)| *channel == 16).
-                map(|(time, _channel)| (*time)).
+                filter(|(_time, channel, _dt)| *channel == 16).
+                map(|(time, _channel, dt)| (*time)).
                 next().
                 unwrap();
 
             self.tdc.iter().
                 enumerate().
-                filter(|(index, (_time, channel))| *channel == 16).
-                map(|(index, (time, _channel))| (index, *time)).
+                filter(|(index, (_time, channel, _dt))| *channel == 16).
+                map(|(index, (time, _channel, dt))| (index, *time)).
                 collect::<Vec<_>>()
         }
 
         fn add_tdc(&mut self, my_pack: &Pack, channel: COUNTER) {
-            self.tdc.push((my_pack.tdc_time_abs_norm(), channel));
+            self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None));
         }
 
         fn sort(&mut self) {
@@ -405,8 +426,8 @@ pub mod coincidence {
         let begin_tp3_time = spim_tdc.begin_frame;
     
         //IsiBox loading file & setting up synchronization
-        let f = fs::File::open("isi_raw239.isi").unwrap();
-        let temp_list = isi_box::get_channel_timelist(f, false);
+        let f = fs::File::open("isi_raw240.isi").unwrap();
+        let temp_list = isi_box::get_channel_timelist(f, true);
         let begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
         let temp_tdc_iter = temp_tdc.get_sync();
@@ -487,11 +508,11 @@ pub mod isi_box {
         }
     }
     
-    struct IsiListVec(Vec<(TIME, u32, Option<u32>, Option<u32>)>);
+    struct IsiListVec(Vec<(TIME, u32, Option<u32>, Option<u32>, Option<i64>)>);
     struct IsiListVecg2(Vec<(i64, u32, Option<u32>, Option<u32>)>);
 
     pub struct IsiList {
-        data: IsiListVec, //Time, channel, spim index, spim frame, is_coincident
+        data: IsiListVec, //Time, channel, spim index, spim frame, dT
         x: u32,
         y: u32,
         pixel_time: u32,
@@ -584,32 +605,32 @@ pub mod isi_box {
         }
 
         fn add_event(&mut self, channel: u32, data: u32) {
-            self.data.0.push((self.get_abs_time(data), channel, self.spim_index(data), self.spim_frame()));
+            self.data.0.push((self.get_abs_time(data), channel, self.spim_index(data), self.spim_frame(), None));
         }
         
-        pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER)> {
+        pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER, Option<i64>)> {
             let first = self.data.0.iter().
-                filter(|(_time, channel, _spim_index, _spim_frame)| *channel == 16).
-                map(|(time, _channel, _spim_index, _spim_frame)| (*time * 1200 * 6) / 15625).
+                filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == 16).
+                map(|(time, _channel, _spim_index, _spim_frame, _dt)| (*time * 1200 * 6) / 15625).
                 next().
                 unwrap();
 
             self.data.0.iter().
-                map(|(time, channel, _spim_index, _spim_frame)| (((*time * 1200 * 6) / 15625) - first, *channel)).
+                map(|(time, channel, _spim_index, _spim_frame, dt)| (((*time * 1200 * 6) / 15625) - first, *channel, *dt)).
                 //map(|(time, channel)| (time - (time / 103_079_215_104) * 103_079_215_104, channel)).
                 collect::<Vec<_>>()
         }
 
         fn output_spim(&self) {
             let spim_vec = self.data.0.iter().
-                filter(|(_time, channel, _spim_index, _spim_frame)| *channel != 16 && *channel != 24).
-                filter(|(time, channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
-                map(|(_time, channel, spim_index, _spim_frame)| spim_index.unwrap() * CHANNELS as u32 + channel).collect::<Vec<u32>>();
+                filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel != 16 && *channel != 24).
+                filter(|(time, channel, spim_index, spim_frame, _dt)| spim_index.is_some() && spim_frame.is_some()).
+                map(|(_time, channel, spim_index, _spim_frame, _dt)| spim_index.unwrap() * CHANNELS as u32 + channel).collect::<Vec<u32>>();
  
             let index_vec = self.data.0.iter().
-                filter(|(_time, channel, _spim_index, _spim_frame)| *channel != 16 && *channel != 24).
-                filter(|(time, channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
-                map(|(_time, channel, _spim_index, spim_frame)| spim_frame.unwrap()).collect::<Vec<u32>>();
+                filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel != 16 && *channel != 24).
+                filter(|(time, channel, spim_index, spim_frame, _dt)| spim_index.is_some() && spim_frame.is_some()).
+                map(|(_time, channel, _spim_index, spim_frame, _dt)| spim_frame.unwrap()).collect::<Vec<u32>>();
 
             let mut tfile = OpenOptions::new()
                 .write(true)
@@ -627,8 +648,8 @@ pub mod isi_box {
         }
 
         fn search_coincidence(&mut self, ch1: u32, ch2: u32) -> IsiList {
-            let size = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame)| *channel == ch1).count();
-            let vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame)| *channel == ch2).cloned().collect::<Vec<_>>();
+            let size = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch1).count();
+            let vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
             let mut iter1 = self.data.0.iter();
                 //filter(|(_time, channel, _spim_index, _spim_frame, is_corr)| *channel == ch1);
             let mut count = 0;
@@ -648,10 +669,10 @@ pub mod isi_box {
                 count+=1;
                 for val2 in &vec2[min_index..] {
                     let dt = val2.0 as i64 - val1.0 as i64;
-                    if dt.abs() < 50 {
+                    if dt.abs() < 1_000 {
 
-                        corr_list.data.0.push(*val1);
-                        corr_list.data.0.push(*val2);
+                        corr_list.data.0.push((val1.0, val1.1, val1.2, val1.3, Some(dt)));
+                        corr_list.data.0.push((val2.0, val2.1, val2.2, val2.3, Some(dt)));
 
                         corr+=1;
                         new_list.0.push((dt, val2.1, val2.2, val2.3));
