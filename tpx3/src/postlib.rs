@@ -347,7 +347,8 @@ pub mod coincidence {
     impl IsiBoxCorrectVector {
         #[inline]
         fn add_offset(&mut self, max_index: usize, value: TIME) {
-            self.0.par_iter_mut().enumerate().filter(|(index, x)| x.is_none() && *index <= max_index).for_each(|(index, x)| *x = Some(value));
+            //self.0.iter_mut().enumerate().filter(|(index, x)| x.is_none() && *index <= max_index).for_each(|(index, x)| *x = Some(value));
+            self.0[0..max_index+1].iter_mut().filter(|x| x.is_none()).for_each(|x| *x = Some(value));
         }
     }
 
