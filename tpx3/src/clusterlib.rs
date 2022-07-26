@@ -78,13 +78,11 @@ pub mod cluster {
         pub fn check_if_overflow(&self) -> bool {
             let first = self.data.get(0).expect("No first value detected.");
             let last = self.data.iter().last().expect("No last value detected.");
-            println!("{:?} and {:?}", first, last);
             first.time() > last.time()
         }
 
         pub fn correct_electron_time(&mut self, overflow: COUNTER) -> bool {
             if self.check_if_overflow() {
-                println!("Electron overflow detected.");
                 let overflow_index = self.data.iter().
                     enumerate().
                     min_by_key(|x| x.1.time()).unwrap().0;

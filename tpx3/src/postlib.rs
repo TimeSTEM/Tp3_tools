@@ -189,13 +189,23 @@ pub mod coincidence {
             println!("Outputting relative time under tH name. Vector len is {}", self.rel_time.len());
         }
         
+        pub fn output_time(&self) {
+            let mut tfile = OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("tabsH.txt").expect("Could not output time histogram.");
+            tfile.write_all(as_bytes(&self.time)).expect("Could not write time to file.");
+            println!("Outputting relative time under tH name. Vector len is {}", self.time.len());
+        }
+        
         pub fn output_g2_time(&self) {
-            let vec = self.g2_time.iter().map(|x| x.unwrap()).collect::<Vec<i64>>();
-                //match x {
-                //    None => -5_000,
-                //    Some(x) => *x,
-                //}
-            //}).collect::<Vec<i64>>();
+            let vec = self.g2_time.iter().map(|x| {
+                match x {
+                    None => -5_000,
+                    Some(x) => *x,
+                }
+            }).collect::<Vec<i64>>();
             let mut tfile = OpenOptions::new()
                 .write(true)
                 .truncate(true)
@@ -427,7 +437,7 @@ pub mod coincidence {
     
         //IsiBox loading file & setting up synchronization
         let f = fs::File::open("isi_raw240.isi").unwrap();
-        let temp_list = isi_box::get_channel_timelist(f, true);
+        let temp_list = isi_box::get_channel_timelist(f, false);
         let begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
         let temp_tdc_iter = temp_tdc.get_sync();
@@ -650,17 +660,18 @@ pub mod isi_box {
         fn search_coincidence(&mut self, ch1: u32, ch2: u32) -> IsiList {
             let size = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch1).count();
             let vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
-            let iter1 = self.data.0.iter();
+            let iter1 = self.data.0.iter_mut();
                 //filter(|(_time, channel, _spim_index, _spim_frame, is_corr)| *channel == ch1);
             let mut count = 0;
             let mut min_index = 0;
             let mut corr = 0;
 
-            let mut corr_list = self.copy_empty();
+            //let mut corr_list = IsiList::copy_empty(self);
+            let mut corr_list = IsiList{data: IsiListVec(Vec::new()), x: 256, y: 256, pixel_time: 66_667, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
             let mut new_list = IsiListVecg2(Vec::new());
             
             for val1 in iter1 {
-                if val1.1 == 16 || val1.1 == 24 {corr_list.data.0.push(*val1);};
+                //if val1.1 == 16 || val1.1 == 24 {corr_list.data.0.push(*val1);};
                 if val1.1 != ch1 {continue;}
                 let mut index = 0;
                 if count % 200_000 == 0 {
@@ -671,8 +682,10 @@ pub mod isi_box {
                     let dt = val2.0 as i64 - val1.0 as i64;
                     if dt.abs() < 5_000 {
 
-                        corr_list.data.0.push((val1.0, val1.1, val1.2, val1.3, Some(dt)));
-                        corr_list.data.0.push((val2.0, val2.1, val2.2, val2.3, Some(dt)));
+                        val1.4 = Some(dt);
+
+                        //corr_list.data.0.push((val1.0, val1.1, val1.2, val1.3, Some(dt)));
+                        //corr_list.data.0.push((val2.0, val2.1, val2.2, val2.3, Some(dt)));
 
                         corr+=1;
                         new_list.0.push((dt, val2.1, val2.2, val2.3));
@@ -712,17 +725,17 @@ pub mod isi_box {
             corr_list
         }
 
-        fn copy_empty(&self) -> Self {
+        fn copy_empty(val: &Self) -> Self {
             IsiList {
                 data: IsiListVec(Vec::new()),
-                x: self.x,
-                y: self.y,
-                pixel_time: self.pixel_time,
-                counter: self.counter,
-                overflow: self.overflow,
-                last_time: self.last_time,
-                start_time: self.start_time,
-                line_time: self.line_time,
+                x: val.x,
+                y: val.y,
+                pixel_time: val.pixel_time,
+                counter: val.counter,
+                overflow: val.overflow,
+                last_time: val.last_time,
+                start_time: val.start_time,
+                line_time: val.line_time,
             }
         }
     }
@@ -746,6 +759,7 @@ pub mod isi_box {
             }
             list.output_spim();
             let val = list.search_coincidence(2, 12);
+            //list.search_coincidence(2, 12);
             if corr {return val;}
             list
         }
