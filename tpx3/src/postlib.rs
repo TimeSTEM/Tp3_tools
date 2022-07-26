@@ -342,13 +342,14 @@ pub mod coincidence {
         }
     }
 
-    struct IsiBoxCorrectVector(Vec<Option<TIME>>);
+    struct IsiBoxCorrectVector(Vec<Option<TIME>>, usize);
 
     impl IsiBoxCorrectVector {
         #[inline]
         fn add_offset(&mut self, max_index: usize, value: TIME) {
             //self.0.iter_mut().enumerate().filter(|(index, x)| x.is_none() && *index <= max_index).for_each(|(index, x)| *x = Some(value));
-            self.0[0..max_index+1].iter_mut().filter(|x| x.is_none()).for_each(|x| *x = Some(value));
+            self.0[self.1..max_index+1].iter_mut().filter(|x| x.is_none()).for_each(|x| *x = Some(value));
+            self.1 = max_index
         }
     }
 
@@ -419,7 +420,6 @@ pub mod coincidence {
                     },
                 };
             });
-        temp_tdc.sort();
         coinc_data.add_events(temp_edata, &mut temp_tdc, 104, 40);
         println!("Time elapsed: {:?}", start.elapsed());
 
@@ -444,7 +444,7 @@ pub mod coincidence {
         let temp_tdc_iter = temp_tdc.get_sync();
         let mut tdc_iter = temp_tdc_iter.iter();
         
-        let mut correct_vector = IsiBoxCorrectVector(vec![None; temp_tdc.get_vec_len()]);
+        let mut correct_vector = IsiBoxCorrectVector(vec![None; temp_tdc.get_vec_len()], 0);
         
         let mut ci = 0;
         let mut file = fs::File::open(file)?;

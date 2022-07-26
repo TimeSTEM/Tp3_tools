@@ -18,12 +18,10 @@ yH = numpy.fromfile("yH.txt", dtype='uint32')
 tot = numpy.fromfile("tot.txt", dtype='uint16')
 channel = numpy.fromfile("channel.txt", dtype='uint32')
 
-indexes2 = numpy.where(channel == 2)
-indexes12 = numpy.where(channel == 12)
+indexes2 = numpy.where((channel == 2))
+indexes12 = numpy.where((channel == 12))
 indexes_position = numpy.where(xH < 256)
-#indexes_time = numpy.where((t > -520) | (t < -460))
 indexes_time = numpy.where(tabs < (max(tabs)+min(tabs))/2)
-#indexes_time = numpy.where(tabs > 0)
 
 #yH = numpy.loadtxt("yH.txt", delimiter=',')
 #indexes = numpy.where(xH<1025)[0]
@@ -31,15 +29,15 @@ indexes_time = numpy.where(tabs < (max(tabs)+min(tabs))/2)
 #t = t[indexes]
 
 #Getting CLE
-#indexes_cle = numpy.where((t < -450) & (t > -550))
-indexes_cle = numpy.where( numpy.abs(t + 500) < 25)
+indexes_cle = numpy.where((numpy.abs(t + 500) < 25))
 cle = numpy.zeros(1041)
 for val in xH[indexes_cle]:
     cle[val] += 1
 
 
 #Getting g2
-indexes_g2 = numpy.where((g2t < 25) & (g2t > -25))
+indexes_g2 = numpy.where( (numpy.abs(g2t) < 25))
+#indexes_g2 = numpy.where( (numpy.abs(g2t) < 25) & (numpy.abs(t+500) < 100))
 g2 = numpy.zeros(1041)
 for val in xH[indexes_g2]:
     g2[val] += 1
@@ -76,7 +74,7 @@ plt.tight_layout()
 fig, ax = plt.subplots(nrows=3, sharex=True)
 ax[0].hist(t[indexes2], bins=tbin, range=(tmin, tmax))
 ax[1].hist(t[indexes12], bins=tbin, range=(tmin, tmax))
-ax[2].hist(t[indexes_time], bins=tbin, range=(tmin, tmax))
+ax[2].hist(t[indexes_g2], bins=tbin, range=(tmin, tmax))
 ax[1].set_xlabel('Time delay (units of 260 ps)')
 
 fig, ax = plt.subplots()
