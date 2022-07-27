@@ -438,7 +438,7 @@ pub mod coincidence {
     
         //IsiBox loading file & setting up synchronization
         let f = fs::File::open("isi_raw240.isi").unwrap();
-        let temp_list = isi_box::get_channel_timelist(f, false);
+        let temp_list = isi_box::get_channel_timelist(f);
         let begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
         let temp_tdc_iter = temp_tdc.get_sync();
@@ -658,17 +658,15 @@ pub mod isi_box {
             tfile.write_all(as_bytes(&index_vec)).expect("Could not write time to file.");
         }
 
-        fn search_coincidence(&mut self, ch1: u32, ch2: u32) -> IsiList {
+        fn search_coincidence(&mut self, ch1: u32, ch2: u32) {
             let size = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch1).count();
-            let vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
+            let mut vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
             let iter1 = self.data.0.iter_mut();
                 //filter(|(_time, channel, _spim_index, _spim_frame, is_corr)| *channel == ch1);
             let mut count = 0;
             let mut min_index = 0;
             let mut corr = 0;
 
-            //let mut corr_list = IsiList::copy_empty(self);
-            let mut corr_list = IsiList{data: IsiListVec(Vec::new()), x: 256, y: 256, pixel_time: 66_667, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
             let mut new_list = IsiListVecg2(Vec::new());
             
             for val1 in iter1 {
@@ -679,14 +677,12 @@ pub mod isi_box {
                     println!("***IsiBox***: Searching coincidences is at: {}%. Current photon is is: {:?}", count*100/size, val1);
                 }
                 count+=1;
-                for val2 in &vec2[min_index..] {
+                for val2 in &mut vec2[min_index..] {
                     let dt = val2.0 as i64 - val1.0 as i64;
                     if dt.abs() < 5_000 {
 
                         val1.4 = Some(dt);
-
-                        //corr_list.data.0.push((val1.0, val1.1, val1.2, val1.3, Some(dt)));
-                        //corr_list.data.0.push((val2.0, val2.1, val2.2, val2.3, Some(dt)));
+                        val2.4 = Some(dt);
 
                         corr+=1;
                         new_list.0.push((dt, val2.1, val2.2, val2.3));
@@ -696,6 +692,14 @@ pub mod isi_box {
                     index += 1;
                 }
             }
+
+            self.data.0.iter_mut().
+                filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).
+                zip(vec2.iter()).
+                for_each(|(ph21, ph22)| {
+                    ph21.4 = ph22.4;
+                    assert_eq!(ph21.1, ph22.1);
+                });
 
             println!("***IsiBox***: Size of the second channel: {}. Number of coincidences: {}", vec2.len(), corr);
             
@@ -723,7 +727,6 @@ pub mod isi_box {
                 .open("isi_g2_index.txt").expect("Could not output time histogram.");
             tfile.write_all(as_bytes(&spim_index_vec)).expect("Could not write time to file.");
             
-            corr_list
         }
 
         fn copy_empty(val: &Self) -> Self {
@@ -741,7 +744,7 @@ pub mod isi_box {
         }
     }
 
-    pub fn get_channel_timelist<V>(mut data: V, corr: bool) -> IsiList 
+    pub fn get_channel_timelist<V>(mut data: V) -> IsiList 
         where V: Read
         {
             //let zlp = Normal::new(100.0, 25.0).unwrap();
@@ -759,9 +762,7 @@ pub mod isi_box {
                 })
             }
             list.output_spim();
-            let val = list.search_coincidence(2, 12);
-            //list.search_coincidence(2, 12);
-            if corr {return val;}
+            list.search_coincidence(2, 12);
             list
         }
 }
