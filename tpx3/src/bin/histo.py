@@ -84,7 +84,7 @@ ax.hist(tot, bins=25)
 ax.set_xlabel('Time over threshold (units of 1.5615 ns)')
 
 fig, ax = plt.subplots()
-ax.hist2d(xH, g2t, bins=[int(SPIM_PIXELS/8), 1001], range=[[0, SPIM_PIXELS], [-500, 500]])
+ax.hist2d(xH, g2t, bins=[int(SPIM_PIXELS/2), 1001], range=[[0, SPIM_PIXELS], [-500, 500]])
 #ax.hist(g2t[indexes_position], bins=1000)
 ax.set_xlabel('Energy (pixels)')
 ax.set_ylabel('Photon correlation delay (units of IsiBox 120 ps)')
