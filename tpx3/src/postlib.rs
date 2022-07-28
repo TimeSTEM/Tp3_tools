@@ -105,15 +105,23 @@ pub mod coincidence {
             for val in temp_edata.electron.values() {
                 self.add_electron(*val);
                 let mut index = 0;
+                let mut index_to_increase = None;
                 //for (index, ph) in temp_tdc.tdc[min_index..].iter().enumerate().filter(|(index, ph)| ph.1 != 16 && ph.1 != 24) {
                 for ph in &vec2[min_index..] {
                     let dt = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64;
                     if (dt.abs() as TIME) < time_width {
                         self.add_coincident_electron(*val, **ph);
-                        min_index += index / 5;
+                        if let None = index_to_increase {
+                            index_to_increase = Some(index)
+                        }
+                        //index_to_increase = std::cmp::max(index, index_to_increase);
+                        //min_index += index / 40;
                     }
                     if dt > 100_000 {break;}
                     index += 1;
+                }
+                if let Some(increase) = index_to_increase {
+                    min_index += increase / 5;
                 }
             }
             temp_tdc.min_index = min_index;
@@ -437,7 +445,7 @@ pub mod coincidence {
         let begin_tp3_time = spim_tdc.begin_frame;
     
         //IsiBox loading file & setting up synchronization
-        let f = fs::File::open("isi_raw240.isi").unwrap();
+        let f = fs::File::open("isi_raw284.isi").unwrap();
         let temp_list = isi_box::get_channel_timelist(f);
         let begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
@@ -446,9 +454,10 @@ pub mod coincidence {
         
         let mut correct_vector = IsiBoxCorrectVector(vec![None; temp_tdc.get_vec_len()], 0);
         
+        let mut offset = 0;
         let mut ci = 0;
         let mut file = fs::File::open(file)?;
-        let mut buffer: Vec<u8> = vec![0; 512_000_000];
+        let mut buffer: Vec<u8> = vec![0; 256_000_000];
         let mut total_size = 0;
         let start = Instant::now();
         
@@ -456,7 +465,7 @@ pub mod coincidence {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
             println!("MB Read: {}", total_size / 1_000_000 );
-            //if (total_size / 1_000_000) > 3583 {break;}
+            if (total_size / 1_000_000) > 10_000 {break;}
             let mut temp_edata = TempElectronData::new();
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match *pack_oct {
@@ -468,10 +477,14 @@ pub mod coincidence {
                             //    temp_tdc.add_tdc(&packet);
                             //},
                             6 if packet.tdc_type() == spim_tdc.id() => {
-                                coinc_data.add_spim_line(&packet);
-                                let of = coinc_data.estimate_overflow(&packet).unwrap();
-                                let val = tdc_iter.next().unwrap();
-                                correct_vector.add_offset(val.0, packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6 - val.1);
+                                if offset > 0 { 
+                                    coinc_data.add_spim_line(&packet);
+                                    let of = coinc_data.estimate_overflow(&packet).unwrap();
+                                    let val = tdc_iter.next().unwrap();
+                                    //println!("{:?} and {:?}", packet.tdc_time_abs(), val.1);
+                                    correct_vector.add_offset(val.0, packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6 - val.1);
+                                }
+                                offset += 1;
                             },
                             11 => {
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc);
@@ -673,7 +686,7 @@ pub mod isi_box {
                 //if val1.1 == 16 || val1.1 == 24 {corr_list.data.0.push(*val1);};
                 if val1.1 != ch1 {continue;}
                 let mut index = 0;
-                if count % 200_000 == 0 {
+                if count % 1_000_000 == 0 {
                     println!("***IsiBox***: Searching coincidences is at: {}%. Current photon is is: {:?}", count*100/size, val1);
                 }
                 count+=1;
