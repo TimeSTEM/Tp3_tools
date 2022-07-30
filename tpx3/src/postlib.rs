@@ -596,10 +596,14 @@ pub mod isi_box {
                 if time_dif < 0 {
                     time_dif += 67108864;
                 }
-                
-                //while (time_dif - line_time as i32).abs() > 10 {
-                //    time_dif += line_time;
-                //}
+
+
+                //Modulus of the time_dif relative to the line time
+                let fractional = time_dif as u32 - (time_dif as u32 / line_time) * line_time;
+
+                //If modulus > 1% or smaller than 99% of the line time, we have found an issue
+                if fractional > line_time / 100 && fractional < (line_time * 99) / 100 {
+                }
 
 
                 if (time_dif - line_time as i32).abs() > 10 {
