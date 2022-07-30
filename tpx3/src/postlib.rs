@@ -435,16 +435,16 @@ pub mod coincidence {
         Ok(())
     }
     
-    pub fn correct_coincidence_isi(file: &str, coinc_data: &mut ElectronData) -> TempTdcData {
+    pub fn correct_coincidence_isi(file1: &str, file2: &str, coinc_data: &mut ElectronData) -> TempTdcData {
     
         //TP3 configurating TDC Ref
-        let mut file0 = fs::File::open(file).unwrap();
+        let mut file0 = fs::File::open(file1).unwrap();
         let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         let begin_tp3_time = spim_tdc.begin_frame;
     
         //IsiBox loading file & setting up synchronization
-        let f = fs::File::open("isi_raw309.isi").unwrap();
+        let f = fs::File::open(file2).unwrap();
         let temp_list = isi_box::get_channel_timelist(f);
         let begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
@@ -455,7 +455,7 @@ pub mod coincidence {
         
         let mut offset = 0;
         let mut ci = 0;
-        let mut file = fs::File::open(file).unwrap();
+        let mut file = fs::File::open(file1).unwrap();
         let mut buffer: Vec<u8> = vec![0; 512_000_000];
         let mut total_size = 0;
         let start = Instant::now();
@@ -493,30 +493,20 @@ pub mod coincidence {
         temp_tdc
     }
 
-    pub fn search_coincidence_isi(file: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
+    pub fn search_coincidence_isi(file1: &str, file2: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
     
         //TP3 configurating TDC Ref
-        let mut file0 = fs::File::open(file)?;
+        let mut file0 = fs::File::open(file1)?;
         let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         let begin_tp3_time = spim_tdc.begin_frame;
     
-        //IsiBox loading file & setting up synchronization
-        //let f = fs::File::open("isi_raw309.isi").unwrap();
-        //let temp_list = isi_box::get_channel_timelist(f);
-        //let begin_isi_time = temp_list.start_time;
-        //let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
-        //let temp_tdc_iter = temp_tdc.get_sync();
-        //let mut tdc_iter = temp_tdc_iter.iter();
-
-        let mut temp_tdc = correct_coincidence_isi(file, coinc_data);
-        
-        //let mut correct_vector = IsiBoxCorrectVector(vec![None; temp_tdc.get_vec_len()], 0);
+        let mut temp_tdc = correct_coincidence_isi(file1, file2, coinc_data);
         
         let mut offset = 0;
         let mut ci = 0;
-        let mut file = fs::File::open(file)?;
-        let mut buffer: Vec<u8> = vec![0; 256_000_000];
+        let mut file = fs::File::open(file1)?;
+        let mut buffer: Vec<u8> = vec![0; 512_000_000];
         let mut total_size = 0;
         let start = Instant::now();
         
@@ -532,16 +522,9 @@ pub mod coincidence {
                     _ => {
                         let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
                         match packet.id() {
-                            //6 if packet.tdc_type() == np_tdc.id() => {
-                            //    temp_tdc.add_tdc(&packet);
-                            //},
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 if offset > -1 { 
                                     coinc_data.add_spim_line(&packet);
-                                    //let of = coinc_data.estimate_overflow(&packet).unwrap();
-                                    //let val = tdc_iter.next().unwrap();
-                                    //println!("{:?} and {:?}", packet.tdc_time_abs(), val.1);
-                                    //correct_vector.add_offset(val.0, packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6 - val.1);
                                 }
                                 offset += 1;
                             },
@@ -554,9 +537,6 @@ pub mod coincidence {
                     },
                 };
             });
-        //println!("Correcting the time delay between TPX3 and IsiBox..");
-        //temp_tdc.correct_tdc(&mut correct_vector);
-        //temp_tdc.test();
         coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20);
         println!("Time elapsed: {:?}", start.elapsed());
         }
@@ -611,12 +591,19 @@ pub mod isi_box {
         fn increase_counter(&mut self, data: u32) {
   
             if let Some(line_time) = self.line_time {
-                let mut val = data as i32 - self.last_time as i32;
-                if val < 0 {
-                    val += 67108864;
+                let mut time_dif = data as i32 - self.last_time as i32;
+                
+                if time_dif < 0 {
+                    time_dif += 67108864;
                 }
-                if (val - line_time as i32).abs() > 10 {
-                    println!("***IsiBox***: Probable line issue. Raw time is {}. The spim frame is {:?}. Line counter is {}. Line time is {}.", val, self.spim_frame(), self.counter, line_time);
+                
+                //while (time_dif - line_time as i32).abs() > 10 {
+                //    time_dif += line_time;
+                //}
+
+
+                if (time_dif - line_time as i32).abs() > 10 {
+                    println!("***IsiBox***: Probable line issue. Raw time is {}. Diference relative to the last time is {}. The spim frame is {:?}. Line counter is {}. Line time is {}.", data, time_dif, self.spim_frame(), self.counter, line_time);
                 }
             }
             

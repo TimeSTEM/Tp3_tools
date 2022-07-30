@@ -14,9 +14,9 @@ fn main() {
     
     ///*
     let args: Vec<String> = env::args().collect();
-    let config_set = ConfigAcquisition::new(&args);
+    let config_set = ConfigAcquisition::new(&args[0..6]);
     let mut coinc_data = ElectronData::new(&config_set);
-    search_coincidence_isi(&config_set.file(), &mut coinc_data).unwrap();
+    search_coincidence_isi(&config_set.file(), "isi_raw309.isi", &mut coinc_data).unwrap();
     
     coinc_data.output_spectrum(true);
     coinc_data.output_corr_spectrum(false);
