@@ -607,7 +607,7 @@ pub mod isi_box {
 
 
                 if (time_dif - line_time as i32).abs() > 10 {
-                    println!("***IsiBox***: Probable line issue. Raw time is {}. Diference relative to the last time is {}. The spim frame is {:?}. Line counter is {}. Line time is {}.", data, time_dif, self.spim_frame(), self.counter, line_time);
+                    println!("***IsiBox***: Probable line issue. Raw time is {}. Diference relative to the last time is {}. The spim frame is {:?}. Line counter is {}. Line time is {}. Last time is {}. Abs time is {}.", data, time_dif, self.spim_frame(), self.counter, line_time, self.last_time, self.get_abs_time(data));
                 }
             }
             
