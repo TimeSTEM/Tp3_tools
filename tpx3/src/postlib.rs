@@ -97,7 +97,7 @@ pub mod coincidence {
             //if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
             if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1;}
             temp_edata.electron.sort();
-            temp_edata.electron.try_clean(0, self.remove_clusters);
+            //temp_edata.electron.try_clean(0, self.remove_clusters);
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
@@ -111,6 +111,7 @@ pub mod coincidence {
                 for ph in &vec2[min_index..] {
                     let dt = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64;
                     if (dt.abs() as TIME) < time_width {
+                    //if (((ph.0/6) < val.time() + time_delay + time_width) || (val.time() + time_delay < (ph.0/6) + time_width)) {
                         self.add_coincident_electron(*val, **ph);
                         if let None = index_to_increase {
                             index_to_increase = Some(index)
@@ -118,11 +119,12 @@ pub mod coincidence {
                         //index_to_increase = std::cmp::max(index, index_to_increase);
                         //min_index += index / 40;
                     }
-                    if dt > 100_000 {break;}
+                    if dt > 1_000 {break;}
+                    //if ((ph.0/6) > val.time() + time_delay + 1_000) {break;}
                     index += 1;
                 }
                 if let Some(increase) = index_to_increase {
-                    min_index += increase / 5;
+                    min_index += increase / 3;
                 }
             }
             temp_tdc.min_index = min_index;

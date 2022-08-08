@@ -30,7 +30,7 @@ indexes_extra = numpy.where(xH > 70)
 #t = t[indexes]
 
 #Getting CLE
-indexes_cle = numpy.where((numpy.abs(t + 500) < 25))
+indexes_cle = numpy.where((numpy.abs(t + 500) < 50))
 cle = numpy.zeros(1041)
 for val in xH[indexes_cle]:
     cle[val] += 1
