@@ -14,6 +14,7 @@ pub mod coincidence {
     use std::convert::TryInto;
     use crate::auxiliar::value_types::*;
     use rayon::prelude::*;
+    use indicatif::{ProgressBar, ProgressStyle};
 
     const TIME_WIDTH: TIME = 40; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
     const TIME_DELAY: TIME = 104; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
@@ -91,7 +92,7 @@ pub mod coincidence {
                 filter(|(time, channel, dt)| *channel != 16 && *channel != 24).
                 count();
             let mut min_index = temp_tdc.min_index;
-            println!("Total supplementary events: {}. Photons: {}. Minimum size of the array: {}.", ntotal, nphotons, min_index);
+            //println!("Total supplementary events: {}. Photons: {}. Minimum size of the array: {}.", ntotal, nphotons, min_index);
 
             //if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
             if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1;}
@@ -126,7 +127,7 @@ pub mod coincidence {
             }
             temp_tdc.min_index = min_index;
 
-            println!("Number of coincident electrons: {:?}. Last photon real time is {:?}. Last relative time is {:?}.", self.x.len(), self.time.iter().last(), self.rel_time.iter().last());
+            //println!("Number of coincident electrons: {:?}. Last photon real time is {:?}. Last relative time is {:?}.", self.x.len(), self.time.iter().last(), self.rel_time.iter().last());
         }
 
         fn prepare_spim(&mut self, spim_tdc: PeriodicTdcRef) {
@@ -379,7 +380,7 @@ pub mod coincidence {
             
 
     pub fn search_coincidence(file: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
-        
+
         let mut file0 = fs::File::open(file)?;
         
         let spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
@@ -440,6 +441,7 @@ pub mod coincidence {
     
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(file1).unwrap();
+        let progress_size = file0.metadata().unwrap().len() as u64;
         let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         let begin_tp3_time = spim_tdc.begin_frame;
@@ -451,6 +453,12 @@ pub mod coincidence {
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
         let temp_tdc_iter = temp_tdc.get_sync();
         let mut tdc_iter = temp_tdc_iter.iter();
+        
+        
+        let bar = ProgressBar::new(progress_size);
+        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] {Correcting IsiBox values}")
+                      .unwrap()
+                      .progress_chars("##-"));
         
         let mut correct_vector = IsiBoxCorrectVector(vec![None; temp_tdc.get_vec_len()], 0);
         
@@ -464,7 +472,8 @@ pub mod coincidence {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
-            println!("Reading for correction. MB Read: {}", total_size / 1_000_000 );
+            bar.inc(ISI_BUFFER_SIZE as u64);
+            //println!("Reading for correction. MB Read: {}", total_size / 1_000_000 );
             let mut temp_edata = TempElectronData::new();
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match *pack_oct {
@@ -522,7 +531,7 @@ pub mod coincidence {
                 };
             });
         temp_tdc.correct_tdc(&mut correct_vector);
-        println!("Time elapsed: {:?}", start.elapsed());
+        //println!("Time elapsed: {:?}", start.elapsed());
         }
         temp_tdc.sort();
         println!("Total number of bytes read {}", total_size);
@@ -533,23 +542,29 @@ pub mod coincidence {
     
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(file1)?;
+        let progress_size = file0.metadata().unwrap().len() as u64;
         let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         let begin_tp3_time = spim_tdc.begin_frame;
     
         let mut temp_tdc = correct_coincidence_isi(file1, file2, coinc_data);
         
-        let mut offset = 0;
         let mut ci = 0;
         let mut file = fs::File::open(file1)?;
         let mut buffer: Vec<u8> = vec![0; ISI_BUFFER_SIZE];
         let mut total_size = 0;
         let start = Instant::now();
         
+        let bar = ProgressBar::new(progress_size);
+        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] {Searching electron photon coincidences}")
+                      .unwrap()
+                      .progress_chars("##-"));
+        
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
-            println!("MB Read: {}", total_size / 1_000_000 );
+            bar.inc(ISI_BUFFER_SIZE as u64);
+            //println!("MB Read: {}", total_size / 1_000_000 );
             //if (total_size / 1_000_000) > 10_000 {break;}
             let mut temp_edata = TempElectronData::new();
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
@@ -559,10 +574,7 @@ pub mod coincidence {
                         let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
                         match packet.id() {
                             6 if packet.tdc_type() == spim_tdc.id() => {
-                                if offset > -1 { 
-                                    coinc_data.add_spim_line(&packet);
-                                }
-                                offset += 1;
+                                coinc_data.add_spim_line(&packet);
                             },
                             11 => {
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc);
@@ -574,7 +586,7 @@ pub mod coincidence {
                 };
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20);
-        println!("Time elapsed: {:?}", start.elapsed());
+        //println!("Time elapsed: {:?}", start.elapsed());
         }
         println!("Total number of bytes read {}", total_size);
         Ok(())
@@ -589,6 +601,7 @@ pub mod isi_box {
     use crate::spimlib::{VIDEO_TIME};
     use crate::tdclib::isi_box::CHANNELS;
     use crate::auxiliar::value_types::*;
+    use indicatif::{ProgressBar, ProgressStyle};
 
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
@@ -758,24 +771,23 @@ pub mod isi_box {
         }
 
         fn search_coincidence(&mut self, ch1: u32, ch2: u32) {
-            let size = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch1).count();
+            let progress_size = self.data.0.len() as u64;
             let mut vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
             let iter1 = self.data.0.iter_mut();
                 //filter(|(_time, channel, _spim_index, _spim_frame, is_corr)| *channel == ch1);
-            let mut count = 0;
             let mut min_index = 0;
             let mut corr = 0;
 
             let mut new_list = IsiListVecg2(Vec::new());
-            
+            let bar = ProgressBar::new(progress_size);
+            bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] {Searching photon coincidences}")
+                          .unwrap()
+                          .progress_chars("##-"));
+        
             for val1 in iter1 {
-                //if val1.1 == 16 || val1.1 == 24 {corr_list.data.0.push(*val1);};
+                bar.inc(1);
                 if val1.1 != ch1 {continue;}
                 let mut index = 0;
-                if count % 1_000_000 == 0 {
-                    println!("***IsiBox***: Searching coincidences is at: {}%. Current photon is is: {:?}", count*100/size, val1);
-                }
-                count+=1;
                 for val2 in &mut vec2[min_index..] {
                     let dt = val2.0 as i64 - val1.0 as i64;
                     if dt.abs() < 5_000 {
