@@ -76,7 +76,7 @@ plt.tight_layout()
 fig, ax = plt.subplots(nrows=3, sharex=True)
 ax[0].hist(t[indexes2], bins=tbin, range=(tmin, tmax))
 ax[1].hist(t[indexes12], bins=tbin, range=(tmin, tmax))
-ax[2].hist(t[indexes_g2], bins=tbin, range=(tmin, tmax))
+ax[2].hist(t[indexes_time], bins=tbin, range=(tmin, tmax))
 ax[1].set_xlabel('Time delay (units of 260 ps)')
 
 fig, ax = plt.subplots()

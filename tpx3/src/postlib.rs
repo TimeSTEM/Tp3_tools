@@ -17,6 +17,7 @@ pub mod coincidence {
 
     const TIME_WIDTH: TIME = 40; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
     const TIME_DELAY: TIME = 104; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
+    const ISI_BUFFER_SIZE: usize = 512_000_000; //Buffer size reading files when using TP3 and IsiBox
     
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
@@ -456,7 +457,7 @@ pub mod coincidence {
         let mut offset = 0;
         let mut ci = 0;
         let mut file = fs::File::open(file1).unwrap();
-        let mut buffer: Vec<u8> = vec![0; 512_000_000];
+        let mut buffer: Vec<u8> = vec![0; ISI_BUFFER_SIZE];
         let mut total_size = 0;
         let start = Instant::now();
         
@@ -472,13 +473,47 @@ pub mod coincidence {
                         let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
                         match packet.id() {
                             6 if packet.tdc_type() == spim_tdc.id() => {
-                                if offset > -1 { 
-                                    coinc_data.add_spim_line(&packet);
-                                    let of = coinc_data.estimate_overflow(&packet).unwrap();
-                                    let val = tdc_iter.next().unwrap();
-                                    correct_vector.add_offset(val.0, packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6 - val.1);
+                                coinc_data.add_spim_line(&packet);
+                                let of = coinc_data.estimate_overflow(&packet).unwrap();
+                                let isi_val = tdc_iter.next().unwrap();
+                                let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
+
+                                
+                                //Sometimes the estimative time does not work, underestimating of.
+                                //This tries to recover it out.
+                                let t_dif = if isi_val.1 > tdc_val {
+                                    let of = of + 1;
+                                    let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
+                                    tdc_val - isi_val.1
+                                } else {
+                                    tdc_val - isi_val.1
+                                };
+                                
+                                if (offset != 0) && (t_dif > offset + 1_000) {
+                                    println!("Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
+                                } else {
+                                    //Note here that a bad one will be skipped but the next one
+                                    //will try to fix it because the min_index of
+                                    //'IsiBoxCorrectorVector' won't be setted in the bad
+                                    //interaction.
+                                    correct_vector.add_offset(isi_val.0, t_dif);
                                 }
-                                offset += 1;
+
+                                offset = t_dif;
+
+
+                                
+                     
+
+
+
+                                //let t_dif = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6 - val.1;
+                                //correct_vector.add_offset(val.0, packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6 - val.1);
+                                //correct_vector.add_offset(val.0, t_dif);
+                                //if (offset != 0) || ((t_dif as i64 - offset as i64).abs() > 1_000) {
+                                //    println!("{} and {} and {} and {} and {} and {}", t_dif, offset, packet.tdc_time_abs(), of, packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6, val.1);
+                                //}
+                                //offset = t_dif;
                             },
                             11 => {},
                             _ => {}, //println!("{}", packet.tdc_type());},
@@ -487,6 +522,7 @@ pub mod coincidence {
                 };
             });
         temp_tdc.correct_tdc(&mut correct_vector);
+        println!("Time elapsed: {:?}", start.elapsed());
         }
         temp_tdc.sort();
         println!("Total number of bytes read {}", total_size);
@@ -506,7 +542,7 @@ pub mod coincidence {
         let mut offset = 0;
         let mut ci = 0;
         let mut file = fs::File::open(file1)?;
-        let mut buffer: Vec<u8> = vec![0; 512_000_000];
+        let mut buffer: Vec<u8> = vec![0; ISI_BUFFER_SIZE];
         let mut total_size = 0;
         let start = Instant::now();
         
