@@ -97,7 +97,7 @@ pub mod coincidence {
             //if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
             if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1;}
             temp_edata.electron.sort();
-            //temp_edata.electron.try_clean(0, self.remove_clusters);
+            temp_edata.electron.try_clean(0, self.remove_clusters);
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
@@ -447,14 +447,16 @@ pub mod coincidence {
         let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         let begin_tp3_time = spim_tdc.begin_frame;
+        let mut tp3_tdc_counter = 0;
     
         //IsiBox loading file & setting up synchronization
         let f = fs::File::open(file2).unwrap();
-        let temp_list = isi_box::get_channel_timelist(f);
+        let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, 8000);
         let begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
-        let temp_tdc_iter = temp_tdc.get_sync();
-        let mut tdc_iter = temp_tdc_iter.iter();
+        let tdc_vec = temp_tdc.get_sync();
+        let isi_tdc_counter = tdc_vec.len();
+        let mut tdc_iter = tdc_vec.iter();
         
         
         let bar = ProgressBar::new(progress_size);
@@ -472,7 +474,7 @@ pub mod coincidence {
         let start = Instant::now();
         
         while let Ok(size) = file.read(&mut buffer) {
-            if size == 0 {println!("Finished Reading."); break;}
+            if size == 0 {break;}
             total_size += size;
             bar.inc(ISI_BUFFER_SIZE as u64);
             //println!("Reading for correction. MB Read: {}", total_size / 1_000_000 );
@@ -484,15 +486,26 @@ pub mod coincidence {
                         let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
                         match packet.id() {
                             6 if packet.tdc_type() == spim_tdc.id() => {
+                                tp3_tdc_counter += 1;
                                 coinc_data.add_spim_line(&packet);
                                 let of = coinc_data.estimate_overflow(&packet).unwrap();
                                 let isi_val = tdc_iter.next().unwrap();
                                 let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
+                                
 
+                                /*
+                                let t_dift = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6 - isi_val.1;
+                                if ((t_dift as i64 - offset as i64).abs() > 1_000) {
+                                    println!("t_dift {} and {} and {} and {} and {} and {}", t_dift, offset, packet.tdc_time_abs(), of, packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6, isi_val.1);
+                                }
+                                */
+
+                             
                                 
                                 //Sometimes the estimative time does not work, underestimating of.
                                 //This tries to recover it out.
                                 let t_dif = if isi_val.1 > tdc_val {
+                                    println!("{} and {} and {}", isi_val.1, tdc_val, offset); 
                                     let of = of + 1;
                                     let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
                                     tdc_val - isi_val.1
@@ -500,7 +513,8 @@ pub mod coincidence {
                                     tdc_val - isi_val.1
                                 };
                                 
-                                if (offset != 0) && (t_dif > offset + 1_000) {
+                                
+                                if (offset != 0) && ((t_dif > offset + 1_000) || (offset > t_dif + 1_000)) {
                                     println!("Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
                                 } else {
                                     //Note here that a bad one will be skipped but the next one
@@ -509,6 +523,14 @@ pub mod coincidence {
                                     //interaction.
                                     correct_vector.add_offset(isi_val.0, t_dif);
                                 }
+
+
+                                /*
+                                if (tp3_tdc_counter % 10_000 == 0) {
+                                    println!("offset is {} and tdc is {}", offset, tp3_tdc_counter);
+                                }
+                                */
+                                
 
                                 offset = t_dif;
 
@@ -536,7 +558,7 @@ pub mod coincidence {
         //println!("Time elapsed: {:?}", start.elapsed());
         }
         temp_tdc.sort();
-        println!("Total number of bytes read {}", total_size);
+        println!("Total number of bytes read {} and {}", tp3_tdc_counter, isi_tdc_counter);
         temp_tdc
     }
 
@@ -563,7 +585,7 @@ pub mod coincidence {
                       .progress_chars("##-"));
         
         while let Ok(size) = file.read(&mut buffer) {
-            if size == 0 {println!("Finished Reading."); break;}
+            if size == 0 {break;}
             total_size += size;
             bar.inc(ISI_BUFFER_SIZE as u64);
             //println!("MB Read: {}", total_size / 1_000_000 );
@@ -857,11 +879,12 @@ pub mod isi_box {
         }
     }
 
-    pub fn get_channel_timelist<V>(mut data: V) -> IsiList 
+    //Pixel time must be in nanoseconds.
+    pub fn get_channel_timelist<V>(mut data: V, spim_size: (POSITION, POSITION), pixel_time: TIME) -> IsiList 
         where V: Read
         {
             //let zlp = Normal::new(100.0, 25.0).unwrap();
-            let mut list = IsiList{data: IsiListVec(Vec::new()), x: 256, y: 256, pixel_time: 66_667, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
+            let mut list = IsiList{data: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
                 if size == 0 {println!("***IsiBox***: Finished reading file."); break;}
