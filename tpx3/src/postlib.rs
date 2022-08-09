@@ -94,21 +94,33 @@ pub mod coincidence {
             let mut min_index = temp_tdc.min_index;
             //println!("Total supplementary events: {}. Photons: {}. Minimum size of the array: {}.", ntotal, nphotons, min_index);
 
+            let test = match temp_tdc.tdc_type {
+                TempTdcDataType::FromTP3 => {
+                    temp_tdc.sort();
+                    if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
+                },
+                TempTdcDataType::FromIsiBox => {
+                    if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1;}
+                },
+            };
+
             //if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
-            if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1;}
+            //if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1;}
             temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, self.remove_clusters);
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
-            let mut vec2 = temp_tdc.tdc.iter().filter(|ph| ph.1 != 16 && ph.1 != 24).collect::<Vec<_>>();
+            let start = Instant::now();
+            let mut photon_vec = temp_tdc.tdc.iter().filter(|ph| ph.1 != 16 && ph.1 != 24).collect::<Vec<_>>();
+            println!("{:?}", start.elapsed());
 
             for val in temp_edata.electron.values() {
                 self.add_electron(*val);
                 let mut index = 0;
                 let mut index_to_increase = None;
                 //for (index, ph) in temp_tdc.tdc[min_index..].iter().enumerate().filter(|(index, ph)| ph.1 != 16 && ph.1 != 24) {
-                for ph in &vec2[min_index..] {
+                for ph in &photon_vec[min_index..] {
                     //let dt = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64;
                     //if (dt.abs() as TIME) < time_width {
                     if (((ph.0/6) < val.time() + time_delay + time_width) && (val.time() + time_delay < (ph.0/6) + time_width)) {
@@ -116,10 +128,7 @@ pub mod coincidence {
                         if let None = index_to_increase {
                             index_to_increase = Some(index)
                         }
-                        //index_to_increase = std::cmp::max(index, index_to_increase);
-                        //min_index += index / 40;
                     }
-                    //if dt > 1_000 {break;}
                     if ((ph.0/6) > val.time() + time_delay + 1_000) {break;}
                     index += 1;
                 }
@@ -278,9 +287,15 @@ pub mod coincidence {
             
     }
 
+    enum TempTdcDataType {
+        FromTP3,
+        FromIsiBox,
+    }
+
     pub struct TempTdcData {
         tdc: Vec<(TIME, COUNTER, Option<i64>)>, //The absolute time, the channel and the dT
         pub min_index: usize,
+        tdc_type: TempTdcDataType,
     }
 
     impl TempTdcData {
@@ -288,6 +303,7 @@ pub mod coincidence {
             Self {
                 tdc: Vec::new(),
                 min_index: 0,
+                tdc_type: TempTdcDataType::FromTP3,
             }
         }
 
@@ -296,28 +312,13 @@ pub mod coincidence {
             Self {
                 tdc: vec_list,
                 min_index: 0,
+                tdc_type: TempTdcDataType::FromIsiBox,
             }
         }
 
         fn get_vec_len(&self) -> usize {
             self.tdc.len()
         }
-
-        /*
-        fn test(&self) {
-            println!("{:?}", self.tdc.get(0..100));
-            let mut first = self.tdc.iter().
-                filter(|(_time, channel)| *channel == 16).
-                map(|(time, _channel)| (*time));
-            println!("{:?}", first.next());
-            println!("{:?}", first.next());
-            println!("{:?}", first.next());
-            println!("{:?}", first.next());
-            println!("{:?}", first.next());
-        //println!("{:?}", correct_vector.0.get(0..213));
-            println!("{:?}", first.next());
-        }
-        */
 
         fn correct_tdc(&mut self, val: &mut IsiBoxCorrectVector) {
             self.tdc.iter_mut().zip(val.0.iter_mut()).
@@ -439,7 +440,7 @@ pub mod coincidence {
         Ok(())
     }
     
-    pub fn correct_coincidence_isi(file1: &str, file2: &str, coinc_data: &mut ElectronData) -> TempTdcData {
+    pub fn correct_coincidence_isi(file1: &str, file2: &str, coinc_data: &mut ElectronData) -> (TempTdcData, usize) {
     
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(file1).unwrap();
@@ -471,10 +472,11 @@ pub mod coincidence {
         let mut file = fs::File::open(file1).unwrap();
         let mut buffer: Vec<u8> = vec![0; ISI_BUFFER_SIZE];
         let mut total_size = 0;
-        let start = Instant::now();
+        let mut quit = false;
         
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {break;}
+            if quit {break;}
             total_size += size;
             bar.inc(ISI_BUFFER_SIZE as u64);
             //println!("Reading for correction. MB Read: {}", total_size / 1_000_000 );
@@ -492,20 +494,9 @@ pub mod coincidence {
                                 let isi_val = tdc_iter.next().unwrap();
                                 let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
                                 
-
-                                /*
-                                let t_dift = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6 - isi_val.1;
-                                if ((t_dift as i64 - offset as i64).abs() > 1_000) {
-                                    println!("t_dift {} and {} and {} and {} and {} and {}", t_dift, offset, packet.tdc_time_abs(), of, packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6, isi_val.1);
-                                }
-                                */
-
-                             
-                                
                                 //Sometimes the estimative time does not work, underestimating of.
                                 //This tries to recover it out.
                                 let t_dif = if isi_val.1 > tdc_val {
-                                    println!("{} and {} and {}", isi_val.1, tdc_val, offset); 
                                     let of = of + 1;
                                     let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
                                     tdc_val - isi_val.1
@@ -516,6 +507,7 @@ pub mod coincidence {
                                 
                                 if (offset != 0) && ((t_dif > offset + 1_000) || (offset > t_dif + 1_000)) {
                                     println!("Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
+                                    quit = true;
                                 } else {
                                     //Note here that a bad one will be skipped but the next one
                                     //will try to fix it because the min_index of
@@ -523,14 +515,6 @@ pub mod coincidence {
                                     //interaction.
                                     correct_vector.add_offset(isi_val.0, t_dif);
                                 }
-
-
-                                /*
-                                if (tp3_tdc_counter % 10_000 == 0) {
-                                    println!("offset is {} and tdc is {}", offset, tp3_tdc_counter);
-                                }
-                                */
-                                
 
                                 offset = t_dif;
 
@@ -555,11 +539,10 @@ pub mod coincidence {
                 };
             });
         temp_tdc.correct_tdc(&mut correct_vector);
-        //println!("Time elapsed: {:?}", start.elapsed());
         }
         temp_tdc.sort();
         println!("Total number of bytes read {} and {}", tp3_tdc_counter, isi_tdc_counter);
-        temp_tdc
+        (temp_tdc, total_size)
     }
 
     pub fn search_coincidence_isi(file1: &str, file2: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
@@ -571,7 +554,8 @@ pub mod coincidence {
         coinc_data.prepare_spim(spim_tdc);
         let begin_tp3_time = spim_tdc.begin_frame;
     
-        let mut temp_tdc = correct_coincidence_isi(file1, file2, coinc_data);
+        let (mut temp_tdc, max_total_size) = correct_coincidence_isi(file1, file2, coinc_data);
+        println!("total size that will be read {}", max_total_size);
         
         let mut ci = 0;
         let mut file = fs::File::open(file1)?;
@@ -586,6 +570,7 @@ pub mod coincidence {
         
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {break;}
+            if (total_size >= max_total_size) {break;}
             total_size += size;
             bar.inc(ISI_BUFFER_SIZE as u64);
             //println!("MB Read: {}", total_size / 1_000_000 );
