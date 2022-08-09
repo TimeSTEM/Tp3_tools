@@ -16,8 +16,6 @@ pub mod coincidence {
     use rayon::prelude::*;
     use indicatif::{ProgressBar, ProgressStyle};
 
-    const TIME_WIDTH: TIME = 40; //Time width to correlate (in units of 640 Mhz, or 1.5625 ns).
-    const TIME_DELAY: TIME = 104; // + 50_000; //Time delay to correlate (in units of 640 Mhz, or 1.5625 ns).
     const ISI_BUFFER_SIZE: usize = 512_000_000; //Buffer size reading files when using TP3 and IsiBox
     
     fn as_bytes<T>(v: &[T]) -> &[u8] {
@@ -26,6 +24,16 @@ pub mod coincidence {
                 v.as_ptr() as *const u8,
                 v.len() * std::mem::size_of::<T>())
         }
+    }
+
+    fn output_data<T>(data: &[T], name: &str) {
+        let mut tfile = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(name).unwrap();
+        tfile.write_all(as_bytes(data)).unwrap();
+        println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
     }
 
     pub struct ElectronData {
@@ -87,14 +95,14 @@ pub mod coincidence {
         }
         
         fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME) {
-            let ntotal = temp_tdc.tdc.len();
+            let _ntotal = temp_tdc.tdc.len();
             let nphotons = temp_tdc.tdc.iter().
-                filter(|(time, channel, dt)| *channel != 16 && *channel != 24).
+                filter(|(_time, channel, _dt)| *channel != 16 && *channel != 24).
                 count();
             let mut min_index = temp_tdc.min_index;
             //println!("Total supplementary events: {}. Photons: {}. Minimum size of the array: {}.", ntotal, nphotons, min_index);
 
-            let test = match temp_tdc.tdc_type {
+            match temp_tdc.tdc_type {
                 TempTdcDataType::FromTP3 => {
                     temp_tdc.sort();
                     if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
@@ -102,34 +110,27 @@ pub mod coincidence {
                 TempTdcDataType::FromIsiBox => {
                     if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1;}
                 },
-            };
+            }
 
-            //if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
-            //if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1;}
             temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, self.remove_clusters);
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
-            //let start = Instant::now();
             //let mut photon_vec = temp_tdc.tdc.iter().filter(|ph| ph.1 != 16 && ph.1 != 24).collect::<Vec<_>>();
-            //println!("{:?}", start.elapsed());
-
+            
             for val in temp_edata.electron.values() {
                 self.add_electron(*val);
                 let mut index = 0;
                 let mut index_to_increase = None;
-                //for ph in &photon_vec[min_index..] {
                 for ph in &temp_tdc.clean_tdc[min_index..] {
-                    //let dt = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64;
-                    //if (dt.abs() as TIME) < time_width {
-                    if (((ph.0/6) < val.time() + time_delay + time_width) && (val.time() + time_delay < (ph.0/6) + time_width)) {
+                    if ((ph.0/6) < val.time() + time_delay + time_width) && (val.time() + time_delay < (ph.0/6) + time_width) {
                         self.add_coincident_electron(*val, *ph);
                         if let None = index_to_increase {
                             index_to_increase = Some(index)
                         }
                     }
-                    if ((ph.0/6) > val.time() + time_delay + 1_000) {break;}
+                    if (ph.0/6) > val.time() + time_delay + 1_000 {break;}
                     index += 1;
                 }
                 if let Some(increase) = index_to_increase {
@@ -200,23 +201,11 @@ pub mod coincidence {
         }
 
         pub fn output_relative_time(&self) {
-            let mut tfile = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open("tH.txt").expect("Could not output time histogram.");
-            tfile.write_all(as_bytes(&self.rel_time)).expect("Could not write time to file.");
-            println!("Outputting relative time under tH name. Vector len is {}", self.rel_time.len());
+            output_data(&self.rel_time, "tH.txt");
         }
         
         pub fn output_time(&self) {
-            let mut tfile = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open("tabsH.txt").expect("Could not output time histogram.");
-            tfile.write_all(as_bytes(&self.time)).expect("Could not write time to file.");
-            println!("Outputting relative time under tH name. Vector len is {}", self.time.len());
+            output_data(&self.time, "tabsH.txt");
         }
         
         pub fn output_g2_time(&self) {
@@ -226,63 +215,40 @@ pub mod coincidence {
                     Some(x) => *x,
                 }
             }).collect::<Vec<i64>>();
-            let mut tfile = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open("g2tH.txt").expect("Could not output g2 time histogram.");
-            tfile.write_all(as_bytes(&vec)).expect("Could not write g2 time to file.");
-            println!("Outputting relative time under tH name. Vector len is {}", vec.len());
+            output_data(&vec, "g2tH.txt");
         }
         
         pub fn output_channel(&self) {
-            let mut tfile = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open("channel.txt").expect("Could not output channel histogram.");
-            tfile.write_all(as_bytes(&self.channel)).expect("Could not write time to file.");
-            println!("Outputting relative time under tH name. Vector len is {}", self.channel.len());
+            output_data(&self.channel, "channel.txt");
         }
         
         pub fn output_dispersive(&self) {
-            let mut tfile = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open("xH.txt").expect("Could not output X histogram.");
-            tfile.write_all(as_bytes(&self.x)).expect("Could not write time to file.");
-            println!("Outputting each dispersive value under xH name. Vector len is {}", self.x.len());
+            output_data(&self.x, "xH.txt");
         }
         
         pub fn output_non_dispersive(&self) {
-            let mut tfile = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open("yH.txt").expect("Could not output Y histogram.");
-            tfile.write_all(as_bytes(&self.y)).expect("Could not write time to file.");
-            println!("Outputting each non-dispersive value under yH name. Vector len is {}", self.y.len());
+            output_data(&self.y, "yH.txt");
         }
         
         pub fn output_spim_index(&self) {
+            output_data(&self.spim_index, "si.txt");
+            /*
             println!("Outputting each spim index value under si name. Vector len is {}", self.spim_index.len());
             let out: String = self.spim_index.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
             fs::write("si.txt", out).unwrap();
+            */
         }
 
         pub fn output_cluster_size(&self) {
+            output_data(&self.cluster_size, "cs.txt");
+            /*
             let out: String = self.cluster_size.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
             fs::write("cs.txt", out).unwrap();
+            */
         }
 
         pub fn output_tot(&self) {
-            let mut tfile = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open("tot.txt").expect("Could not output time histogram.");
-            tfile.write_all(as_bytes(&self.tot)).expect("Could not write time to file.");
+            output_data(&self.tot, "tot.txt");
         }
             
     }
@@ -325,8 +291,8 @@ pub mod coincidence {
 
         fn correct_tdc(&mut self, val: &mut IsiBoxCorrectVector) {
             self.tdc.iter_mut().zip(val.0.iter_mut()).
-                filter(|((time, channel, dt), corr)| corr.is_some()).
-                for_each(|((time, channel, dt), corr)| {
+                filter(|((_time, _channel, _dt), corr)| corr.is_some()).
+                for_each(|((time, _channel, _dt), corr)| {
                 *time += corr.unwrap() as usize;
                 //*time = *time - (*time / (Pack::electron_overflow() * 6)) * (Pack::electron_overflow() * 6);
                 *corr = Some(0);
@@ -335,16 +301,10 @@ pub mod coincidence {
         }
         
         pub fn get_sync(&self) -> Vec<(usize, TIME)> {
-            let first = self.tdc.iter().
-                filter(|(_time, channel, _dt)| *channel == 16).
-                map(|(time, _channel, dt)| (*time)).
-                next().
-                unwrap();
-
             self.tdc.iter().
                 enumerate().
-                filter(|(index, (_time, channel, _dt))| *channel == 16).
-                map(|(index, (time, _channel, dt))| (index, *time)).
+                filter(|(_index, (_time, channel, _dt))| *channel == 16).
+                map(|(index, (time, _channel, _dt))| (index, *time)).
                 collect::<Vec<_>>()
         }
 
@@ -451,13 +411,13 @@ pub mod coincidence {
         let progress_size = file0.metadata().unwrap().len() as u64;
         let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
-        let begin_tp3_time = spim_tdc.begin_frame;
+        let _begin_tp3_time = spim_tdc.begin_frame;
         let mut tp3_tdc_counter = 0;
     
         //IsiBox loading file & setting up synchronization
         let f = fs::File::open(file2).unwrap();
         let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, 8000);
-        let begin_isi_time = temp_list.start_time;
+        let _begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
         let tdc_vec = temp_tdc.get_sync();
         let isi_tdc_counter = tdc_vec.len();
@@ -484,7 +444,6 @@ pub mod coincidence {
             total_size += size;
             bar.inc(ISI_BUFFER_SIZE as u64);
             //println!("Reading for correction. MB Read: {}", total_size / 1_000_000 );
-            let mut temp_edata = TempElectronData::new();
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
@@ -556,7 +515,6 @@ pub mod coincidence {
         let progress_size = file0.metadata().unwrap().len() as u64;
         let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
-        let begin_tp3_time = spim_tdc.begin_frame;
     
         let (mut temp_tdc, max_total_size) = correct_coincidence_isi(file1, file2, coinc_data);
         println!("total size that will be read {}", max_total_size);
@@ -565,7 +523,6 @@ pub mod coincidence {
         let mut file = fs::File::open(file1)?;
         let mut buffer: Vec<u8> = vec![0; ISI_BUFFER_SIZE];
         let mut total_size = 0;
-        let start = Instant::now();
         
         let bar = ProgressBar::new(progress_size);
         bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] {Searching electron photon coincidences}")
@@ -574,7 +531,7 @@ pub mod coincidence {
         
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {break;}
-            if (total_size >= max_total_size) {break;}
+            if total_size >= max_total_size {break;}
             total_size += size;
             bar.inc(ISI_BUFFER_SIZE as u64);
             //println!("MB Read: {}", total_size / 1_000_000 );
@@ -599,7 +556,6 @@ pub mod coincidence {
                 };
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20);
-        //println!("Time elapsed: {:?}", start.elapsed());
         }
         println!("Total number of bytes read {}", total_size);
         Ok(())
@@ -760,13 +716,13 @@ pub mod isi_box {
         fn output_spim(&self) {
             let spim_vec = self.data.0.iter().
                 filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel != 16 && *channel != 24).
-                filter(|(time, channel, spim_index, spim_frame, _dt)| spim_index.is_some() && spim_frame.is_some()).
+                filter(|(_time, _channel, spim_index, spim_frame, _dt)| spim_index.is_some() && spim_frame.is_some()).
                 map(|(_time, channel, spim_index, _spim_frame, _dt)| spim_index.unwrap() * CHANNELS as u32 + channel).collect::<Vec<u32>>();
  
             let index_vec = self.data.0.iter().
                 filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel != 16 && *channel != 24).
-                filter(|(time, channel, spim_index, spim_frame, _dt)| spim_index.is_some() && spim_frame.is_some()).
-                map(|(_time, channel, _spim_index, spim_frame, _dt)| spim_frame.unwrap()).collect::<Vec<u32>>();
+                filter(|(_time, _channel, spim_index, spim_frame, _dt)| spim_index.is_some() && spim_frame.is_some()).
+                map(|(_time, _channel, _spim_index, spim_frame, _dt)| spim_frame.unwrap()).collect::<Vec<u32>>();
 
             let mut tfile = OpenOptions::new()
                 .write(true)
@@ -828,12 +784,12 @@ pub mod isi_box {
             println!("***IsiBox***: Size of the second channel: {}. Number of coincidences: {}", vec2.len(), corr);
             
             let dt_vec = new_list.0.iter().
-                filter(|(time, channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
+                filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
                 map(|(dtime, _channel, _spim_index, _spim_frame)| *dtime).
                 collect::<Vec<i64>>();
 
             let spim_index_vec = new_list.0.iter().
-                filter(|(time, channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
+                filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
                 map(|(_dtime, _channel, spim_index, _spim_frame)| spim_index.unwrap()).
                 collect::<Vec<u32>>();
 
@@ -851,20 +807,6 @@ pub mod isi_box {
                 .open("isi_g2_index.txt").expect("Could not output time histogram.");
             tfile.write_all(as_bytes(&spim_index_vec)).expect("Could not write time to file.");
             
-        }
-
-        fn copy_empty(val: &Self) -> Self {
-            IsiList {
-                data: IsiListVec(Vec::new()),
-                x: val.x,
-                y: val.y,
-                pixel_time: val.pixel_time,
-                counter: val.counter,
-                overflow: val.overflow,
-                last_time: val.last_time,
-                start_time: val.start_time,
-                line_time: val.line_time,
-            }
         }
     }
 
