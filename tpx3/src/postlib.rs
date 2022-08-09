@@ -109,9 +109,9 @@ pub mod coincidence {
                 let mut index_to_increase = None;
                 //for (index, ph) in temp_tdc.tdc[min_index..].iter().enumerate().filter(|(index, ph)| ph.1 != 16 && ph.1 != 24) {
                 for ph in &vec2[min_index..] {
-                    let dt = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64;
-                    if (dt.abs() as TIME) < time_width {
-                    //if (((ph.0/6) < val.time() + time_delay + time_width) || (val.time() + time_delay < (ph.0/6) + time_width)) {
+                    //let dt = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64;
+                    //if (dt.abs() as TIME) < time_width {
+                    if (((ph.0/6) < val.time() + time_delay + time_width) && (val.time() + time_delay < (ph.0/6) + time_width)) {
                         self.add_coincident_electron(*val, **ph);
                         if let None = index_to_increase {
                             index_to_increase = Some(index)
@@ -119,8 +119,8 @@ pub mod coincidence {
                         //index_to_increase = std::cmp::max(index, index_to_increase);
                         //min_index += index / 40;
                     }
-                    if dt > 1_000 {break;}
-                    //if ((ph.0/6) > val.time() + time_delay + 1_000) {break;}
+                    //if dt > 1_000 {break;}
+                    if ((ph.0/6) > val.time() + time_delay + 1_000) {break;}
                     index += 1;
                 }
                 if let Some(increase) = index_to_increase {
