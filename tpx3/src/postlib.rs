@@ -111,20 +111,20 @@ pub mod coincidence {
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
-            let start = Instant::now();
-            let mut photon_vec = temp_tdc.tdc.iter().filter(|ph| ph.1 != 16 && ph.1 != 24).collect::<Vec<_>>();
-            println!("{:?}", start.elapsed());
+            //let start = Instant::now();
+            //let mut photon_vec = temp_tdc.tdc.iter().filter(|ph| ph.1 != 16 && ph.1 != 24).collect::<Vec<_>>();
+            //println!("{:?}", start.elapsed());
 
             for val in temp_edata.electron.values() {
                 self.add_electron(*val);
                 let mut index = 0;
                 let mut index_to_increase = None;
-                //for (index, ph) in temp_tdc.tdc[min_index..].iter().enumerate().filter(|(index, ph)| ph.1 != 16 && ph.1 != 24) {
-                for ph in &photon_vec[min_index..] {
+                //for ph in &photon_vec[min_index..] {
+                for ph in &temp_tdc.clean_tdc[min_index..] {
                     //let dt = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64;
                     //if (dt.abs() as TIME) < time_width {
                     if (((ph.0/6) < val.time() + time_delay + time_width) && (val.time() + time_delay < (ph.0/6) + time_width)) {
-                        self.add_coincident_electron(*val, **ph);
+                        self.add_coincident_electron(*val, *ph);
                         if let None = index_to_increase {
                             index_to_increase = Some(index)
                         }
@@ -294,7 +294,8 @@ pub mod coincidence {
 
     pub struct TempTdcData {
         tdc: Vec<(TIME, COUNTER, Option<i64>)>, //The absolute time, the channel and the dT
-        pub min_index: usize,
+        clean_tdc: Vec<(TIME, COUNTER, Option<i64>)>,
+        min_index: usize,
         tdc_type: TempTdcDataType,
     }
 
@@ -302,6 +303,7 @@ pub mod coincidence {
         fn new() -> Self {
             Self {
                 tdc: Vec::new(),
+                clean_tdc: Vec::new(),
                 min_index: 0,
                 tdc_type: TempTdcDataType::FromTP3,
             }
@@ -311,6 +313,7 @@ pub mod coincidence {
             let vec_list = list.get_timelist_with_tp3_tick();
             Self {
                 tdc: vec_list,
+                clean_tdc: Vec::new(),
                 min_index: 0,
                 tdc_type: TempTdcDataType::FromIsiBox,
             }
@@ -351,6 +354,7 @@ pub mod coincidence {
 
         fn sort(&mut self) {
             self.tdc.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+            self.clean_tdc = self.tdc.iter().filter(|ph| ph.1 != 16 && ph.1 != 24).cloned().collect::<Vec<_>>();
         }
     }
 
