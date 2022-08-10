@@ -423,7 +423,7 @@ pub mod coincidence {
         
         
         let bar = ProgressBar::new(progress_size);
-        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] {Correcting IsiBox values}")
+        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Correcting IsiBox values")
                       .unwrap()
                       .progress_chars("=>-"));
         
@@ -488,6 +488,7 @@ pub mod coincidence {
             });
         temp_tdc.correct_tdc(&mut correct_vector);
         }
+        println!("***IsiBox***: IsiBox values corrected.");
         temp_tdc.sort();
         (temp_tdc, total_size)
     }
@@ -508,7 +509,7 @@ pub mod coincidence {
         let mut total_size = 0;
         
         let bar = ProgressBar::new(progress_size);
-        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] {Searching electron photon coincidences}")
+        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Searching electron photon coincidences")
                       .unwrap()
                       .progress_chars("=>-"));
         
@@ -540,6 +541,7 @@ pub mod coincidence {
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20);
         }
+        println!("***IsiBox***: Coincidence search is over.");
         Ok(())
     }
 }
@@ -579,11 +581,11 @@ pub mod isi_box {
         x: u32,
         y: u32,
         pixel_time: u32,
-        pub counter: u32,
-        pub overflow: u32,
-        pub last_time: u32,
+        counter: u32,
+        overflow: u32,
+        last_time: u32,
         pub start_time: Option<u32>,
-        pub line_time: Option<u32>,
+        line_time: Option<u32>,
     }
 
 
@@ -681,6 +683,39 @@ pub mod isi_box {
         fn add_event(&mut self, channel: u32, data: u32) {
             self.data.0.push((self.get_abs_time(data), channel, self.spim_index(data), self.spim_frame(), None));
         }
+
+        fn check_for_issues(&self) {
+            let iter1 = self.data.0.iter().
+                enumerate().
+                filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
+            
+            let iter2 = self.data.0[1..].iter().
+                enumerate().
+                filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
+
+            let mut iter3 = iter1.
+                zip(iter2).
+                filter(|(val1, val2)| (val1.1.0 > val2.1.0 + self.line_time.unwrap() as u64 + 1_000) || (val2.1.0 > val1.1.0 + self.line_time.unwrap() as u64 + 1_000));
+
+            println!("{:?}", iter3.next());
+            println!("{:?}", iter3.next());
+            println!("{:?}", iter3.next());
+            println!("{:?}", self.line_time.unwrap());
+
+                
+                /*
+                reduce(|accum, item| {
+                    if (accum.1.0 > item.1.0 + 10) || (item.1.0 > accum.1.0 + 10) {
+                        println!("KKKKKKKKKKKKK {:?}", accum);
+                        accum
+                    }
+                    else {
+                        //println!("nothing");
+                        item
+                    }
+                });
+                */
+        }
         
         pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER, Option<i64>)> {
             let first = self.data.0.iter().
@@ -722,6 +757,7 @@ pub mod isi_box {
         }
 
         fn search_coincidence(&mut self, ch1: u32, ch2: u32) {
+            self.check_for_issues();
             let progress_size = self.data.0.len() as u64;
             let mut vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
             let iter1 = self.data.0.iter_mut();

@@ -18,6 +18,7 @@ pub trait Packet {
     #[inline]
     fn x(&self) -> POSITION {
         let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
+        
         match self.ci() {
             0 => 255 - temp2,
             1 => 256 * 4 - 1 - temp2,
