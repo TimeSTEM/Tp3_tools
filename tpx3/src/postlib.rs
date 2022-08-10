@@ -416,18 +416,18 @@ pub mod coincidence {
     
         //IsiBox loading file & setting up synchronization
         let f = fs::File::open(file2).unwrap();
-        let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, 8000);
+        let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, spim_tdc.pixel_time(coinc_data.spim_size.0 * 15_625 / 10_000));
         let _begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
         let tdc_vec = temp_tdc.get_sync();
-        let isi_tdc_counter = tdc_vec.len();
+        let _isi_tdc_counter = tdc_vec.len();
         let mut tdc_iter = tdc_vec.iter();
         
         
         let bar = ProgressBar::new(progress_size);
         bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] {Correcting IsiBox values}")
                       .unwrap()
-                      .progress_chars("##-"));
+                      .progress_chars("=>-"));
         
         let mut correct_vector = IsiBoxCorrectVector(vec![None; temp_tdc.get_vec_len()], 0);
         
@@ -469,7 +469,7 @@ pub mod coincidence {
                                 
                                 
                                 if (offset != 0) && ((t_dif > offset + 1_000) || (offset > t_dif + 1_000)) {
-                                    println!("Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
+                                    println!("***IsiBox***: Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
                                     quit = true;
                                 } else {
                                     //Note here that a bad one will be skipped but the next one
@@ -480,20 +480,7 @@ pub mod coincidence {
                                 }
 
                                 offset = t_dif;
-
-
-                                
                      
-
-
-
-                                //let t_dif = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6 - val.1;
-                                //correct_vector.add_offset(val.0, packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6 - val.1);
-                                //correct_vector.add_offset(val.0, t_dif);
-                                //if (offset != 0) || ((t_dif as i64 - offset as i64).abs() > 1_000) {
-                                //    println!("{} and {} and {} and {} and {} and {}", t_dif, offset, packet.tdc_time_abs(), of, packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6, val.1);
-                                //}
-                                //offset = t_dif;
                             },
                             11 => {},
                             _ => {}, //println!("{}", packet.tdc_type());},
@@ -504,7 +491,6 @@ pub mod coincidence {
         temp_tdc.correct_tdc(&mut correct_vector);
         }
         temp_tdc.sort();
-        println!("Total number of bytes read {} and {}", tp3_tdc_counter, isi_tdc_counter);
         (temp_tdc, total_size)
     }
 
@@ -517,7 +503,6 @@ pub mod coincidence {
         coinc_data.prepare_spim(spim_tdc);
     
         let (mut temp_tdc, max_total_size) = correct_coincidence_isi(file1, file2, coinc_data);
-        println!("total size that will be read {}", max_total_size);
         
         let mut ci = 0;
         let mut file = fs::File::open(file1)?;
@@ -527,7 +512,7 @@ pub mod coincidence {
         let bar = ProgressBar::new(progress_size);
         bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] {Searching electron photon coincidences}")
                       .unwrap()
-                      .progress_chars("##-"));
+                      .progress_chars("=>-"));
         
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {break;}
@@ -557,7 +542,6 @@ pub mod coincidence {
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20);
         }
-        println!("Total number of bytes read {}", total_size);
         Ok(())
     }
 }
@@ -567,7 +551,7 @@ pub mod isi_box {
     //use rand::{thread_rng};
     use std::fs::OpenOptions;
     use std::io::{Read, Write};
-    use crate::spimlib::{VIDEO_TIME};
+    use crate::spimlib::VIDEO_TIME;
     use crate::tdclib::isi_box::CHANNELS;
     use crate::auxiliar::value_types::*;
     use indicatif::{ProgressBar, ProgressStyle};
@@ -751,7 +735,7 @@ pub mod isi_box {
             let bar = ProgressBar::new(progress_size);
             bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] {Searching photon coincidences}")
                           .unwrap()
-                          .progress_chars("##-"));
+                          .progress_chars("=>-"));
         
             for val1 in iter1 {
                 bar.inc(1);

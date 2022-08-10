@@ -392,4 +392,94 @@ pub mod cluster {
             }
         }
     }
+
+    struct AverageCorrection;
+    struct LargestToT;
+
+    trait ClusterCorrection {
+        fn new_from_cluster(cluster: &[SingleElectron]) -> Option<SingleElectron>;
+    }
+
+    impl ClusterCorrection for AverageCorrection {
+        fn new_from_cluster(cluster: &[SingleElectron]) -> Option<SingleElectron> {
+            let cluster_size = cluster.iter().
+                count();
+
+            let t_mean:TIME = cluster.iter().
+                map(|se| se.time()).
+                sum::<TIME>() / cluster_size as TIME;
+            
+            let x_mean:POSITION = cluster.iter().
+                map(|se| se.x()).
+                sum::<POSITION>() / cluster_size as POSITION;
+            
+            let y_mean:POSITION = cluster.iter().
+                map(|se| se.y()).
+                sum::<POSITION>() / cluster_size as POSITION;
+            
+            let time_dif: TIME = cluster.iter().
+                map(|se| se.frame_dt()).
+                next().
+                unwrap();
+            
+            let slice: COUNTER = cluster.iter().
+                map(|se| se.spim_slice()).
+                next().
+                unwrap();
+            
+            let tot_sum: u16 = cluster.iter().
+                map(|se| se.tot() as usize).
+                sum::<usize>() as u16;
+            
+            let cluster_size: usize = cluster_size;
+
+            Some(SingleElectron {
+                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
+            })
+        }
+    }
+    
+    impl ClusterCorrection for LargestToT {
+        fn new_from_cluster(cluster: &[SingleElectron]) -> Option<SingleElectron> {
+            let cluster_size = cluster.iter().
+                count();
+            
+            let t_mean:TIME = cluster.iter().
+                reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
+                map(|se| se.time()).
+                unwrap();
+            
+            let x_mean:POSITION = cluster.iter().
+                map(|se| se.x()).
+                sum::<POSITION>() / cluster_size as POSITION;
+            
+            let y_mean:POSITION = cluster.iter().
+                map(|se| se.y()).
+                sum::<POSITION>() / cluster_size as POSITION;
+            
+            let time_dif: TIME = cluster.iter().
+                map(|se| se.frame_dt()).
+                next().
+                unwrap();
+            
+            let slice: COUNTER = cluster.iter().
+                map(|se| se.spim_slice()).
+                next().
+                unwrap();
+            
+            let tot_sum: u16 = cluster.iter().
+                map(|se| se.tot() as usize).
+                sum::<usize>() as u16;
+
+            let cluster_size: usize = cluster_size;
+
+            Some(SingleElectron {
+                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
+            })
+        }
+    }
+
+
+
+
 }
