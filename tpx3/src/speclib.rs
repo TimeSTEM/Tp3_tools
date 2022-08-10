@@ -1,6 +1,6 @@
 //!`speclib` is a collection of tools to set EELS/4D acquisition.
 
-use crate::packetlib::{Packet, PacketEELS as Pack};
+use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
 use crate::auxiliar::{Settings, misc::TimepixRead};
 //use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{CHANNELS, IsiBoxTools, IsiBoxHand}};
@@ -35,16 +35,6 @@ fn as_mut_bytes<T>(v: &[T]) -> &mut [u8] {
             v.len() * std::mem::size_of::<T>())
     }
 }
-
-fn packet_change(v: &[u8]) -> &[u64] {
-    unsafe {
-        std::slice::from_raw_parts(
-            v.as_ptr() as *const u64,
-            //v.len() )
-            v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u64>())
-    }
-}
-
 
 macro_rules! genbitdepth {
     ($($x: ty),*) => {
@@ -619,7 +609,7 @@ fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
-                let packet = Pack { chip_index: *last_ci, data: x};
+                let packet = Pack { chip_index: *last_ci, data: packet_change(x)};
                 
                 match packet.id() {
                     11 => {

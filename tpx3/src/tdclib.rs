@@ -5,7 +5,7 @@
 mod tdcvec {
     use crate::errorlib::Tp3ErrorKind;
     use crate::tdclib::TdcType;
-    use crate::packetlib::{Packet, PacketEELS as Pack};
+    use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
     use std::convert::TryInto;
     use crate::auxiliar::value_types::*;
 
@@ -158,7 +158,7 @@ mod tdcvec {
                 match *x {
                     [84, 80, 88, 51, _, _, _, _] => {},
                     _ => {
-                        let packet = Pack {chip_index: 0, data: x.try_into().unwrap()};
+                        let packet = Pack {chip_index: 0, data: packet_change(x)};
                         if packet.id() == 6 && self.tdc_choosen.is_same_inputline(packet.tdc_type()) {
                             self.add_tdc(&packet);
                         }

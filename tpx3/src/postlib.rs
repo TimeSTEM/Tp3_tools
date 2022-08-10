@@ -2,7 +2,7 @@ pub mod coincidence {
 
     use std::fs::OpenOptions;
     use crate::spimlib::SPIM_PIXELS;
-    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
+    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack, packet_change};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
     use crate::postlib::isi_box;
     use std::io;
@@ -379,7 +379,7 @@ pub mod coincidence {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
-                        let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
+                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct)};
                         match packet.id() {
                             6 if packet.tdc_type() == np_tdc.id() => {
                                 temp_tdc.add_tdc(&packet, 0);
@@ -448,7 +448,7 @@ pub mod coincidence {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
-                        let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
+                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct) };
                         match packet.id() {
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 tp3_tdc_counter += 1;
@@ -526,7 +526,7 @@ pub mod coincidence {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
-                        let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
+                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct) };
                         match packet.id() {
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 coinc_data.add_spim_line(&packet);
@@ -820,7 +820,7 @@ pub mod isi_box {
 
 pub mod ntime_resolved {
     use std::fs::OpenOptions;
-    use crate::packetlib::{Packet, PacketEELS as Pack};
+    use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
@@ -950,7 +950,7 @@ pub mod ntime_resolved {
                 match pack_oct {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci = nci},
                     _ => {
-                        let packet = Pack{chip_index: ci, data: pack_oct.try_into().unwrap()};
+                        let packet = Pack{chip_index: ci, data: packet_change(pack_oct)};
                         match packet.id() {
                             6 if packet.tdc_type() == data.spim_tdc_type.associate_value() => {
                                 data.add_spim_tdc(&packet);
