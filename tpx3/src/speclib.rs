@@ -36,6 +36,16 @@ fn as_mut_bytes<T>(v: &[T]) -> &mut [u8] {
     }
 }
 
+fn packet_change(v: &[u8]) -> &[u64] {
+    unsafe {
+        std::slice::from_raw_parts(
+            v.as_ptr() as *const u64,
+            //v.len() )
+            v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u64>())
+    }
+}
+
+
 macro_rules! genbitdepth {
     ($($x: ty),*) => {
         $(
@@ -609,7 +619,7 @@ fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
-                let packet = Pack { chip_index: *last_ci, data: x.try_into().unwrap()};
+                let packet = Pack { chip_index: *last_ci, data: x};
                 
                 match packet.id() {
                     11 => {
