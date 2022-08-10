@@ -293,7 +293,7 @@ pub mod coincidence {
             self.tdc.iter_mut().zip(val.0.iter_mut()).
                 filter(|((_time, _channel, _dt), corr)| corr.is_some()).
                 for_each(|((time, _channel, _dt), corr)| {
-                *time += corr.unwrap() as usize;
+                *time += corr.unwrap();
                 //*time = *time - (*time / (Pack::electron_overflow() * 6)) * (Pack::electron_overflow() * 6);
                 *corr = Some(0);
             });
@@ -379,7 +379,7 @@ pub mod coincidence {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
-                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct)};
+                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                         match packet.id() {
                             6 if packet.tdc_type() == np_tdc.id() => {
                                 temp_tdc.add_tdc(&packet, 0);
@@ -448,7 +448,7 @@ pub mod coincidence {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
-                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct) };
+                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                         match packet.id() {
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 tp3_tdc_counter += 1;
@@ -526,7 +526,7 @@ pub mod coincidence {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
-                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct) };
+                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                         match packet.id() {
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 coinc_data.add_spim_line(&packet);
@@ -950,7 +950,7 @@ pub mod ntime_resolved {
                 match pack_oct {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci = nci},
                     _ => {
-                        let packet = Pack{chip_index: ci, data: packet_change(pack_oct)};
+                        let packet = Pack{chip_index: ci, data: packet_change(pack_oct)[0]};
                         match packet.id() {
                             6 if packet.tdc_type() == data.spim_tdc_type.associate_value() => {
                                 data.add_spim_tdc(&packet);

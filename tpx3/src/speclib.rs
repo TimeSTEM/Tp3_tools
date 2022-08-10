@@ -609,7 +609,7 @@ fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
-                let packet = Pack { chip_index: *last_ci, data: packet_change(x)};
+                let packet = Pack { chip_index: *last_ci, data: packet_change(x)[0]};
                 
                 match packet.id() {
                     11 => {

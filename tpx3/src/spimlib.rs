@@ -272,7 +272,7 @@ fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_c
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
-                let packet = PacketEELS { chip_index: *last_ci, data: packet_change(x)};
+                let packet = PacketEELS { chip_index: *last_ci, data: packet_change(x)[0]};
                 let id = packet.id();
                 match id {
                     11 => {
