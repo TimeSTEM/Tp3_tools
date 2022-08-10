@@ -6,7 +6,7 @@ use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{IsiBoxTools, 
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use crate::isi_box_new;
-use std::io::{Write};
+use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 use std::convert::TryInto;

@@ -14,6 +14,8 @@ pub fn packet_change(v: &[u8]) -> &[u64] {
 pub trait Packet {
     fn ci(&self) -> u8;
     fn data(&self) -> u64;
+
+    #[inline]
     fn x(&self) -> POSITION {
         let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
         match self.ci() {
@@ -25,10 +27,12 @@ pub trait Packet {
         }
     }
     
+    #[inline]
     fn x_raw(&self) -> POSITION {
         (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION
     }
     
+    #[inline]
     fn y(&self) -> POSITION {
         (((self.data() & 0x00_1F_80_00_00_00_00_00) >> 45) | ((self.data() & 0x00_00_30_00_00_00_00_00) >> 44)) as POSITION
     }
@@ -268,7 +272,6 @@ pub struct InversePacket {
     pub id: usize,
 }
 
-use std::convert::TryInto;
 use crate::tdclib::TdcType;
 
 impl InversePacket {

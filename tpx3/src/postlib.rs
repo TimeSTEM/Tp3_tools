@@ -11,9 +11,7 @@ pub mod coincidence {
     use std::time::Instant;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use crate::auxiliar::ConfigAcquisition;
-    use std::convert::TryInto;
     use crate::auxiliar::value_types::*;
-    use rayon::prelude::*;
     use indicatif::{ProgressBar, ProgressStyle};
 
     const ISI_BUFFER_SIZE: usize = 512_000_000; //Buffer size reading files when using TP3 and IsiBox

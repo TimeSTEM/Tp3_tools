@@ -6,7 +6,6 @@ mod tdcvec {
     use crate::errorlib::Tp3ErrorKind;
     use crate::tdclib::TdcType;
     use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
-    use std::convert::TryInto;
     use crate::auxiliar::value_types::*;
 
     pub struct TdcSearch<'a> {
@@ -327,7 +326,7 @@ impl TdcControl for PeriodicTdcRef {
             counter_offset,
             last_hard_counter: 0,
             counter_overflow: 0,
-            begin_time: begin_time,
+            begin_time,
             begin_frame: begin_time,
             ticks_to_frame,
             period,
@@ -477,8 +476,8 @@ pub mod isi_box {
     use std::net::TcpStream;
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
-    use std::{thread};
-    use crate::spimlib::{SPIM_PIXELS, VIDEO_TIME};
+    use std::thread;
+    use crate::spimlib::SPIM_PIXELS;
 
     pub const CHANNELS: usize = 17;
     

@@ -8,7 +8,6 @@ use crate::isi_box_new;
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::Write;
-use std::convert::TryInto;
 //use rayon::prelude::*;
 use core::ops::{Add, AddAssign};
 use crate::auxiliar::value_types::*;
@@ -18,7 +17,6 @@ const BUFFER_SIZE: usize = 16384 * 2;
 //const SR_TIME: usize = 10_000; //Time window (10_000 -> 10 us);
 //const SR_INDEX: usize = 64; //Maximum x index value to account in the average calculation;
 //const SR_MIN: usize = 0; //Minimum array size to perform the average in super resolution;
-const TILT_FRACTION: usize = 16; //Values with y = 256 will be tilted by 256 / 16;
 
 fn as_bytes<T>(v: &[T]) -> &[u8] {
     unsafe {
