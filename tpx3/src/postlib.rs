@@ -701,8 +701,8 @@ pub mod isi_box {
                 collect::<Vec<_>>();
 
             for val in iter3 {
-                self.data.0.insert(val.1.0, (val.1.1.0 - self.line_time.unwrap() as u64, val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
-                println!("{:?} and {:?}", val.0, val.1);
+                println!("{:?} and {:?} and {:?}", val.0, val.1, self.data.0[val.1.0+2]);
+                self.data.0.insert(val.1.0+1, (val.1.1.0 - self.line_time.unwrap() as u64, val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
             }
 
             println!("{:?}", self.line_time.unwrap());
