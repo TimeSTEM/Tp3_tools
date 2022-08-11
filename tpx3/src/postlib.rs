@@ -684,22 +684,27 @@ pub mod isi_box {
             self.data.0.push((self.get_abs_time(data), channel, self.spim_index(data), self.spim_frame(), None));
         }
 
-        fn check_for_issues(&self) {
+        fn check_for_issues(&mut self) {
             let iter1 = self.data.0.iter().
+                cloned().
                 enumerate().
                 filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
             
             let iter2 = self.data.0[1..].iter().
+                cloned().
                 enumerate().
                 filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
 
-            let mut iter3 = iter1.
+            let iter3 = iter1.
                 zip(iter2).
-                filter(|(val1, val2)| (val1.1.0 > val2.1.0 + self.line_time.unwrap() as u64 + 1_000) || (val2.1.0 > val1.1.0 + self.line_time.unwrap() as u64 + 1_000));
+                filter(|(val1, val2)| (val1.1.0 > val2.1.0 + self.line_time.unwrap() as u64 + 1_000) || (val2.1.0 > val1.1.0 + self.line_time.unwrap() as u64 + 1_000)).
+                collect::<Vec<_>>();
 
-            println!("{:?}", iter3.next());
-            println!("{:?}", iter3.next());
-            println!("{:?}", iter3.next());
+            for val in iter3 {
+                self.data.0.insert(val.1.0, (val.1.1.0 - self.line_time.unwrap() as u64, val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
+                println!("{:?} and {:?}", val.0, val.1);
+            }
+
             println!("{:?}", self.line_time.unwrap());
 
                 
@@ -758,16 +763,20 @@ pub mod isi_box {
 
         fn search_coincidence(&mut self, ch1: u32, ch2: u32) {
             self.check_for_issues();
+            self.check_for_issues();
+            self.check_for_issues();
+            self.check_for_issues();
+            
             let progress_size = self.data.0.len() as u64;
+            let vec1_len = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch1).count();
             let mut vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
             let iter1 = self.data.0.iter_mut();
-                //filter(|(_time, channel, _spim_index, _spim_frame, is_corr)| *channel == ch1);
             let mut min_index = 0;
             let mut corr = 0;
 
             let mut new_list = IsiListVecg2(Vec::new());
             let bar = ProgressBar::new(progress_size);
-            bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] {Searching photon coincidences}")
+            bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Searching photon coincidences")
                           .unwrap()
                           .progress_chars("=>-"));
         
@@ -799,7 +808,7 @@ pub mod isi_box {
                     assert_eq!(ph21.1, ph22.1);
                 });
 
-            println!("***IsiBox***: Size of the second channel: {}. Number of coincidences: {}", vec2.len(), corr);
+            println!("***IsiBox***: Size of the (first/second) channel: ({} / {}). Number of coincidences: {}", vec1_len, vec2.len(), corr);
             
             let dt_vec = new_list.0.iter().
                 filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
