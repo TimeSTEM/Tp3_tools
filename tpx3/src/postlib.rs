@@ -726,19 +726,64 @@ pub mod isi_box {
             for _ in 0..3 {
                 let iter = self.scan_iterator().
                     //filter(|(val1, val2)| (add_overflow(val1.1.0, self.line_time.unwrap() as u64) > add_overflow(val2.1.0, 1_000) ) || (add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000))).
-                    filter(|(val1, val2)| add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000)).
+                    //filter(|(val1, val2)| add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000)).
+                    filter(|(val1, val2)| (subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) && (subtract_overflow(val2.1.0, val1.1.0) < 60_000_000) ).
                     collect::<Vec<_>>();
                 
                 println!("{}", iter.len());
+                //67108864
                 
                 for val in iter {
                     println!("{:?} and {:?} and {:?} and {:?}", val.0, val.1, self.data_raw.0[val.1.0+2], self.line_time);
-                    self.data_raw.0.insert(val.1.0+1, (val.1.1.0 - self.line_time.unwrap() as u64, val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
+                    self.data_raw.0.insert(val.1.0+1, (subtract_overflow(val.1.1.0, self.line_time.unwrap() as u64), val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
                 }
             }
         }
 
         fn correct_data(&mut self) {
+            let mut counter = 0;
+            let mut last_time = 0;
+            let mut overflow = 0;
+            let low = (self.x * self.pixel_time) as u64;
+            let y = self.y;
+
+            let _spim_index = |data: u64, ct: u32, lt: u64| -> Option<u32> {
+                let line = ct / self.y;
+                let time = if data > VIDEO_TIME * 13 + lt {
+                    data - lt
+                } else {
+                    data + 67108864 - lt
+                };
+
+                if time > low {return None;}
+                let column = ((time as u64 * self.x as u64) / low) as u32;
+                let index = line * self.x + column;
+                Some(index)
+            };
+
+            self.data_raw.0.iter_mut().for_each(|x| {
+                //Correction time
+                if x.0 > last_time {
+                    x.0 += overflow as TIME * 67108864;
+                } else {
+                    x.0 += (overflow + 1) as TIME  * 67108864
+                }
+                //Correcting spim index
+                x.2 = None;
+                //Correcting spim frame
+                x.3 = Some(counter / y);
+
+                //If it is a scan signal
+                if x.1 == 16 {
+                    if x.0 < last_time {
+                        overflow+=1;
+                    }
+                    counter += 1;
+                    last_time = x.0;
+                }
+
+            }
+            );
         }
 
         
