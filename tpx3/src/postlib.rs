@@ -929,7 +929,7 @@ pub mod isi_box {
             println!("***IsiBox***: Size of the (first/second) channel: ({} / {}). Number of coincidences: {}", vec1_len, vec2.len(), corr);
             
             let dt_vec = new_list.0.iter().
-                filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
+                //filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
                 map(|(dtime, _channel, _spim_index, _spim_frame)| *dtime).
                 collect::<Vec<i64>>();
 
@@ -979,8 +979,8 @@ pub mod isi_box {
             }
             list.determine_line_time();
             list.check_for_issues();
-            panic!("bye");
-            list.output_spim();
+            list.correct_data();
+            //list.output_spim();
             list.search_coincidence(2, 12);
             list
         }
