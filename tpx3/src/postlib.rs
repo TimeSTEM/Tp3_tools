@@ -578,6 +578,7 @@ pub mod isi_box {
 
     pub struct IsiList {
         data: IsiListVec, //Time, channel, spim index, spim frame, dT
+        data_raw: IsiListVec, //Time, channel, spim index, spim frame, dT
         x: u32,
         y: u32,
         pixel_time: u32,
@@ -629,10 +630,12 @@ pub mod isi_box {
             }
 
             //Setting the start_time
-            if let None = self.start_time {
-                println!("Start time is now: {}", data );
-                self.start_time = Some(data);
-            };
+            if self.counter > 1 {
+                if let None = self.start_time {
+                    println!("Start time is now: {}", data );
+                    self.start_time = Some(data);
+                };
+            }
         }
 
         fn get_line_low(&self) -> u32 {
@@ -683,6 +686,28 @@ pub mod isi_box {
         fn add_event(&mut self, channel: u32, data: u32) {
             self.data.0.push((self.get_abs_time(data), channel, self.spim_index(data), self.spim_frame(), None));
         }
+
+        /*
+        fn determine_line_time(&mut self) {
+        }
+
+        fn scan_iterator(&self) -> impl Iterator<Item=(u8, u8)> {
+            let iter1 = self.data.0.iter().
+                cloned().
+                enumerate().
+                filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
+            
+            let iter2 = self.data.0[1..].iter().
+                cloned().
+                enumerate().
+                filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
+
+            let iter3 = iter1.
+                zip(iter2);
+
+            iter3
+        }
+        */
 
         fn check_for_issues(&mut self) {
             let iter1 = self.data.0.iter().
@@ -842,13 +867,17 @@ pub mod isi_box {
         where V: Read
         {
             //let zlp = Normal::new(100.0, 25.0).unwrap();
-            let mut list = IsiList{data: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
+            let mut list = IsiList{data: IsiListVec(Vec::new()), data_raw: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
                 if size == 0 {println!("***IsiBox***: Finished reading file."); break;}
                 buffer.chunks_exact(4).for_each( |x| {
                     let channel = (as_int(x)[0] & 0xFC000000) >> 27;
+                    let overflow = (as_int(x)[0] & 0x04000000) >> 26;
                     let time = as_int(x)[0] & 0x03FFFFFF;
+                    if overflow == 1 {
+                        println!("{} and {}", channel, time);
+                    }
                     list.add_event(channel, time);
                     if channel == 16 {
                         list.increase_counter(time);
@@ -857,6 +886,7 @@ pub mod isi_box {
             }
             list.output_spim();
             list.search_coincidence(2, 12);
+            panic!("bye");
             list
         }
 }
