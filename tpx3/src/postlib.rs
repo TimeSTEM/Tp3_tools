@@ -572,8 +572,23 @@ pub mod isi_box {
                 v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
         }
     }
+
+    fn add_overflow(data: u64, value: u64) -> u64
+    {
+        (data + value) % 67108864
+    }
     
-    struct IsiListVec(Vec<(TIME, u32, Option<u32>, Option<u32>, Option<i64>)>);
+    fn subtract_overflow(data: u64, value: u64) -> u64
+    {
+        if data > value {
+            (data - value) % 67108864
+        } else {
+            (data + 67108864 - value) % 67108864
+        }
+    }
+ 
+    type IsiListType = (TIME, u32, Option<u32>, Option<u32>, Option<i64>);
+    struct IsiListVec(Vec<IsiListType>);
     struct IsiListVecg2(Vec<(i64, u32, Option<u32>, Option<u32>)>);
 
     pub struct IsiList {
@@ -610,7 +625,7 @@ pub mod isi_box {
 
 
                 if (time_dif - line_time as i32).abs() > 10 {
-                    println!("***IsiBox***: Probable line issue. Raw time is {}. Diference relative to the last time is {}. The spim frame is {:?}. Line counter is {}. Line time is {}. Last time is {}. Abs time is {}.", data, time_dif, self.spim_frame(), self.counter, line_time, self.last_time, self.get_abs_time(data));
+                    //println!("***IsiBox***: Probable line issue. Raw time is {}. Diference relative to the last time is {}. The spim frame is {:?}. Line counter is {}. Line time is {}. Last time is {}. Abs time is {}.", data, time_dif, self.spim_frame(), self.counter, line_time, self.last_time, self.get_abs_time(data));
                 }
             }
             
@@ -685,19 +700,55 @@ pub mod isi_box {
 
         fn add_event(&mut self, channel: u32, data: u32) {
             self.data.0.push((self.get_abs_time(data), channel, self.spim_index(data), self.spim_frame(), None));
+            self.data_raw.0.push((data as u64, channel, None, None, None));
         }
 
-        /*
         fn determine_line_time(&mut self) {
+            let iter = self.scan_iterator().
+                filter_map(|(val1, val2)| {
+                    if val2.1.0 > val1.1.0 {
+                        Some((val2.1.0 - val1.1.0) as u32)
+                    } else {None}
+                });
+
+            let mut line = u32::MAX;
+            for val in iter {
+                //println!("{}", val);
+                if line == val {
+                    break;
+                }
+                line = val;
+            };
+            self.line_time = Some(line);
         }
 
-        fn scan_iterator(&self) -> impl Iterator<Item=(u8, u8)> {
-            let iter1 = self.data.0.iter().
+        fn check_for_issues(&mut self) {
+            for _ in 0..3 {
+                let iter = self.scan_iterator().
+                    //filter(|(val1, val2)| (add_overflow(val1.1.0, self.line_time.unwrap() as u64) > add_overflow(val2.1.0, 1_000) ) || (add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000))).
+                    filter(|(val1, val2)| add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000)).
+                    collect::<Vec<_>>();
+                
+                println!("{}", iter.len());
+                
+                for val in iter {
+                    println!("{:?} and {:?} and {:?} and {:?}", val.0, val.1, self.data_raw.0[val.1.0+2], self.line_time);
+                    self.data_raw.0.insert(val.1.0+1, (val.1.1.0 - self.line_time.unwrap() as u64, val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
+                }
+            }
+        }
+
+        fn correct_data(&mut self) {
+        }
+
+        
+        fn scan_iterator(&self) -> impl Iterator<Item=((usize, IsiListType), (usize, IsiListType))> + '_ {
+            let iter1 = self.data_raw.0.iter().
                 cloned().
                 enumerate().
                 filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
             
-            let iter2 = self.data.0[1..].iter().
+            let iter2 = self.data_raw.0[1..].iter().
                 cloned().
                 enumerate().
                 filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
@@ -707,8 +758,9 @@ pub mod isi_box {
 
             iter3
         }
-        */
+        
 
+        /*
         fn check_for_issues(&mut self) {
             let iter1 = self.data.0.iter().
                 cloned().
@@ -730,7 +782,7 @@ pub mod isi_box {
                 self.data.0.insert(val.1.0+1, (val.1.1.0 - self.line_time.unwrap() as u64, val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
             }
 
-            println!("{:?}", self.line_time.unwrap());
+            //println!("{:?}", self.line_time.unwrap());
 
                 
                 /*
@@ -746,6 +798,7 @@ pub mod isi_box {
                 });
                 */
         }
+    */
         
         pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER, Option<i64>)> {
             let first = self.data.0.iter().
@@ -787,11 +840,6 @@ pub mod isi_box {
         }
 
         fn search_coincidence(&mut self, ch1: u32, ch2: u32) {
-            self.check_for_issues();
-            self.check_for_issues();
-            self.check_for_issues();
-            self.check_for_issues();
-            
             let progress_size = self.data.0.len() as u64;
             let vec1_len = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch1).count();
             let mut vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
@@ -884,9 +932,11 @@ pub mod isi_box {
                     }
                 })
             }
+            list.determine_line_time();
+            list.check_for_issues();
+            panic!("bye");
             list.output_spim();
             list.search_coincidence(2, 12);
-            panic!("bye");
             list
         }
 }
