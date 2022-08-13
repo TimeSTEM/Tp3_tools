@@ -597,8 +597,8 @@ pub mod isi_box {
         x: u32,
         y: u32,
         pixel_time: u32,
-        counter: u32,
-        overflow: u32,
+        pub counter: u32,
+        pub overflow: u32,
         last_time: u32,
         pub start_time: Option<u32>,
         line_time: Option<u32>,
@@ -644,13 +644,15 @@ pub mod isi_box {
                 self.line_time = Some(val);
             }
 
+            /*
             //Setting the start_time
-            if self.counter > 1 {
+            if self.counter > 0 {
                 if let None = self.start_time {
                     println!("Start time is now: {}", data );
                     self.start_time = Some(data);
                 };
             }
+            */
         }
 
         fn get_line_low(&self) -> u32 {
@@ -713,7 +715,7 @@ pub mod isi_box {
 
             let mut line = u32::MAX;
             for val in iter {
-                //println!("{}", val);
+                println!("{}", val);
                 if line == val {
                     break;
                 }
@@ -747,6 +749,7 @@ pub mod isi_box {
             let low = (self.x * self.pixel_time) as u64;
             let y = self.y;
 
+            /*
             let _spim_index = |data: u64, ct: u32, lt: u64| -> Option<u32> {
                 let line = ct / self.y;
                 let time = if data > VIDEO_TIME * 13 + lt {
@@ -760,14 +763,16 @@ pub mod isi_box {
                 let index = line * self.x + column;
                 Some(index)
             };
+            */
 
             self.data_raw.0.iter_mut().for_each(|x| {
                 //Correction time
+                let raw_time = x.0.clone();
                 if x.0 > last_time {
                     x.0 += overflow as TIME * 67108864;
                 } else {
-                    x.0 += (overflow + 1) as TIME  * 67108864
-                }
+                    x.0 += (overflow + 1) as TIME  * 67108864;
+                };
                 //Correcting spim index
                 x.2 = None;
                 //Correcting spim frame
@@ -775,15 +780,16 @@ pub mod isi_box {
 
                 //If it is a scan signal
                 if x.1 == 16 {
-                    if x.0 < last_time {
+                    if raw_time < last_time {
                         overflow+=1;
                     }
                     counter += 1;
-                    last_time = x.0;
+                    last_time = raw_time;
                 }
 
-            }
-            );
+
+            });
+            println!("data raw {} and {}", overflow, counter);
         }
 
         
@@ -885,12 +891,14 @@ pub mod isi_box {
         }
 
         fn search_coincidence(&mut self, ch1: u32, ch2: u32) {
-            let progress_size = self.data.0.len() as u64;
-            let vec1_len = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch1).count();
-            let mut vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
-            let iter1 = self.data.0.iter_mut();
+            println!("{:?} and {:?}", self.data.0.get(0..10), self.data_raw.0.get(0..10));
+            let progress_size = self.data_raw.0.len() as u64;
+            let vec1_len = self.data_raw.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch1).count();
+            let mut vec2 = self.data_raw.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
+            let iter1 = self.data_raw.0.iter_mut();
             let mut min_index = 0;
             let mut corr = 0;
+
 
             let mut new_list = IsiListVecg2(Vec::new());
             let bar = ProgressBar::new(progress_size);
@@ -918,7 +926,7 @@ pub mod isi_box {
                 }
             }
 
-            self.data.0.iter_mut().
+            self.data_raw.0.iter_mut().
                 filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).
                 zip(vec2.iter()).
                 for_each(|(ph21, ph22)| {
@@ -977,8 +985,9 @@ pub mod isi_box {
                     }
                 })
             }
+            println!("{} and {}", list.overflow, list.counter);
             list.determine_line_time();
-            list.check_for_issues();
+            //list.check_for_issues();
             list.correct_data();
             //list.output_spim();
             list.search_coincidence(2, 12);
