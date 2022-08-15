@@ -414,9 +414,7 @@ pub mod coincidence {
     
         //IsiBox loading file & setting up synchronization
         let f = fs::File::open(file2).unwrap();
-        //let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, spim_tdc.pixel_time(coinc_data.spim_size.0 * 15_625 / 10_000));
-        println!("{}", spim_tdc.pixel_time(coinc_data.spim_size.0 * 15625 / 10000));
-        let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, 8000);
+        let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, spim_tdc.pixel_time(coinc_data.spim_size.0 * 15_625 / 10_000));
         let _begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
         let tdc_vec = temp_tdc.get_sync();
@@ -717,7 +715,6 @@ pub mod isi_box {
 
             let mut line = u32::MAX;
             for val in iter {
-                println!("{}", val);
                 if line == val {
                     break;
                 }
@@ -733,9 +730,6 @@ pub mod isi_box {
                     //filter(|(val1, val2)| add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000)).
                     filter(|(val1, val2)| (subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) && (subtract_overflow(val2.1.0, val1.1.0) < 60_000_000) ).
                     collect::<Vec<_>>();
-                
-                println!("{}", iter.len());
-                //67108864
                 
                 for val in iter {
                     println!("{:?} and {:?} and {:?} and {:?}", val.0, val.1, self.data_raw.0[val.1.0+2], self.line_time);
@@ -944,15 +938,6 @@ pub mod isi_box {
                 map(|(dtime, _channel, _spim_index, _spim_frame)| *dtime).
                 collect::<Vec<i64>>();
             
-            let test_vec = new_list.0.iter().
-                filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
-                map(|(dtime, _channel, _spim_index, _spim_frame)| *dtime).
-                count();
-
-            println!("{}", test_vec);
-
-            
-
             let spim_index_vec = new_list.0.iter().
                 filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
                 map(|(_dtime, _channel, spim_index, _spim_frame)| spim_index.unwrap()).
@@ -979,18 +964,17 @@ pub mod isi_box {
     pub fn get_channel_timelist<V>(mut data: V, spim_size: (POSITION, POSITION), pixel_time: TIME) -> IsiList 
         where V: Read
         {
-            //let zlp = Normal::new(100.0, 25.0).unwrap();
             let mut list = IsiList{data: IsiListVec(Vec::new()), data_raw: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
                 if size == 0 {println!("***IsiBox***: Finished reading file."); break;}
                 buffer.chunks_exact(4).for_each( |x| {
                     let channel = (as_int(x)[0] & 0xFC000000) >> 27;
-                    let overflow = (as_int(x)[0] & 0x04000000) >> 26;
+                    let _overflow = (as_int(x)[0] & 0x04000000) >> 26;
                     let time = as_int(x)[0] & 0x03FFFFFF;
-                    if overflow == 1 {
-                        println!("{} and {}", channel, time);
-                    }
+                    //if overflow == 1 {
+                    //    println!("{} and {}", channel, time);
+                    //}
                     list.add_event(channel, time);
                     if channel == 16 {
                         list.increase_counter(time);
