@@ -415,6 +415,7 @@ pub mod coincidence {
         //IsiBox loading file & setting up synchronization
         let f = fs::File::open(file2).unwrap();
         let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, spim_tdc.pixel_time(coinc_data.spim_size.0 * 15_625 / 10_000));
+        println!("***IsiBox***: Selected pixel time is (ns): {}.", spim_tdc.pixel_time(coinc_data.spim_size.0 * 15625 / 10000));
         let _begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
         let tdc_vec = temp_tdc.get_sync();
