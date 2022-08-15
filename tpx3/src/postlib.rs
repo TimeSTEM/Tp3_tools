@@ -932,12 +932,13 @@ pub mod isi_box {
                     assert_eq!(ph21.1, ph22.1);
                 });
 
-            println!("***IsiBox***: Size of the (first/second) channel: ({} / {}). Number of coincidences: {}", vec1_len, vec2.len(), corr);
             
             let dt_vec = new_list.0.iter().
                 filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
                 map(|(dtime, _channel, _spim_index, _spim_frame)| *dtime).
                 collect::<Vec<i64>>();
+            
+            println!("***IsiBox***: Size of the (first/second) channel: ({} / {}). Number of coincidences: {}. Number of output coincidences: {}.", vec1_len, vec2.len(), corr, dt_vec.len());
             
             let spim_index_vec = new_list.0.iter().
                 filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
