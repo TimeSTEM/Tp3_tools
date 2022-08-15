@@ -422,6 +422,7 @@ pub mod coincidence {
         let tdc_vec = temp_tdc.get_sync();
         let _isi_tdc_counter = tdc_vec.len();
         let mut tdc_iter = tdc_vec.iter();
+
         
         
         let bar = ProgressBar::new(progress_size);
@@ -854,16 +855,17 @@ pub mod isi_box {
     */
         
         pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER, Option<i64>)> {
-            let first = self.data.0.iter().
+            let first = self.data_raw.0.iter().
                 filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == 16).
                 map(|(time, _channel, _spim_index, _spim_frame, _dt)| (*time * 1200 * 6) / 15625).
                 next().
                 unwrap();
-
-            self.data.0.iter().
+            
+            self.data_raw.0.iter().
                 map(|(time, channel, _spim_index, _spim_frame, dt)| (((*time * 1200 * 6) / 15625) - first, *channel, *dt)).
                 //map(|(time, channel)| (time - (time / 103_079_215_104) * 103_079_215_104, channel)).
                 collect::<Vec<_>>()
+            
         }
 
         fn output_spim(&self) {
