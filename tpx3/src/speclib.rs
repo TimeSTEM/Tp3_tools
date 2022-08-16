@@ -1,6 +1,6 @@
 //!`speclib` is a collection of tools to set EELS/4D acquisition.
 
-use crate::packetlib::{Packet, PacketEELS as Pack};
+use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
 use crate::auxiliar::{Settings, misc::TimepixRead};
 //use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{CHANNELS, IsiBoxTools, IsiBoxHand}};
@@ -8,7 +8,6 @@ use crate::isi_box_new;
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::Write;
-use std::convert::TryInto;
 //use rayon::prelude::*;
 use core::ops::{Add, AddAssign};
 use crate::auxiliar::value_types::*;
@@ -18,7 +17,6 @@ const BUFFER_SIZE: usize = 16384 * 2;
 //const SR_TIME: usize = 10_000; //Time window (10_000 -> 10 us);
 //const SR_INDEX: usize = 64; //Maximum x index value to account in the average calculation;
 //const SR_MIN: usize = 0; //Minimum array size to perform the average in super resolution;
-const TILT_FRACTION: usize = 16; //Values with y = 256 will be tilted by 256 / 16;
 
 fn as_bytes<T>(v: &[T]) -> &[u8] {
     unsafe {
@@ -609,7 +607,7 @@ fn build_data<T: TdcControl, W: SpecKind>(data: &[u8], final_data: &mut W, last_
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
-                let packet = Pack { chip_index: *last_ci, data: x.try_into().unwrap()};
+                let packet = Pack { chip_index: *last_ci, data: packet_change(x)[0]};
                 
                 match packet.id() {
                     11 => {

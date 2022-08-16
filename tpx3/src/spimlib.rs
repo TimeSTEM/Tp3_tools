@@ -1,12 +1,12 @@
 //!`spimlib` is a collection of tools to set hyperspectral EELS acquisition.
 
-use crate::packetlib::{Packet, PacketEELS};
+use crate::packetlib::{Packet, PacketEELS, packet_change};
 use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use crate::isi_box_new;
-use std::io::{Write};
+use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 use std::convert::TryInto;
@@ -272,7 +272,7 @@ fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_c
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
-                let packet = PacketEELS { chip_index: *last_ci, data: x.try_into().unwrap()};
+                let packet = PacketEELS { chip_index: *last_ci, data: packet_change(x)[0]};
                 let id = packet.id();
                 match id {
                     11 => {

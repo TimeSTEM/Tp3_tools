@@ -1,18 +1,17 @@
-use timepix3::tdclib::isi_box::{CHANNELS, IsiBoxTools, IsiBoxHand};
-use timepix3::postlib::isi_box;
+//use timepix3::tdclib::isi_box::{CHANNELS, IsiBoxTools, IsiBoxHand};
+//use timepix3::postlib::isi_box;
 use timepix3::postlib::coincidence::*;
 use timepix3::auxiliar::ConfigAcquisition;
 use std::env;
-use timepix3::isi_box_new;
-use std::{thread, time};
-use std::fs::File;
+//use timepix3::isi_box_new;
+//use std::{thread, time};
+//use std::fs::File;
 
 fn main() {
     //Only IsiBox
     //let f = File::open("isi_raw239.isi").unwrap();
     //isi_box::get_channel_timelist(f);
     
-    ///*
     let args: Vec<String> = env::args().collect();
     let config_set = ConfigAcquisition::new(&args[0..6]);
     let mut coinc_data = ElectronData::new(&config_set);
@@ -28,7 +27,6 @@ fn main() {
     coinc_data.output_non_dispersive();
     coinc_data.output_spim_index();
     coinc_data.output_tot();
-    //*/
 
 
     /*

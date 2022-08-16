@@ -3,32 +3,42 @@
 
 use crate::auxiliar::value_types::*;
 
+pub fn packet_change(v: &[u8]) -> &[u64] {
+    unsafe {
+        std::slice::from_raw_parts(
+            v.as_ptr() as *const u64,
+            v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u64>())
+    }
+}
+
 pub trait Packet {
     fn ci(&self) -> u8;
-    fn data(&self) -> &[u8; 8];
-    fn x(&self) -> POSITION {
-        let temp = ((self.data()[6] & 224)>>4 | (self.data()[7] << 4) | ((self.data()[5] & 112) >> 6)) as POSITION;
-        //(!temp & 255) | (temp & 768)
+    fn data(&self) -> u64;
 
+    #[inline]
+    fn x(&self) -> POSITION {
+        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
+        
         match self.ci() {
-            0 => 255 - temp,
-            1 => 256 * 4 - 1 - temp,
-            2 => 256 * 3 - 1 - temp,
-            3 => 256 * 2 - 1 - temp,
+            0 => 255 - temp2,
+            1 => 256 * 4 - 1 - temp2,
+            2 => 256 * 3 - 1 - temp2,
+            3 => 256 * 2 - 1 - temp2,
             _ => panic!("More than four CIs."),
         }
     }
     
+    #[inline]
     fn x_raw(&self) -> POSITION {
-        let x = (((self.data()[6] & 224)>>4 | (self.data()[7] & 15)<<4) | ((self.data()[5] & 64)>>6)) as POSITION;
-        x
+        (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION
     }
     
+    #[inline]
     fn y(&self) -> POSITION {
-        let y = (   ( (self.data()[5] & 128)>>5 | (self.data()[6] & 31)<<3 ) | ( ((self.data()[5] & 112)>>4) & 3 )   ) as POSITION;
-        y
+        (((self.data() & 0x00_1F_80_00_00_00_00_00) >> 45) | ((self.data() & 0x00_00_30_00_00_00_00_00) >> 44)) as POSITION
     }
 
+    /*
     fn x_y(&self) -> (POSITION, POSITION) {
         let dcol = (self.data()[6] & 224)>>4 | (self.data()[7] << 4);
         let spix = (self.data()[5] & 128) >> 5 | (self.data()[6] & 31) << 3;
@@ -45,30 +55,31 @@ pub trait Packet {
             _ => panic!("More than four CIs."),
         }
     }
+    */
 
     #[inline]
     fn id(&self) -> u8 {
-        (self.data()[7] & 240) >> 4
+        ((self.data() & 0xF0_00_00_00_00_00_00_00) >> 60) as u8
     }
 
     #[inline]
     fn spidr(&self) -> TIME {
-        (self.data()[0] as TIME) | (self.data()[1] as TIME) << 8
+        (self.data() & 0x00_00_00_00_00_00_FF_FF) as TIME
     }
 
     #[inline]
     fn ftoa(&self) -> TIME {
-        (self.data()[2] & 15) as TIME
+        ((self.data() & 0x00_00_00_00_00_0F_00_00) >> 16) as TIME
     }
 
     #[inline]
     fn tot(&self) -> u16 {
-        ((self.data()[2] & 240) as u16)>>4 | ((self.data()[3] & 63) as u16)<<4
+        ((self.data() & 0x00_00_00_00_3F_F0_00_00) >> 20) as u16
     }
 
     #[inline]
     fn toa(&self) -> TIME {
-        ((self.data()[3] >> 6) as TIME) | (self.data()[4] as TIME)<<2 | ((self.data()[5] & 15) as TIME)<<10
+        ((self.data() & 0x00_00_0F_FF_C0_00_00_00) >> 30) as TIME
     }
 
     #[inline]
@@ -89,29 +100,27 @@ pub trait Packet {
     fn electron_time(&self) -> TIME {
         let spidr = self.spidr();
         let ctoa = self.ctoa();
-        //let ftoa2 = (!self.data()[2] & 15) as usize;
-        //let ctoa2 = (toa << 4) | ftoa2;
         spidr * 262_144 + ctoa
     }
 
     #[inline]
     fn tdc_coarse(&self) -> TIME {
-        ((self.data()[1] & 254) as TIME)>>1 | ((self.data()[2]) as TIME)<<7 | ((self.data()[3]) as TIME)<<15 | ((self.data()[4]) as TIME)<<23 | ((self.data()[5] & 15) as TIME)<<31
+        ((self.data() & 0x00_00_0F_FF_FF_FF_FE_00) >> 9) as TIME
     }
     
     #[inline]
     fn tdc_fine(&self) -> TIME {
-        ((self.data()[0] & 224) as TIME >> 5) | ((self.data()[1] & 1) as TIME) << 3
+        ((self.data() & 0x00_00_00_00_00_00_01_E0) >> 5) as TIME
     }
 
     #[inline]
     fn tdc_counter(&self) -> u16 {
-        ((self.data()[5] & 240) as u16) >> 4 | (self.data()[6] as u16) << 4
+        ((self.data() & 0x00_FF_F0_00_00_00_00_00) >> 44) as u16
     }
 
     #[inline]
     fn tdc_type(&self) -> u8 {
-        self.data()[7] & 15 
+        ((self.data() & 0x0F_00_00_00_00_00_00_00) >> 56) as u8
     }
 
     #[inline]
@@ -157,36 +166,36 @@ pub trait Packet {
     }
 }
 
-pub struct PacketEELS<'a> {
+pub struct PacketEELS {
     pub chip_index: u8,
-    pub data: &'a [u8; 8],
+    pub data: u64,
 }
 
-impl<'a> Packet for PacketEELS<'a> {
+impl Packet for PacketEELS {
     fn ci(&self) -> u8 {
         self.chip_index
     }
-    fn data(&self) -> &[u8; 8] {
+    fn data(&self) -> u64 {
         self.data
     }
 }
 
-impl<'a> PacketEELS<'a> {
+impl PacketEELS {
     pub const fn chip_array() -> (POSITION, POSITION) {
         (1025, 256)
     }
 }
 
-pub struct TimeCorrectedPacketEELS<'a> {
+pub struct TimeCorrectedPacketEELS {
     pub chip_index: u8,
-    pub data: &'a [u8; 8],
+    pub data: u64,
 }
 
-impl<'a> Packet for TimeCorrectedPacketEELS<'a> {
+impl Packet for TimeCorrectedPacketEELS {
     fn ci(&self) -> u8 {
         self.chip_index
     }
-    fn data(&self) -> &[u8; 8] {
+    fn data(&self) -> u64 {
         self.data
     }
     
@@ -208,24 +217,25 @@ impl<'a> Packet for TimeCorrectedPacketEELS<'a> {
     }
 }
 
-impl<'a> TimeCorrectedPacketEELS<'a> {
+impl TimeCorrectedPacketEELS {
     pub const fn chip_array() -> (POSITION, POSITION) {
         (1025, 256)
     }
 }
 
-pub struct PacketDiffraction<'a> {
+pub struct PacketDiffraction {
     pub chip_index: u8,
-    pub data: &'a [u8; 8],
+    pub data: u64,
 }
 
-impl<'a> Packet for PacketDiffraction<'a> {
+impl Packet for PacketDiffraction {
     fn ci(&self) -> u8 {
         self.chip_index
     }
-    fn data(&self) -> &[u8; 8] {
+    fn data(&self) -> u64 {
         self.data
     }
+    /*
     fn x(&self) -> POSITION {
         let temp = (((self.data[6] & 224)>>4 | (self.data[7] & 15)<<4) | (((self.data[5] & 112)>>4)>>2)) as POSITION;
         match self.chip_index {
@@ -247,9 +257,10 @@ impl<'a> Packet for PacketDiffraction<'a> {
             _ => panic!("More than four CI."),
         }
     }
+    */
 }
 
-impl<'a> PacketDiffraction<'a> {
+impl PacketDiffraction {
     pub const fn chip_array() -> (POSITION, POSITION) {
         (512, 512)
     }
@@ -262,7 +273,6 @@ pub struct InversePacket {
     pub id: usize,
 }
 
-use std::convert::TryInto;
 use crate::tdclib::TdcType;
 
 impl InversePacket {
@@ -332,6 +342,7 @@ impl InversePacket {
     }
 
 
+    /*
     pub fn test_func(&self) {
         let my_inv_packet = InversePacket::new_inverse_electron(128, 100, 3_111_005);
 
@@ -355,6 +366,7 @@ impl InversePacket {
 
         println!("{} and {} and {} and {}", my_packet.id(), my_packet.tdc_time_norm(), my_packet.tdc_time(), my_packet.tdc_type());
     }
+    */
 
     pub fn time_to_ticks(&self) -> (usize, usize, usize) {
         let spidr_ticks = self.time / 409_600;

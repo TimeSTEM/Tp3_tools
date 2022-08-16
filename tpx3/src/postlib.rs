@@ -2,7 +2,7 @@ pub mod coincidence {
 
     use std::fs::OpenOptions;
     use crate::spimlib::SPIM_PIXELS;
-    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
+    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack, packet_change};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
     use crate::postlib::isi_box;
     use std::io;
@@ -11,9 +11,7 @@ pub mod coincidence {
     use std::time::Instant;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use crate::auxiliar::ConfigAcquisition;
-    use std::convert::TryInto;
     use crate::auxiliar::value_types::*;
-    use rayon::prelude::*;
     use indicatif::{ProgressBar, ProgressStyle};
 
     const ISI_BUFFER_SIZE: usize = 512_000_000; //Buffer size reading files when using TP3 and IsiBox
@@ -293,7 +291,7 @@ pub mod coincidence {
             self.tdc.iter_mut().zip(val.0.iter_mut()).
                 filter(|((_time, _channel, _dt), corr)| corr.is_some()).
                 for_each(|((time, _channel, _dt), corr)| {
-                *time += corr.unwrap() as usize;
+                *time += corr.unwrap();
                 //*time = *time - (*time / (Pack::electron_overflow() * 6)) * (Pack::electron_overflow() * 6);
                 *corr = Some(0);
             });
@@ -379,7 +377,7 @@ pub mod coincidence {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
-                        let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
+                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                         match packet.id() {
                             6 if packet.tdc_type() == np_tdc.id() => {
                                 temp_tdc.add_tdc(&packet, 0);
@@ -416,16 +414,18 @@ pub mod coincidence {
     
         //IsiBox loading file & setting up synchronization
         let f = fs::File::open(file2).unwrap();
-        let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, spim_tdc.pixel_time(coinc_data.spim_size.0 * 15_625 / 10_000));
+        let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, spim_tdc.pixel_time(coinc_data.spim_size.0) * 15_625 / 10_000);
+        println!("***IsiBox***: Selected pixel time is (ns): {}.", spim_tdc.pixel_time(coinc_data.spim_size.0) * 15_625 / 10_000);
         let _begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
         let tdc_vec = temp_tdc.get_sync();
         let _isi_tdc_counter = tdc_vec.len();
         let mut tdc_iter = tdc_vec.iter();
+
         
         
         let bar = ProgressBar::new(progress_size);
-        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] {Correcting IsiBox values}")
+        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Correcting IsiBox values")
                       .unwrap()
                       .progress_chars("=>-"));
         
@@ -448,7 +448,7 @@ pub mod coincidence {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
-                        let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
+                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                         match packet.id() {
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 tp3_tdc_counter += 1;
@@ -490,6 +490,7 @@ pub mod coincidence {
             });
         temp_tdc.correct_tdc(&mut correct_vector);
         }
+        println!("***IsiBox***: IsiBox values corrected.");
         temp_tdc.sort();
         (temp_tdc, total_size)
     }
@@ -510,7 +511,7 @@ pub mod coincidence {
         let mut total_size = 0;
         
         let bar = ProgressBar::new(progress_size);
-        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] {Searching electron photon coincidences}")
+        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Searching electron photon coincidences")
                       .unwrap()
                       .progress_chars("=>-"));
         
@@ -526,7 +527,7 @@ pub mod coincidence {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
-                        let packet = Pack { chip_index: ci, data: pack_oct.try_into().unwrap() };
+                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                         match packet.id() {
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 coinc_data.add_spim_line(&packet);
@@ -542,6 +543,7 @@ pub mod coincidence {
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20);
         }
+        println!("***IsiBox***: Coincidence search is over.");
         Ok(())
     }
 }
@@ -572,20 +574,36 @@ pub mod isi_box {
                 v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
         }
     }
+
+    fn add_overflow(data: u64, value: u64) -> u64
+    {
+        (data + value) % 67108864
+    }
     
-    struct IsiListVec(Vec<(TIME, u32, Option<u32>, Option<u32>, Option<i64>)>);
+    fn subtract_overflow(data: u64, value: u64) -> u64
+    {
+        if data > value {
+            (data - value) % 67108864
+        } else {
+            (data + 67108864 - value) % 67108864
+        }
+    }
+ 
+    type IsiListType = (TIME, u32, Option<u32>, Option<u32>, Option<i64>);
+    struct IsiListVec(Vec<IsiListType>);
     struct IsiListVecg2(Vec<(i64, u32, Option<u32>, Option<u32>)>);
 
     pub struct IsiList {
         data: IsiListVec, //Time, channel, spim index, spim frame, dT
+        data_raw: IsiListVec, //Time, channel, spim index, spim frame, dT
         x: u32,
         y: u32,
         pixel_time: u32,
         pub counter: u32,
         pub overflow: u32,
-        pub last_time: u32,
+        last_time: u32,
         pub start_time: Option<u32>,
-        pub line_time: Option<u32>,
+        line_time: Option<u32>,
     }
 
 
@@ -609,7 +627,7 @@ pub mod isi_box {
 
 
                 if (time_dif - line_time as i32).abs() > 10 {
-                    println!("***IsiBox***: Probable line issue. Raw time is {}. Diference relative to the last time is {}. The spim frame is {:?}. Line counter is {}. Line time is {}. Last time is {}. Abs time is {}.", data, time_dif, self.spim_frame(), self.counter, line_time, self.last_time, self.get_abs_time(data));
+                    //println!("***IsiBox***: Probable line issue. Raw time is {}. Diference relative to the last time is {}. The spim frame is {:?}. Line counter is {}. Line time is {}. Last time is {}. Abs time is {}.", data, time_dif, self.spim_frame(), self.counter, line_time, self.last_time, self.get_abs_time(data));
                 }
             }
             
@@ -628,11 +646,15 @@ pub mod isi_box {
                 self.line_time = Some(val);
             }
 
+            
             //Setting the start_time
-            if let None = self.start_time {
-                println!("Start time is now: {}", data );
-                self.start_time = Some(data);
-            };
+            if self.counter > 0 {
+                if let None = self.start_time {
+                    println!("Start time is now: {}", data );
+                    self.start_time = Some(data);
+                };
+            }
+            
         }
 
         fn get_line_low(&self) -> u32 {
@@ -665,9 +687,8 @@ pub mod isi_box {
                     data + 67108864 - self.last_time
                 };
 
-                if time > low {return None;}
+                //if time > low {return None;}
                 let column = ((time as u64 * self.x as u64) / low as u64) as u32;
-
                 let index = line * self.x + column;
                 Some(index)
             } else {None}
@@ -682,28 +703,173 @@ pub mod isi_box {
 
         fn add_event(&mut self, channel: u32, data: u32) {
             self.data.0.push((self.get_abs_time(data), channel, self.spim_index(data), self.spim_frame(), None));
+            self.data_raw.0.push((data as u64, channel, None, None, None));
+        }
+
+        fn determine_line_time(&mut self) {
+            let iter = self.scan_iterator().
+                filter_map(|(val1, val2)| {
+                    if val2.1.0 > val1.1.0 {
+                        Some((val2.1.0 - val1.1.0) as u32)
+                    } else {None}
+                });
+
+            let mut line = u32::MAX;
+            for val in iter {
+                if line == val {
+                    break;
+                }
+                line = val;
+            };
+            self.line_time = Some(line);
+        }
+
+        fn check_for_issues(&mut self) {
+            for _ in 0..3 {
+                let iter = self.scan_iterator().
+                    //filter(|(val1, val2)| (add_overflow(val1.1.0, self.line_time.unwrap() as u64) > add_overflow(val2.1.0, 1_000) ) || (add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000))).
+                    //filter(|(val1, val2)| add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000)).
+                    filter(|(val1, val2)| (subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) && (subtract_overflow(val2.1.0, val1.1.0) < 60_000_000) ).
+                    collect::<Vec<_>>();
+                
+                for val in iter {
+                    println!("{:?} and {:?} and {:?} and {:?}", val.0, val.1, self.data_raw.0[val.1.0+2], self.line_time);
+                    self.data_raw.0.insert(val.1.0+1, (subtract_overflow(val.1.1.0, self.line_time.unwrap() as u64), val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
+                }
+            }
+        }
+
+        fn correct_data(&mut self) {
+            let mut counter = 0;
+            let mut last_time = 0;
+            let mut overflow = 0;
+            let low = (self.x * self.pixel_time) as u64;
+            let y = self.y;
+            let x = self.x;
+
+            
+            let spim_index = |data: u64, ct: u32, lt: u64| -> Option<u32> {
+                let line = ct % y;
+                let time = if data > VIDEO_TIME * 13 + lt {
+                    data - lt
+                } else {
+                    data + 67108864 - lt
+                };
+
+                if time > low {return None;}
+                let column = ((time as u64 * x as u64) / low) as u32;
+                let index = line * x + column;
+                
+                Some(index)
+            };
+            
+
+            self.data_raw.0.iter_mut().for_each(|x| {
+                //Correction time
+                let raw_time = x.0.clone();
+                if x.0 > last_time {
+                    x.0 += overflow as TIME * 67108864;
+                } else {
+                    x.0 += (overflow + 1) as TIME  * 67108864;
+                };
+                //Correcting spim index
+                x.2 = spim_index(raw_time, counter, last_time);
+                //Correcting spim frame
+                x.3 = Some(counter / y);
+
+                //If it is a scan signal
+                if x.1 == 16 {
+                    if raw_time < last_time {
+                        overflow+=1;
+                    }
+                    counter += 1;
+                    last_time = raw_time;
+                }
+
+
+            });
+        }
+
+        
+        fn scan_iterator(&self) -> impl Iterator<Item=((usize, IsiListType), (usize, IsiListType))> + '_ {
+            let iter1 = self.data_raw.0.iter().
+                cloned().
+                enumerate().
+                filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
+            
+            let iter2 = self.data_raw.0[1..].iter().
+                cloned().
+                enumerate().
+                filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
+
+            let iter3 = iter1.
+                zip(iter2);
+
+            iter3
         }
         
+
+        /*
+        fn check_for_issues(&mut self) {
+            let iter1 = self.data.0.iter().
+                cloned().
+                enumerate().
+                filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
+            
+            let iter2 = self.data.0[1..].iter().
+                cloned().
+                enumerate().
+                filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
+
+            let iter3 = iter1.
+                zip(iter2).
+                filter(|(val1, val2)| (val1.1.0 > val2.1.0 + self.line_time.unwrap() as u64 + 1_000) || (val2.1.0 > val1.1.0 + self.line_time.unwrap() as u64 + 1_000)).
+                collect::<Vec<_>>();
+
+            for val in iter3 {
+                println!("{:?} and {:?} and {:?}", val.0, val.1, self.data.0[val.1.0+2]);
+                self.data.0.insert(val.1.0+1, (val.1.1.0 - self.line_time.unwrap() as u64, val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
+            }
+
+            //println!("{:?}", self.line_time.unwrap());
+
+                
+                /*
+                reduce(|accum, item| {
+                    if (accum.1.0 > item.1.0 + 10) || (item.1.0 > accum.1.0 + 10) {
+                        println!("KKKKKKKKKKKKK {:?}", accum);
+                        accum
+                    }
+                    else {
+                        //println!("nothing");
+                        item
+                    }
+                });
+                */
+        }
+    */
+        
         pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER, Option<i64>)> {
-            let first = self.data.0.iter().
+            let first = self.data_raw.0.iter().
                 filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == 16).
                 map(|(time, _channel, _spim_index, _spim_frame, _dt)| (*time * 1200 * 6) / 15625).
                 next().
                 unwrap();
-
-            self.data.0.iter().
+            
+            self.data_raw.0.iter().
                 map(|(time, channel, _spim_index, _spim_frame, dt)| (((*time * 1200 * 6) / 15625) - first, *channel, *dt)).
                 //map(|(time, channel)| (time - (time / 103_079_215_104) * 103_079_215_104, channel)).
                 collect::<Vec<_>>()
+            
         }
 
         fn output_spim(&self) {
-            let spim_vec = self.data.0.iter().
+            let spim_vec = self.data_raw.0.iter().
                 filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel != 16 && *channel != 24).
                 filter(|(_time, _channel, spim_index, spim_frame, _dt)| spim_index.is_some() && spim_frame.is_some()).
                 map(|(_time, channel, spim_index, _spim_frame, _dt)| spim_index.unwrap() * CHANNELS as u32 + channel).collect::<Vec<u32>>();
  
-            let index_vec = self.data.0.iter().
+            let index_vec = self.data_raw.0.iter().
                 filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel != 16 && *channel != 24).
                 filter(|(_time, _channel, spim_index, spim_frame, _dt)| spim_index.is_some() && spim_frame.is_some()).
                 map(|(_time, _channel, _spim_index, spim_frame, _dt)| spim_frame.unwrap()).collect::<Vec<u32>>();
@@ -724,16 +890,17 @@ pub mod isi_box {
         }
 
         fn search_coincidence(&mut self, ch1: u32, ch2: u32) {
-            let progress_size = self.data.0.len() as u64;
-            let mut vec2 = self.data.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
-            let iter1 = self.data.0.iter_mut();
-                //filter(|(_time, channel, _spim_index, _spim_frame, is_corr)| *channel == ch1);
+            let progress_size = self.data_raw.0.len() as u64;
+            let vec1_len = self.data_raw.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch1).count();
+            let mut vec2 = self.data_raw.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
+            let iter1 = self.data_raw.0.iter_mut();
             let mut min_index = 0;
             let mut corr = 0;
 
+
             let mut new_list = IsiListVecg2(Vec::new());
             let bar = ProgressBar::new(progress_size);
-            bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] {Searching photon coincidences}")
+            bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Searching photon coincidences")
                           .unwrap()
                           .progress_chars("=>-"));
         
@@ -757,7 +924,7 @@ pub mod isi_box {
                 }
             }
 
-            self.data.0.iter_mut().
+            self.data_raw.0.iter_mut().
                 filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).
                 zip(vec2.iter()).
                 for_each(|(ph21, ph22)| {
@@ -765,13 +932,14 @@ pub mod isi_box {
                     assert_eq!(ph21.1, ph22.1);
                 });
 
-            println!("***IsiBox***: Size of the second channel: {}. Number of coincidences: {}", vec2.len(), corr);
             
             let dt_vec = new_list.0.iter().
                 filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
                 map(|(dtime, _channel, _spim_index, _spim_frame)| *dtime).
                 collect::<Vec<i64>>();
-
+            
+            println!("***IsiBox***: Size of the (first/second) channel: ({} / {}). Number of coincidences: {}. Number of output coincidences: {}.", vec1_len, vec2.len(), corr, dt_vec.len());
+            
             let spim_index_vec = new_list.0.iter().
                 filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
                 map(|(_dtime, _channel, spim_index, _spim_frame)| spim_index.unwrap()).
@@ -798,20 +966,26 @@ pub mod isi_box {
     pub fn get_channel_timelist<V>(mut data: V, spim_size: (POSITION, POSITION), pixel_time: TIME) -> IsiList 
         where V: Read
         {
-            //let zlp = Normal::new(100.0, 25.0).unwrap();
-            let mut list = IsiList{data: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
+            let mut list = IsiList{data: IsiListVec(Vec::new()), data_raw: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
                 if size == 0 {println!("***IsiBox***: Finished reading file."); break;}
                 buffer.chunks_exact(4).for_each( |x| {
                     let channel = (as_int(x)[0] & 0xFC000000) >> 27;
+                    let _overflow = (as_int(x)[0] & 0x04000000) >> 26;
                     let time = as_int(x)[0] & 0x03FFFFFF;
+                    //if overflow == 1 {
+                    //    println!("{} and {}", channel, time);
+                    //}
                     list.add_event(channel, time);
                     if channel == 16 {
                         list.increase_counter(time);
                     }
                 })
             }
+            list.determine_line_time();
+            //list.check_for_issues();
+            list.correct_data();
             list.output_spim();
             list.search_coincidence(2, 12);
             list
@@ -820,7 +994,7 @@ pub mod isi_box {
 
 pub mod ntime_resolved {
     use std::fs::OpenOptions;
-    use crate::packetlib::{Packet, PacketEELS as Pack};
+    use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
@@ -950,7 +1124,7 @@ pub mod ntime_resolved {
                 match pack_oct {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci = nci},
                     _ => {
-                        let packet = Pack{chip_index: ci, data: pack_oct.try_into().unwrap()};
+                        let packet = Pack{chip_index: ci, data: packet_change(pack_oct)[0]};
                         match packet.id() {
                             6 if packet.tdc_type() == data.spim_tdc_type.associate_value() => {
                                 data.add_spim_tdc(&packet);

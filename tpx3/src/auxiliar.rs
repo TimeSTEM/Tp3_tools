@@ -498,7 +498,7 @@ pub mod misc {
 pub mod value_types {
     pub type POSITION = u32;
     pub type COUNTER = u32;
-    pub type TIME = usize;
+    pub type TIME = u64;
 }
 
 pub mod compressing {
