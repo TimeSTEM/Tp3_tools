@@ -112,7 +112,7 @@ pub mod cluster {
                 let nelectrons = self.data.len();
                 self.clean();
                 let new_nelectrons = self.data.len();
-                println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
+                //println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
                 return true
             }
             !remove

@@ -347,7 +347,7 @@ pub mod coincidence {
     pub fn search_coincidence(file: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
 
         let mut file0 = fs::File::open(file)?;
-        
+        let progress_size = file0.metadata().unwrap().len() as u64;
         let spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
             if coinc_data.spim_size.0 == 0 || coinc_data.spim_size.1 == 0 {
                 panic!("Spim mode is on. X and Y pixels must be greater than 0.");
@@ -366,10 +366,16 @@ pub mod coincidence {
         let mut total_size = 0;
         let start = Instant::now();
         
+        let bar = ProgressBar::new(progress_size);
+        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Searching electron photon coincidences")
+                      .unwrap()
+                      .progress_chars("=>-"));
+        
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
-            println!("MB Read: {}", total_size / 1_000_000 );
+            bar.inc(512_000_000 as u64);
+            //println!("MB Read: {}", total_size / 1_000_000 );
             let mut temp_edata = TempElectronData::new();
             let mut temp_tdc = TempTdcData::new();
             //let mut packet_chunks = buffer[0..size].chunks_exact(8);
@@ -395,7 +401,7 @@ pub mod coincidence {
                 };
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, 104, 40);
-        println!("Time elapsed: {:?}", start.elapsed());
+        //println!("Time elapsed: {:?}", start.elapsed());
 
         }
         println!("Total number of bytes read {}", total_size);

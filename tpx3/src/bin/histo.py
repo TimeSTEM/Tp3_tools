@@ -21,7 +21,7 @@ channel = numpy.fromfile("channel.txt", dtype='uint32')
 indexes2 = numpy.where((channel == 0))
 indexes12 = numpy.where((channel == 12))
 indexes_position = numpy.where(xH < 256)
-indexes_time = numpy.where(tabs > 3*(max(tabs)+min(tabs))/4)
+indexes_time = numpy.where(tabs > 1*(max(tabs)+min(tabs))/2)
 indexes_extra = numpy.where(xH > 70)
 
 #yH = numpy.loadtxt("yH.txt", delimiter=',')
@@ -30,7 +30,7 @@ indexes_extra = numpy.where(xH > 70)
 #t = t[indexes]
 
 #Getting CLE
-indexes_cle = numpy.where((numpy.abs(t + 500) < 50))
+indexes_cle = numpy.where((numpy.abs(t + 500) < 200))
 cle = numpy.zeros(1041)
 for val in xH[indexes_cle]:
     cle[val] += 1
