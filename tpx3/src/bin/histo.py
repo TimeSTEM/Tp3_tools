@@ -18,7 +18,7 @@ yH = numpy.fromfile("yH.txt", dtype='uint32')
 tot = numpy.fromfile("tot.txt", dtype='uint16')
 channel = numpy.fromfile("channel.txt", dtype='uint32')
 
-indexes2 = numpy.where((channel == 2))
+indexes2 = numpy.where((channel == 0))
 indexes12 = numpy.where((channel == 12))
 indexes_position = numpy.where(xH < 256)
 indexes_time = numpy.where(tabs > 3*(max(tabs)+min(tabs))/4)

@@ -257,7 +257,7 @@ pub mod coincidence {
     }
 
     pub struct TempTdcData {
-        tdc: Vec<(TIME, COUNTER, Option<i64>)>, //The absolute time, the channel and the dT
+        tdc: Vec<(TIME, COUNTER, Option<i64>)>, //The absolute time, the channel and the g2_dT
         clean_tdc: Vec<(TIME, COUNTER, Option<i64>)>,
         min_index: usize,
         tdc_type: TempTdcDataType,
