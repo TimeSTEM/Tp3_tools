@@ -447,6 +447,7 @@ pub mod coincidence {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {break;}
             if quit {break;}
+            //if total_size > progress_size as usize / 20 {break;}
             total_size += size;
             bar.inc(ISI_BUFFER_SIZE as u64);
             //println!("Reading for correction. MB Read: {}", total_size / 1_000_000 );
@@ -463,19 +464,31 @@ pub mod coincidence {
                                 let isi_val = tdc_iter.next().unwrap();
                                 let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
                                 
-                                //Sometimes the estimative time does not work, underestimating of.
+                                //Sometimes the estimative time does not work, underestimating it.
                                 //This tries to recover it out.
-                                let t_dif = if isi_val.1 > tdc_val {
+                                let mut t_dif = if isi_val.1 > tdc_val {
                                     let of = of + 1;
                                     let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
                                     tdc_val - isi_val.1
                                 } else {
                                     tdc_val - isi_val.1
                                 };
+
+                                //Sometimes the estimative time does not work, overestimating it.
+                                //This tries to recover it out.
+                                //if (offset != 0) && ((t_dif > offset + 300_000) || (offset > t_dif + 300_000)) {
+                                //    let of = of - 1;
+                                //    let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
+                                //    t_dif = tdc_val - isi_val.1
+                                //}
+
                                 
+                                println!("{} and {} and {} and {} and {} and {}", offset, t_dif, isi_val.1, packet.tdc_time_abs(), tdc_val, of);
                                 
                                 if (offset != 0) && ((t_dif > offset + 1_000) || (offset > t_dif + 1_000)) {
                                     println!("***IsiBox***: Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
+                                    //println!("{:?}", tdc_iter.next().unwrap());
+                                    panic!("program is over");
                                     quit = true;
                                 } else {
                                     //Note here that a bad one will be skipped but the next one
@@ -950,7 +963,7 @@ pub mod isi_box {
                 map(|(dtime, _channel, _spim_index, _spim_frame)| *dtime).
                 collect::<Vec<i64>>();
             
-            println!("***IsiBox***: Size of the (first/second) channel: ({} / {}). Number of coincidences: {}. Number of output coincidences: {}.", vec1_len, vec2.len(), corr, dt_vec.len());
+            println!("***IsiBox***: Size of the (first/second) channel: ({} / {}). Number of coincidences: {}. Number of output coincidences: {}. Ratio: {} %.", vec1_len, vec2.len(), corr, dt_vec.len(), dt_vec.len() as f32 * 100.0 / vec1_len as f32);
             
             let spim_index_vec = new_list.0.iter().
                 filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
