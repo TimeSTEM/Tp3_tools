@@ -731,17 +731,23 @@ pub mod isi_box {
         }
 
         fn check_for_issues(&mut self) {
-            for _ in 0..3 {
+            for _ in 0..100 {
                 let iter = self.scan_iterator().
                     //filter(|(val1, val2)| (add_overflow(val1.1.0, self.line_time.unwrap() as u64) > add_overflow(val2.1.0, 1_000) ) || (add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000))).
                     //filter(|(val1, val2)| add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000)).
                     filter(|(val1, val2)| (subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) && (subtract_overflow(val2.1.0, val1.1.0) < 60_000_000) ).
                     collect::<Vec<_>>();
                 
+                let mut number_of_insertions = 0;
+                if iter.len() == 0 {
+                    println!("***IsiBox***: values successfully corrected."); 
+                    break;}
                 for val in iter {
-                    println!("{:?} and {:?} and {:?} and {:?}", val.0, val.1, self.data_raw.0[val.1.0+2], self.line_time);
-                    self.data_raw.0.insert(val.1.0+1, (subtract_overflow(val.1.1.0, self.line_time.unwrap() as u64), val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
+                    //println!("{:?} and {:?} and {:?} and {:?}", val.0, val.1, self.data_raw.0[val.1.0+2], self.line_time);
+                    self.data_raw.0.insert(val.1.0+1+number_of_insertions, (subtract_overflow(val.1.1.0, self.line_time.unwrap() as u64), val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
+                    number_of_insertions += 1;
                 }
+                //println!("***IsiBox***: end of a correction cycle.");
             }
         }
 
@@ -990,10 +996,10 @@ pub mod isi_box {
                 })
             }
             list.determine_line_time();
-            //list.check_for_issues();
+            list.check_for_issues();
             list.correct_data();
             list.output_spim();
-            list.search_coincidence(2, 12);
+            list.search_coincidence(0, 12);
             list
         }
 }
