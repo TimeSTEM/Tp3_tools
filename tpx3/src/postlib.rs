@@ -15,7 +15,7 @@ pub mod coincidence {
     use indicatif::{ProgressBar, ProgressStyle};
 
     const ISI_BUFFER_SIZE: usize = 512_000_000; //Buffer size reading files when using TP3 and IsiBox
-    const ISI_TP3_MAX_DIF: u64 = 300_000; //In units of 640 Mhz;
+    const ISI_TP3_MAX_DIF: u64 = 1_000; //In units of 640 Mhz;
     
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
@@ -486,18 +486,12 @@ pub mod coincidence {
                                     }
                                 };
 
-                                //Sometimes the estimative time does not work, overestimating it.
-                                //This tries to recover it out.
-                                //    let of = of - 1;
-                                //    let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
-                                //    t_dif = tdc_val - isi_val.1
-                                //}
-
-                                
                                 //println!("{} and {} and {} and {} and {} and {}", offset, t_dif, isi_val.1, packet.tdc_time_abs(), tdc_val, of);
                                 
                                 if (offset != 0) && ((t_dif > offset + ISI_TP3_MAX_DIF) || (offset > t_dif + ISI_TP3_MAX_DIF)) {
                                     println!("***IsiBox***: Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
+                                    //println!("{:?}", isi_val);
+                                    //println!("{:?}", tdc_iter.next().unwrap());
                                     //panic!("program is over");
                                     quit = true;
                                 } else {
@@ -570,8 +564,8 @@ pub mod coincidence {
                     },
                 };
             });
-        coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20); //Fast start (NIM)
-        //coinc_data.add_events(temp_edata, &mut temp_tdc, 105, 20); //Slow start (TTL)
+        //coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20); //Fast start (NIM)
+        coinc_data.add_events(temp_edata, &mut temp_tdc, 105, 20); //Slow start (TTL)
         }
         println!("***IsiBox***: Coincidence search is over.");
         Ok(())
@@ -761,7 +755,8 @@ pub mod isi_box {
                 let iter = self.scan_iterator().
                     //filter(|(val1, val2)| (add_overflow(val1.1.0, self.line_time.unwrap() as u64) > add_overflow(val2.1.0, 1_000) ) || (add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000))).
                     //filter(|(val1, val2)| add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000)).
-                    filter(|(val1, val2)| (subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) && (subtract_overflow(val2.1.0, val1.1.0) < 60_000_000) ).
+                    //filter(|(val1, val2)| (subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) && (subtract_overflow(val2.1.0, val1.1.0) < 60_000_000) ).
+                    filter(|(val1, val2)| ((subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) || (subtract_overflow(val2.1.0, val1.1.0) < self.line_time.unwrap() as u64 - 1_000))).
                     collect::<Vec<_>>();
                 
                 let mut number_of_insertions = 0;
