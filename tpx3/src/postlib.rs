@@ -466,7 +466,7 @@ pub mod coincidence {
                                 
                                 //Sometimes the estimative time does not work, underestimating it.
                                 //This tries to recover it out.
-                                let mut t_dif = if isi_val.1 > tdc_val {
+                                let t_dif = if isi_val.1 > tdc_val {
                                     let of = of + 1;
                                     let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
                                     tdc_val - isi_val.1
@@ -483,12 +483,11 @@ pub mod coincidence {
                                 //}
 
                                 
-                                println!("{} and {} and {} and {} and {} and {}", offset, t_dif, isi_val.1, packet.tdc_time_abs(), tdc_val, of);
+                                //println!("{} and {} and {} and {} and {} and {}", offset, t_dif, isi_val.1, packet.tdc_time_abs(), tdc_val, of);
                                 
-                                if (offset != 0) && ((t_dif > offset + 1_000) || (offset > t_dif + 1_000)) {
+                                if (offset != 0) && ((t_dif > offset + 300_000) || (offset > t_dif + 300_000)) {
                                     println!("***IsiBox***: Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
-                                    //println!("{:?}", tdc_iter.next().unwrap());
-                                    panic!("program is over");
+                                    //panic!("program is over");
                                     quit = true;
                                 } else {
                                     //Note here that a bad one will be skipped but the next one
@@ -613,7 +612,7 @@ pub mod isi_box {
     struct IsiListVecg2(Vec<(i64, u32, Option<u32>, Option<u32>)>);
 
     pub struct IsiList {
-        data: IsiListVec, //Time, channel, spim index, spim frame, dT
+        //data: IsiListVec, //Time, channel, spim index, spim frame, dT
         data_raw: IsiListVec, //Time, channel, spim index, spim frame, dT
         x: u32,
         y: u32,
@@ -692,6 +691,7 @@ pub mod isi_box {
             //let time2 = (self.counter-1) as u64 * self.line_time.unwrap() as u64 + self.start_time.unwrap() as u64;
         }
 
+        /*
         fn spim_index(&self, data: u32) -> Option<u32> {
             if let Some(_) = self.line_time {
 
@@ -719,9 +719,10 @@ pub mod isi_box {
                 Some(frame)
             } else {None}
         }
+        */
 
         fn add_event(&mut self, channel: u32, data: u32) {
-            self.data.0.push((self.get_abs_time(data), channel, self.spim_index(data), self.spim_frame(), None));
+            //self.data.0.push((self.get_abs_time(data), channel, self.spim_index(data), self.spim_frame(), None));
             self.data_raw.0.push((data as u64, channel, None, None, None));
         }
 
@@ -991,7 +992,7 @@ pub mod isi_box {
     pub fn get_channel_timelist<V>(mut data: V, spim_size: (POSITION, POSITION), pixel_time: TIME) -> IsiList 
         where V: Read
         {
-            let mut list = IsiList{data: IsiListVec(Vec::new()), data_raw: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
+            let mut list = IsiList{data_raw: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
                 if size == 0 {println!("***IsiBox***: Finished reading file."); break;}
