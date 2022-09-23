@@ -15,6 +15,7 @@ pub mod coincidence {
     use indicatif::{ProgressBar, ProgressStyle};
 
     const ISI_BUFFER_SIZE: usize = 512_000_000; //Buffer size reading files when using TP3 and IsiBox
+    const ISI_TP3_MAX_DIF: u64 = 300_000; //In units of 640 Mhz;
     
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
@@ -463,20 +464,30 @@ pub mod coincidence {
                                 let of = coinc_data.estimate_overflow(&packet).unwrap();
                                 let isi_val = tdc_iter.next().unwrap();
                                 let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
+                                let mut t_dif = tdc_val - isi_val.1;
+                                
+                                //println!("before {} and {} and {} and {} and {} and {}", offset, t_dif, isi_val.1, packet.tdc_time_abs(), tdc_val, of);
                                 
                                 //Sometimes the estimative time does not work, underestimating it.
                                 //This tries to recover it out.
-                                let t_dif = if isi_val.1 > tdc_val {
+                                if isi_val.1 > tdc_val {
                                     let of = of + 1;
                                     let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
-                                    tdc_val - isi_val.1
+                                    //println!("here");
+                                    t_dif = tdc_val - isi_val.1;
                                 } else {
-                                    tdc_val - isi_val.1
+                                    //Sometimes the estimative time does not work, overestimating it.
+                                    //This tries to recover it out.
+                                    if (offset != 0) && ((t_dif > offset + ISI_TP3_MAX_DIF) || (offset > t_dif + ISI_TP3_MAX_DIF)) {
+                                        let of = of - 1;
+                                        let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
+                                        //println!("here2");
+                                        t_dif = tdc_val - isi_val.1;
+                                    }
                                 };
 
                                 //Sometimes the estimative time does not work, overestimating it.
                                 //This tries to recover it out.
-                                //if (offset != 0) && ((t_dif > offset + 300_000) || (offset > t_dif + 300_000)) {
                                 //    let of = of - 1;
                                 //    let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
                                 //    t_dif = tdc_val - isi_val.1
@@ -485,7 +496,7 @@ pub mod coincidence {
                                 
                                 //println!("{} and {} and {} and {} and {} and {}", offset, t_dif, isi_val.1, packet.tdc_time_abs(), tdc_val, of);
                                 
-                                if (offset != 0) && ((t_dif > offset + 300_000) || (offset > t_dif + 300_000)) {
+                                if (offset != 0) && ((t_dif > offset + ISI_TP3_MAX_DIF) || (offset > t_dif + ISI_TP3_MAX_DIF)) {
                                     println!("***IsiBox***: Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
                                     //panic!("program is over");
                                     quit = true;
@@ -559,7 +570,8 @@ pub mod coincidence {
                     },
                 };
             });
-        coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20);
+        coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20); //Fast start (NIM)
+        //coinc_data.add_events(temp_edata, &mut temp_tdc, 105, 20); //Slow start (TTL)
         }
         println!("***IsiBox***: Coincidence search is over.");
         Ok(())
