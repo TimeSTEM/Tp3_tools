@@ -414,7 +414,7 @@ pub mod coincidence {
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(file1).unwrap();
         let progress_size = file0.metadata().unwrap().len() as u64;
-        let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
+        let mut spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         let _begin_tp3_time = spim_tdc.begin_frame;
         let mut tp3_tdc_counter = 0;
@@ -459,14 +459,26 @@ pub mod coincidence {
                         let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                         match packet.id() {
                             6 if packet.tdc_type() == spim_tdc.id() => {
-                                tp3_tdc_counter += 1;
+                                
+                                tp3_tdc_counter = spim_tdc.counter();
+                                spim_tdc.upt(packet.tdc_time_abs(), packet.tdc_counter());
+                                let tp3_values_to_skip = (spim_tdc.counter() - tp3_tdc_counter - 2) / 2;
+
+                                if spim_tdc.counter() != 0 {
+                                    for _ in 0..tp3_values_to_skip {
+                                        let _val = tdc_iter.next().unwrap();
+                                    }
+                                }
+
+                                
                                 coinc_data.add_spim_line(&packet);
                                 let of = coinc_data.estimate_overflow(&packet).unwrap();
                                 let isi_val = tdc_iter.next().unwrap();
                                 let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
                                 let mut t_dif = tdc_val - isi_val.1;
                                 
-                                //println!("before {} and {} and {} and {} and {} and {}", offset, t_dif, isi_val.1, packet.tdc_time_abs(), tdc_val, of);
+                                //println!("before {} and {} and {} and {} and {} and {} and {} and {}", offset, t_dif, isi_val.1, packet.tdc_time_abs(), tdc_val, of, spim_tdc.counter(), tp3_tdc_counter);
+
                                 
                                 //Sometimes the estimative time does not work, underestimating it.
                                 //This tries to recover it out.
@@ -491,8 +503,8 @@ pub mod coincidence {
                                 if (offset != 0) && ((t_dif > offset + ISI_TP3_MAX_DIF) || (offset > t_dif + ISI_TP3_MAX_DIF)) {
                                     println!("***IsiBox***: Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
                                     //println!("{:?}", isi_val);
-                                    //println!("{:?}", tdc_iter.next().unwrap());
-                                    //panic!("program is over");
+                                    println!("{:?}", tdc_iter.next().unwrap());
+                                    panic!("program is over");
                                     quit = true;
                                 } else {
                                     //Note here that a bad one will be skipped but the next one
