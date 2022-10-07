@@ -129,11 +129,11 @@ pub mod coincidence {
                             index_to_increase = Some(index)
                         }
                     }
-                    if (ph.0/6) > val.time() + time_delay + 1_000 {break;}
+                    if (ph.0/6) > val.time() + time_delay + 10_000 {break;}
                     index += 1;
                 }
                 if let Some(increase) = index_to_increase {
-                    min_index += increase / 3;
+                    min_index += increase / 10;
                 }
             }
             temp_tdc.min_index = min_index;
@@ -429,6 +429,8 @@ pub mod coincidence {
         let _isi_tdc_counter = tdc_vec.len();
         let mut tdc_iter = tdc_vec.iter();
 
+        let mut counter_jump_tp3_tdc = 0;
+        let jump_tp3_tdc = 0;
         
         
         let bar = ProgressBar::new(progress_size);
@@ -459,7 +461,14 @@ pub mod coincidence {
                         let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                         match packet.id() {
                             6 if packet.tdc_type() == spim_tdc.id() => {
+
+                                //This jumps timepix3 TDCs based on the value given to jump_tp3_tdc
+                                if jump_tp3_tdc > counter_jump_tp3_tdc {
+                                    counter_jump_tp3_tdc += 1;
+                                    return;
+                                }
                                 
+                                //This jumps IsiBox lines when the Timepix3 raw data loses TDCs
                                 tp3_tdc_counter = spim_tdc.counter();
                                 spim_tdc.upt(packet.tdc_time_abs(), packet.tdc_counter());
                                 let tp3_values_to_skip = (spim_tdc.counter() - tp3_tdc_counter - 2) / 2;
@@ -477,23 +486,19 @@ pub mod coincidence {
                                 let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
                                 let mut t_dif = tdc_val - isi_val.1;
                                 
-                                //println!("before {} and {} and {} and {} and {} and {} and {} and {}", offset, t_dif, isi_val.1, packet.tdc_time_abs(), tdc_val, of, spim_tdc.counter(), tp3_tdc_counter);
-
                                 
                                 //Sometimes the estimative time does not work, underestimating it.
-                                //This tries to recover it out.
+                                //This tries to recover it out by adding a single offset;
                                 if isi_val.1 > tdc_val {
                                     let of = of + 1;
                                     let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
-                                    //println!("here");
                                     t_dif = tdc_val - isi_val.1;
                                 } else {
                                     //Sometimes the estimative time does not work, overestimating it.
-                                    //This tries to recover it out.
+                                    //This tries to recover it out by removing a single offset
                                     if (offset != 0) && ((t_dif > offset + ISI_TP3_MAX_DIF) || (offset > t_dif + ISI_TP3_MAX_DIF)) {
                                         let of = of - 1;
                                         let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
-                                        //println!("here2");
                                         t_dif = tdc_val - isi_val.1;
                                     }
                                 };
@@ -503,8 +508,8 @@ pub mod coincidence {
                                 if (offset != 0) && ((t_dif > offset + ISI_TP3_MAX_DIF) || (offset > t_dif + ISI_TP3_MAX_DIF)) {
                                     println!("***IsiBox***: Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
                                     //println!("{:?}", isi_val);
-                                    println!("{:?}", tdc_iter.next().unwrap());
-                                    panic!("program is over");
+                                    //println!("{:?}", tdc_iter.next().unwrap());
+                                    //panic!("program is over");
                                     quit = true;
                                 } else {
                                     //Note here that a bad one will be skipped but the next one
@@ -518,7 +523,7 @@ pub mod coincidence {
                      
                             },
                             11 => {},
-                            _ => {}, //println!("{}", packet.tdc_type());},
+                            _ => {},
                         };
                     },
                 };
@@ -759,15 +764,13 @@ pub mod isi_box {
                 }
                 line = val;
             };
+            println!("***IsiBox***: Line time is (units of 120 ps): {}", line);
             self.line_time = Some(line);
         }
 
         fn check_for_issues(&mut self) {
             for _ in 0..100 {
                 let iter = self.scan_iterator().
-                    //filter(|(val1, val2)| (add_overflow(val1.1.0, self.line_time.unwrap() as u64) > add_overflow(val2.1.0, 1_000) ) || (add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000))).
-                    //filter(|(val1, val2)| add_overflow(val1.1.0, self.line_time.unwrap() as u64) < subtract_overflow(val2.1.0, 1000)).
-                    //filter(|(val1, val2)| (subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) && (subtract_overflow(val2.1.0, val1.1.0) < 60_000_000) ).
                     filter(|(val1, val2)| ((subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) || (subtract_overflow(val2.1.0, val1.1.0) < self.line_time.unwrap() as u64 - 1_000))).
                     collect::<Vec<_>>();
                 
