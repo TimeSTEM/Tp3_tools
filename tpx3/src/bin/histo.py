@@ -6,6 +6,8 @@ from matplotlib.widgets import Slider
 off = 0
 disp = 1
 SPIM_PIXELS = 1041
+TIME_DELAY = 625
+TIME_WIDTH = 25
 
 disparray = numpy.linspace(off, disp*SPIM_PIXELS, SPIM_PIXELS)
 t = numpy.fromfile("tH.txt", dtype='int64')
@@ -21,21 +23,29 @@ channel = numpy.fromfile("channel.txt", dtype='uint32')
 
 indexes2 = numpy.where((channel == 0))
 indexes12 = numpy.where((channel == 12))
-indexes_position = numpy.where(xH < 256)
-indexes_time = numpy.where(tabs > 3*(max(tabs)+min(tabs))/4)
-indexes_extra = numpy.where(xH > 70)
+indexes_chip1 = numpy.where((xH < 256))
+indexes_chip2 = numpy.where((xH < 512) & (xH > 256))
+indexes_chip3 = numpy.where((xH < 768) & (xH > 512))
+indexes_chip4 = numpy.where((xH > 768))
+#indexes_position = numpy.where(xH < 256)
+#indexes_time = numpy.where(tabs > 3*(max(tabs)+min(tabs))/4)
+#indexes_extra = numpy.where(xH > 70)
 
 
 #Getting CLE
-indexes_cle = numpy.where((numpy.abs(t + 630) < 25))
-cle = numpy.zeros(1041)
+indexes_cle = numpy.where((numpy.abs(t + TIME_DELAY) < TIME_WIDTH))
+cle = numpy.zeros(SPIM_PIXELS)
 for val in xH[indexes_cle]:
     cle[val] += 1
 
 
 #Getting g2
-indexes_g2 = numpy.where( (numpy.abs(g2t) < 25))
-indexes_g2_correlated = numpy.where( (numpy.abs(g2t) < 25) & (numpy.abs(t+630) < 25))
+indexes_g2 = numpy.where( (numpy.abs(g2t) < TIME_WIDTH))
+indexes_g2_correlated = numpy.where( (numpy.abs(g2t) < 25) & (numpy.abs(t+TIME_DELAY) < TIME_WIDTH))
+indexes_g2_chip1 = numpy.where( (numpy.abs(g2t) < 25) & (xH < 256))
+indexes_g2_chip2 = numpy.where( (numpy.abs(g2t) < 25) & (xH < 512) & (xH > 256))
+indexes_g2_chip3 = numpy.where( (numpy.abs(g2t) < 25) & (xH < 768) & (xH > 512))
+indexes_g2_chip4 = numpy.where( (numpy.abs(g2t) < 25) & (xH > 768))
 g2 = numpy.zeros(1041)
 for val in xH[indexes_g2_correlated]:
     g2[val] += 1
@@ -53,7 +63,7 @@ cRatio2 = numpy.divide(g2, xT)
 tmax = int(numpy.max(t)) 
 tmin = int(numpy.min(t))
 tbin = int((tmax - tmin)) + 1
-tbin = int(tbin/6)
+#tbin = int(tbin/6)
 print(tmax, tmin, tbin)
 
 #Plot of the ratios
@@ -73,14 +83,27 @@ ax[1].legend()
 plt.tight_layout()
 
 #Plot of the histograms
-fig, ax = plt.subplots(nrows=2, sharex=True)
-ax[0].hist(t[indexes2], bins=tbin, range=(tmin, tmax), alpha=0.2, color='red', label='Channel 0')
-ax[0].hist(t[indexes12], bins=tbin, range=(tmin, tmax), alpha=0.2, color='blue', label='Channel 12')
-ax[0].legend()
-ax[1].hist(t[indexes_g2], bins=tbin, range=(tmin, tmax), alpha=0.2, color='green', label='g2')
-ax[1].hist(t[indexes_g2_correlated], bins=tbin, range=(tmin, tmax), alpha=0.2, color='magenta', label='g2_eff')
-ax[1].legend()
-ax[1].set_xlabel('Time delay (units of 260 ps)')
+fig, ax = plt.subplots(nrows=2, ncols=2, sharex=True)
+ax[0, 0].hist(t[indexes2], bins=tbin, range=(tmin, tmax), alpha=0.2, color='red', label='Channel 0')
+ax[0, 0].hist(t[indexes12], bins=tbin, range=(tmin, tmax), alpha=0.2, color='blue', label='Channel 12')
+
+ax[0, 1].hist(t[indexes_chip1]-100, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='chip1')
+ax[0, 1].hist(t[indexes_chip2]-50, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='chip2')
+ax[0, 1].hist(t[indexes_chip3], density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='chip3')
+ax[0, 1].hist(t[indexes_chip4]+50, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='chip4')
+
+ax[1, 0].hist(t[indexes_g2], bins=tbin, range=(tmin, tmax), alpha=0.2, color='green', label='g2')
+ax[1, 0].hist(t[indexes_g2_correlated], bins=tbin, range=(tmin, tmax), alpha=0.2, color='magenta', label='g2_eff')
+
+ax[1, 1].hist(t[indexes_g2_chip1]-100, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip1')
+ax[1, 1].hist(t[indexes_g2_chip2]-50, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip2')
+ax[1, 1].hist(t[indexes_g2_chip3], density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip3')
+ax[1, 1].hist(t[indexes_g2_chip4]+50, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip4')
+ax[0, 0].legend()
+ax[0, 1].legend()
+ax[1, 0].legend()
+ax[1, 1].legend()
+ax[1, 0].set_xlabel('Time delay (units of 260 ps)')
 
 #Plot of the ToTs
 #fig, ax = plt.subplots()
