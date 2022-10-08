@@ -1,13 +1,16 @@
 import numpy
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-from matplotlib.widgets import Slider
+from scipy.optimize import curve_fit
 
 off = 0
 disp = 1
 SPIM_PIXELS = 1041
 TIME_DELAY = 625
 TIME_WIDTH = 25
+
+def gaussian(x, mean, amplitude, sigma, offset):
+    return offset + amplitude * numpy.exp( -(x-mean)**2 / (2*sigma ** 2))
 
 disparray = numpy.linspace(off, disp*SPIM_PIXELS, SPIM_PIXELS)
 t = numpy.fromfile("tH.txt", dtype='int64')
@@ -82,6 +85,14 @@ ax[1].legend()
 #ax[1].set_yscale("log")
 plt.tight_layout()
 
+def plot_histogram(indexes, label):
+    bin_heights, bin_borders, _ = ax[1, 1].hist(t[indexes], density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label=label)
+    bin_centers = bin_borders[:-1] + numpy.diff(bin_borders) / 2
+    popt, _ = curve_fit(gaussian, bin_centers, bin_heights, p0 = [-633.0, 0.01, 5., 0.005], bounds=([-numpy.inf, 0, 0, 0], [numpy.inf, 0.1, 20, 0.01]))
+    x_interval_for_fit = numpy.linspace(bin_borders[0], bin_borders[-1], 10000)
+    print('Plotting for chip ' + label + f'. The values are {popt}')
+    ax[1, 1].plot(x_interval_for_fit, gaussian(x_interval_for_fit, *popt))
+
 #Plot of the histograms
 fig, ax = plt.subplots(nrows=2, ncols=2, sharex=True)
 ax[0, 0].hist(t[indexes2], bins=tbin, range=(tmin, tmax), alpha=0.2, color='red', label='Channel 0')
@@ -95,10 +106,14 @@ ax[0, 1].hist(t[indexes_chip4]+50, density = True, bins=tbin, range=(tmin, tmax)
 ax[1, 0].hist(t[indexes_g2], bins=tbin, range=(tmin, tmax), alpha=0.2, color='green', label='g2')
 ax[1, 0].hist(t[indexes_g2_correlated], bins=tbin, range=(tmin, tmax), alpha=0.2, color='magenta', label='g2_eff')
 
-ax[1, 1].hist(t[indexes_g2_chip1]-100, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip1')
-ax[1, 1].hist(t[indexes_g2_chip2]-50, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip2')
-ax[1, 1].hist(t[indexes_g2_chip3], density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip3')
-ax[1, 1].hist(t[indexes_g2_chip4]+50, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip4')
+plot_histogram(indexes_g2_chip1, 'g2_chip1')
+plot_histogram(indexes_g2_chip2, 'g2_chip2')
+plot_histogram(indexes_g2_chip3, 'g2_chip3')
+plot_histogram(indexes_g2_chip4, 'g2_chip4')
+
+#ax[1, 1].hist(t[indexes_g2_chip2]-50, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip2')
+#ax[1, 1].hist(t[indexes_g2_chip3], density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip3')
+#ax[1, 1].hist(t[indexes_g2_chip4]+50, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip4')
 ax[0, 0].legend()
 ax[0, 1].legend()
 ax[1, 0].legend()
