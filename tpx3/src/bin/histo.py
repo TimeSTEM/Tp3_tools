@@ -12,6 +12,12 @@ TIME_WIDTH = 25
 def gaussian(x, mean, amplitude, sigma, offset):
     return offset + amplitude * numpy.exp( -(x-mean)**2 / (2*sigma ** 2))
 
+def correct_time(pos_array, time_array, div, corrections):
+    assert len(corrections) == div
+    for i in range(div):
+        indexes_chip = numpy.where((pos_array < (1024/div)*(i+1)) & (pos_array > (1024/div)*i))
+        time_array[indexes_chip] += int(corrections[i])
+
 disparray = numpy.linspace(off, disp*SPIM_PIXELS, SPIM_PIXELS)
 t = numpy.fromfile("tH.txt", dtype='int64')
 tabs = numpy.fromfile("tabsH.txt", dtype='uint64')
@@ -23,6 +29,12 @@ xH = numpy.fromfile("xH.txt", dtype='uint32')
 yH = numpy.fromfile("yH.txt", dtype='uint32')
 tot = numpy.fromfile("tot.txt", dtype='uint16')
 channel = numpy.fromfile("channel.txt", dtype='uint32')
+
+#correct_time(xH, t, 16, numpy.asarray([0, -1, 0, 1, -4, -2, -2, -4, -1, 1, 2, 2, -5, -2, -1, -4], dtype='int64'))
+#correct_time(xH, t, 32, numpy.asarray([0, 0, -1, -1, 0, 0, 1, 0, -6, -3, -3, -2, -2, -1, -2, -5, -2, 0, 1, 1, 2, 2, 2, 1, -7, -4, -2, -1, -1, -1, -2, -8], dtype='int64'))
+#correct_time(xH, t, 64, numpy.asarray([8.0, 9.0, 9.0, 9.0, 8.0, 8.0, 8.0, 9.0, 8.0, 9.0, 9.0, 10.0, 10.0, 10.0, 10.0, 9.0, 0.0, 5.0, 5.0, 7.0, 6.0, 6.0, 6.0, 7.0, 7.0, 8.0, 7.0, 8.0, 7.0, 6.0, 4.0, 2.0, 3.0, 9.0, 9.0, 10.0, 11.0, 9.0, 9.0, 11.0, 12.0, 11.0, 11.0, 12.0, 12.0, 11.0, 12.0, 6.0, -2.0, 3.0, 5.0, 5.0, 7.0, 7.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 7.0, 8.0, 3.0, -3.0], dtype='int64'))
+
+
 
 indexes2 = numpy.where((channel == 0))
 indexes12 = numpy.where((channel == 12))
@@ -85,45 +97,65 @@ ax[1].legend()
 #ax[1].set_yscale("log")
 plt.tight_layout()
 
-def plot_histogram(indexes, label):
-    bin_heights, bin_borders, _ = ax[1, 1].hist(t[indexes], density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label=label)
+def plot_histogram(indexes, label, axis):
+    bin_heights, bin_borders, _ = ax[axis, 1].hist(t[indexes], density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label=label)
     bin_centers = bin_borders[:-1] + numpy.diff(bin_borders) / 2
     popt, _ = curve_fit(gaussian, bin_centers, bin_heights, p0 = [-633.0, 0.01, 5., 0.005], bounds=([-numpy.inf, 0, 0, 0], [numpy.inf, 0.1, 20, 0.01]))
     x_interval_for_fit = numpy.linspace(bin_borders[0], bin_borders[-1], 10000)
-    print('Plotting for chip ' + label + f'. The values are {popt}')
-    ax[1, 1].plot(x_interval_for_fit, gaussian(x_interval_for_fit, *popt))
+    print('Plotting for chip ' + label + f'. The values are {popt} and {numpy.round(popt[0], 0) + TIME_DELAY}')
+    ax[axis, 1].plot(x_interval_for_fit, gaussian(x_interval_for_fit, *popt))
+    #return numpy.round(popt[0]) + TIME_DELAY
+    #ax[axis, 1].clear()
+    return popt
 
 #Plot of the histograms
-fig, ax = plt.subplots(nrows=2, ncols=2, sharex=True)
+fig, ax = plt.subplots(nrows=2, ncols=3, sharex=False)
 ax[0, 0].hist(t[indexes2], bins=tbin, range=(tmin, tmax), alpha=0.2, color='red', label='Channel 0')
 ax[0, 0].hist(t[indexes12], bins=tbin, range=(tmin, tmax), alpha=0.2, color='blue', label='Channel 12')
 
-ax[0, 1].hist(t[indexes_chip1]-100, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='chip1')
-ax[0, 1].hist(t[indexes_chip2]-50, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='chip2')
-ax[0, 1].hist(t[indexes_chip3], density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='chip3')
-ax[0, 1].hist(t[indexes_chip4]+50, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='chip4')
+#plot_histogram(indexes_chip1, 'chip1', 0)
+#plot_histogram(indexes_chip2, 'chip2', 0)
+#plot_histogram(indexes_chip3, 'chip3', 0)
+#plot_histogram(indexes_chip4, 'chip4', 0)
+
+#temp_correction = list()
+div = 64
+divy = int(div / 4)
+delay_array = numpy.zeros((div, divy))
+fwhm_array = numpy.zeros((div, divy))
+for i in range(div):
+    for iy in range(divy):
+        #print( (1024/div)*(i+1), (256/divy)*(iy+1) )
+        #indexes_chip = numpy.where((xH < (1024/div)*(i+1)) & (xH > (1024/div)*i) & (yH < (1024/div)*(iy+1)) & (yH > (1024/div)*iy) )
+        indexes_chip = numpy.where((xH < (1024/div)*(i+1)) & (xH > (1024/div)*i) & (yH < (256/divy) * (iy + 1)) & (yH > (256/divy)*iy))
+        val = plot_histogram(indexes_chip, 'chip1', 0)
+        #temp_correction.append(-val)
+        delay_array[i, iy] = -(numpy.round(val[0]) + TIME_DELAY)
+        fwhm_array[i, iy] = val[2]
+
+ax[0, 2].imshow(numpy.transpose(delay_array), aspect='equal', origin='upper')
+ax[1, 2].imshow(numpy.transpose(fwhm_array), aspect='equal', origin='upper')
+#print(temp_correction)
+
 
 ax[1, 0].hist(t[indexes_g2], bins=tbin, range=(tmin, tmax), alpha=0.2, color='green', label='g2')
 ax[1, 0].hist(t[indexes_g2_correlated], bins=tbin, range=(tmin, tmax), alpha=0.2, color='magenta', label='g2_eff')
 
-plot_histogram(indexes_g2_chip1, 'g2_chip1')
-plot_histogram(indexes_g2_chip2, 'g2_chip2')
-plot_histogram(indexes_g2_chip3, 'g2_chip3')
-plot_histogram(indexes_g2_chip4, 'g2_chip4')
+plot_histogram(indexes_g2_chip1, 'g2_chip1', 1)
+plot_histogram(indexes_g2_chip2, 'g2_chip2', 1)
+plot_histogram(indexes_g2_chip3, 'g2_chip3', 1)
+plot_histogram(indexes_g2_chip4, 'g2_chip4', 1)
 
-#ax[1, 1].hist(t[indexes_g2_chip2]-50, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip2')
-#ax[1, 1].hist(t[indexes_g2_chip3], density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip3')
-#ax[1, 1].hist(t[indexes_g2_chip4]+50, density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label='g2_chip4')
 ax[0, 0].legend()
-ax[0, 1].legend()
+#ax[0, 1].legend()
 ax[1, 0].legend()
 ax[1, 1].legend()
 ax[1, 0].set_xlabel('Time delay (units of 260 ps)')
 
 #Plot of the ToTs
-#fig, ax = plt.subplots()
-#ax.hist(tot, bins=25)
-#ax.set_xlabel('Time over threshold (units of 1.5615 ns)')
+fig, ax = plt.subplots()
+ax.hist(tot, bins=101, range=(0, 100))
+ax.set_xlabel('Time over threshold (units of 1.5615 ns)')
 
 #Histogram of the g2
 #fig, ax = plt.subplots()
