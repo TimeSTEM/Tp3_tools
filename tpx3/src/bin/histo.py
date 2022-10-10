@@ -21,13 +21,21 @@ class TimepixData:
         self.t = numpy.zeros(0, dtype='int64')
         self.tabs = numpy.zeros(0, dtype='uint64')
         self.g2t = numpy.zeros(0, dtype='int64')
-        self.xT = numpy.zeros(0)
-        self.x = numpy.zeros(0)
+        self.xT = numpy.zeros(SPIM_PIXELS)
+        self.x = numpy.zeros(SPIM_PIXELS)
         self.xH = numpy.zeros(0, dtype='uint32')
         self.yH = numpy.zeros(0, dtype='uint32')
         self.tot = numpy.zeros(0, dtype='uint16')
         self.channel = numpy.zeros(0, dtype='uint32')
+        
         self.active_index_list = None
+        self.index_chip1 = None
+        self.index_chip2 = None
+        self.index_chip3 = None
+        self.index_chip4 = None
+
+        self.cle = numpy.zeros(SPIM_PIXELS)
+        self.cle_g2 = numpy.zeros(SPIM_PIXELS)
 
     def __get_attribute_type(self, attr):
         if attr == 'tH.txt':
@@ -68,9 +76,26 @@ class TimepixData:
         temp = numpy.fromfile(path+attr, dtype=attr_type)
         self.__set_attribute_object(attr, temp)
         self.active_index_list = numpy.arange(0, len(temp), 1)
+
         
         if attr == 'tH.txt':
             self.__get_time_limits()
+
+    def update_indexes(self):
+        self.indexes_ch1 = numpy.where((self.channel == 0))
+        self.indexes_ch2 = numpy.where((self.channel == 12))
+        self.index_chip1 = numpy.where((self.xH < 256))
+        self.index_chip2 = numpy.where((self.xH < 512) & (self.xH > 256))
+        self.index_chip3 = numpy.where((self.xH < 768) & (self.xH > 512))
+        self.index_chip4 = numpy.where((self.xH > 768))
+
+    def get_cle(self):
+        indexes_cle = numpy.where((numpy.abs(self.t + TIME_DELAY) < TIME_WIDTH))
+        for val in self.xH[indexes_cle]:
+            self.cle[val] += 1
+
+    def get_cle_g2(self):
+        pass
 
     def add_relative_time(self, path):
         self.__add_attribute(path, "tH.txt")
@@ -92,6 +117,12 @@ class TimepixData:
 
     def add_channel(self, path):
         self.__add_attribute(path, "tot.txt")
+
+    def add_total_spec(self, path):
+        self.xT += numpy.loadtxt(path+"spec.txt", delimiter=',')
+    
+    def add_spec(self, path):
+        self.x += numpy.loadtxt(path+"cspec.txt", delimiter=',')
 
     def set_active_list_by_fixed_tot(self, tot):
         self.active_index_list = numpy.where((self.tot == tot))
@@ -140,26 +171,27 @@ class TimepixData:
         return popt
 
 
-data = TimepixData()
+#data = TimepixData()
 #path = "backup_tot60\\"
-path = ['Y:\\VG Lumiere\\TP3\Data\\23-09-2022\\raw7-isi323\\', 'Y:\\VG Lumiere\\TP3\Data\\23-09-2022\\raw3-isi320\\', 
-        'Y:\\VG Lumiere\\TP3\Data\\23-09-2022\\raw4-isi319\\', 'Y:\\VG Lumiere\\TP3\Data\\23-09-2022\\raw5-isi321\\', 
-        'Y:\\VG Lumiere\\TP3\Data\\23-09-2022\\raw2\\', 'Y:\\VG Lumiere\\TP3\Data\\30-09-2022\\raw3-isi334\\',
-        'Y:\\VG Lumiere\\TP3\Data\\30-09-2022\\raw4-isi335\\', 'Y:\\VG Lumiere\\TP3\Data\\30-09-2022\\raw5-isi325\\', 
-        'Y:\\VG Lumiere\\TP3\Data\\30-09-2022\\raw5b-isi336\\', 'Y:\\VG Lumiere\\TP3\Data\\30-09-2022\\raw6-isi337\\',
-        'Y:\\VG Lumiere\\TP3\Data\\30-09-2022\\raw7-isi339\\']
+#path = ['Y:\\VG Lumiere\\TP3\Data\\23-09-2022\\raw7-isi323\\', 'Y:\\VG Lumiere\\TP3\Data\\23-09-2022\\raw3-isi320\\', 
+#        'Y:\\VG Lumiere\\TP3\Data\\23-09-2022\\raw4-isi319\\', 'Y:\\VG Lumiere\\TP3\Data\\23-09-2022\\raw5-isi321\\', 
+#        'Y:\\VG Lumiere\\TP3\Data\\23-09-2022\\raw2\\', 'Y:\\VG Lumiere\\TP3\Data\\30-09-2022\\raw3-isi334\\',
+#        'Y:\\VG Lumiere\\TP3\Data\\30-09-2022\\raw4-isi335\\', 'Y:\\VG Lumiere\\TP3\Data\\30-09-2022\\raw5-isi325\\', 
+#        'Y:\\VG Lumiere\\TP3\Data\\30-09-2022\\raw5b-isi336\\', 'Y:\\VG Lumiere\\TP3\Data\\30-09-2022\\raw6-isi337\\',
+#        'Y:\\VG Lumiere\\TP3\Data\\30-09-2022\\raw7-isi339\\']
 #path = ['Y:\\VG Lumiere\\TP3\Data\\23-09-2022\\raw7-isi323\\']
+#path = [""]
 
-for p in path:
-    data.add_xposition(p)
-    data.add_yposition(p)
-    data.add_tot(p)
-    data.add_relative_time(p)
+#for p in path:
+#    data.add_xposition(p)
+#    data.add_yposition(p)
+#    data.add_tot(p)
+#    data.add_relative_time(p)
 #data.set_active_list_by_fixed_tot(60)
-data.set_active_list_by_window_tot(60, 100)
-data.correct_time_delay(256, True)
+#data.set_active_list_by_window_tot(40, 100)
+#data.correct_time_delay(16, True)
 
-"""
+#"""
 def correct_time(pos_array, time_array, div, corrections):
     assert len(corrections) == div
     for i in range(div):
@@ -241,7 +273,7 @@ tbin = int((tmax - tmin)) + 1
 print(tmax, tmin, tbin)
 
 #Perform ToT chip correction
-tot_correction = True
+tot_correction = False
 div = 4
 if tot_correction:
     fig, ax = plt.subplots(nrows=2, ncols=2)
@@ -278,7 +310,7 @@ if tot_correction:
 
 correction = False
 #Plot chip correction
-div = 4
+div = 16
 if correction:
     fig, ax = plt.subplots(nrows=2, ncols=2)
     divy = int(div / 4)
@@ -296,13 +328,11 @@ if correction:
     ax[1, 0].imshow(numpy.transpose(fwhm_array), aspect='equal', origin='upper')
     numpy.save('delay_array_'+str(div), delay_array)
 
-plt.show()
-oi
-
-#delay_array = numpy.load('delay_array_'+str(div)+'.npy')
-#correct_time2d(xH, yH, t, div, delay_array)
+delay_array = numpy.load('delay_array_'+str(div)+'.npy')
+correct_time2d(xH, yH, t, div, delay_array)
 #fig, ax = plt.subplots()
-#ax.imshow(numpy.transpose(delay_array), aspect='equal', origin='upper')
+#delay = ax.imshow(numpy.transpose(delay_array), aspect='equal', origin='upper')
+#fig.colorbar(delay, ax = ax)
 
 
 #Plot of the ratios
@@ -377,4 +407,4 @@ ax[1].set_xlabel('Energy (pixels)')
 ax[0].set_ylabel('Time delay (units of 260 ps)')
 plt.tight_layout()
 plt.show()
-"""
+#"""
