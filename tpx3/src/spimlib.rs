@@ -2,7 +2,7 @@
 
 use crate::packetlib::{Packet, PacketEELS, packet_change};
 use crate::auxiliar::{Settings, misc::TimepixRead};
-use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
+use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand, IsiBoxType}};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use crate::isi_box_new;
@@ -225,7 +225,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     Ok(())
 }
 
-pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, meas_type: W) -> Result<(), Tp3ErrorKind>
+pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, meas_type: W, mut handler: IsiBoxType<Vec<u32>>) -> Result<(), Tp3ErrorKind>
     where V: 'static + Send + TimepixRead,
           T: 'static + Send + TdcControl,
           W: 'static + Send + SpimKind,
@@ -235,12 +235,6 @@ pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings:
     let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     let mut list = meas_type.copy_empty();
-    
-    let mut handler = isi_box_new!(spim);
-    handler.bind_and_connect();
-    handler.configure_scan_parameters(my_settings.xspim_size.try_into().unwrap(), my_settings.yspim_size.try_into().unwrap(), spim_tdc.pixel_time(my_settings.xspim_size).try_into().unwrap());
-    handler.configure_measurement_type(false);
-    handler.start_threads();
     
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {

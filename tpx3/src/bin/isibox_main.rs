@@ -5,6 +5,7 @@ use timepix3::tdclib::{*, isi_box::*};
 use timepix3::{speclib, speclib::{SpecKind, IsiBoxKind}, spimlib, spimlib::SpimKind};
 use timepix3::isi_box_new;
 use std::{thread, time};
+use std::convert::TryInto;
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
@@ -20,10 +21,16 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             Ok(my_settings.mode)
         },
         2 => {
+            let mut handler = isi_box_new!(spim);
+            handler.bind_and_connect();
+            handler.configure_scan_parameters(my_settings.xspim_size.try_into().unwrap(), my_settings.yspim_size.try_into().unwrap(), my_settings.pixel_time.try_into().unwrap());
+            handler.configure_measurement_type(false);
+            handler.start_threads();
+            
             let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size))?;
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             let measurement = spimlib::Live::new();
-            spimlib::build_spim_isi(pack, ns, my_settings, spim_tdc, np_tdc, measurement)?;
+            spimlib::build_spim_isi(pack, ns, my_settings, spim_tdc, np_tdc, measurement, handler)?;
             Ok(my_settings.mode)
         },
         8 => {

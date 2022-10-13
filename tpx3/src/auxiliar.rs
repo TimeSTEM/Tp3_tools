@@ -7,7 +7,7 @@ use std::fs::File;
 use crate::auxiliar::value_types::*;
 //use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
 
-const CONFIG_SIZE: usize = 16;
+const CONFIG_SIZE: usize = 18;
 
 ///Configures the detector for acquisition. Each new measurement must send 20 bytes
 ///containing instructions.
@@ -132,16 +132,23 @@ impl BytesConfig {
         y
     }
     
-    ///Time delay. Must be sent with 2 bytes in big-endian mode. Byte[12..14]
+    ///Pixel time. Must be sent with 2 bytes in big-endian mode. Byte[12..14]
+    fn pixel_time(&self) -> POSITION {
+        let pt = (self.data[12] as POSITION)<<8 | (self.data[13] as POSITION);
+        println!("Pixel time is (units of 1.5625 ns): {}.", pt);
+        pt
+    }
+    
+    ///Time delay. Must be sent with 2 bytes in big-endian mode. Byte[14..15]
     fn time_delay(&self) -> TIME {
-        let td = (self.data[12] as TIME)<<8 | (self.data[13] as TIME);
+        let td = (self.data[14] as TIME)<<8 | (self.data[15] as TIME);
         println!("Time delay is (ns): {}.", td);
         td
     }
     
-    ///Time width. Must be sent with 2 bytes in big-endian mode. Byte[14..16].
+    ///Time width. Must be sent with 2 bytes in big-endian mode. Byte[16..17].
     fn time_width(&self) -> TIME {
-        let tw = (self.data[14] as TIME)<<8 | (self.data[15] as TIME);
+        let tw = (self.data[16] as TIME)<<8 | (self.data[17] as TIME);
         println!("Time delay is (ns): {}.", tw);
         tw
     }
@@ -194,6 +201,7 @@ impl BytesConfig {
             yspim_size: self.yspim_size(),
             xscan_size: self.xscan_size(),
             yscan_size: self.yscan_size(),
+            pixel_time: self.pixel_time(),
             time_delay: self.time_delay(),
             time_width: self.time_width(),
             spimoverscanx: self.spimoverscanx()?,
@@ -233,6 +241,7 @@ pub struct Settings {
     pub yspim_size: POSITION,
     pub xscan_size: POSITION,
     pub yscan_size: POSITION,
+    pub pixel_time: POSITION,
     pub time_delay: TIME,
     pub time_width: TIME,
     pub spimoverscanx: POSITION,
@@ -313,6 +322,7 @@ impl Settings {
             yspim_size: 512,
             xscan_size: 512,
             yscan_size: 512,
+            pixel_time: 2560,
             time_delay: 0,
             time_width: 1000,
             spimoverscanx: 1,
@@ -330,6 +340,7 @@ impl Settings {
             yspim_size: config.yspim,
             xscan_size: config.xspim,
             yscan_size: config.yspim,
+            pixel_time: 2560,
             time_delay: 0,
             time_width: 1000,
             spimoverscanx: 1,
