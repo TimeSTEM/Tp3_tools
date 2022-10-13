@@ -479,7 +479,7 @@ pub mod isi_box {
     use std::thread;
     use crate::spimlib::SPIM_PIXELS;
 
-    pub const CHANNELS: usize = 17;
+    pub const CHANNELS: usize = 100;
     
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
@@ -654,7 +654,7 @@ pub mod isi_box {
             let stop_arc = Arc::clone(&self.thread_stop);
             let mut val = self.sockets.remove(0);
             thread::spawn(move || {
-                let mut buffer = vec![0_u8; 68];
+                let mut buffer = vec![0_u8; CHANNELS * 4];
                 while let Ok(size) = val.read(&mut buffer) {
                     let stop_val = stop_arc.lock().unwrap();
                     if *stop_val == true {break;}

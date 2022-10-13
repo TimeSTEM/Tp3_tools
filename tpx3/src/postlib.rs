@@ -39,6 +39,7 @@ pub mod coincidence {
         time: Vec<TIME>,
         channel: Vec<COUNTER>,
         rel_time: Vec<i64>,
+        double_photon_rel_time: Vec<i64>,
         g2_time: Vec<Option<i64>>,
         x: Vec<POSITION>,
         y: Vec<POSITION>,
@@ -118,8 +119,10 @@ pub mod coincidence {
 
             //let mut photon_vec = temp_tdc.tdc.iter().filter(|ph| ph.1 != 16 && ph.1 != 24).collect::<Vec<_>>();
             
+            let mut first_corr_photon = 0;
             for val in temp_edata.electron.values() {
                 self.add_electron(*val);
+                let mut photons_per_electron = 0;
                 let mut index = 0;
                 let mut index_to_increase = None;
                 for ph in &temp_tdc.clean_tdc[min_index..] {
@@ -128,6 +131,13 @@ pub mod coincidence {
                         if let None = index_to_increase {
                             index_to_increase = Some(index)
                         }
+                        photons_per_electron += 1;
+                        if photons_per_electron == 2 {
+                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon));
+                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.0));
+                        }
+                        first_corr_photon = ph.0;
+
                     }
                     if (ph.0/6) > val.time() + time_delay + 10_000 {break;}
                     index += 1;
@@ -151,6 +161,7 @@ pub mod coincidence {
                 time: Vec::new(),
                 channel: Vec::new(),
                 rel_time: Vec::new(),
+                double_photon_rel_time: Vec::new(),
                 g2_time: Vec::new(),
                 x: Vec::new(),
                 y: Vec::new(),
@@ -201,6 +212,7 @@ pub mod coincidence {
 
         pub fn output_relative_time(&self) {
             output_data(&self.rel_time, "tH.txt");
+            output_data(&self.double_photon_rel_time, "double_tH.txt");
         }
         
         pub fn output_time(&self) {
@@ -561,7 +573,7 @@ pub mod coincidence {
             total_size += size;
             bar.inc(ISI_BUFFER_SIZE as u64);
             //println!("MB Read: {}", total_size / 1_000_000 );
-            //if (total_size / 1_000_000) > 10_000 {break;}
+            //if (total_size / 1_000_000) > 2_000 {break;}
             let mut temp_edata = TempElectronData::new();
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match *pack_oct {
@@ -582,7 +594,7 @@ pub mod coincidence {
                 };
             });
         //coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20); //Fast start (NIM)
-        coinc_data.add_events(temp_edata, &mut temp_tdc, 105, 20); //Slow start (TTL)
+        coinc_data.add_events(temp_edata, &mut temp_tdc, 105, 15); //Slow start (TTL)
         }
         println!("***IsiBox***: Coincidence search is over.");
         Ok(())
@@ -773,13 +785,12 @@ pub mod isi_box {
                 let iter = self.scan_iterator().
                     filter(|(val1, val2)| ((subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) || (subtract_overflow(val2.1.0, val1.1.0) < self.line_time.unwrap() as u64 - 1_000))).
                     collect::<Vec<_>>();
-                
+
                 let mut number_of_insertions = 0;
                 if iter.len() == 0 {
                     println!("***IsiBox***: values successfully corrected."); 
                     break;}
                 for val in iter {
-                    //println!("{:?} and {:?} and {:?} and {:?}", val.0, val.1, self.data_raw.0[val.1.0+2], self.line_time);
                     self.data_raw.0.insert(val.1.0+1+number_of_insertions, (subtract_overflow(val.1.1.0, self.line_time.unwrap() as u64), val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
                     number_of_insertions += 1;
                 }

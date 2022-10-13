@@ -59,9 +59,9 @@ pub mod cluster {
             for x in self.values() {
                     //if x.cluster_size() == 1 {
                         if x.is_new_cluster(&last) {
-                            if let Some(new_from_cluster) = SingleElectron::new_from_cluster_fixed_tot(&cluster_vec, 10) {
+                            //if let Some(new_from_cluster) = SingleElectron::new_from_cluster_fixed_tot(&cluster_vec, 10) {
                             //if let Some(new_from_cluster) = SingleElectron::new_from_cluster(&cluster_vec) {
-                            //if let Some(new_from_cluster) = SingleElectron::new_from_cluster_max_tot(&cluster_vec) {
+                            if let Some(new_from_cluster) = SingleElectron::new_from_cluster_max_tot(&cluster_vec) {
                                 nelist.push(new_from_cluster);
                             }
                             cluster_vec.clear();
