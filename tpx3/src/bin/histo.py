@@ -9,8 +9,8 @@ from scipy.optimize import curve_fit
 
 off = 0
 disp = 1
-SPIM_PIXELS = 1041
-TIME_DELAY = 631
+SPIM_PIXELS = 1225
+TIME_DELAY = 525
 TIME_WIDTH = 25
 
 def gaussian(x, mean, amplitude, sigma, offset):
@@ -201,11 +201,14 @@ def correct_time(pos_array, time_array, div, corrections):
 def plot_histogram(indexes, label, axis):
     bin_heights, bin_borders, _ = ax[axis, 1].hist(t[indexes], density = True, bins=tbin, range=(tmin, tmax), alpha=0.2, label=label)
     bin_centers = bin_borders[:-1] + numpy.diff(bin_borders) / 2
-    popt, _ = curve_fit(gaussian, bin_centers, bin_heights, p0 = [-TIME_DELAY, 0.01, 5., 0.005], bounds=([-numpy.inf, 0, 0, 0], [numpy.inf, 0.1, 20, 0.01]))
-    x_interval_for_fit = numpy.linspace(bin_borders[0], bin_borders[-1], 10000)
-    print('Plotting for chip ' + label + f'. The values are {popt} and {numpy.round(popt[0], 0) + TIME_DELAY}')
-    ax[axis, 1].plot(x_interval_for_fit, gaussian(x_interval_for_fit, *popt))
-    return popt
+    try:
+        popt, _ = curve_fit(gaussian, bin_centers, bin_heights, p0 = [-TIME_DELAY, 0.01, 5., 0.005], bounds=([-numpy.inf, 0, 0, 0], [numpy.inf, 0.1, 20, 0.01]))
+        x_interval_for_fit = numpy.linspace(bin_borders[0], bin_borders[-1], 10000)
+        print('Plotting for chip ' + label + f'. The values are {popt} and {numpy.round(popt[0], 0) + TIME_DELAY}')
+        ax[axis, 1].plot(x_interval_for_fit, gaussian(x_interval_for_fit, *popt))
+        return popt
+    except:
+        return [-TIME_DELAY, 0.01, 5., 0.005]
 
 def correct_time2d(xpos_array, ypos_array, time_array, div, delay_array):
     divy = int(div / 4)
@@ -216,6 +219,7 @@ def correct_time2d(xpos_array, ypos_array, time_array, div, delay_array):
 
 disparray = numpy.linspace(off, disp*SPIM_PIXELS, SPIM_PIXELS)
 t = numpy.fromfile("tH.txt", dtype='int64')
+double_t = numpy.fromfile("double_tH.txt", dtype='int64')
 tabs = numpy.fromfile("tabsH.txt", dtype='uint64')
 g2t = numpy.fromfile("g2tH.txt", dtype='int64')
 g2_total = numpy.fromfile("isi_g2.txt", dtype='int64')
@@ -226,6 +230,8 @@ yH = numpy.fromfile("yH.txt", dtype='uint32')
 tot = numpy.fromfile("tot.txt", dtype='uint16')
 channel = numpy.fromfile("channel.txt", dtype='uint32')
 
+print(xH.shape)
+
 indexes2 = numpy.where((channel == 0))
 indexes12 = numpy.where((channel == 12))
 indexes_tot = numpy.where((tot == 70))
@@ -233,10 +239,16 @@ indexes_chip1 = numpy.where((xH < 256))
 indexes_chip2 = numpy.where((xH < 512) & (xH > 256))
 indexes_chip3 = numpy.where((xH < 768) & (xH > 512))
 indexes_chip4 = numpy.where((xH > 768))
-#indexes_position = numpy.where(xH < 256)
-#indexes_time = numpy.where(tabs > 3*(max(tabs)+min(tabs))/4)
-#indexes_extra = numpy.where(xH > 70)
 
+factor = 10
+indexes_begin_time = numpy.arange(0, int(len(tabs)/factor), 1)
+indexes_middle_time = numpy.arange(int((factor/2-1)*len(tabs)/factor), int((factor/2)*len(tabs)/factor), 1)
+indexes_end_time = numpy.arange(int((factor-1)*len(tabs)/factor), int(len(tabs)), 1)
+
+#indexes_begin_time = numpy.where(tabs < 1*(max(tabs)+min(tabs))/20)
+#indexes_middle_time = numpy.where((tabs < 10*(max(tabs)+min(tabs))/20))
+#indexes_end_time = numpy.where(tabs > 19*(max(tabs)+min(tabs))/20)
+#indexes_extra = numpy.where(xH > 70)
 
 #Getting CLE
 indexes_cle = numpy.where((numpy.abs(t + TIME_DELAY) < TIME_WIDTH))
@@ -246,13 +258,13 @@ for val in xH[indexes_cle]:
 
 
 #Getting g2
-indexes_g2 = numpy.where( (numpy.abs(g2t) < TIME_WIDTH))
-indexes_g2_correlated = numpy.where( (numpy.abs(g2t) < 25) & (numpy.abs(t+TIME_DELAY) < TIME_WIDTH))
+indexes_g2 = numpy.where( (numpy.abs(g2t) < 50))
+indexes_g2_correlated = numpy.where( (numpy.abs(g2t) < 50) & (numpy.abs(t+TIME_DELAY) < TIME_WIDTH))
 indexes_g2_chip1 = numpy.where( (numpy.abs(g2t) < 25) & (xH < 256))
 indexes_g2_chip2 = numpy.where( (numpy.abs(g2t) < 25) & (xH < 512) & (xH > 256))
 indexes_g2_chip3 = numpy.where( (numpy.abs(g2t) < 25) & (xH < 768) & (xH > 512))
 indexes_g2_chip4 = numpy.where( (numpy.abs(g2t) < 25) & (xH > 768))
-g2 = numpy.zeros(1041)
+g2 = numpy.zeros(SPIM_PIXELS)
 for val in xH[indexes_g2_correlated]:
     g2[val] += 1
 unique, counts = numpy.unique(g2t, return_counts = True)
@@ -328,8 +340,8 @@ if correction:
     ax[1, 0].imshow(numpy.transpose(fwhm_array), aspect='equal', origin='upper')
     numpy.save('delay_array_'+str(div), delay_array)
 
-delay_array = numpy.load('delay_array_'+str(div)+'.npy')
-correct_time2d(xH, yH, t, div, delay_array)
+#delay_array = numpy.load('delay_array_'+str(div)+'.npy')
+#correct_time2d(xH, yH, t, div, delay_array)
 #fig, ax = plt.subplots()
 #delay = ax.imshow(numpy.transpose(delay_array), aspect='equal', origin='upper')
 #fig.colorbar(delay, ax = ax)
@@ -353,9 +365,15 @@ plt.tight_layout()
 
 
 #Plot of the histograms
-fig, ax = plt.subplots(nrows=2, ncols=2, sharex=False)
-ax[0, 0].hist(t[indexes2], bins=tbin, range=(tmin, tmax), alpha=0.2, color='red', label='Channel 0')
-ax[0, 0].hist(t[indexes12], bins=tbin, range=(tmin, tmax), alpha=0.2, color='blue', label='Channel 12')
+fig, ax = plt.subplots(nrows=3, ncols=2, sharex=False, figsize=(10, 10))
+ax[0, 0].hist(t[indexes2], density=False, bins=tbin, range=(tmin, tmax), alpha=0.2, color='red', label='Channel 0')
+ax[0, 0].hist(t[indexes12], density = False, bins=tbin, range=(tmin, tmax), alpha=0.2, color='blue', label='Channel 12')
+
+ax[2, 1].hist(double_t, density = False, bins=tbin, range=(tmin, tmax), alpha=0.8, color='blue', label='Double electrons')
+
+#ax[2, 0].hist(t[indexes_middle_time], density=False, bins=tbin, range=(tmin, tmax), alpha=0.2, color='green', label='Middle')
+ax[2, 0].hist(t[indexes_begin_time], density=False, bins=tbin, range=(tmin, tmax), alpha=1.0, color='red', label='Beginning')
+ax[2, 0].hist(t[indexes_end_time], density=False, bins=tbin, range=(tmin, tmax), alpha=0.6, color='blue', label='Ending')
 
 plot_histogram(indexes12, 'channel2', 0)
 #plot_histogram(indexes_tot, 'tot', 0)
@@ -376,6 +394,7 @@ ax[0, 0].legend()
 ax[0, 1].legend()
 ax[1, 0].legend()
 ax[1, 1].legend()
+ax[2, 0].legend()
 ax[1, 0].set_xlabel('Time delay (units of 260 ps)')
 
 #Plot of the ToTs
@@ -392,8 +411,9 @@ ax[0].set_xlabel('Time over threshold (units of 1.5615 ns)')
 
 #Histogram of the correlated/non-correlated g2
 fig, ax = plt.subplots()
-ax.hist(g2t[indexes_g2], bins=2001, range=(-1000, 1000), label='Correlated', alpha=0.2)
-ax.hist(g2t, bins=2001, range=(-1000, 1000), label='Total', alpha=0.2)
+ax.hist(g2t[indexes_g2], bins=2001, range=(-1000, 1000), label='Correlated_region', alpha=0.2)
+ax.hist(g2t, bins=2001, range=(-1000, 1000), label='Correlated', alpha=0.2)
+ax.hist(g2_total, bins=2001, range=(-1000, 1000), label='Total', alpha=0.2)
 ax.legend()
 ax.set_xlabel('Photon correlation delay (units of IsiBox 120 ps)')
 
