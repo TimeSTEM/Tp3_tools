@@ -89,9 +89,13 @@ pub mod coincidence {
             self.channel.push(photon.1);
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.0));
             //self.rel_time.push(val.relative_time(photon.0));
-            if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
-                self.spim_index.push(index);
+            match val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
+                Some(index) => self.spim_index.push(index),
+                None => self.spim_index.push(POSITION::MAX),
             }
+            //if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
+            //    self.spim_index.push(index);
+            //}
         }
         
         fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME) {
