@@ -442,7 +442,7 @@ pub mod coincidence {
         let mut tdc_iter = tdc_vec.iter();
 
         let mut counter_jump_tp3_tdc = 0;
-        let jump_tp3_tdc = 0;
+        let jump_tp3_tdc = 1;
         
         
         let bar = ProgressBar::new(progress_size);
@@ -462,10 +462,9 @@ pub mod coincidence {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {break;}
             if quit {break;}
-            //if total_size > progress_size as usize / 20 {break;}
+            //if (total_size / 1_000_000) > 10_000 {break;}
             total_size += size;
             bar.inc(ISI_BUFFER_SIZE as u64);
-            //println!("Reading for correction. MB Read: {}", total_size / 1_000_000 );
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
@@ -594,7 +593,7 @@ pub mod coincidence {
                 };
             });
         //coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20); //Fast start (NIM)
-        coinc_data.add_events(temp_edata, &mut temp_tdc, 105, 15); //Slow start (TTL)
+        coinc_data.add_events(temp_edata, &mut temp_tdc, 87, 50); //Slow start (TTL)
         }
         println!("***IsiBox***: Coincidence search is over.");
         Ok(())
@@ -781,20 +780,32 @@ pub mod isi_box {
         }
 
         fn check_for_issues(&mut self) {
+            //Check if there is an issue in the first scan. This sometimes happens.
+            let iter = self.scan_iterator().
+                filter(|(val1, val2)| ((subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) || (subtract_overflow(val2.1.0, val1.1.0) < self.line_time.unwrap() as u64 - 1_000))).
+                collect::<Vec<_>>();
+            for val in iter {
+                if val.0.0 == 0 { //First value is literally a bad scan line
+                    //Removing the bad vector
+                    self.data_raw.0.remove(0);
+                    break;
+                }
+            }
+
             for _ in 0..100 {
                 let iter = self.scan_iterator().
                     filter(|(val1, val2)| ((subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) || (subtract_overflow(val2.1.0, val1.1.0) < self.line_time.unwrap() as u64 - 1_000))).
                     collect::<Vec<_>>();
-
+                //println!("***IsiBox***: Start of a correction cycle. The size is {}.", iter.len());
                 let mut number_of_insertions = 0;
                 if iter.len() == 0 {
-                    println!("***IsiBox***: values successfully corrected."); 
+                    //println!("***IsiBox***: values successfully corrected."); 
                     break;}
                 for val in iter {
-                    self.data_raw.0.insert(val.1.0+1+number_of_insertions, (subtract_overflow(val.1.1.0, self.line_time.unwrap() as u64), val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
+                    //println!("{:?}", val);
+                    self.data_raw.0.insert(val.1.0+number_of_insertions, (subtract_overflow(val.1.1.0, self.line_time.unwrap() as u64), val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
                     number_of_insertions += 1;
                 }
-                //println!("***IsiBox***: end of a correction cycle.");
             }
         }
 
@@ -856,10 +867,12 @@ pub mod isi_box {
                 enumerate().
                 filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
             
-            let iter2 = self.data_raw.0[1..].iter().
+            let mut iter2 = self.data_raw.0.iter().
                 cloned().
                 enumerate().
                 filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
+
+            let _advance = iter2.next();
 
             let iter3 = iter1.
                 zip(iter2);

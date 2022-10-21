@@ -479,7 +479,7 @@ pub mod isi_box {
     use std::thread;
     use crate::spimlib::SPIM_PIXELS;
 
-    pub const CHANNELS: usize = 100;
+    pub const CHANNELS: usize = 200;
     
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {

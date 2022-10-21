@@ -14,7 +14,7 @@ use crate::auxiliar::value_types::*;
 //use rayon::prelude::*;
 
 pub const VIDEO_TIME: TIME = 3200;
-pub const SPIM_PIXELS: POSITION = 1025 + 16;
+pub const SPIM_PIXELS: POSITION = 1025 + 200;
 const BUFFER_SIZE: usize = 16384 * 2;
 
 
