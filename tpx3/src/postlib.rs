@@ -35,6 +35,12 @@ pub mod coincidence {
         println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
     }
 
+    fn read_time_shift() {
+        let mut tfile = OpenOptions::new()
+            .read(true)
+            .open("time_shift.dat");
+    }
+
     pub struct ElectronData {
         time: Vec<TIME>,
         channel: Vec<COUNTER>,

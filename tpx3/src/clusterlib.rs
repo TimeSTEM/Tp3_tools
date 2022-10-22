@@ -6,12 +6,44 @@ pub mod cluster {
     use crate::spimlib;
     use crate::tdclib::PeriodicTdcRef;
     use std::fs::OpenOptions;
-    use std::io::Write;
+    use std::io::{Write, Read};
     use rayon::prelude::*;
     use crate::auxiliar::value_types::*;
     
     const CLUSTER_DET: TIME = 128; //Cluster time window (in 640 Mhz or 1.5625).
     const CLUSTER_SPATIAL: isize = 2; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
+    static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift.dat");
+    
+    /*
+    fn as_bytes<T>(v: &[T]) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u8,
+                v.len() * std::mem::size_of::<T>())
+        }
+    }
+    */
+    
+    fn transform_time_shift(v: &[u8]) -> &[i16] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const i16,
+                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<i16>() )
+        }
+    }
+    
+    /*
+    fn read_time_shift() -> Vec<u8> {
+        let mut shift_array: Vec<u8> = vec![0; 1024 * 256 * 2];
+        let mut tfile = OpenOptions::new()
+            .read(true)
+            .open("time_shift.dat")
+            .unwrap();
+        tfile.read(&mut shift_array).unwrap();
+        //println!("{:?}", shift_array);
+        shift_array
+    }
+    */
 
     #[derive(Debug)]
     pub struct CollectionElectron {
@@ -261,7 +293,8 @@ pub mod cluster {
             self.data.1 + SPIM_PIXELS*self.data.2
         }
         pub fn relative_time(&self, reference_time: TIME) -> i64 {
-            self.data.0 as i64 - reference_time as i64
+            println!("{}", transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64);
+            self.data.0 as i64 - reference_time as i64 + transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64
         }
         pub fn relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
             (self.data.0*6) as i64 - reference_time as i64
