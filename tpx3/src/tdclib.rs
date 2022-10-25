@@ -478,6 +478,7 @@ pub mod isi_box {
     use std::sync::{Arc, Mutex};
     use std::thread;
     use crate::spimlib::SPIM_PIXELS;
+    use std::time::Duration;
 
     pub const CHANNELS: usize = 200;
     
@@ -519,6 +520,7 @@ pub mod isi_box {
         nchannels: u32,
         data: Arc<Mutex<T>>,
         thread_stop: Arc<Mutex<bool>>,
+        thread_handle: Vec<thread::JoinHandle<()>>,
     }
 
     #[macro_export]
@@ -578,6 +580,7 @@ pub mod isi_box {
                         nchannels: CHANNELS as u32,
                         data: create_auxiliar!($z),
                         thread_stop: Arc::new(Mutex::new(false)),
+                        thread_handle: Vec::new(),
                     }
                 }
             }
@@ -613,15 +616,20 @@ pub mod isi_box {
                 let nvec_arclist = Arc::clone(&self.data);
                 let stop_arc = Arc::clone(&self.thread_stop);
                 let mut val = self.sockets.pop().unwrap();
-                thread::spawn(move || {
-                    let mut buffer = vec![0_u8; 512];
-                    while let Ok(size) = val.read(&mut buffer) {
+                let mut buffer = vec![0_u8; 8_192];
+                val.set_nonblocking(true).unwrap();
+                let handle = thread::spawn(move || {
+                    loop {
+                        while let Ok(size) = val.read(&mut buffer) {
+                            let mut num = nvec_arclist.lock().unwrap();
+                            as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x * SPIM_PIXELS as u32) + 1025 + channel_index));
+                        }
                         let stop_val = stop_arc.lock().unwrap();
                         if *stop_val == true {break;}
-                        let mut num = nvec_arclist.lock().unwrap();
-                        as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x * SPIM_PIXELS as u32) + 1025 + channel_index));
-                    }
+                        thread::sleep(Duration::from_millis(100));
+                    };
                 });
+                self.thread_handle.push(handle);
                 if channel_index>0 {channel_index-=1;}
             }
         }
@@ -629,6 +637,10 @@ pub mod isi_box {
             let val = Arc::clone(&self.thread_stop);
             let mut num = val.lock().unwrap();
             *num = true;
+            for _ in 0..self.nchannels {
+                self.thread_handle.pop().unwrap().join().unwrap();
+            }
+
         }
     }
 
@@ -653,7 +665,7 @@ pub mod isi_box {
             let counter_arclist = Arc::clone(&self.data);
             let stop_arc = Arc::clone(&self.thread_stop);
             let mut val = self.sockets.remove(0);
-            thread::spawn(move || {
+            let handle = thread::spawn(move || {
                 let mut buffer = vec![0_u8; CHANNELS * 4];
                 while let Ok(size) = val.read(&mut buffer) {
                     let stop_val = stop_arc.lock().unwrap();
@@ -662,11 +674,13 @@ pub mod isi_box {
                     (*num).iter_mut().zip(as_int(&buffer[0..size]).iter()).for_each(|(a, b)| *a+=*b as u32);
                 }
             });
+            self.thread_handle.push(handle);
         }
         fn stop_threads(&mut self) {
             let val = Arc::clone(&self.thread_stop);
             let mut num = val.lock().unwrap();
             *num = true;
+            self.thread_handle.pop().unwrap().join().unwrap();
         }
     }
 
