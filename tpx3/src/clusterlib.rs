@@ -13,6 +13,7 @@ pub mod cluster {
     const CLUSTER_DET: TIME = 128; //Cluster time window (in 640 Mhz or 1.5625).
     const CLUSTER_SPATIAL: isize = 2; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
     static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift.dat");
+    static TOT_TIME_SHIFT: &[u8; 400 * 2] = include_bytes!("tot_time_shift.dat");
     
     /*
     fn as_bytes<T>(v: &[T]) -> &[u8] {
@@ -298,7 +299,7 @@ pub mod cluster {
         //This is multiplied by six to simulate the time bin of the TDC so in this case the
         //electron bin is ~0.260 ps
         pub fn relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
-            (self.data.0*6) as i64 - reference_time as i64 - transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64
+            (self.data.0*6) as i64 - reference_time as i64 - transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64 - transform_time_shift(TOT_TIME_SHIFT)[self.tot() as usize] as i64
             //(self.data.0*6) as i64 - reference_time as i64
         }
         pub fn spim_slice(&self) -> COUNTER {
