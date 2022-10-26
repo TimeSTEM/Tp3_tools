@@ -620,13 +620,15 @@ pub mod isi_box {
                 val.set_nonblocking(true).unwrap();
                 let handle = thread::spawn(move || {
                     loop {
+                        let mut num = nvec_arclist.lock().unwrap();
                         while let Ok(size) = val.read(&mut buffer) {
-                            let mut num = nvec_arclist.lock().unwrap();
                             as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x * SPIM_PIXELS as u32) + 1025 + channel_index));
                         }
+                        drop(num);
                         let stop_val = stop_arc.lock().unwrap();
                         if *stop_val == true {break;}
-                        thread::sleep(Duration::from_millis(100));
+                        drop(stop_val);
+                        thread::sleep(Duration::from_millis(10));
                     };
                 });
                 self.thread_handle.push(handle);
@@ -637,6 +639,7 @@ pub mod isi_box {
             let val = Arc::clone(&self.thread_stop);
             let mut num = val.lock().unwrap();
             *num = true;
+            drop(num);
             for _ in 0..self.nchannels {
                 self.thread_handle.pop().unwrap().join().unwrap();
             }
@@ -665,13 +668,24 @@ pub mod isi_box {
             let counter_arclist = Arc::clone(&self.data);
             let stop_arc = Arc::clone(&self.thread_stop);
             let mut val = self.sockets.remove(0);
+            val.set_nonblocking(true).unwrap();
+            let mut buffer = vec![0_u8; CHANNELS * 4];
             let handle = thread::spawn(move || {
-                let mut buffer = vec![0_u8; CHANNELS * 4];
-                while let Ok(size) = val.read(&mut buffer) {
+                loop {
+                    let mut num = counter_arclist.lock().unwrap();
+                    while let Ok(size) = val.read(&mut buffer) {
+                        //println!("{} and {}", size, stop_val);
+                        //if *stop_val == true {
+                        //    println!("leaving sinde");
+                        //    break;
+                        //}
+                        (*num).iter_mut().zip(as_int(&buffer[0..size]).iter()).for_each(|(a, b)| *a+=*b as u32);
+                    }
+                    drop(num);
                     let stop_val = stop_arc.lock().unwrap();
                     if *stop_val == true {break;}
-                    let mut num = counter_arclist.lock().unwrap();
-                    (*num).iter_mut().zip(as_int(&buffer[0..size]).iter()).for_each(|(a, b)| *a+=*b as u32);
+                    drop(stop_val);
+                    thread::sleep(Duration::from_millis(10));
                 }
             });
             self.thread_handle.push(handle);
@@ -680,6 +694,7 @@ pub mod isi_box {
             let val = Arc::clone(&self.thread_stop);
             let mut num = val.lock().unwrap();
             *num = true;
+            drop(num);
             self.thread_handle.pop().unwrap().join().unwrap();
         }
     }
