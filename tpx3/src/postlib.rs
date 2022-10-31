@@ -452,7 +452,7 @@ pub mod coincidence {
         let mut tdc_iter = tdc_vec.iter();
 
         let mut counter_jump_tp3_tdc = 0;
-        let jump_tp3_tdc = 1;
+        let jump_tp3_tdc = 0;
         
         
         let bar = ProgressBar::new(progress_size);
@@ -602,8 +602,8 @@ pub mod coincidence {
                     },
                 };
             });
-        //coinc_data.add_events(temp_edata, &mut temp_tdc, 83, 20); //Fast start (NIM)
-        coinc_data.add_events(temp_edata, &mut temp_tdc, 87, 50); //Slow start (TTL)
+        coinc_data.add_events(temp_edata, &mut temp_tdc, 78, 50); //Fast start (NIM)
+        //coinc_data.add_events(temp_edata, &mut temp_tdc, 87, 100); //Slow start (TTL)
         }
         println!("***IsiBox***: Coincidence search is over.");
         Ok(())
