@@ -8,6 +8,7 @@ pub mod coincidence {
     use std::io;
     use std::io::prelude::*;
     use std::fs;
+    use std::convert::TryInto;
     use std::time::Instant;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use crate::auxiliar::ConfigAcquisition;
@@ -35,20 +36,15 @@ pub mod coincidence {
         println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
     }
 
-    fn read_time_shift() {
-        let mut tfile = OpenOptions::new()
-            .read(true)
-            .open("time_shift.dat");
-    }
-
+    //Non-standard data types 
     pub struct ElectronData {
         time: Vec<TIME>,
-        channel: Vec<COUNTER>,
-        rel_time: Vec<i64>,
-        double_photon_rel_time: Vec<i64>,
-        g2_time: Vec<Option<i64>>,
-        x: Vec<POSITION>,
-        y: Vec<POSITION>,
+        channel: Vec<u8>,
+        rel_time: Vec<i16>,
+        double_photon_rel_time: Vec<i16>,
+        g2_time: Vec<Option<i16>>,
+        x: Vec<u16>,
+        y: Vec<u16>,
         tot: Vec<u16>,
         cluster_size: Vec<usize>,
         spectrum: Vec<usize>,
@@ -84,16 +80,16 @@ pub mod coincidence {
         }
 
 
-        fn add_coincident_electron(&mut self, val: SingleElectron, photon: (TIME, COUNTER, Option<i64>)) {
+        fn add_coincident_electron(&mut self, val: SingleElectron, photon: (TIME, COUNTER, Option<i16>)) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
             self.time.push(val.time());
             self.g2_time.push(photon.2);
             self.tot.push(val.tot());
-            self.x.push(val.x());
-            self.y.push(val.y());
-            self.channel.push(photon.1);
-            self.rel_time.push(val.relative_time_from_abs_tdc(photon.0));
+            self.x.push(val.x().try_into().unwrap());
+            self.y.push(val.y().try_into().unwrap());
+            self.channel.push(photon.1.try_into().unwrap());
+            self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).try_into().unwrap());
             //self.rel_time.push(val.relative_time(photon.0));
             match val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 Some(index) => self.spim_index.push(index),
@@ -143,8 +139,8 @@ pub mod coincidence {
                         }
                         photons_per_electron += 1;
                         if photons_per_electron == 2 {
-                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon));
-                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.0));
+                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon).try_into().unwrap());
+                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.0).try_into().unwrap());
                         }
                         first_corr_photon = ph.0;
 
@@ -235,7 +231,7 @@ pub mod coincidence {
                     None => -5_000,
                     Some(x) => *x,
                 }
-            }).collect::<Vec<i64>>();
+            }).collect::<Vec<i16>>();
             output_data(&vec, "g2tH.txt");
         }
         
@@ -280,8 +276,8 @@ pub mod coincidence {
     }
 
     pub struct TempTdcData {
-        tdc: Vec<(TIME, COUNTER, Option<i64>)>, //The absolute time, the channel and the g2_dT
-        clean_tdc: Vec<(TIME, COUNTER, Option<i64>)>,
+        tdc: Vec<(TIME, COUNTER, Option<i16>)>, //The absolute time, the channel and the g2_dT
+        clean_tdc: Vec<(TIME, COUNTER, Option<i16>)>,
         min_index: usize,
         tdc_type: TempTdcDataType,
     }
@@ -651,7 +647,7 @@ pub mod isi_box {
         }
     }
  
-    type IsiListType = (TIME, u32, Option<u32>, Option<u32>, Option<i64>);
+    type IsiListType = (TIME, u32, Option<u32>, Option<u32>, Option<i16>);
     struct IsiListVec(Vec<IsiListType>);
     struct IsiListVecg2(Vec<(i64, u32, Option<u32>, Option<u32>)>);
 
@@ -931,7 +927,7 @@ pub mod isi_box {
         }
     */
         
-        pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER, Option<i64>)> {
+        pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER, Option<i16>)> {
             let first = self.data_raw.0.iter().
                 filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == 16).
                 map(|(time, _channel, _spim_index, _spim_frame, _dt)| (*time * 1200 * 6) / 15625).
@@ -994,8 +990,8 @@ pub mod isi_box {
                     let dt = val2.0 as i64 - val1.0 as i64;
                     if dt.abs() < 5_000 {
 
-                        val1.4 = Some(dt);
-                        val2.4 = Some(dt);
+                        val1.4 = Some(dt as i16);
+                        val2.4 = Some(dt as i16);
 
                         corr+=1;
                         new_list.0.push((dt, val2.1, val2.2, val2.3));
