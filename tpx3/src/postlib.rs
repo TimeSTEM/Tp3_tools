@@ -652,7 +652,6 @@ pub mod isi_box {
     struct IsiListVecg2(Vec<(i64, u32, Option<u32>, Option<u32>)>);
 
     pub struct IsiList {
-        //data: IsiListVec, //Time, channel, spim index, spim frame, dT
         data_raw: IsiListVec, //Time, channel, spim index, spim frame, dT
         x: u32,
         y: u32,
@@ -693,6 +692,7 @@ pub mod isi_box {
             self.last_time = data;
             self.counter += 1;
 
+            /*
             //This happens at the second loop. There is no start_time in the first interaction.
             if let (Some(start_time), None) = (self.start_time, self.line_time) {
                 let val = if data > start_time {
@@ -712,7 +712,7 @@ pub mod isi_box {
                     self.start_time = Some(data);
                 };
             }
-            
+            */
         }
 
         fn get_line_low(&self) -> u32 {
@@ -730,36 +730,6 @@ pub mod isi_box {
             //self.overflow as u64 * 67108864 + data as u64
             //let time2 = (self.counter-1) as u64 * self.line_time.unwrap() as u64 + self.start_time.unwrap() as u64;
         }
-
-        /*
-        fn spim_index(&self, data: u32) -> Option<u32> {
-            if let Some(_) = self.line_time {
-
-                let line = self.counter % self.y;
-                let low = self.get_line_low();
-
-                let time = if data > VIDEO_TIME as u32 * 13 + self.last_time {
-                    //data - VIDEO_TIME as u32 * 13 - self.last_time
-                    data - self.last_time
-                } else {
-                    //data + 67108864 - VIDEO_TIME as u32 * 13 - self.last_time
-                    data + 67108864 - self.last_time
-                };
-
-                //if time > low {return None;}
-                let column = ((time as u64 * self.x as u64) / low as u64) as u32;
-                let index = line * self.x + column;
-                Some(index)
-            } else {None}
-        }
-
-        fn spim_frame(&self) -> Option<u32> {
-            if let Some(_) = self.line_time {
-                let frame = self.counter / self.y;
-                Some(frame)
-            } else {None}
-        }
-        */
 
         fn add_event(&mut self, channel: u32, data: u32) {
             //self.data.0.push((self.get_abs_time(data), channel, self.spim_index(data), self.spim_frame(), None));
@@ -786,7 +756,7 @@ pub mod isi_box {
         }
 
         fn check_for_issues(&mut self) {
-            //Check if there is an issue in the first scan. This sometimes happens.
+            //Check if there is an issue in the first scan. This is very rare but can happens sometimes.
             let iter = self.scan_iterator().
                 filter(|(val1, val2)| ((subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) || (subtract_overflow(val2.1.0, val1.1.0) < self.line_time.unwrap() as u64 - 1_000))).
                 collect::<Vec<_>>();
@@ -797,8 +767,15 @@ pub mod isi_box {
                     break;
                 }
             }
+            
+            let progress_size = 100;
+            let bar = ProgressBar::new(progress_size);
+            bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Checking for issues in the IsiBox data")
+                          .unwrap()
+                          .progress_chars("=>-"));
 
-            for _ in 0..100 {
+            for _ in 0..progress_size {
+                bar.inc(1);
                 let iter = self.scan_iterator().
                     filter(|(val1, val2)| ((subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) || (subtract_overflow(val2.1.0, val1.1.0) < self.line_time.unwrap() as u64 - 1_000))).
                     collect::<Vec<_>>();
@@ -885,47 +862,6 @@ pub mod isi_box {
 
             iter3
         }
-        
-
-        /*
-        fn check_for_issues(&mut self) {
-            let iter1 = self.data.0.iter().
-                cloned().
-                enumerate().
-                filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
-            
-            let iter2 = self.data.0[1..].iter().
-                cloned().
-                enumerate().
-                filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
-
-            let iter3 = iter1.
-                zip(iter2).
-                filter(|(val1, val2)| (val1.1.0 > val2.1.0 + self.line_time.unwrap() as u64 + 1_000) || (val2.1.0 > val1.1.0 + self.line_time.unwrap() as u64 + 1_000)).
-                collect::<Vec<_>>();
-
-            for val in iter3 {
-                println!("{:?} and {:?} and {:?}", val.0, val.1, self.data.0[val.1.0+2]);
-                self.data.0.insert(val.1.0+1, (val.1.1.0 - self.line_time.unwrap() as u64, val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
-            }
-
-            //println!("{:?}", self.line_time.unwrap());
-
-                
-                /*
-                reduce(|accum, item| {
-                    if (accum.1.0 > item.1.0 + 10) || (item.1.0 > accum.1.0 + 10) {
-                        println!("KKKKKKKKKKKKK {:?}", accum);
-                        accum
-                    }
-                    else {
-                        //println!("nothing");
-                        item
-                    }
-                });
-                */
-        }
-    */
         
         pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER, Option<i16>)> {
             let first = self.data_raw.0.iter().
@@ -1052,9 +988,6 @@ pub mod isi_box {
                     let channel = (as_int(x)[0] & 0xFC000000) >> 27;
                     let _overflow = (as_int(x)[0] & 0x04000000) >> 26;
                     let time = as_int(x)[0] & 0x03FFFFFF;
-                    //if overflow == 1 {
-                    //    println!("{} and {}", channel, time);
-                    //}
                     list.add_event(channel, time);
                     if channel == 16 {
                         list.increase_counter(time);
