@@ -5,6 +5,7 @@ pub mod coincidence {
     use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack, packet_change};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
     use crate::postlib::isi_box;
+    use crate::errorlib::Tp3ErrorKind;
     use std::io;
     use std::io::prelude::*;
     use std::fs;
@@ -41,6 +42,7 @@ pub mod coincidence {
         time: Vec<TIME>,
         channel: Vec<u8>,
         rel_time: Vec<i16>,
+        corrected_rel_time: Vec<i16>,
         double_photon_rel_time: Vec<i16>,
         g2_time: Vec<Option<i16>>,
         x: Vec<u16>,
@@ -90,7 +92,7 @@ pub mod coincidence {
             self.y.push(val.y().try_into().unwrap());
             self.channel.push(photon.1.try_into().unwrap());
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).try_into().unwrap());
-            //self.rel_time.push(val.relative_time(photon.0));
+            self.corrected_rel_time.push(val.corrected_relative_time_from_abs_tdc(photon.0).try_into().unwrap());
             match val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 Some(index) => self.spim_index.push(index),
                 None => self.spim_index.push(POSITION::MAX),
@@ -167,6 +169,7 @@ pub mod coincidence {
                 time: Vec::new(),
                 channel: Vec::new(),
                 rel_time: Vec::new(),
+                corrected_rel_time: Vec::new(),
                 double_photon_rel_time: Vec::new(),
                 g2_time: Vec::new(),
                 x: Vec::new(),
@@ -427,7 +430,7 @@ pub mod coincidence {
         Ok(())
     }
     
-    pub fn correct_coincidence_isi(file1: &str, file2: &str, coinc_data: &mut ElectronData) -> (TempTdcData, usize) {
+    pub fn correct_coincidence_isi(file1: &str, file2: &str, coinc_data: &mut ElectronData, jump_tp3_tdc: usize) -> Result<(TempTdcData, usize), Tp3ErrorKind> {
     
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(file1).unwrap();
@@ -448,8 +451,6 @@ pub mod coincidence {
         let mut tdc_iter = tdc_vec.iter();
 
         let mut counter_jump_tp3_tdc = 0;
-        let jump_tp3_tdc = 0;
-        
         
         let bar = ProgressBar::new(progress_size);
         bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Correcting IsiBox values")
@@ -549,7 +550,7 @@ pub mod coincidence {
         }
         println!("***IsiBox***: IsiBox values corrected.");
         temp_tdc.sort();
-        (temp_tdc, total_size)
+        Ok((temp_tdc, total_size))
     }
 
     pub fn search_coincidence_isi(file1: &str, file2: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
@@ -558,10 +559,14 @@ pub mod coincidence {
         let mut file0 = fs::File::open(file1)?;
         let progress_size = file0.metadata().unwrap().len() as u64;
         let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
-        coinc_data.prepare_spim(spim_tdc);
+        //coinc_data.prepare_spim(spim_tdc);
     
-        let (mut temp_tdc, max_total_size) = correct_coincidence_isi(file1, file2, coinc_data);
-        
+        //let (mut temp_tdc, max_total_size) = correct_coincidence_isi(file1, file2, coinc_data, 0);
+        let (mut temp_tdc, max_total_size) = match correct_coincidence_isi(file1, file2, coinc_data, 0) {
+            Ok((tt, mts)) => (tt, mts),
+            Err(_) => correct_coincidence_isi(file1, file2, coinc_data, 1).unwrap(),
+        };
+
         let mut ci = 0;
         let mut file = fs::File::open(file1)?;
         let mut buffer: Vec<u8> = vec![0; ISI_BUFFER_SIZE];

@@ -299,8 +299,10 @@ pub mod cluster {
         //This is multiplied by six to simulate the time bin of the TDC so in this case the
         //electron bin is ~0.260 ps
         pub fn relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
-            (self.data.0*6) as i64 - reference_time as i64 - transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64 - transform_time_shift(TOT_TIME_SHIFT)[self.tot() as usize] as i64
-            //(self.data.0*6) as i64 - reference_time as i64
+            (self.data.0*6) as i64 - reference_time as i64
+        }
+        pub fn corrected_relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
+            self.relative_time_from_abs_tdc(reference_time) - transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64 - transform_time_shift(TOT_TIME_SHIFT)[self.tot() as usize] as i64
         }
         pub fn spim_slice(&self) -> COUNTER {
             self.data.4
