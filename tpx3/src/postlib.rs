@@ -221,6 +221,7 @@ pub mod coincidence {
 
         pub fn output_relative_time(&self) {
             output_data(&self.rel_time, "tH.txt");
+            output_data(&self.corrected_rel_time, "corrected_tH.txt");
             output_data(&self.double_photon_rel_time, "double_tH.txt");
         }
         
@@ -434,7 +435,7 @@ pub mod coincidence {
     
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(file1).unwrap();
-        let progress_size = file0.metadata().unwrap().len() as u64;
+        let progress_size = file0.metadata().unwrap().len();
         let mut spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         let _begin_tp3_time = spim_tdc.begin_frame;
@@ -524,7 +525,7 @@ pub mod coincidence {
                                 //println!("{} and {} and {} and {} and {} and {}", offset, t_dif, isi_val.1, packet.tdc_time_abs(), tdc_val, of);
                                 
                                 if (offset != 0) && ((t_dif > offset + ISI_TP3_MAX_DIF) || (offset > t_dif + ISI_TP3_MAX_DIF)) {
-                                    println!("***IsiBox***: Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
+                                    //println!("***IsiBox***: Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
                                     //println!("{:?}", isi_val);
                                     //println!("{:?}", tdc_iter.next().unwrap());
                                     //panic!("program is over");
@@ -548,7 +549,14 @@ pub mod coincidence {
             });
         temp_tdc.correct_tdc(&mut correct_vector);
         }
-        println!("***IsiBox***: IsiBox values corrected.");
+        //If less than 50% of the file is read, it considers it was an issue and thus a retry must
+        //be performed.
+        if (total_size * 100 / progress_size as usize) < 50 {
+            println!("***IsiBox***: IsiBox values not corrected. Retrying with a different condition.");
+            return Err(Tp3ErrorKind::IsiBoxCouldNotSync);
+        } else {
+            println!("***IsiBox***: IsiBox values corrected.");
+        }
         temp_tdc.sort();
         Ok((temp_tdc, total_size))
     }
@@ -561,15 +569,13 @@ pub mod coincidence {
         let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         //coinc_data.prepare_spim(spim_tdc);
     
-        /*
+        
         let (mut temp_tdc, max_total_size) = match correct_coincidence_isi(file1, file2, coinc_data, 0) {
             Ok((tt, mts)) => (tt, mts),
             Err(_) => correct_coincidence_isi(file1, file2, coinc_data, 1).unwrap(),
         };
-        */
-
-        let (mut temp_tdc, max_total_size) = correct_coincidence_isi(file1, file2, coinc_data, 0).unwrap_or(
-            correct_coincidence_isi(file1, file2, coinc_data, 1).unwrap());
+        
+        //let (mut temp_tdc, max_total_size) = correct_coincidence_isi(file1, file2, coinc_data, 0).unwrap();
 
         let mut ci = 0;
         let mut file = fs::File::open(file1)?;
@@ -799,6 +805,7 @@ pub mod isi_box {
                     number_of_insertions += 1;
                 }
             }
+            println!("***IsiBox***: reference values corrected.");
         }
 
         fn correct_data(&mut self) {

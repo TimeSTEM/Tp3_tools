@@ -218,23 +218,24 @@ def correct_time2d(xpos_array, ypos_array, time_array, div, delay_array):
             time_array[indexes_chip] += int(delay_array[i, iy])
 
 disparray = numpy.linspace(off, disp*SPIM_PIXELS, SPIM_PIXELS)
-t = numpy.fromfile("tH.txt", dtype='int64')
-double_t = numpy.fromfile("double_tH.txt", dtype='int64')
+t = numpy.fromfile("tH.txt", dtype='int16')
+corr_t = numpy.fromfile("corrected_tH.txt", dtype='int16')
+double_t = numpy.fromfile("double_tH.txt", dtype='int16')
 tabs = numpy.fromfile("tabsH.txt", dtype='uint64')
-g2t = numpy.fromfile("g2tH.txt", dtype='int64')
+g2t = numpy.fromfile("g2tH.txt", dtype='int16')
 g2_total = numpy.fromfile("isi_g2.txt", dtype='int64')
 xT = numpy.loadtxt("spec.txt", delimiter=',')
 x = numpy.loadtxt("cspec.txt", delimiter=',')
-xH = numpy.fromfile("xH.txt", dtype='uint32')
-yH = numpy.fromfile("yH.txt", dtype='uint32')
+xH = numpy.fromfile("xH.txt", dtype='uint16')
+yH = numpy.fromfile("yH.txt", dtype='uint16')
 tot = numpy.fromfile("tot.txt", dtype='uint16')
-channel = numpy.fromfile("channel.txt", dtype='uint32')
+channel = numpy.fromfile("channel.txt", dtype='uint8')
 
 print(xH.shape)
 
 indexes2 = numpy.where((channel == 0))
 indexes12 = numpy.where((channel == 12))
-indexes_tot = numpy.where((tot == 70))
+indexes_tot = numpy.where((tot >= 0))
 indexes_chip1 = numpy.where((xH < 256))
 indexes_chip2 = numpy.where((xH < 512) & (xH > 256))
 indexes_chip3 = numpy.where((xH < 768) & (xH > 512))
@@ -369,26 +370,30 @@ fig, ax = plt.subplots(nrows=3, ncols=2, sharex=False, figsize=(10, 10))
 ax[0, 0].hist(t[indexes2], density=False, bins=tbin, range=(tmin, tmax), alpha=0.2, color='red', label='Channel 0')
 ax[0, 0].hist(t[indexes12], density = False, bins=tbin, range=(tmin, tmax), alpha=0.2, color='blue', label='Channel 12')
 
-ax[2, 1].hist(double_t, density = False, bins=tbin, range=(tmin, tmax), alpha=0.8, color='blue', label='Double electrons')
+ax[1, 0].hist(t[indexes_g2], bins=tbin, range=(tmin, tmax), alpha=0.2, color='green', label='g2')
+ax[1, 0].hist(t[indexes_g2_correlated], bins=tbin, range=(tmin, tmax), alpha=0.2, color='magenta', label='g2_eff')
 
-#ax[2, 0].hist(t[indexes_middle_time], density=False, bins=tbin, range=(tmin, tmax), alpha=0.2, color='green', label='Middle')
 ax[2, 0].hist(t[indexes_begin_time], density=False, bins=tbin, range=(tmin, tmax), alpha=1.0, color='red', label='Beginning')
 ax[2, 0].hist(t[indexes_end_time], density=False, bins=tbin, range=(tmin, tmax), alpha=0.6, color='blue', label='Ending')
 
+
+#0, 1
 plot_histogram(indexes12, 'channel2', 0)
-#plot_histogram(indexes_tot, 'tot', 0)
 plot_histogram(indexes_chip1, 'chip1', 0)
 plot_histogram(indexes_chip2, 'chip2', 0)
 plot_histogram(indexes_chip3, 'chip3', 0)
 plot_histogram(indexes_chip4, 'chip4', 0)
 
-ax[1, 0].hist(t[indexes_g2], bins=tbin, range=(tmin, tmax), alpha=0.2, color='green', label='g2')
-ax[1, 0].hist(t[indexes_g2_correlated], bins=tbin, range=(tmin, tmax), alpha=0.2, color='magenta', label='g2_eff')
+#1, 1
+ax[1, 1].hist(t[indexes_tot], density = False, bins=tbin, range=(tmin, tmax), alpha=1.0, color='blue', label='All_indexes')
+ax[1, 1].hist(corr_t[indexes_tot], density = False, bins=tbin, range=(tmin, tmax), alpha=1.0, color='green', label='Corrected_data')
+#plot_histogram(indexes_g2_chip1, 'g2_chip1', 1)
+#plot_histogram(indexes_g2_chip2, 'g2_chip2', 1)
+#plot_histogram(indexes_g2_chip3, 'g2_chip3', 1)
+#plot_histogram(indexes_g2_chip4, 'g2_chip4', 1)
 
-plot_histogram(indexes_g2_chip1, 'g2_chip1', 1)
-plot_histogram(indexes_g2_chip2, 'g2_chip2', 1)
-plot_histogram(indexes_g2_chip3, 'g2_chip3', 1)
-plot_histogram(indexes_g2_chip4, 'g2_chip4', 1)
+#2, 1
+ax[2, 1].hist(double_t, density = False, bins=tbin, range=(tmin, tmax), alpha=0.8, color='blue', label='Double electrons')
 
 ax[0, 0].legend()
 ax[0, 1].legend()
