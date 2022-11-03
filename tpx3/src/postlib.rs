@@ -561,11 +561,15 @@ pub mod coincidence {
         let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         //coinc_data.prepare_spim(spim_tdc);
     
-        //let (mut temp_tdc, max_total_size) = correct_coincidence_isi(file1, file2, coinc_data, 0);
+        /*
         let (mut temp_tdc, max_total_size) = match correct_coincidence_isi(file1, file2, coinc_data, 0) {
             Ok((tt, mts)) => (tt, mts),
             Err(_) => correct_coincidence_isi(file1, file2, coinc_data, 1).unwrap(),
         };
+        */
+
+        let (mut temp_tdc, max_total_size) = correct_coincidence_isi(file1, file2, coinc_data, 0).unwrap_or(
+            correct_coincidence_isi(file1, file2, coinc_data, 1).unwrap());
 
         let mut ci = 0;
         let mut file = fs::File::open(file1)?;
