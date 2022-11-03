@@ -22,4 +22,5 @@ pub enum Tp3ErrorKind {
     TimepixReadOver,
 
     IsiBoxAttempt(u8),
+    IsiBoxCouldNotConnect,
 }

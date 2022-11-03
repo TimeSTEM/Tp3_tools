@@ -574,7 +574,7 @@ pub fn build_spectrum_isi<T, V, U, W>(mut pack_sock: V, mut ns_sock: U, my_setti
 {
 
     let mut handler = isi_box_new!(spec);
-    handler.bind_and_connect();
+    handler.bind_and_connect()?;
     handler.configure_scan_parameters(32, 32, 8334);
     handler.configure_measurement_type(false);
     handler.start_threads();

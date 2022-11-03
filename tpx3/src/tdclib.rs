@@ -473,6 +473,7 @@ pub mod isi_box {
     //use rand_distr::{Normal, Distribution};
     //use rand::{thread_rng};
     //use std::fs::OpenOptions;
+    use crate::errorlib::Tp3ErrorKind;
     use std::net::TcpStream;
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
@@ -500,7 +501,7 @@ pub mod isi_box {
     }
 
     pub trait IsiBoxTools {
-        fn bind_and_connect(&mut self);
+        fn bind_and_connect(&mut self) -> Result<(), Tp3ErrorKind>;
         fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32);
         fn configure_measurement_type(&self, save_locally: bool);
         fn new() -> Self;
@@ -542,15 +543,20 @@ pub mod isi_box {
     macro_rules! impl_bind_connect {
         ($x: ident, $y: ty, $z: tt) => {
             impl IsiBoxTools for $x<$y> {
-                fn bind_and_connect(&mut self) {
+                fn bind_and_connect(&mut self) -> Result<(), Tp3ErrorKind>{
                     for _ in 0..self.nchannels {
-                        let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
+                        let sock = match TcpStream::connect("192.168.198.10:9592") {
+                            Ok(val) => val,
+                            Err(_) => return Err(Tp3ErrorKind::IsiBoxCouldNotConnect),
+                        };
+                        //let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
                         //let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
                         self.sockets.push(sock);
                     }
                     let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
                     //let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
                     self.ext_socket = Some(sock);
+                    Ok(())
                 }
                 fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32) {
                     let mut config_array: [u32; 3] = [0; 3];

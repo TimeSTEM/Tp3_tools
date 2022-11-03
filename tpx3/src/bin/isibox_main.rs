@@ -28,7 +28,7 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
         },
         2 => {
             let mut handler = isi_box_new!(spim);
-            handler.bind_and_connect();
+            handler.bind_and_connect()?;
             handler.configure_scan_parameters(my_settings.xspim_size.try_into().unwrap(), my_settings.yspim_size.try_into().unwrap(), my_settings.pixel_time.try_into().unwrap());
             handler.configure_measurement_type(false);
             handler.start_threads();
@@ -41,7 +41,7 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
         },
         8 => {
             let mut handler = isi_box_new!(spec);
-            handler.bind_and_connect();
+            handler.bind_and_connect()?;
             handler.configure_scan_parameters(32, 32, 8334);
             handler.configure_measurement_type(true);
             thread::sleep(time::Duration::from_millis(1000));
