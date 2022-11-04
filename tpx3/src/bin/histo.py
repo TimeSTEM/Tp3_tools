@@ -385,8 +385,8 @@ plot_histogram(indexes_chip3, 'chip3', 0)
 plot_histogram(indexes_chip4, 'chip4', 0)
 
 #1, 1
-ax[1, 1].hist(t[indexes_tot], density = False, bins=tbin, range=(tmin, tmax), alpha=1.0, color='blue', label='All_indexes')
-ax[1, 1].hist(corr_t[indexes_tot], density = False, bins=tbin, range=(tmin, tmax), alpha=1.0, color='green', label='Corrected_data')
+ax[1, 1].hist(t[indexes_tot], density = True, bins=tbin, range=(tmin, tmax), alpha=1.0, color='blue', label='All_indexes')
+ax[1, 1].hist(corr_t[indexes_tot], density = True, bins=tbin, range=(tmin, tmax), alpha=1.0, color='green', label='Corrected_data')
 #plot_histogram(indexes_g2_chip1, 'g2_chip1', 1)
 #plot_histogram(indexes_g2_chip2, 'g2_chip2', 1)
 #plot_histogram(indexes_g2_chip3, 'g2_chip3', 1)
@@ -403,9 +403,10 @@ ax[2, 0].legend()
 ax[1, 0].set_xlabel('Time delay (units of 260 ps)')
 
 #Plot of the ToTs
-fig, ax = plt.subplots(ncols = 2)
+fig, ax = plt.subplots(ncols = 3)
 ax[0].hist(tot, bins=101, range=(0, 100))
 ax[1].hist2d(t, tot, range=[[tmin, tmax], [0, 100]], bins=[tbin, 100])
+ax[2].hist2d(corr_t, tot, range=[[tmin, tmax], [0, 100]], bins=[tbin, 100])
 ax[0].set_xlabel('Time over threshold (units of 1.5615 ns)')
 
 #Histogram of the g2

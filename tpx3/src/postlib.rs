@@ -151,7 +151,7 @@ pub mod coincidence {
                     index += 1;
                 }
                 if let Some(increase) = index_to_increase {
-                    min_index += increase / 10;
+                    min_index += increase / 1;
                 }
             }
             temp_tdc.min_index = min_index;
@@ -630,6 +630,8 @@ pub mod isi_box {
     use crate::tdclib::isi_box::CHANNELS;
     use crate::auxiliar::value_types::*;
     use indicatif::{ProgressBar, ProgressStyle};
+    
+    const ISI_CHANNEL_SHIFT: [u32; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0];
 
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
@@ -748,6 +750,11 @@ pub mod isi_box {
 
         fn add_event(&mut self, channel: u32, data: u32) {
             //self.data.0.push((self.get_abs_time(data), channel, self.spim_index(data), self.spim_frame(), None));
+            let data = if channel < 16 {
+                ISI_CHANNEL_SHIFT[channel as usize] + data
+            } else {
+                data
+            };
             self.data_raw.0.push((data as u64, channel, None, None, None));
         }
 

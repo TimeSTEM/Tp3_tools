@@ -12,8 +12,7 @@ pub mod cluster {
     
     const CLUSTER_DET: TIME = 128; //Cluster time window (in 640 Mhz or 1.5625).
     const CLUSTER_SPATIAL: isize = 2; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
-    static TIME_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_shift_64.dat");
-    //static TOT_TIME_SHIFT: &[u8; 400 * 2] = include_bytes!("tot_time_shift.dat");
+    static TIME_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_shift_8.dat");
     
     /*
     fn as_bytes<T>(v: &[T]) -> &[u8] {
