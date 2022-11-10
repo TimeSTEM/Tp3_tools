@@ -11,25 +11,21 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
     match my_settings.mode {
         0 if my_settings.bin => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
-            //let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             speclib::run_spectrum(pack, ns, my_settings, frame_tdc, speclib::Live1D)?;
             Ok(my_settings.mode)
         },
         0 if !my_settings.bin => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
-            //let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             speclib::run_spectrum(pack, ns, my_settings, frame_tdc, speclib::Live2D)?;
             Ok(my_settings.mode)
         },
         1 if my_settings.bin => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
-            //let laser_tdc = SingleTriggerPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             speclib::run_spectrum(pack, ns, my_settings, frame_tdc, speclib::LiveTR1D)?;
             Ok(my_settings.mode)
         },
         1 if !my_settings.bin => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
-            //let laser_tdc = SingleTriggerPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             speclib::run_spectrum(pack, ns, my_settings, frame_tdc, speclib::LiveTR2D)?;
             Ok(my_settings.mode)
         },
@@ -42,13 +38,11 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
         },
         6 => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
-            //let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             speclib::run_spectrum(pack, ns, my_settings, frame_tdc, speclib::FastChrono)?;
             Ok(my_settings.mode)
         },
         7 => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
-            //let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             speclib::run_spectrum(pack, ns, my_settings, frame_tdc, speclib::Chrono)?;
             Ok(my_settings.mode)
         },

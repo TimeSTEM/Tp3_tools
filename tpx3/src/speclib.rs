@@ -559,18 +559,18 @@ pub fn run_spectrum<V, U, Y>(mut pack: V, ns: U, my_settings: Settings, frame_td
     match my_settings.bytedepth {
         1 => {
             let measurement = kind.gen8(&my_settings);
-            let tdc = measurement.build_aux_tdc(&mut pack);
-            build_spectrum(pack, ns, my_settings, frame_tdc, tdc, measurement)?;
+            let aux_tdc = measurement.build_aux_tdc(&mut pack);
+            build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
         },
         2 => {
             let measurement = kind.gen16(&my_settings);
-            let tdc = measurement.build_aux_tdc(&mut pack);
-            build_spectrum(pack, ns, my_settings, frame_tdc, tdc, measurement)?;
+            let aux_tdc = measurement.build_aux_tdc(&mut pack);
+            build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
         },
         4 => {
             let measurement = kind.gen32(&my_settings);
-            let tdc = measurement.build_aux_tdc(&mut pack);
-            build_spectrum(pack, ns, my_settings, frame_tdc, tdc, measurement)?;
+            let aux_tdc = measurement.build_aux_tdc(&mut pack);
+            build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
         },
         _ => {return Err(Tp3ErrorKind::SetByteDepth)},
     }
