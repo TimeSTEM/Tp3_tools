@@ -23,7 +23,7 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
         0 if !my_settings.bin => {
             let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
-            speclib::run_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, speclib::Live2D)?;
+            //speclib::run_spectrum(pack, ns, my_settings, frame_tdc, np_tdc, speclib::Live2D)?;
             Ok(my_settings.mode)
         },
         2 => {
