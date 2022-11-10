@@ -14,12 +14,10 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
 
     match my_settings.mode {
         0 if my_settings.bin => {
-            //let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
             speclib::run_spectrum(pack, ns, my_settings, speclib::Live1D)?;
             Ok(my_settings.mode)
         },
         0 if !my_settings.bin => {
-            //let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
             speclib::run_spectrum(pack, ns, my_settings, speclib::Live2D)?;
             Ok(my_settings.mode)
         },

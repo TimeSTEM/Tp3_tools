@@ -95,17 +95,17 @@ pub struct SpecMeasurement<T, K: BitDepth> {
     aux_data: Vec<usize>,
     is_ready: bool,
     global_stop: bool,
+    repeat: Option<u32>,
     _kind: T,
 }
 
 pub trait SpecKind {
-    //type MainTdc: TdcControl;
     type SupplementaryTdc: TdcControl;
     fn is_ready(&self) -> bool;
     fn build_output(&self) -> &[u8];
     fn build_mut_output(&self) -> &mut [u8];
     fn new(settings: &Settings) -> Self;
-    fn build_main_tdc<V: TimepixRead>(&self, pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
         Ok(PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, pack, None)?)
     }
     fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V) -> Result<Self::SupplementaryTdc, Tp3ErrorKind> {
@@ -115,6 +115,7 @@ pub trait SpecKind {
     fn add_tdc_hit(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut Self::SupplementaryTdc);
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings);
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings);
+    fn set_repeat(&mut self, _val: u32) {}
 }
 
 pub trait IsiBoxKind: SpecKind {
@@ -160,7 +161,16 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
         as_mut_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, _kind: Live2D }
+        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, _kind: Live2D }
+    }
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
+        let tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, pack, None)?;
+        let period = tdc.period().unwrap();
+        if period < 21_120_000 { //33 ms
+            let repeat = 21_120_000 / period as u32;
+            self.set_repeat(repeat);
+        }
+        Ok(tdc)
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
@@ -171,9 +181,14 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         add_index!(self, CAM_DESIGN.0-1);
     }
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         self.is_ready = true;
+        if let Some(rep) = self.repeat {
+            if (frame_tdc.counter() / 2) % rep != 0 { //frame must not be send
+                self.reset_or_else(frame_tdc, settings);
+            }
+        };
     }
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
         self.is_ready = false;
@@ -181,6 +196,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
             self.data.iter_mut().for_each(|x| *x = L::zero());
             *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::ten();
         }
+    }
+    fn set_repeat(&mut self, val: u32) {
+        self.repeat = Some(val);
     }
 }
 
@@ -196,7 +214,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
         as_mut_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, _kind: Live1D}
+        SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, _kind: Live1D}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
@@ -232,7 +250,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR2D, L> {
         as_mut_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, _kind: LiveTR2D}
+        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, _kind: LiveTR2D}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &Self::SupplementaryTdc) {
@@ -269,7 +287,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR1D, L> {
         as_mut_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, _kind: LiveTR1D}
+        SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, _kind: LiveTR1D}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &Self::SupplementaryTdc) {
@@ -307,7 +325,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTilted2D, L> {
         as_mut_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, _kind: LiveTilted2D }
+        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, _kind: LiveTilted2D }
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
@@ -348,9 +366,8 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
         let mut temp_vec = vec![L::zero(); len + 1];
-    //type MeasKind;
         temp_vec[len] = L::ten();
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, _kind: FastChrono}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, _kind: FastChrono}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
@@ -388,7 +405,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
         let mut temp_vec = vec![L::zero(); len + 1];
         temp_vec[len] = L::ten();
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, _kind: Chrono}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, _kind: Chrono}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
@@ -523,7 +540,7 @@ impl IsiBoxKind for SpecMeasurement<Live1D, u32> {
         let len = (CAM_DESIGN.0 + CHANNELS as POSITION) as usize;
         let mut temp_vec: Vec<u32> = vec![0; len+1];
         temp_vec[len] = 10;
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, _kind: Live1D }
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, _kind: Live1D }
     }
     fn append_from_isi(&mut self, ext_data: &[u32]) {
         self.data[CAM_DESIGN.0 as usize..].iter_mut().zip(ext_data.iter()).for_each(|(a, b)| *a+=b);
@@ -545,19 +562,19 @@ pub fn run_spectrum<V, U, Y>(mut pack: V, ns: U, my_settings: Settings, kind: Y)
     
     match my_settings.bytedepth {
         1 => {
-            let measurement = kind.gen8(&my_settings);
+            let mut measurement = kind.gen8(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack)?;
             let aux_tdc = measurement.build_aux_tdc(&mut pack)?;
             build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
         },
         2 => {
-            let measurement = kind.gen16(&my_settings);
+            let mut measurement = kind.gen16(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack)?;
             let aux_tdc = measurement.build_aux_tdc(&mut pack)?;
             build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
         },
         4 => {
-            let measurement = kind.gen32(&my_settings);
+            let mut measurement = kind.gen32(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack)?;
             let aux_tdc = measurement.build_aux_tdc(&mut pack)?;
             build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
