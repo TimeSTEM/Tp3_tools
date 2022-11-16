@@ -486,7 +486,7 @@ pub mod cluster {
                 filter(|se| se.tot() == tot_value).
                 count();
 
-            if cluster_filter_size == 0 {return None};
+            if cluster_filter_size != 1 {return None}; //It must be one for complete control
 
             let time_reference = cluster.iter().
                 filter(|se| se.tot() == tot_value).
@@ -496,6 +496,9 @@ pub mod cluster {
 
             let mut val = CollectionElectron::new();
             for electron in cluster {
+                if electron.tot() == tot_value {continue;} //ToT reference not need to be output
+                let time_diference = electron.time() as i64 - time_reference as i64;
+                if time_diference.abs() > 50 {continue;} //must not output far-away data from tot==reference value
                 val.add_electron(SingleElectron{
                     data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot(), cluster_size),
                 });
