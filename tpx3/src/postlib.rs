@@ -18,6 +18,7 @@ pub mod coincidence {
 
     const ISI_BUFFER_SIZE: usize = 512_000_000; //Buffer size reading files when using TP3 and IsiBox
     const ISI_TP3_MAX_DIF: u64 = 1_000; //In units of 640 Mhz;
+    const PHOTON_LIST_STEP: usize = 10;
     
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
@@ -151,7 +152,7 @@ pub mod coincidence {
                     index += 1;
                 }
                 if let Some(increase) = index_to_increase {
-                    min_index += increase / 1;
+                    min_index += increase / PHOTON_LIST_STEP;
                 }
             }
             temp_tdc.min_index = min_index;
