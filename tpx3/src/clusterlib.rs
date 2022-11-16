@@ -7,6 +7,7 @@ pub mod cluster {
     use crate::tdclib::PeriodicTdcRef;
     use std::fs::OpenOptions;
     use std::io::{Write, Read};
+    use std::ops::Deref;
     use rayon::prelude::*;
     use crate::auxiliar::value_types::*;
     
@@ -60,6 +61,52 @@ pub mod cluster {
         }
     }
 
+    
+    impl Deref for CollectionElectron {
+        type Target = Vec<SingleElectron>;
+
+        fn deref(&self) -> &Self::Target {
+            &self.data
+        }
+    }
+    
+    
+
+    /*
+    impl<'a> Iterator for &CollectionElectron {
+        type Item = &SingleElectron;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.index >= self.data.len() {
+                return None;
+            }
+            self.index += 1;
+            Some(&self.data[self.index-1])
+        }
+    }
+    */
+
+    /*
+    impl IntoIterator for CollectionElectron {
+        type Item = SingleElectron;
+        type IntoIter = std::vec::IntoIter<Self::Item>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            self.data.into_iter()
+        }
+    }
+    */
+
+    /*
+    impl Iterator for CollectionElectron {
+        type Item = SingleElectron;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            None
+        }
+    }
+    */
+
     pub struct Inspector<'a> {
         iter: std::slice::Iter<'a, SingleElectron>,
     }
@@ -88,13 +135,15 @@ pub mod cluster {
             let mut last: SingleElectron = self.first_value();
             let mut cluster_vec: Vec<SingleElectron> = Vec::new();
             
-            for x in self.values() {
+            for x in self.iter() {
                     //if x.cluster_size() == 1 {
                         if x.is_new_cluster(&last) {
                             //if let Some(new_from_cluster) = SingleElectron::new_from_cluster_fixed_tot(&cluster_vec, 10) {
                             //if let Some(new_from_cluster) = SingleElectron::new_from_cluster_max_tot(&cluster_vec) {
-                            if let Some(new_from_cluster) = SingleElectron::new_from_cluster(&cluster_vec) {
-                                for electrons_in_cluster in new_from_cluster.values() {
+                            if let Some(new_from_cluster) = SingleElectron::new_from_cluster_fixed_tot_calibration(&cluster_vec, 10) {
+                            //if let Some(new_from_cluster) = SingleElectron::new_from_cluster(&cluster_vec) {
+                                //for electrons_in_cluster in new_from_cluster.values() {
+                                for electrons_in_cluster in new_from_cluster.iter() {
                                     new_elist.add_electron(*electrons_in_cluster);
                                 }
                             }
@@ -425,6 +474,32 @@ pub mod cluster {
             val.add_electron(SingleElectron{
                 data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size)
             });
+            Some(val)
+        }
+        
+        fn new_from_cluster_fixed_tot_calibration(cluster: &[SingleElectron], tot_value: u16) -> Option<CollectionElectron> {
+
+            let cluster_size = cluster.iter().
+                count();
+            
+            let cluster_filter_size = cluster.iter().
+                filter(|se| se.tot() == tot_value).
+                count();
+
+            if cluster_filter_size == 0 {return None};
+
+            let time_reference = cluster.iter().
+                filter(|se| se.tot() == tot_value).
+                map(|se| se.time()).
+                next().
+                unwrap();
+
+            let mut val = CollectionElectron::new();
+            for electron in cluster {
+                val.add_electron(SingleElectron{
+                    data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot(), cluster_size),
+                });
+            }
             Some(val)
         }
 

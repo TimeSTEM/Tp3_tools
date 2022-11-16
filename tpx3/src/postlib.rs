@@ -65,6 +65,10 @@ pub mod coincidence {
             self.spectrum[val.x() as usize] += 1;
         }
 
+        fn spim_size(&self) -> (POSITION, POSITION) {
+            self.spim_size
+        }
+
         fn add_spim_line(&mut self, pack: &Pack) {
             if let Some(spim_tdc) = &mut self.spim_tdc {
                 spim_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
@@ -1179,5 +1183,130 @@ pub mod ntime_resolved {
             println!("File: {:?}. Total number of bytes read (MB): ~ {}", file, total_size/1_000_000);
             println!("Time elapsed: {:?}", start.elapsed());
         };
+    }
+}
+
+pub mod Calibration {
+
+    use std::fs::OpenOptions;
+    use crate::spimlib::SPIM_PIXELS;
+    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack, packet_change};
+    use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
+    use crate::postlib::isi_box;
+    use crate::errorlib::Tp3ErrorKind;
+    use std::io;
+    use std::io::prelude::*;
+    use std::fs;
+    use std::convert::TryInto;
+    use std::time::Instant;
+    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
+    use crate::auxiliar::ConfigAcquisition;
+    use crate::auxiliar::value_types::*;
+    use indicatif::{ProgressBar, ProgressStyle};
+    
+    fn as_bytes<T>(v: &[T]) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u8,
+                v.len() * std::mem::size_of::<T>())
+        }
+    }
+    
+    fn output_data<T>(data: &[T], name: &str) {
+        let mut tfile = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(name).unwrap();
+        tfile.write_all(as_bytes(data)).unwrap();
+        println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
+    }
+    
+    pub struct CalibrationData {
+        rel_time: Vec<i16>,
+        x: Vec<u16>,
+        y: Vec<u16>,
+        tot: Vec<u16>,
+        cluster_size: Vec<usize>,
+    }
+
+    impl CalibrationData {
+        fn new() -> Self {
+            CalibrationData {rel_time: Vec::new(), x: Vec::new(), y: Vec::new(), tot: Vec::new(), cluster_size: Vec::new()}
+        }
+        fn add_electron(&mut self, val: SingleElectron) {
+            self.rel_time.push(0);
+        }
+        fn append_from_collection(&mut self, val: CollectionElectron) {
+            for electron in val.iter() {
+                self.x.push(electron.x().try_into().unwrap());
+                self.y.push(electron.y().try_into().unwrap());
+                self.tot.push(electron.tot().try_into().unwrap());
+                let electron_time = electron.time() as i64;
+                let electron_tot_reference = electron.frame_dt() as i64;
+                let time_diference = (electron_time - electron_tot_reference) as i16;
+                self.rel_time.push(time_diference);
+                self.cluster_size.push(electron.cluster_size());
+            }
+        }
+        pub fn output_relative_calibration_time(&self) {
+            output_data(&self.rel_time, "relative_calibration_time.txt");
+        }
+        pub fn output_x(&self) {
+            output_data(&self.x, "relative_calibration_x.txt");
+        }
+        pub fn output_y(&self) {
+            output_data(&self.y, "relative_calibration_y.txt");
+        }
+        pub fn output_tot(&self) {
+            output_data(&self.tot, "relative_calibration_tot.txt");
+        }
+    }
+
+    pub fn calibrate(file: &str) -> io::Result<()> {
+
+        let mut ci = 0;
+        let mut file = fs::File::open(file)?;
+        let progress_size = file.metadata().unwrap().len() as u64;
+        let mut buffer: Vec<u8> = vec![0; 512_000_000];
+        let mut total_size = 0;
+        
+        let bar = ProgressBar::new(progress_size);
+        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Searching for clusters and calibrating data")
+                      .unwrap()
+                      .progress_chars("=>-"));
+        
+        let mut calibration_data = CalibrationData::new();
+        while let Ok(size) = file.read(&mut buffer) {
+            let mut temp_electrons = CollectionElectron::new();
+            if size == 0 {println!("Finished Reading."); break;}
+            total_size += size;
+            bar.inc(512_000_000 as u64);
+            buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+                match *pack_oct {
+                    [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
+                    _ => {
+                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
+                        match packet.id() {
+                            11 => {
+                                let se = SingleElectron::new(&packet, None);
+                                temp_electrons.add_electron(se);
+                                //temp_edata.electron.add_electron(se);
+                            },
+                            _ => {},
+                        };
+                    },
+                };
+            });
+            temp_electrons.sort();
+            temp_electrons.try_clean(0, true);
+            calibration_data.append_from_collection(temp_electrons);
+        }
+        calibration_data.output_relative_calibration_time();
+        calibration_data.output_x();
+        calibration_data.output_y();
+        calibration_data.output_tot();
+        println!("Total number of bytes read {}", total_size);
+        Ok(())
     }
 }
