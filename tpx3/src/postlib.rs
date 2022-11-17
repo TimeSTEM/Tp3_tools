@@ -1223,9 +1223,9 @@ pub mod Calibration {
     }
     
     pub struct CalibrationData {
-        rel_time: Vec<i16>,
+        rel_time: Vec<i8>,
         x: Vec<u16>,
-        y: Vec<u16>,
+        y: Vec<u8>,
         tot: Vec<u16>,
         cluster_size: Vec<usize>,
     }
@@ -1244,7 +1244,7 @@ pub mod Calibration {
                 self.tot.push(electron.tot().try_into().unwrap());
                 let electron_time = electron.time() as i64;
                 let electron_tot_reference = electron.frame_dt() as i64;
-                let time_diference = (electron_time - electron_tot_reference) as i16;
+                let time_diference = (electron_time - electron_tot_reference) as i8;
                 self.rel_time.push(time_diference);
                 self.cluster_size.push(electron.cluster_size());
             }

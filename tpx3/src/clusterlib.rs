@@ -129,7 +129,7 @@ pub mod cluster {
             self.data.push(electron);
         }
         
-        fn remove_clusters(&mut self) {
+        fn remove_clusters<T: ClusterCorrection>(&mut self, correction_type: T) {
             
             let mut new_elist: CollectionElectron = CollectionElectron::new();
             let mut last: SingleElectron = self.first_value();
@@ -184,7 +184,7 @@ pub mod cluster {
 
         fn clean(&mut self) {
             //self.sort();
-            self.remove_clusters();
+            self.remove_clusters(AverageCorrection);
             //for _x in 0..2 {
             //    self.remove_clusters();
             //}
@@ -498,7 +498,7 @@ pub mod cluster {
             for electron in cluster {
                 if electron.tot() == tot_value {continue;} //ToT reference not need to be output
                 let time_diference = electron.time() as i64 - time_reference as i64;
-                if time_diference.abs() > 50 {continue;} //must not output far-away data from tot==reference value
+                if time_diference.abs() > 100 {continue;} //must not output far-away data from tot==reference value
                 val.add_electron(SingleElectron{
                     data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot(), cluster_size),
                 });
@@ -517,13 +517,15 @@ pub mod cluster {
 
     struct AverageCorrection;
     struct LargestToT;
+    struct FixedToT(u16);
+    struct FixedToTCalibration(u16);
 
     trait ClusterCorrection {
-        fn new_from_cluster(cluster: &[SingleElectron]) -> Option<SingleElectron>;
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron>;
     }
 
     impl ClusterCorrection for AverageCorrection {
-        fn new_from_cluster(cluster: &[SingleElectron]) -> Option<SingleElectron> {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
             let cluster_size = cluster.iter().
                 count();
 
@@ -554,15 +556,17 @@ pub mod cluster {
                 sum::<usize>() as u16;
             
             let cluster_size: usize = cluster_size;
-
-            Some(SingleElectron {
+            
+            let mut val = CollectionElectron::new();
+            val.add_electron(SingleElectron {
                 data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
-            })
+            });
+            Some(val)
         }
     }
     
     impl ClusterCorrection for LargestToT {
-        fn new_from_cluster(cluster: &[SingleElectron]) -> Option<SingleElectron> {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
             let cluster_size = cluster.iter().
                 count();
             
@@ -594,14 +598,90 @@ pub mod cluster {
                 sum::<usize>() as u16;
 
             let cluster_size: usize = cluster_size;
-
-            Some(SingleElectron {
+            
+            let mut val = CollectionElectron::new();
+            val.add_electron(SingleElectron {
                 data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
-            })
+            });
+            Some(val)
         }
     }
 
+    impl ClusterCorrection for FixedToT {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
 
+            let cluster_size = cluster.iter().
+                count();
+            
+            let cluster_filter_size = cluster.iter().
+                filter(|se| se.tot() == self.0).
+                count();
 
+            if cluster_filter_size == 0 {return None};
 
+            let t_mean:TIME = cluster.iter().
+                filter(|se| se.tot() == self.0).
+                map(|se| se.time()).sum::<TIME>() / cluster_filter_size as TIME;
+            
+            let x_mean:POSITION = cluster.iter().
+                map(|se| se.x()).
+                sum::<POSITION>() / cluster_size as POSITION;
+            
+            let y_mean:POSITION = cluster.iter().
+                map(|se| se.y()).
+                sum::<POSITION>() / cluster_size as POSITION;
+            
+            let time_dif: TIME = cluster.iter().
+                map(|se| se.frame_dt()).
+                next().
+                unwrap();
+            
+            let slice: COUNTER = cluster.iter().
+                map(|se| se.spim_slice()).
+                next().
+                unwrap();
+            
+            let tot_sum: u16 = cluster.iter().
+                map(|se| se.tot() as usize).
+                sum::<usize>() as u16;
+
+            let cluster_size: usize = cluster_size;
+
+            let mut val = CollectionElectron::new();
+            val.add_electron(SingleElectron{
+                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
+            });
+            Some(val)
+        }
+    }
+    impl ClusterCorrection for FixedToTCalibration {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
+
+            let cluster_size = cluster.iter().
+                count();
+            
+            let cluster_filter_size = cluster.iter().
+                filter(|se| se.tot() == self.0).
+                count();
+
+            if cluster_filter_size != 1 {return None}; //It must be one for complete control
+
+            let time_reference = cluster.iter().
+                filter(|se| se.tot() == self.0).
+                map(|se| se.time()).
+                next().
+                unwrap();
+
+            let mut val = CollectionElectron::new();
+            for electron in cluster {
+                if electron.tot() == self.0 {continue;} //ToT reference not need to be output
+                let time_diference = electron.time() as i64 - time_reference as i64;
+                if time_diference.abs() > 100 {continue;} //must not output far-away data from tot==reference value
+                val.add_electron(SingleElectron{
+                    data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot(), cluster_size),
+                });
+            }
+            Some(val)
+        }
+    }
 }
