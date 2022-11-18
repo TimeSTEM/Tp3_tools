@@ -6,14 +6,14 @@ pub mod cluster {
     use crate::spimlib;
     use crate::tdclib::PeriodicTdcRef;
     use std::fs::OpenOptions;
-    use std::io::{Write, Read};
+    use std::io::Write;
     use std::ops::Deref;
     use rayon::prelude::*;
     use crate::auxiliar::value_types::*;
     
     const CLUSTER_DET: TIME = 128; //Cluster time window (in 640 Mhz or 1.5625).
     const CLUSTER_SPATIAL: isize = 2; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
-    //static TIME_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_shift_8.dat");
+    static TIME_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction.dat");
     
     /*
     fn as_bytes<T>(v: &[T]) -> &[u8] {
@@ -348,8 +348,8 @@ pub mod cluster {
             (self.data.0*6) as i64 - reference_time as i64
         }
         pub fn corrected_relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
-            //self.relative_time_from_abs_tdc(reference_time) - transform_time_shift(TIME_SHIFT)[401 * (self.x() as usize + 1024 * self.y() as usize) + self.tot() as usize] as i64
-            (self.data.0*6) as i64 - reference_time as i64
+            self.relative_time_from_abs_tdc(reference_time) - transform_time_shift(TIME_SHIFT)[401 * (self.x() as usize + 1024 * self.y() as usize) + self.tot() as usize] as i64
+            //(self.data.0*6) as i64 - reference_time as i64
             //self.relative_time_from_abs_tdc(reference_time) - transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64 - transform_time_shift(TOT_TIME_SHIFT)[self.tot() as usize] as i64
         }
         pub fn spim_slice(&self) -> COUNTER {

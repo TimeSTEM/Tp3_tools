@@ -5,7 +5,7 @@ use std::env;
 
 fn main() -> Result<(), ErrorType> {
     let args: Vec<String> = env::args().collect();
-    let config_set = ConfigAcquisition::new(&args, cluster::AverageCorrection);
+    let config_set = ConfigAcquisition::new(&args, cluster::NoCorrection);
     let mut meas = TimeSpectralSpatial::new(&config_set)?;
     analyze_data(&config_set.file(), &mut meas);
 
