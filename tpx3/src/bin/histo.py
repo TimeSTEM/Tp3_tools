@@ -366,7 +366,7 @@ plt.tight_layout()
 
 
 #Plot of the histograms
-fig, ax = plt.subplots(nrows=3, ncols=2, sharex=False, figsize=(10, 10))
+fig, ax = plt.subplots(nrows=3, ncols=2, sharex=False, figsize=(8, 8))
 ax[0, 0].hist(t[indexes2], density=False, bins=tbin, range=(tmin, tmax), alpha=0.2, color='red', label='Channel 0')
 ax[0, 0].hist(t[indexes12], density = False, bins=tbin, range=(tmin, tmax), alpha=0.2, color='blue', label='Channel 12')
 
@@ -385,8 +385,8 @@ plot_histogram(indexes_chip3, 'chip3', 0)
 plot_histogram(indexes_chip4, 'chip4', 0)
 
 #1, 1
-ax[1, 1].hist(t[indexes_tot], density = True, bins=tbin, range=(tmin, tmax), alpha=1.0, color='blue', label='All_indexes')
-ax[1, 1].hist(corr_t[indexes_tot], density = True, bins=tbin, range=(tmin, tmax), alpha=1.0, color='green', label='Corrected_data')
+ax[1, 1].hist(t[indexes_tot], density = False, bins=tbin, range=(tmin, tmax), alpha=1.0, color='blue', label='All_indexes')
+ax[1, 1].hist(corr_t[indexes_tot], density = False, bins=tbin, range=(tmin, tmax), alpha=0.8, color='green', label='Corrected_data')
 #plot_histogram(indexes_g2_chip1, 'g2_chip1', 1)
 #plot_histogram(indexes_g2_chip2, 'g2_chip2', 1)
 #plot_histogram(indexes_g2_chip3, 'g2_chip3', 1)
@@ -426,8 +426,8 @@ ax.set_xlabel('Photon correlation delay (units of IsiBox 120 ps)')
 #Histogram of the CLE
 fig, ax = plt.subplots(ncols=2, sharey=True)
 ax[0].hist2d(xH, t, bins=[SPIM_PIXELS, tbin], range = [[0, SPIM_PIXELS], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(0.2))
-#ax[1].hist2d(xH[indexes12], t[indexes12], bins=[SPIM_PIXELS, tbin], range = [[0, SPIM_PIXELS], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(0.2))
-ax[1].hist2d(xH[indexes_g2], t[indexes_g2], bins=[SPIM_PIXELS, tbin], range = [[0, SPIM_PIXELS], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(0.2))
+ax[1].hist2d(xH, corr_t, bins=[SPIM_PIXELS, tbin], range = [[0, SPIM_PIXELS], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(0.2))
+#ax[1].hist2d(xH[indexes_g2], t[indexes_g2], bins=[SPIM_PIXELS, tbin], range = [[0, SPIM_PIXELS], [tmin, tmax]], cmap = 'viridis', norm = mcolors.PowerNorm(0.2))
 ax[0].set_xlabel('Energy (pixels)')
 ax[1].set_xlabel('Energy (pixels)')
 ax[0].set_ylabel('Time delay (units of 260 ps)')
