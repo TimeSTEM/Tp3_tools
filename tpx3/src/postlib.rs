@@ -6,6 +6,7 @@ pub mod coincidence {
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
     use crate::postlib::isi_box;
     use crate::errorlib::Tp3ErrorKind;
+    use crate::clusterlib::cluster::ClusterCorrection;
     use std::io;
     use std::io::prelude::*;
     use std::fs;
@@ -39,7 +40,7 @@ pub mod coincidence {
     }
 
     //Non-standard data types 
-    pub struct ElectronData {
+    pub struct ElectronData<T> {
         time: Vec<TIME>,
         channel: Vec<u8>,
         rel_time: Vec<i16>,
@@ -56,11 +57,11 @@ pub mod coincidence {
         spim_size: (POSITION, POSITION),
         spim_index: Vec<POSITION>,
         spim_tdc: Option<PeriodicTdcRef>,
-        remove_clusters: bool,
+        remove_clusters: T,
         overflow_electrons: COUNTER,
     }
 
-    impl ElectronData {
+    impl<T: ClusterCorrection> ElectronData<T> {
         fn add_electron(&mut self, val: SingleElectron) {
             self.spectrum[val.x() as usize] += 1;
         }
@@ -126,7 +127,7 @@ pub mod coincidence {
             }
 
             temp_edata.electron.sort();
-            temp_edata.electron.try_clean(0, self.remove_clusters);
+            temp_edata.electron.try_clean(0, &self.remove_clusters);
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
@@ -169,7 +170,7 @@ pub mod coincidence {
             self.spim_tdc = Some(spim_tdc);
         }
 
-        pub fn new(my_config: &ConfigAcquisition) -> Self {
+        pub fn new(my_config: &ConfigAcquisition<T>) -> Self {
             Self {
                 time: Vec::new(),
                 channel: Vec::new(),
@@ -187,7 +188,7 @@ pub mod coincidence {
                 spim_size: (my_config.xspim, my_config.yspim),
                 spim_index: Vec::new(),
                 spim_tdc: None,
-                remove_clusters: my_config.remove_cluster,
+                remove_clusters: my_config.correction_type,
                 overflow_electrons: 0,
             }
         }
@@ -372,7 +373,7 @@ pub mod coincidence {
 
             
 
-    pub fn search_coincidence(file: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
+    pub fn search_coincidence<T: ClusterCorrection>(file: &str, coinc_data: &mut ElectronData<T>) -> io::Result<()> {
 
         let mut file0 = fs::File::open(file)?;
         let progress_size = file0.metadata().unwrap().len() as u64;
@@ -436,7 +437,7 @@ pub mod coincidence {
         Ok(())
     }
     
-    pub fn correct_coincidence_isi(file1: &str, file2: &str, coinc_data: &mut ElectronData, jump_tp3_tdc: usize) -> Result<(TempTdcData, usize), Tp3ErrorKind> {
+    pub fn correct_coincidence_isi<T: ClusterCorrection>(file1: &str, file2: &str, coinc_data: &mut ElectronData<T>, jump_tp3_tdc: usize) -> Result<(TempTdcData, usize), Tp3ErrorKind> {
     
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(file1).unwrap();
@@ -566,7 +567,7 @@ pub mod coincidence {
         Ok((temp_tdc, total_size))
     }
 
-    pub fn search_coincidence_isi(file1: &str, file2: &str, coinc_data: &mut ElectronData) -> io::Result<()> {
+    pub fn search_coincidence_isi<T: ClusterCorrection>(file1: &str, file2: &str, coinc_data: &mut ElectronData<T>) -> io::Result<()> {
     
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(file1)?;
@@ -1037,6 +1038,7 @@ pub mod ntime_resolved {
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
+    use crate::clusterlib::cluster::ClusterCorrection;
     use std::convert::TryInto;
     use std::time::Instant;
     use std::fs;
@@ -1052,7 +1054,7 @@ pub mod ntime_resolved {
     }
 
     /// This enables spatial+spectral analysis in a certain spectral window.
-    pub struct TimeSpectralSpatial {
+    pub struct TimeSpectralSpatial<T> {
         spectra: Vec<POSITION>, //Main data,
         indices: Vec<u16>,
         ensemble: CollectionElectron, //A collection of single electrons,
@@ -1061,7 +1063,7 @@ pub mod ntime_resolved {
         tdc_periodic: Option<PeriodicTdcRef>, //The periodic tdc. Can be none if xspim and yspim <= 1,
         spim_tdc_type: TdcType, //The tdc type for the spim,
         extra_tdc_type: TdcType, //The tdc type for the external,
-        remove_clusters: bool,
+        remove_clusters: T,
     }
 
     fn as_bytes<T>(v: &[T]) -> &[u8] {
@@ -1072,7 +1074,7 @@ pub mod ntime_resolved {
         }
     }
     
-    impl TimeSpectralSpatial {
+    impl<T: ClusterCorrection> TimeSpectralSpatial<T> {
         fn prepare(&mut self, file: &mut fs::File) {
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
@@ -1105,7 +1107,7 @@ pub mod ntime_resolved {
         }
 
         fn process(&mut self) -> Result<(), ErrorType> {
-            if self.ensemble.try_clean(0, self.remove_clusters) {
+            if self.ensemble.try_clean(0, &self.remove_clusters) {
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
                         self.spectra.push(index);
@@ -1129,7 +1131,7 @@ pub mod ntime_resolved {
             Ok(())
         }
             
-        pub fn new(my_config: &ConfigAcquisition) -> Result<Self, ErrorType> {
+        pub fn new(my_config: &ConfigAcquisition<T>) -> Result<Self, ErrorType> {
 
             Ok(Self {
                 spectra: Vec::new(),
@@ -1140,12 +1142,12 @@ pub mod ntime_resolved {
                 tdc_periodic: None,
                 spim_tdc_type: TdcType::TdcOneFallingEdge,
                 extra_tdc_type: TdcType::TdcTwoRisingEdge,
-                remove_clusters: my_config.remove_cluster,
+                remove_clusters: my_config.correction_type,
             })
         }
     }
 
-    pub fn analyze_data(file: &str, data: &mut TimeSpectralSpatial) {
+    pub fn analyze_data<T: ClusterCorrection>(file: &str, data: &mut TimeSpectralSpatial<T>) {
         let mut prepare_file = fs::File::open(file).expect("Could not open desired file.");
         data.prepare(&mut prepare_file);
         
@@ -1186,22 +1188,15 @@ pub mod ntime_resolved {
     }
 }
 
-pub mod Calibration {
+pub mod calibration {
 
     use std::fs::OpenOptions;
-    use crate::spimlib::SPIM_PIXELS;
     use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack, packet_change};
-    use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
-    use crate::postlib::isi_box;
-    use crate::errorlib::Tp3ErrorKind;
     use std::io;
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
-    use std::time::Instant;
-    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
-    use crate::auxiliar::ConfigAcquisition;
-    use crate::auxiliar::value_types::*;
+    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
     use indicatif::{ProgressBar, ProgressStyle};
     
     fn as_bytes<T>(v: &[T]) -> &[u8] {
@@ -1263,7 +1258,7 @@ pub mod Calibration {
         }
     }
 
-    pub fn calibrate(file: &str) -> io::Result<()> {
+    pub fn calibrate<T: ClusterCorrection>(file: &str, correction_type: &T) -> io::Result<()> {
 
         let mut ci = 0;
         let mut file = fs::File::open(file)?;
@@ -1299,7 +1294,7 @@ pub mod Calibration {
                 };
             });
             temp_electrons.sort();
-            temp_electrons.try_clean(0, true);
+            temp_electrons.try_clean(0, correction_type);
             calibration_data.append_from_collection(temp_electrons);
         }
         calibration_data.output_relative_calibration_time();

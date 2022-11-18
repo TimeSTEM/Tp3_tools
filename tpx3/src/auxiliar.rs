@@ -2,6 +2,7 @@
 use crate::errorlib::Tp3ErrorKind;
 use std::net::{TcpListener, TcpStream, SocketAddr};
 use crate::auxiliar::misc::TimepixRead;
+use crate::clusterlib::cluster::ClusterCorrection;
 use std::io::{Read, Write};
 use std::fs::File;
 use crate::auxiliar::value_types::*;
@@ -312,7 +313,7 @@ impl Settings {
 
     }
 
-    fn create_spec_debug_settings(_config: &ConfigAcquisition) -> Settings  {
+    fn create_spec_debug_settings<T: ClusterCorrection>(_config: &ConfigAcquisition<T>) -> Settings  {
         Settings {
             bin: false,
             bytedepth: 4,
@@ -330,7 +331,7 @@ impl Settings {
         }
     }
     
-    fn create_spim_debug_settings(config: &ConfigAcquisition) -> Settings  {
+    fn create_spim_debug_settings<T: ClusterCorrection>(config: &ConfigAcquisition<T>) -> Settings  {
         Settings {
             bin: true,
             bytedepth: 4,
@@ -349,7 +350,7 @@ impl Settings {
     }
 
     
-    pub fn create_debug_settings(config: &ConfigAcquisition) -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
+    pub fn create_debug_settings<T: ClusterCorrection>(config: &ConfigAcquisition<T>) -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
     
         let my_settings = match config.is_spim {
             true => Settings::create_spim_debug_settings(config),
@@ -371,20 +372,20 @@ impl Settings {
 
 ///`ConfigAcquisition` is used for post-processing, where reading external TPX3 files is necessary.
 #[derive(Debug)]
-pub struct ConfigAcquisition {
+pub struct ConfigAcquisition<T: ClusterCorrection> {
     pub file: String,
     pub is_spim: bool,
     pub xspim: POSITION,
     pub yspim: POSITION,
-    pub remove_cluster: bool,
+    pub correction_type: T,
 }
 
-impl ConfigAcquisition {
+impl<T: ClusterCorrection> ConfigAcquisition<T> {
     pub fn file(&self) -> &str {
         &self.file
     }
 
-    pub fn new(args: &[String]) -> Self {
+    pub fn new(args: &[String], correction_type: T) -> Self {
         if args.len() != 5+1 {
             panic!("One must provide 5 ({} detected) arguments (file, is_spim, xspim, yspim, remove_cluster).", args.len()-1);
         }
@@ -392,16 +393,15 @@ impl ConfigAcquisition {
         let is_spim = args[2] == "1";
         let xspim = args[3].parse::<POSITION>().unwrap();
         let yspim = args[4].parse::<POSITION>().unwrap();
-        let remove_cluster = args[5] == "1";
         let my_config = 
         ConfigAcquisition {
             file,
             is_spim,
             xspim,
             yspim,
-            remove_cluster
+            correction_type,
         };
-        println!("Configuration for the coincidence measurement is {:?}", my_config);
+        //println!("Configuration for the coincidence measurement is {:?}", my_config);
         my_config
     }
 }

@@ -138,11 +138,7 @@ pub mod cluster {
             for x in self.iter() {
                     //if x.cluster_size() == 1 {
                         if x.is_new_cluster(&last) {
-                            //if let Some(new_from_cluster) = SingleElectron::new_from_cluster_fixed_tot(&cluster_vec, 10) {
-                            //if let Some(new_from_cluster) = SingleElectron::new_from_cluster_max_tot(&cluster_vec) {
-                            if let Some(new_from_cluster) = SingleElectron::new_from_cluster_fixed_tot_calibration(&cluster_vec, 10) {
-                            //if let Some(new_from_cluster) = SingleElectron::new_from_cluster(&cluster_vec) {
-                                //for electrons_in_cluster in new_from_cluster.values() {
+                            if let Some(new_from_cluster) = correction_type.new_from_cluster(&cluster_vec) {
                                 for electrons_in_cluster in new_from_cluster.iter() {
                                     new_elist.add_electron(*electrons_in_cluster);
                                 }
@@ -184,21 +180,21 @@ pub mod cluster {
 
         fn clean(&mut self) {
             //self.sort();
-            self.remove_clusters(AverageCorrection);
+            self.remove_clusters(FixedToTCalibration(10));
             //for _x in 0..2 {
             //    self.remove_clusters();
             //}
         }
 
-        pub fn try_clean(&mut self, min_size: usize, remove: bool) -> bool {
-            if self.data.len() > min_size && remove {
+        pub fn try_clean<T: ClusterCorrection>(&mut self, min_size: usize, correction_type: &T) -> bool {
+            if self.data.len() > min_size && correction_type.must_correct() {
                 let nelectrons = self.data.len();
                 self.clean();
                 let new_nelectrons = self.data.len();
                 //println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
                 return true
             }
-            !remove
+            !correction_type.must_correct()
         }
         
         pub fn clear(&mut self) {
@@ -515,13 +511,20 @@ pub mod cluster {
         }
     }
 
-    struct AverageCorrection;
+    #[derive(Copy, Clone)]
+    pub struct AverageCorrection;
+    #[derive(Copy, Clone)]
     struct LargestToT;
+    #[derive(Copy, Clone)]
     struct FixedToT(u16);
-    struct FixedToTCalibration(u16);
+    #[derive(Copy, Clone)]
+    pub struct FixedToTCalibration(pub u16);
+    #[derive(Copy, Clone)]
+    pub struct NoCorrection;
 
-    trait ClusterCorrection {
+    pub trait ClusterCorrection: Copy {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron>;
+        fn must_correct(&self) -> bool {true}
     }
 
     impl ClusterCorrection for AverageCorrection {
@@ -683,5 +686,18 @@ pub mod cluster {
             }
             Some(val)
         }
+    }
+
+    impl ClusterCorrection for NoCorrection {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
+            let mut val = CollectionElectron::new();
+            for electron in cluster {
+                val.add_electron(SingleElectron{
+                    data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), 1),
+            });
+            }
+            Some(val)
+        }
+        fn must_correct(&self) -> bool {false}
     }
 }

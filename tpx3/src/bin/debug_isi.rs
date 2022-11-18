@@ -2,6 +2,7 @@
 //use timepix3::postlib::isi_box;
 use timepix3::postlib::coincidence::*;
 use timepix3::auxiliar::ConfigAcquisition;
+use timepix3::clusterlib::cluster::NoCorrection;
 use std::env;
 //use timepix3::isi_box_new;
 //use std::{thread, time};
@@ -13,7 +14,7 @@ fn main() {
     //isi_box::get_channel_timelist(f);
     
     let args: Vec<String> = env::args().collect();
-    let config_set = ConfigAcquisition::new(&args[0..6]);
+    let config_set = ConfigAcquisition::new(&args[0..6], NoCorrection);
     let mut coinc_data = ElectronData::new(&config_set);
     search_coincidence_isi(&config_set.file(), &args[6], &mut coinc_data).unwrap();
     

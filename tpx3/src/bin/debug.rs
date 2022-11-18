@@ -2,13 +2,14 @@ use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::{Settings, ConfigAcquisition};
 use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
 use timepix3::{speclib, spimlib, spimlib::SpimKind};
+use timepix3::clusterlib::cluster::NoCorrection;
 use std::env;
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
     
     let args: Vec<String> = env::args().collect();
-    let config_set = ConfigAcquisition::new(&args);
+    let config_set = ConfigAcquisition::new(&args, NoCorrection);
     
     let (my_settings, mut pack, ns) = Settings::create_debug_settings(&config_set)?;
 
