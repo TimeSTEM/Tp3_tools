@@ -13,8 +13,11 @@ pub mod cluster {
     
     const CLUSTER_DET: TIME = 128; //Cluster time window (in 640 Mhz or 1.5625).
     const CLUSTER_SPATIAL: isize = 2; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
-    static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction.dat");
-    static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_4by4.dat");
+    //static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction.dat");
+    //"time_walk_correction" is by meaning the coefficients. time_walk_correction_x1 is by fitting
+    //everything with a single exponential. time_walk_correction_x1_new is by doing a double exponential from 0-20 and 20-60. Time_shift_correction_4by4 is by isi323 using single fitting and double fitting (_new).
+    static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction_x1_new.dat");
+    static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_new.dat");
     
     /*
     fn as_bytes<T>(v: &[T]) -> &[u8] {
@@ -130,7 +133,7 @@ pub mod cluster {
             self.data.push(electron);
         }
         
-        fn remove_clusters<T: ClusterCorrection>(&mut self, correction_type: T) {
+        fn remove_clusters<T: ClusterCorrection>(&mut self, correction_type: &T) {
             
             let mut new_elist: CollectionElectron = CollectionElectron::new();
             let mut last: SingleElectron = self.first_value();
@@ -179,9 +182,9 @@ pub mod cluster {
             self.data.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
         }
 
-        fn clean(&mut self) {
+        fn clean<T: ClusterCorrection>(&mut self, correction_type: &T) {
             //self.sort();
-            self.remove_clusters(FixedToTCalibration(10));
+            self.remove_clusters(correction_type);
             //for _x in 0..2 {
             //    self.remove_clusters();
             //}
@@ -190,7 +193,7 @@ pub mod cluster {
         pub fn try_clean<T: ClusterCorrection>(&mut self, min_size: usize, correction_type: &T) -> bool {
             if self.data.len() > min_size && correction_type.must_correct() {
                 let nelectrons = self.data.len();
-                self.clean();
+                self.clean(correction_type);
                 let new_nelectrons = self.data.len();
                 //println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
                 return true
@@ -516,9 +519,9 @@ pub mod cluster {
     #[derive(Copy, Clone)]
     pub struct AverageCorrection;
     #[derive(Copy, Clone)]
-    struct LargestToT;
+    pub struct LargestToT;
     #[derive(Copy, Clone)]
-    struct FixedToT(u16);
+    pub struct FixedToT(u16);
     #[derive(Copy, Clone)]
     pub struct FixedToTCalibration(pub u16);
     #[derive(Copy, Clone)]
@@ -574,19 +577,26 @@ pub mod cluster {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
             let cluster_size = cluster.iter().
                 count();
-            
+
+            let electron = cluster.iter().
+                reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
+                unwrap();
+
+            /*
             let t_mean:TIME = cluster.iter().
                 reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
                 map(|se| se.time()).
                 unwrap();
             
             let x_mean:POSITION = cluster.iter().
+                reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
                 map(|se| se.x()).
-                sum::<POSITION>() / cluster_size as POSITION;
+                unwrap();
             
             let y_mean:POSITION = cluster.iter().
+                reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
                 map(|se| se.y()).
-                sum::<POSITION>() / cluster_size as POSITION;
+                unwrap();
             
             let time_dif: TIME = cluster.iter().
                 map(|se| se.frame_dt()).
@@ -599,14 +609,17 @@ pub mod cluster {
                 unwrap();
             
             let tot_sum: u16 = cluster.iter().
-                map(|se| se.tot() as usize).
-                sum::<usize>() as u16;
+                reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
+                map(|se| se.tot()).
+                unwrap();
+            */
 
             let cluster_size: usize = cluster_size;
             
             let mut val = CollectionElectron::new();
             val.add_electron(SingleElectron {
-                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
+                //data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
+                data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
             });
             Some(val)
         }
