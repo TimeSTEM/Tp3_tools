@@ -517,15 +517,19 @@ pub mod cluster {
     }
 
     #[derive(Copy, Clone)]
-    pub struct AverageCorrection;
+    pub struct AverageCorrection; //
     #[derive(Copy, Clone)]
-    pub struct LargestToT;
+    pub struct LargestToT; //
     #[derive(Copy, Clone)]
-    pub struct FixedToT(u16);
+    pub struct LargestToTWithThreshold(pub u16); //Threshold
     #[derive(Copy, Clone)]
-    pub struct FixedToTCalibration(pub u16);
+    pub struct ClosestToTWithThreshold(pub u16, pub u16); //Reference, Threshold
     #[derive(Copy, Clone)]
-    pub struct NoCorrection;
+    pub struct FixedToT(u16); //Reference
+    #[derive(Copy, Clone)]
+    pub struct FixedToTCalibration(pub u16); //Reference
+    #[derive(Copy, Clone)]
+    pub struct NoCorrection; //
 
     pub trait ClusterCorrection: Copy {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron>;
@@ -582,43 +586,52 @@ pub mod cluster {
                 reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
                 unwrap();
 
-            /*
-            let t_mean:TIME = cluster.iter().
+            let cluster_size: usize = cluster_size;
+            
+            let mut val = CollectionElectron::new();
+            val.add_electron(SingleElectron {
+                data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
+            });
+            Some(val)
+        }
+    }
+    
+    impl ClusterCorrection for LargestToTWithThreshold {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
+            let cluster_size = cluster.iter().
+                count();
+
+            let electron = cluster.iter().
                 reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
-                map(|se| se.time()).
                 unwrap();
-            
-            let x_mean:POSITION = cluster.iter().
-                reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
-                map(|se| se.x()).
-                unwrap();
-            
-            let y_mean:POSITION = cluster.iter().
-                reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
-                map(|se| se.y()).
-                unwrap();
-            
-            let time_dif: TIME = cluster.iter().
-                map(|se| se.frame_dt()).
-                next().
-                unwrap();
-            
-            let slice: COUNTER = cluster.iter().
-                map(|se| se.spim_slice()).
-                next().
-                unwrap();
-            
-            let tot_sum: u16 = cluster.iter().
-                reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
-                map(|se| se.tot()).
-                unwrap();
-            */
+
+            if electron.tot() < self.0 {return None;}
 
             let cluster_size: usize = cluster_size;
             
             let mut val = CollectionElectron::new();
             val.add_electron(SingleElectron {
-                //data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
+                data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
+            });
+            Some(val)
+        }
+    }
+    
+    impl ClusterCorrection for ClosestToTWithThreshold {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
+            let cluster_size = cluster.iter().
+                count();
+
+            let electron = cluster.iter().
+                reduce(|accum, item| if (accum.tot() as i16 - self.0 as i16).abs() < (item.tot() as i16 - self.0 as i16).abs() {accum} else {item}).
+                unwrap();
+
+            if electron.tot() < self.1 {return None;}
+
+            let cluster_size: usize = cluster_size;
+            
+            let mut val = CollectionElectron::new();
+            val.add_electron(SingleElectron {
                 data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
             });
             Some(val)

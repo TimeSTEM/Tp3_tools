@@ -480,7 +480,7 @@ pub mod coincidence {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {break;}
             if quit {break;}
-            //if (total_size / 1_000_000) > 10_000 {break;}
+            if (total_size / 1_000_000) > 10_000 {break;}
             total_size += size;
             bar.inc(ISI_BUFFER_SIZE as u64);
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
@@ -641,7 +641,7 @@ pub mod isi_box {
     use crate::auxiliar::value_types::*;
     use indicatif::{ProgressBar, ProgressStyle};
     
-    const ISI_CHANNEL_SHIFT: [u32; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0];
+    const ISI_CHANNEL_SHIFT: [u32; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
