@@ -516,6 +516,18 @@ pub mod cluster {
         }
     }
 
+    #[macro_export]
+    macro_rules! cluster_correction {
+        //($x: expr) => {
+            (0) => {cluster::NoCorrection::new()};
+            (1) => {cluster::AverageCorrection::new()};
+            (2) => {cluster::LargestToT::new()};
+            (3) => {cluster::LargestToTWithThreshold::new()};
+            (4) => {cluster::ClosestToTWithThreshold::new()};
+            (5) => {cluster::FixedToT::new()};
+            (6) => {cluster::FixedToTCalibration::new()};
+    }
+
     #[derive(Copy, Clone)]
     pub struct AverageCorrection; //
     #[derive(Copy, Clone)]
@@ -533,6 +545,7 @@ pub mod cluster {
 
     pub trait ClusterCorrection: Copy {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron>;
+        fn new() -> Self;
         fn must_correct(&self) -> bool {true}
     }
 
@@ -575,6 +588,10 @@ pub mod cluster {
             });
             Some(val)
         }
+
+        fn new() -> Self {
+            AverageCorrection
+        }
     }
     
     impl ClusterCorrection for LargestToT {
@@ -593,6 +610,9 @@ pub mod cluster {
                 data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
             });
             Some(val)
+        }
+        fn new() -> Self {
+            LargestToT
         }
     }
     
@@ -615,6 +635,9 @@ pub mod cluster {
             });
             Some(val)
         }
+        fn new() -> Self {
+            LargestToTWithThreshold(0)
+        }
     }
     
     impl ClusterCorrection for ClosestToTWithThreshold {
@@ -635,6 +658,9 @@ pub mod cluster {
                 data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
             });
             Some(val)
+        }
+        fn new() -> Self {
+            ClosestToTWithThreshold(50, 0)
         }
     }
 
@@ -684,6 +710,9 @@ pub mod cluster {
             });
             Some(val)
         }
+        fn new() -> Self {
+            FixedToT(50)
+        }
     }
     impl ClusterCorrection for FixedToTCalibration {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
@@ -714,6 +743,9 @@ pub mod cluster {
             }
             Some(val)
         }
+        fn new() -> Self {
+            FixedToTCalibration(10)
+        }
     }
 
     impl ClusterCorrection for NoCorrection {
@@ -725,6 +757,9 @@ pub mod cluster {
             });
             }
             Some(val)
+        }
+        fn new() -> Self {
+            NoCorrection
         }
         fn must_correct(&self) -> bool {false}
     }
