@@ -528,24 +528,30 @@ pub mod cluster {
             (6) => {cluster::FixedToTCalibration::new()};
     }
 
+    //fn test() -> Box<dyn ClusterCorrection> {
+    //    Box::new(NoCorrection)
+    //}
+
     #[derive(Copy, Clone)]
     pub struct AverageCorrection; //
     #[derive(Copy, Clone)]
     pub struct LargestToT; //
     #[derive(Copy, Clone)]
-    pub struct LargestToTWithThreshold(pub u16); //Threshold
+    pub struct LargestToTWithThreshold(u16, u16); //Threshold min and max
     #[derive(Copy, Clone)]
-    pub struct ClosestToTWithThreshold(pub u16, pub u16); //Reference, Threshold
+    pub struct ClosestToTWithThreshold(u16, u16, u16); //Reference, Threshold min and max
     #[derive(Copy, Clone)]
     pub struct FixedToT(u16); //Reference
     #[derive(Copy, Clone)]
-    pub struct FixedToTCalibration(pub u16); //Reference
+    pub struct FixedToTCalibration(u16); //Reference
     #[derive(Copy, Clone)]
     pub struct NoCorrection; //
 
     pub trait ClusterCorrection: Copy {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron>;
         fn new() -> Self;
+        fn set_reference(&mut self, _reference: u16) {}
+        fn set_thresholds(&mut self, _min_val: u16, _max_val: u16) {}
         fn must_correct(&self) -> bool {true}
     }
 
@@ -592,6 +598,7 @@ pub mod cluster {
         fn new() -> Self {
             AverageCorrection
         }
+
     }
     
     impl ClusterCorrection for LargestToT {
@@ -626,6 +633,7 @@ pub mod cluster {
                 unwrap();
 
             if electron.tot() < self.0 {return None;}
+            if electron.tot() > self.1 {return None;}
 
             let cluster_size: usize = cluster_size;
             
@@ -636,7 +644,12 @@ pub mod cluster {
             Some(val)
         }
         fn new() -> Self {
-            LargestToTWithThreshold(0)
+            LargestToTWithThreshold(30, 100)
+        }
+
+        fn set_thresholds(&mut self, min_val: u16, max_val: u16) {
+            self.0 = min_val;
+            self.1 = max_val;
         }
     }
     
@@ -650,6 +663,7 @@ pub mod cluster {
                 unwrap();
 
             if electron.tot() < self.1 {return None;}
+            if electron.tot() > self.2 {return None;}
 
             let cluster_size: usize = cluster_size;
             
@@ -660,7 +674,16 @@ pub mod cluster {
             Some(val)
         }
         fn new() -> Self {
-            ClosestToTWithThreshold(50, 0)
+            ClosestToTWithThreshold(50, 30, 100)
+        }
+
+        fn set_reference(&mut self, reference: u16) {
+            self.0 = reference;
+        }
+        
+        fn set_thresholds(&mut self, min_val: u16, max_val: u16) {
+            self.1 = min_val;
+            self.2 = max_val;
         }
     }
 
@@ -713,6 +736,10 @@ pub mod cluster {
         fn new() -> Self {
             FixedToT(50)
         }
+        
+        fn set_reference(&mut self, reference: u16) {
+            self.0 = reference;
+        }
     }
     impl ClusterCorrection for FixedToTCalibration {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
@@ -745,6 +772,9 @@ pub mod cluster {
         }
         fn new() -> Self {
             FixedToTCalibration(10)
+        }
+        fn set_reference(&mut self, reference: u16) {
+            self.0 = reference;
         }
     }
 

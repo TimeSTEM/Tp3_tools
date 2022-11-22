@@ -2,7 +2,7 @@
 use crate::errorlib::Tp3ErrorKind;
 use std::net::{TcpListener, TcpStream, SocketAddr};
 use crate::auxiliar::misc::TimepixRead;
-use crate::clusterlib::cluster::ClusterCorrection;
+use crate::clusterlib::{cluster, cluster::ClusterCorrection};
 use std::io::{Read, Write};
 use std::fs::File;
 use crate::auxiliar::value_types::*;
@@ -393,7 +393,9 @@ impl<T: ClusterCorrection> ConfigAcquisition<T> {
         let is_spim = args[2] == "1";
         let xspim = args[3].parse::<POSITION>().unwrap();
         let yspim = args[4].parse::<POSITION>().unwrap();
-        let my_config = 
+        //let value = args[5].parse::<usize>().unwrap();
+        
+        let mut my_config = 
         ConfigAcquisition {
             file,
             is_spim,

@@ -1,12 +1,14 @@
 use timepix3::postlib::coincidence::*;
 use timepix3::auxiliar::ConfigAcquisition;
-use timepix3::clusterlib::cluster;
+use timepix3::clusterlib::{cluster, cluster::ClusterCorrection};
 use std::env;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args: Vec<String> = env::args().collect();
-    let config_set = ConfigAcquisition::new(&args, cluster::NoCorrection);
+    let cluster_correction = cluster::ClosestToTWithThreshold::new();
+    //let config_set = ConfigAcquisition::new(&args, cluster::NoCorrection);
+    let config_set = ConfigAcquisition::new(&args[0..6], cluster_correction);
     let mut coinc_data = ElectronData::new(&config_set);
     search_coincidence(&config_set.file(), &mut coinc_data)?;
     

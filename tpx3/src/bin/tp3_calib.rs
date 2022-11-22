@@ -1,12 +1,12 @@
 use timepix3::postlib::calibration::*;
 use timepix3::auxiliar::ConfigAcquisition;
-use timepix3::clusterlib::cluster;
+use timepix3::clusterlib::{cluster, cluster::ClusterCorrection};
 use std::env;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args: Vec<String> = env::args().collect();
-    let config_set = ConfigAcquisition::new(&args, cluster::FixedToTCalibration(10));
+    let config_set = ConfigAcquisition::new(&args, cluster::FixedToTCalibration::new());
     calibrate(&config_set.file(), &config_set.correction_type).unwrap();
     Ok(())
 }
