@@ -533,15 +533,16 @@ pub mod cluster {
     }
     */
 
-    pub fn grab_cluster_correction(val: u8) -> Box<dyn ClusterCorrection> {
+    pub fn grab_cluster_correction(val: &str) -> Box<dyn ClusterCorrection> {
         match val {
-            0 => {Box::new(NoCorrection)},
-            1 => {Box::new(AverageCorrection)},
-            2 => {Box::new(LargestToT)},
-            3 => {Box::new(LargestToTWithThreshold(30, 100))},
-            4 => {Box::new(ClosestToTWithThreshold(50, 30, 100))},
-            5 => {Box::new(FixedToT(10))},
-            _ => {Box::new(FixedToTCalibration(10))},
+            "0" => {Box::new(NoCorrection)},
+            "1" => {Box::new(AverageCorrection)},
+            "2" => {Box::new(LargestToT)},
+            "3" => {Box::new(LargestToTWithThreshold(30, 100))},
+            "4" => {Box::new(ClosestToTWithThreshold(50, 30, 100))},
+            "5" => {Box::new(FixedToT(10))},
+            "6" => {Box::new(FixedToTCalibration(10))},
+            _ => {Box::new(NoCorrection)},
         }
     }
     
@@ -567,9 +568,15 @@ pub mod cluster {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
             (**self).new_from_cluster(cluster)
         }
-        //fn new() -> Self {
-        //    Box::new(S::new())
-        //}
+        fn set_reference(&mut self, reference: u16) {
+            (**self).set_reference(reference);
+        }
+        fn set_thresholds(&mut self, min_val: u16, max_val: u16) {
+            (**self).set_thresholds(min_val, max_val);
+        }
+        fn must_correct(&self) -> bool {
+            (**self).must_correct()
+        }
     }
     
 
