@@ -19,8 +19,8 @@ fn main() {
     }
     //let config_set = ConfigAcquisition::new(&args[0..6], cluster::ClosestToTWithThreshold(50, 30));
     let config_set = ConfigAcquisition::new(&args[0..6], cluster::NoCorrection);
-    let mut coinc_data = ElectronData::new(&config_set);
-    search_coincidence_isi(&config_set.file(), &args[6], &mut coinc_data).unwrap();
+    let mut coinc_data = ElectronData::new(config_set);
+    search_coincidence_isi(&args[6], &mut coinc_data).unwrap();
     
     coinc_data.output_spectrum(true);
     coinc_data.output_corr_spectrum(false);

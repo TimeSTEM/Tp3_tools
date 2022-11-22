@@ -60,6 +60,7 @@ pub mod coincidence {
         spim_tdc: Option<PeriodicTdcRef>,
         remove_clusters: T,
         overflow_electrons: COUNTER,
+        file: String,
     }
 
     impl<T: ClusterCorrection> ElectronData<T> {
@@ -172,7 +173,7 @@ pub mod coincidence {
             self.spim_tdc = Some(spim_tdc);
         }
 
-        pub fn new(my_config: &ConfigAcquisition<T>) -> Self {
+        pub fn new(my_config: ConfigAcquisition<T>) -> Self {
             Self {
                 time: Vec::new(),
                 channel: Vec::new(),
@@ -193,6 +194,7 @@ pub mod coincidence {
                 spim_tdc: None,
                 remove_clusters: my_config.correction_type,
                 overflow_electrons: 0,
+                file: my_config.file,
             }
         }
         
@@ -377,9 +379,9 @@ pub mod coincidence {
 
             
 
-    pub fn search_coincidence<T: ClusterCorrection>(file: &str, coinc_data: &mut ElectronData<T>) -> io::Result<()> {
+    pub fn search_coincidence<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> io::Result<()> {
 
-        let mut file0 = fs::File::open(file)?;
+        let mut file0 = fs::File::open(&coinc_data.file)?;
         let progress_size = file0.metadata().unwrap().len() as u64;
         let spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
             if coinc_data.spim_size.0 == 0 || coinc_data.spim_size.1 == 0 {
@@ -394,7 +396,7 @@ pub mod coincidence {
         let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0, None).expect("Could not create non periodic (photon) TDC reference.");
 
         let mut ci = 0;
-        let mut file = fs::File::open(file)?;
+        let mut file = fs::File::open(&coinc_data.file)?;
         let mut buffer: Vec<u8> = vec![0; 512_000_000];
         let mut total_size = 0;
         let start = Instant::now();
@@ -441,10 +443,10 @@ pub mod coincidence {
         Ok(())
     }
     
-    pub fn correct_coincidence_isi<T: ClusterCorrection>(file1: &str, file2: &str, coinc_data: &mut ElectronData<T>, jump_tp3_tdc: usize) -> Result<(TempTdcData, usize), Tp3ErrorKind> {
+    pub fn correct_coincidence_isi<T: ClusterCorrection>(file2: &str, coinc_data: &mut ElectronData<T>, jump_tp3_tdc: usize) -> Result<(TempTdcData, usize), Tp3ErrorKind> {
     
         //TP3 configurating TDC Ref
-        let mut file0 = fs::File::open(file1).unwrap();
+        let mut file0 = fs::File::open(&coinc_data.file).unwrap();
         let progress_size = file0.metadata().unwrap().len();
         let mut spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
@@ -472,7 +474,7 @@ pub mod coincidence {
         
         let mut offset = 0;
         let mut ci = 0;
-        let mut file = fs::File::open(file1).unwrap();
+        let mut file = fs::File::open(&coinc_data.file).unwrap();
         let mut buffer: Vec<u8> = vec![0; ISI_BUFFER_SIZE];
         let mut total_size = 0;
         let mut quit = false;
@@ -571,24 +573,24 @@ pub mod coincidence {
         Ok((temp_tdc, total_size))
     }
 
-    pub fn search_coincidence_isi<T: ClusterCorrection>(file1: &str, file2: &str, coinc_data: &mut ElectronData<T>) -> io::Result<()> {
+    pub fn search_coincidence_isi<T: ClusterCorrection>(file2: &str, coinc_data: &mut ElectronData<T>) -> io::Result<()> {
     
         //TP3 configurating TDC Ref
-        let mut file0 = fs::File::open(file1)?;
+        let mut file0 = fs::File::open(&coinc_data.file)?;
         let progress_size = file0.metadata().unwrap().len() as u64;
         let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         //coinc_data.prepare_spim(spim_tdc);
     
         
-        let (mut temp_tdc, max_total_size) = match correct_coincidence_isi(file1, file2, coinc_data, 0) {
+        let (mut temp_tdc, max_total_size) = match correct_coincidence_isi(file2, coinc_data, 0) {
             Ok((tt, mts)) => (tt, mts),
-            Err(_) => correct_coincidence_isi(file1, file2, coinc_data, 1).unwrap(),
+            Err(_) => correct_coincidence_isi(file2, coinc_data, 1).unwrap(),
         };
         
         //let (mut temp_tdc, max_total_size) = correct_coincidence_isi(file1, file2, coinc_data, 0).unwrap();
 
         let mut ci = 0;
-        let mut file = fs::File::open(file1)?;
+        let mut file = fs::File::open(&coinc_data.file)?;
         let mut buffer: Vec<u8> = vec![0; ISI_BUFFER_SIZE];
         let mut total_size = 0;
         
@@ -1068,6 +1070,7 @@ pub mod ntime_resolved {
         spim_tdc_type: TdcType, //The tdc type for the spim,
         extra_tdc_type: TdcType, //The tdc type for the external,
         remove_clusters: T,
+        file: String,
     }
 
     fn as_bytes<T>(v: &[T]) -> &[u8] {
@@ -1135,7 +1138,7 @@ pub mod ntime_resolved {
             Ok(())
         }
             
-        pub fn new(my_config: &ConfigAcquisition<T>) -> Result<Self, ErrorType> {
+        pub fn new(my_config: ConfigAcquisition<T>) -> Result<Self, ErrorType> {
 
             Ok(Self {
                 spectra: Vec::new(),
@@ -1147,16 +1150,18 @@ pub mod ntime_resolved {
                 spim_tdc_type: TdcType::TdcOneFallingEdge,
                 extra_tdc_type: TdcType::TdcTwoRisingEdge,
                 remove_clusters: my_config.correction_type,
+                file: my_config.file,
+                
             })
         }
     }
 
-    pub fn analyze_data<T: ClusterCorrection>(file: &str, data: &mut TimeSpectralSpatial<T>) {
-        let mut prepare_file = fs::File::open(file).expect("Could not open desired file.");
+    pub fn analyze_data<T: ClusterCorrection>(data: &mut TimeSpectralSpatial<T>) {
+        let mut prepare_file = fs::File::open(&data.file).expect("Could not open desired file.");
         data.prepare(&mut prepare_file);
         
         let start = Instant::now();
-        let mut my_file = fs::File::open(file).expect("Could not open desired file.");
+        let mut my_file = fs::File::open(&data.file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = vec![0; 1_000_000_000];
         
         let mut total_size = 0;
@@ -1186,7 +1191,7 @@ pub mod ntime_resolved {
                 };
             });
             data.process().expect("Error in processing");
-            println!("File: {:?}. Total number of bytes read (MB): ~ {}", file, total_size/1_000_000);
+            println!("File: {:?}. Total number of bytes read (MB): ~ {}", &data.file, total_size/1_000_000);
             println!("Time elapsed: {:?}", start.elapsed());
         };
     }

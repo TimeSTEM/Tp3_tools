@@ -9,8 +9,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cluster_correction = cluster::ClosestToTWithThreshold::new();
     //let config_set = ConfigAcquisition::new(&args, cluster::NoCorrection);
     let config_set = ConfigAcquisition::new(&args[0..6], cluster_correction);
-    let mut coinc_data = ElectronData::new(&config_set);
-    search_coincidence(&config_set.file(), &mut coinc_data)?;
+    let mut coinc_data = ElectronData::new(config_set);
+    search_coincidence(&mut coinc_data)?;
     
     //let mut entries = fs::read_dir("DataCoinc")?;
     //while let Some(x) = entries.next() {
