@@ -518,6 +518,8 @@ pub mod cluster {
         }
     }
 
+
+    /*
     #[macro_export]
     macro_rules! cluster_correction {
         //($x: expr) => {
@@ -529,26 +531,47 @@ pub mod cluster {
             (5) => {cluster::FixedToT::new()};
             (6) => {cluster::FixedToTCalibration::new()};
     }
+    */
 
-    //fn test() -> Box<dyn ClusterCorrection> {
-    //    Box::new(NoCorrection)
-    //}
+    pub fn grab_cluster_correction(val: u8) -> Box<dyn ClusterCorrection> {
+        match val {
+            0 => {Box::new(NoCorrection)},
+            1 => {Box::new(AverageCorrection)},
+            2 => {Box::new(LargestToT)},
+            3 => {Box::new(LargestToTWithThreshold(30, 100))},
+            4 => {Box::new(ClosestToTWithThreshold(50, 30, 100))},
+            5 => {Box::new(FixedToT(10))},
+            _ => {Box::new(FixedToTCalibration(10))},
+        }
+    }
+    
 
     pub struct AverageCorrection; //
     pub struct LargestToT; //
-    pub struct LargestToTWithThreshold(u16, u16); //Threshold min and max
-    pub struct ClosestToTWithThreshold(u16, u16, u16); //Reference, Threshold min and max
-    pub struct FixedToT(u16); //Reference
-    pub struct FixedToTCalibration(u16); //Reference
+    pub struct LargestToTWithThreshold(pub u16, pub u16); //Threshold min and max
+    pub struct ClosestToTWithThreshold(pub u16, pub u16, pub u16); //Reference, Threshold min and max
+    pub struct FixedToT(pub u16); //Reference
+    pub struct FixedToTCalibration(pub u16); //Reference
     pub struct NoCorrection; //
 
     pub trait ClusterCorrection: {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron>;
-        fn new() -> Self;
+        //fn new() -> Self where Self: Sized;
         fn set_reference(&mut self, _reference: u16) {}
         fn set_thresholds(&mut self, _min_val: u16, _max_val: u16) {}
         fn must_correct(&self) -> bool {true}
     }
+
+    
+    impl<S: ClusterCorrection + ?Sized> ClusterCorrection for Box<S> {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
+            (**self).new_from_cluster(cluster)
+        }
+        //fn new() -> Self {
+        //    Box::new(S::new())
+        //}
+    }
+    
 
     impl ClusterCorrection for AverageCorrection {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
@@ -590,9 +613,9 @@ pub mod cluster {
             Some(val)
         }
 
-        fn new() -> Self {
-            AverageCorrection
-        }
+        //fn new() -> Self {
+        //    AverageCorrection
+        //}
 
     }
     
@@ -613,9 +636,9 @@ pub mod cluster {
             });
             Some(val)
         }
-        fn new() -> Self {
-            LargestToT
-        }
+        //fn new() -> Self {
+        //    LargestToT
+        //}
     }
     
     impl ClusterCorrection for LargestToTWithThreshold {
@@ -638,9 +661,9 @@ pub mod cluster {
             });
             Some(val)
         }
-        fn new() -> Self {
-            LargestToTWithThreshold(30, 100)
-        }
+        //fn new() -> Self {
+        //    LargestToTWithThreshold(30, 100)
+        //}
 
         fn set_thresholds(&mut self, min_val: u16, max_val: u16) {
             self.0 = min_val;
@@ -668,9 +691,9 @@ pub mod cluster {
             });
             Some(val)
         }
-        fn new() -> Self {
-            ClosestToTWithThreshold(50, 30, 100)
-        }
+        //fn new() -> Self {
+        //    ClosestToTWithThreshold(50, 30, 100)
+        //}
 
         fn set_reference(&mut self, reference: u16) {
             self.0 = reference;
@@ -728,9 +751,9 @@ pub mod cluster {
             });
             Some(val)
         }
-        fn new() -> Self {
-            FixedToT(50)
-        }
+        //fn new() -> Self {
+        //    FixedToT(50)
+        //}
         
         fn set_reference(&mut self, reference: u16) {
             self.0 = reference;
@@ -765,9 +788,9 @@ pub mod cluster {
             }
             Some(val)
         }
-        fn new() -> Self {
-            FixedToTCalibration(10)
-        }
+        //fn new() -> Self {
+        //    FixedToTCalibration(10)
+        //}
         fn set_reference(&mut self, reference: u16) {
             self.0 = reference;
         }
@@ -783,9 +806,9 @@ pub mod cluster {
             }
             Some(val)
         }
-        fn new() -> Self {
-            NoCorrection
-        }
+        //fn new() -> Self {
+        //    NoCorrection
+        //}
         fn must_correct(&self) -> bool {false}
     }
 }
