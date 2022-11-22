@@ -482,7 +482,7 @@ pub mod coincidence {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {break;}
             if quit {break;}
-            if (total_size / 1_000_000) > 10_000 {break;}
+            //if (total_size / 1_000_000) > 10_000 {break;}
             total_size += size;
             bar.inc(ISI_BUFFER_SIZE as u64);
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {

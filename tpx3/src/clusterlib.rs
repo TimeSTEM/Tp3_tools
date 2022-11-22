@@ -15,9 +15,9 @@ pub mod cluster {
     const CLUSTER_SPATIAL: isize = 2; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
     //static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction.dat");
     //"time_walk_correction" is by meaning the coefficients. time_walk_correction_x1 is by fitting
-    //everything with a single exponential. time_walk_correction_x1_new is by doing a double exponential from 0-20 and 20-60. Time_shift_correction_4by4 is by isi323 using single fitting and double fitting (_new).
+    //everything with a single exponential. time_walk_correction_x1_new is by doing a double exponential from 0-20 and 20-60. Time_shift_correction_4by4 is by isi323 using single fitting and double fitting (_new). The _new_22-11-2022 is by using more experimental data
     static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction_x1_new.dat");
-    static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_new.dat");
+    static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_new_22-11-2022.dat");
     
     /*
     fn as_bytes<T>(v: &[T]) -> &[u8] {
