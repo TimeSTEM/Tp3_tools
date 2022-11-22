@@ -16,8 +16,8 @@ pub mod cluster {
     //static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction.dat");
     //"time_walk_correction" is by meaning the coefficients. time_walk_correction_x1 is by fitting
     //everything with a single exponential. time_walk_correction_x1_new is by doing a double exponential from 0-20 and 20-60. Time_shift_correction_4by4 is by isi323 using single fitting and double fitting (_new).
-    //static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction_x1_new.dat");
-    //static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_new.dat");
+    static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction_x1_new.dat");
+    static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_new.dat");
     
     /*
     fn as_bytes<T>(v: &[T]) -> &[u8] {
@@ -352,12 +352,10 @@ pub mod cluster {
             (self.data.0*6) as i64 - reference_time as i64
         }
         pub fn corrected_relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
-            0
-            //self.relative_time_from_abs_tdc(reference_time) - transform_time_shift(TIME_WALK_SHIFT)[401 * (self.x() as usize + 1024 * self.y() as usize) + self.tot() as usize] as i64
+            self.relative_time_from_abs_tdc(reference_time) - transform_time_shift(TIME_WALK_SHIFT)[401 * (self.x() as usize + 1024 * self.y() as usize) + self.tot() as usize] as i64
         }
         pub fn fully_corrected_relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
-            0
-            //self.relative_time_from_abs_tdc(reference_time) - transform_time_shift(TIME_WALK_SHIFT)[401 * (self.x() as usize + 1024 * self.y() as usize) + self.tot() as usize] as i64 - transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64
+            self.relative_time_from_abs_tdc(reference_time) - transform_time_shift(TIME_WALK_SHIFT)[401 * (self.x() as usize + 1024 * self.y() as usize) + self.tot() as usize] as i64 - transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64
         }
         pub fn spim_slice(&self) -> COUNTER {
             self.data.4
@@ -538,8 +536,8 @@ pub mod cluster {
             "0" => {Box::new(NoCorrection)},
             "1" => {Box::new(AverageCorrection)},
             "2" => {Box::new(LargestToT)},
-            "3" => {Box::new(LargestToTWithThreshold(30, 100))},
-            "4" => {Box::new(ClosestToTWithThreshold(50, 30, 100))},
+            "3" => {Box::new(LargestToTWithThreshold(30, 80))},
+            "4" => {Box::new(ClosestToTWithThreshold(50, 30, 80))},
             "5" => {Box::new(FixedToT(10))},
             "6" => {Box::new(FixedToTCalibration(10))},
             _ => {Box::new(NoCorrection)},

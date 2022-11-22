@@ -386,9 +386,9 @@ impl<T: ClusterCorrection> ConfigAcquisition<T> {
     }
 
     pub fn new(args: &[String], correction_type: T) -> Self {
-        if args.len() != 5+1 {
-            panic!("One must provide 5 ({} detected) arguments (file, is_spim, xspim, yspim, remove_cluster).", args.len()-1);
-        }
+        //if args.len() != 4+1 {
+        //    panic!("One must provide 5 ({} detected) arguments (file, is_spim, xspim, yspim).", args.len()-1);
+        //}
         let file = args[1].clone();
         let is_spim = args[2] == "1";
         let xspim = args[3].parse::<POSITION>().unwrap();
