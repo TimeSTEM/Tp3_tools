@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args: Vec<String> = env::args().collect();
     let cluster_correction_type = cluster::grab_cluster_correction(&args[5]);
-    let config_set = ConfigAcquisition::new(&args[0..6], cluster_correction_type);
+    let config_set = ConfigAcquisition::new(&args, cluster_correction_type);
     let mut coinc_data = ElectronData::new(config_set);
     search_coincidence(&mut coinc_data)?;
     

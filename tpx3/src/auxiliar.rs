@@ -2,7 +2,7 @@
 use crate::errorlib::Tp3ErrorKind;
 use std::net::{TcpListener, TcpStream, SocketAddr};
 use crate::auxiliar::misc::TimepixRead;
-use crate::clusterlib::{cluster, cluster::ClusterCorrection};
+use crate::clusterlib::cluster::ClusterCorrection;
 use std::io::{Read, Write};
 use std::fs::File;
 use crate::auxiliar::value_types::*;
@@ -395,16 +395,13 @@ impl<T: ClusterCorrection> ConfigAcquisition<T> {
         let yspim = args[4].parse::<POSITION>().unwrap();
         //let value = args[5].parse::<usize>().unwrap();
         
-        let mut my_config = 
         ConfigAcquisition {
             file,
             is_spim,
             xspim,
             yspim,
             correction_type,
-        };
-        //println!("Configuration for the coincidence measurement is {:?}", my_config);
-        my_config
+        }
     }
 }
 
@@ -419,7 +416,7 @@ pub mod simple_log {
 
     pub fn start() -> io::Result<File> {
         let dir = Path::new("Microscope/Log/");
-        create_dir_all(&dir)?;
+        create_dir_all(dir)?;
         let date = Local::now().format("%Y-%m-%d").to_string() + ".txt";
         let file_path = dir.join(&date);
         let mut file = OpenOptions::new().write(true).truncate(false).create(true).append(true).open(file_path)?;
@@ -555,8 +552,8 @@ pub mod compressing {
                     count.push(counter);
                     counter = 0;
                 } else {
-                    repetitions = repetitions + 1;
-                    counter = counter + 1;
+                    repetitions += 1;
+                    counter += 1;
                 }
                 last_index = *val;
 

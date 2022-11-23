@@ -11,12 +11,12 @@ pub mod coincidence {
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
-    use std::time::Instant;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use crate::auxiliar::ConfigAcquisition;
     use crate::auxiliar::value_types::*;
     use indicatif::{ProgressBar, ProgressStyle};
 
+    const BUFFER_SIZE: usize = 512_000_000; //Buffer size reading files when using TP3 and IsiBox
     const ISI_BUFFER_SIZE: usize = 512_000_000; //Buffer size reading files when using TP3 and IsiBox
     const ISI_TP3_MAX_DIF: u64 = 1_000; //In units of 640 Mhz;
     const PHOTON_LIST_STEP: usize = 10;
@@ -66,10 +66,6 @@ pub mod coincidence {
     impl<T: ClusterCorrection> ElectronData<T> {
         fn add_electron(&mut self, val: SingleElectron) {
             self.spectrum[val.x() as usize] += 1;
-        }
-
-        fn spim_size(&self) -> (POSITION, POSITION) {
-            self.spim_size
         }
 
         fn add_spim_line(&mut self, pack: &Pack) {
@@ -146,7 +142,7 @@ pub mod coincidence {
                 for ph in &temp_tdc.clean_tdc[min_index..] {
                     if ((ph.0/6) < val.time() + time_delay + time_width) && (val.time() + time_delay < (ph.0/6) + time_width) {
                         self.add_coincident_electron(*val, *ph);
-                        if let None = index_to_increase {
+                        if index_to_increase.is_none() {
                             index_to_increase = Some(index)
                         }
                         photons_per_electron += 1;
@@ -187,8 +183,8 @@ pub mod coincidence {
                 y: Vec::new(),
                 tot: Vec::new(),
                 cluster_size: Vec::new(),
-                spectrum: vec![0; SPIM_PIXELS as usize*1],
-                corr_spectrum: vec![0; SPIM_PIXELS as usize*1],
+                spectrum: vec![0; SPIM_PIXELS as usize],
+                corr_spectrum: vec![0; SPIM_PIXELS as usize],
                 is_spim: my_config.is_spim,
                 spim_size: (my_config.xspim, my_config.yspim),
                 spim_index: Vec::new(),
@@ -398,9 +394,8 @@ pub mod coincidence {
 
         let mut ci = 0;
         let mut file = fs::File::open(&coinc_data.file)?;
-        let mut buffer: Vec<u8> = vec![0; 512_000_000];
+        let mut buffer: Vec<u8> = vec![0; BUFFER_SIZE];
         let mut total_size = 0;
-        let start = Instant::now();
         
         let bar = ProgressBar::new(progress_size);
         bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Searching electron photon coincidences")
@@ -410,7 +405,7 @@ pub mod coincidence {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
-            bar.inc(512_000_000 as u64);
+            bar.inc(BUFFER_SIZE as u64);
             //println!("MB Read: {}", total_size / 1_000_000 );
             let mut temp_edata = TempElectronData::new();
             let mut temp_tdc = TempTdcData::new();
@@ -721,44 +716,6 @@ pub mod isi_box {
             if data < self.last_time {self.overflow+=1;}
             self.last_time = data;
             self.counter += 1;
-
-            /*
-            //This happens at the second loop. There is no start_time in the first interaction.
-            if let (Some(start_time), None) = (self.start_time, self.line_time) {
-                let val = if data > start_time {
-                    data - start_time
-                } else {
-                    data + 67108864 - start_time
-                };
-                println!("Line time is now: {}.", val * 120 / 1_000_000 );
-                self.line_time = Some(val);
-            }
-
-            
-            //Setting the start_time
-            if self.counter > 0 {
-                if let None = self.start_time {
-                    println!("Start time is now: {}", data );
-                    self.start_time = Some(data);
-                };
-            }
-            */
-        }
-
-        fn get_line_low(&self) -> u32 {
-            self.x * self.pixel_time
-        }
-
-        fn get_abs_time(&self, data: u32) -> TIME {
-            //If data is smaller than the last line, we must add an overflow to the absolute time. However the
-            //self.overflow is not controlled here, but only by the scan lines.
-            if data > self.last_time {
-                self.overflow as TIME * 67108864 + data as TIME
-            } else { 
-                (self.overflow+1) as TIME * 67108864 + data as TIME
-            }
-            //self.overflow as u64 * 67108864 + data as u64
-            //let time2 = (self.counter-1) as u64 * self.line_time.unwrap() as u64 + self.start_time.unwrap() as u64;
         }
 
         fn add_event(&mut self, channel: u32, data: u32) {
@@ -816,7 +773,7 @@ pub mod isi_box {
                     collect::<Vec<_>>();
                 //println!("***IsiBox***: Start of a correction cycle. The size is {}.", iter.len());
                 let mut number_of_insertions = 0;
-                if iter.len() == 0 {
+                if iter.is_empty() {
                     //println!("***IsiBox***: values successfully corrected."); 
                     break;}
                 for val in iter {
@@ -855,7 +812,7 @@ pub mod isi_box {
 
             self.data_raw.0.iter_mut().for_each(|x| {
                 //Correction time
-                let raw_time = x.0.clone();
+                let raw_time = x.0;
                 if x.0 > last_time {
                     x.0 += overflow as TIME * 67108864;
                 } else {
@@ -893,10 +850,7 @@ pub mod isi_box {
 
             let _advance = iter2.next();
 
-            let iter3 = iter1.
-                zip(iter2);
-
-            iter3
+            iter1.zip(iter2)
         }
         
         pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER, Option<i16>)> {
@@ -1239,9 +1193,6 @@ pub mod calibration {
         fn new() -> Self {
             CalibrationData {rel_time: Vec::new(), x: Vec::new(), y: Vec::new(), tot: Vec::new(), cluster_size: Vec::new()}
         }
-        fn add_electron(&mut self, val: SingleElectron) {
-            self.rel_time.push(0);
-        }
         fn append_from_collection(&mut self, val: CollectionElectron) {
             for electron in val.iter() {
                 self.x.push(electron.x().try_into().unwrap());
@@ -1289,20 +1240,17 @@ pub mod calibration {
             let mut temp_electrons = CollectionElectron::new();
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
-            bar.inc(512_000_000 as u64);
+            bar.inc(512_000_000_u64);
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
                         let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
-                        match packet.id() {
-                            11 => {
-                                let se = SingleElectron::new(&packet, None);
-                                temp_electrons.add_electron(se);
-                                //temp_edata.electron.add_electron(se);
-                            },
-                            _ => {},
-                        };
+                        if packet.id() == 11 {
+                            let se = SingleElectron::new(&packet, None);
+                            temp_electrons.add_electron(se);
+                            //temp_edata.electron.add_electron(se);
+                        }
                     },
                 };
             });

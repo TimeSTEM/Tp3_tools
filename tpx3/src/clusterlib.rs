@@ -61,7 +61,8 @@ pub mod cluster {
         }
 
         pub fn first_value(&self) -> SingleElectron {
-            *self.data.iter().filter(|x| x.cluster_size() == 1).next().unwrap()
+            //*self.data.iter().filter(|x| x.cluster_size() == 1).next().unwrap()
+            *self.data.iter().find(|x| x.cluster_size() == 1).unwrap()
         }
     }
 
@@ -73,43 +74,6 @@ pub mod cluster {
             &self.data
         }
     }
-    
-    
-
-    /*
-    impl<'a> Iterator for &CollectionElectron {
-        type Item = &SingleElectron;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            if self.index >= self.data.len() {
-                return None;
-            }
-            self.index += 1;
-            Some(&self.data[self.index-1])
-        }
-    }
-    */
-
-    /*
-    impl IntoIterator for CollectionElectron {
-        type Item = SingleElectron;
-        type IntoIter = std::vec::IntoIter<Self::Item>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.data.into_iter()
-        }
-    }
-    */
-
-    /*
-    impl Iterator for CollectionElectron {
-        type Item = SingleElectron;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            None
-        }
-    }
-    */
 
     pub struct Inspector<'a> {
         iter: std::slice::Iter<'a, SingleElectron>,
@@ -120,6 +84,12 @@ pub mod cluster {
 
         fn next(&mut self) -> Option<Self::Item> {
             self.iter.next()
+        }
+    }
+
+    impl Default for CollectionElectron {
+        fn default() -> Self {
+            Self::new()
         }
     }
 
@@ -192,9 +162,9 @@ pub mod cluster {
 
         pub fn try_clean<T: ClusterCorrection>(&mut self, min_size: usize, correction_type: &T) -> bool {
             if self.data.len() > min_size && correction_type.must_correct() {
-                let nelectrons = self.data.len();
+                let _nelectrons = self.data.len();
                 self.clean(correction_type);
-                let new_nelectrons = self.data.len();
+                let _new_nelectrons = self.data.len();
                 //println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
                 return true
             }
@@ -211,70 +181,12 @@ pub mod cluster {
                 .create(true)
                 .open(&filename).expect("Could not output time histogram.");
             let out: Vec<String> = self.data.iter().filter(|se| se.spim_slice()==slice && se.tot() > 60 && se.tot() < 220).map(|x| x.to_string()).collect::<Vec<String>>();
-            if out.len() > 0 {
+            if !out.is_empty() {
                 println!("Outputting data for slice {}. Number of electrons: {}", slice, out.len());
                 let out_str: String = out.join("");
                 tfile.write_all(out_str.as_ref()).expect("Could not write time to file.");
             }
         }
-
-        /*
-        pub fn output_time(&self, mut filename: String, code: usize) {
-            filename.push_str(&code.to_string());
-            let mut tfile = OpenOptions::new()
-                .append(false)
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open(&filename).expect("Could not output time histogram.");
-            let out: String = self.data.iter().map(|x| x.time().to_string()).collect::<Vec<String>>().join(",");
-            tfile.write_all(out.as_ref()).expect("Could not write time to file.");
-        }
-        pub fn output_x(&self, mut filename: String, code: usize) {
-            filename.push_str(&code.to_string());
-            let mut tfile = OpenOptions::new()
-                .append(false)
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open(&filename).expect("Could not output x histogram.");
-            let out: String = self.data.iter().map(|x| x.x().to_string()).collect::<Vec<String>>().join(",");
-            tfile.write_all(out.as_ref()).expect("Could not write time to file.");
-        }
-        pub fn output_y(&self, mut filename: String, code: usize) {
-            filename.push_str(&code.to_string());
-            let mut tfile = OpenOptions::new()
-                .append(false)
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open(&filename).expect("Could not output x histogram.");
-            let out: String = self.data.iter().map(|x| x.y().to_string()).collect::<Vec<String>>().join(",");
-            tfile.write_all(out.as_ref()).expect("Could not write time to file.");
-        }
-        pub fn output_tot(&self, mut filename: String, code: usize) {
-            filename.push_str(&code.to_string());
-            let mut tfile = OpenOptions::new()
-                .append(false)
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open(&filename).expect("Could not output x histogram.");
-            let out: String = self.data.iter().map(|x| x.tot().to_string()).collect::<Vec<String>>().join(",");
-            tfile.write_all(out.as_ref()).expect("Could not write time to file.");
-        }
-        pub fn output_cluster_size(&self, mut filename: String, code: usize) {
-            filename.push_str(&code.to_string());
-            let mut tfile = OpenOptions::new()
-                .append(false)
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open(&filename).expect("Could not output x histogram.");
-            let out: String = self.data.iter().map(|x| x.cluster_size().to_string()).collect::<Vec<String>>().join(",");
-            tfile.write_all(out.as_ref()).expect("Could not write time to file.");
-        }
-        */
     }
 
     ///ToA, X, Y, Spim dT, Spim Slice, ToT, Cluster Size
@@ -286,20 +198,20 @@ pub mod cluster {
     impl ToString for SingleElectron {
         fn to_string(&self) -> String {
 
-            let mut val = String::from(self.time().to_string());
-            val.push_str(",");
+            let mut val = self.time().to_string();
+            val.push(',');
             val.push_str(&self.x().to_string());
-            val.push_str(",");
+            val.push(',');
             val.push_str(&self.y().to_string());
-            val.push_str(",");
+            val.push(',');
             val.push_str(&self.frame_dt().to_string());
-            val.push_str(",");
+            val.push(',');
             val.push_str(&self.spim_slice().to_string());
-            val.push_str(",");
+            val.push(',');
             val.push_str(&self.tot().to_string());
-            val.push_str(",");
+            val.push(',');
             val.push_str(&self.cluster_size().to_string());
-            val.push_str(",");
+            val.push(',');
             
             val
         }
@@ -365,150 +277,9 @@ pub mod cluster {
         }
 
         fn is_new_cluster(&self, s: &SingleElectron) -> bool {
-            if self.time() > s.time() + CLUSTER_DET || (self.x() as isize - s.x() as isize).abs() > CLUSTER_SPATIAL || (self.y() as isize - s.y() as isize).abs() > CLUSTER_SPATIAL {
-                true
-            } else {
-                false
-            }
+            self.time() > s.time() + CLUSTER_DET || (self.x() as isize - s.x() as isize).abs() > CLUSTER_SPATIAL || (self.y() as isize - s.y() as isize).abs() > CLUSTER_SPATIAL
         }
         
-        /*
-        fn new_from_cluster_max_tot(cluster: &[SingleElectron]) -> Option<CollectionElectron> {
-
-            let cluster_size = cluster.iter().
-                count();
-            
-            let t_mean:TIME = cluster.iter().
-                reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
-                map(|se| se.time()).
-                unwrap();
-            
-            let x_mean:POSITION = cluster.iter().
-                map(|se| se.x()).
-                sum::<POSITION>() / cluster_size as POSITION;
-            
-            let y_mean:POSITION = cluster.iter().
-                map(|se| se.y()).
-                sum::<POSITION>() / cluster_size as POSITION;
-            
-            let time_dif: TIME = cluster.iter().
-                map(|se| se.frame_dt()).
-                next().
-                unwrap();
-            
-            let slice: COUNTER = cluster.iter().
-                map(|se| se.spim_slice()).
-                next().
-                unwrap();
-            
-            let tot_sum: u16 = cluster.iter().
-                map(|se| se.tot() as usize).
-                sum::<usize>() as u16;
-
-            let cluster_size: usize = cluster_size;
-
-            let mut val = CollectionElectron::new();
-            val.add_electron(SingleElectron {
-                    data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
-            });
-            Some(val)
-
-        }
-        
-        fn new_from_cluster_fixed_tot(cluster: &[SingleElectron], tot_value: u16) -> Option<CollectionElectron> {
-
-            let cluster_size = cluster.iter().
-                count();
-            
-            let cluster_filter_size = cluster.iter().
-                filter(|se| se.tot() == tot_value).
-                count();
-
-            if cluster_filter_size == 0 {return None};
-
-            let t_mean:TIME = cluster.iter().
-                filter(|se| se.tot() == tot_value).
-                map(|se| se.time()).sum::<TIME>() / cluster_filter_size as TIME;
-            
-            let x_mean:POSITION = cluster.iter().
-                map(|se| se.x()).
-                sum::<POSITION>() / cluster_size as POSITION;
-            
-            let y_mean:POSITION = cluster.iter().
-                map(|se| se.y()).
-                sum::<POSITION>() / cluster_size as POSITION;
-            
-            let time_dif: TIME = cluster.iter().
-                map(|se| se.frame_dt()).
-                next().
-                unwrap();
-            
-            let slice: COUNTER = cluster.iter().
-                map(|se| se.spim_slice()).
-                next().
-                unwrap();
-            
-            let tot_sum: u16 = cluster.iter().
-                map(|se| se.tot() as usize).
-                sum::<usize>() as u16;
-
-            let cluster_size: usize = cluster_size;
-
-            let mut val = CollectionElectron::new();
-            val.add_electron(SingleElectron{
-                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
-            });
-            Some(val)
-        }
-
-        fn new_from_cluster(cluster: &[SingleElectron]) -> Option<CollectionElectron> {
-            let cluster_size = cluster.len();
-
-            let t_mean:TIME = cluster.iter().map(|se| se.time()).sum::<TIME>() / cluster_size as TIME;
-            let x_mean:POSITION = cluster.iter().map(|se| se.x()).sum::<POSITION>() / cluster_size as POSITION;
-            let y_mean:POSITION = cluster.iter().map(|se| se.y()).sum::<POSITION>() / cluster_size as POSITION;
-            let time_dif: TIME = cluster.iter().map(|se| se.frame_dt()).next().unwrap();
-            let slice: COUNTER = cluster.iter().map(|se| se.spim_slice()).next().unwrap();
-            let tot_sum: u16 = cluster.iter().map(|se| se.tot() as usize).sum::<usize>() as u16;
-            let cluster_size: usize = cluster_size;
-
-            let mut val = CollectionElectron::new();
-            val.add_electron(SingleElectron{
-                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size)
-            });
-            Some(val)
-        }
-        
-        fn new_from_cluster_fixed_tot_calibration(cluster: &[SingleElectron], tot_value: u16) -> Option<CollectionElectron> {
-
-            let cluster_size = cluster.iter().
-                count();
-            
-            let cluster_filter_size = cluster.iter().
-                filter(|se| se.tot() == tot_value).
-                count();
-
-            if cluster_filter_size != 1 {return None}; //It must be one for complete control
-
-            let time_reference = cluster.iter().
-                filter(|se| se.tot() == tot_value).
-                map(|se| se.time()).
-                next().
-                unwrap();
-
-            let mut val = CollectionElectron::new();
-            for electron in cluster {
-                if electron.tot() == tot_value {continue;} //ToT reference not need to be output
-                let time_diference = electron.time() as i64 - time_reference as i64;
-                if time_diference.abs() > 100 {continue;} //must not output far-away data from tot==reference value
-                val.add_electron(SingleElectron{
-                    data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot(), cluster_size),
-                });
-            }
-            Some(val)
-        }
-        */
-
         pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
             if let Some(frame_tdc) = spim_tdc {
                 spimlib::get_spimindex(self.x(), self.frame_dt(), &frame_tdc, xspim, yspim)
@@ -517,21 +288,6 @@ pub mod cluster {
             }
         }
     }
-
-
-    /*
-    #[macro_export]
-    macro_rules! cluster_correction {
-        //($x: expr) => {
-            (0) => {cluster::NoCorrection::new()};
-            (1) => {cluster::AverageCorrection::new()};
-            (2) => {cluster::LargestToT::new()};
-            (3) => {cluster::LargestToTWithThreshold::new()};
-            (4) => {cluster::ClosestToTWithThreshold::new()};
-            (5) => {cluster::FixedToT::new()};
-            (6) => {cluster::FixedToTCalibration::new()};
-    }
-    */
 
     pub fn grab_cluster_correction(val: &str) -> Box<dyn ClusterCorrection> {
         match val {
@@ -559,7 +315,6 @@ pub mod cluster {
 
     pub trait ClusterCorrection: {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron>;
-        //fn new() -> Self where Self: Sized;
         fn set_reference(&mut self, _reference: u16) {}
         fn set_thresholds(&mut self, _min_val: u16, _max_val: u16) {}
         fn must_correct(&self) -> bool {true}
@@ -584,8 +339,7 @@ pub mod cluster {
 
     impl ClusterCorrection for AverageCorrection {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
-            let cluster_size = cluster.iter().
-                count() as COUNTER;
+            let cluster_size = cluster.len() as COUNTER;
 
             let t_mean:TIME = cluster.iter().
                 map(|se| se.time()).
@@ -620,16 +374,12 @@ pub mod cluster {
             Some(val)
         }
 
-        //fn new() -> Self {
-        //    AverageCorrection
-        //}
 
     }
     
     impl ClusterCorrection for LargestToT {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
-            let cluster_size = cluster.iter().
-                count() as COUNTER;
+            let cluster_size = cluster.len() as COUNTER;
 
             let electron = cluster.iter().
                 reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
@@ -641,15 +391,11 @@ pub mod cluster {
             });
             Some(val)
         }
-        //fn new() -> Self {
-        //    LargestToT
-        //}
     }
     
     impl ClusterCorrection for LargestToTWithThreshold {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
-            let cluster_size = cluster.iter().
-                count() as COUNTER;
+            let cluster_size = cluster.len() as COUNTER;
 
             let electron = cluster.iter().
                 reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
@@ -664,9 +410,6 @@ pub mod cluster {
             });
             Some(val)
         }
-        //fn new() -> Self {
-        //    LargestToTWithThreshold(30, 100)
-        //}
 
         fn set_thresholds(&mut self, min_val: u16, max_val: u16) {
             self.0 = min_val;
@@ -676,8 +419,7 @@ pub mod cluster {
     
     impl ClusterCorrection for ClosestToTWithThreshold {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
-            let cluster_size = cluster.iter().
-                count() as COUNTER;
+            let cluster_size = cluster.len() as COUNTER;
 
             let electron = cluster.iter().
                 reduce(|accum, item| if (accum.tot() as i16 - self.0 as i16).abs() < (item.tot() as i16 - self.0 as i16).abs() {accum} else {item}).
@@ -692,9 +434,6 @@ pub mod cluster {
             });
             Some(val)
         }
-        //fn new() -> Self {
-        //    ClosestToTWithThreshold(50, 30, 100)
-        //}
 
         fn set_reference(&mut self, reference: u16) {
             self.0 = reference;
@@ -708,9 +447,7 @@ pub mod cluster {
 
     impl ClusterCorrection for FixedToT {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
-
-            let cluster_size = cluster.iter().
-                count() as COUNTER;
+            let cluster_size = cluster.len() as COUNTER;
             
             let cluster_filter_size = cluster.iter().
                 filter(|se| se.tot() == self.0).
@@ -750,9 +487,6 @@ pub mod cluster {
             });
             Some(val)
         }
-        //fn new() -> Self {
-        //    FixedToT(50)
-        //}
         
         fn set_reference(&mut self, reference: u16) {
             self.0 = reference;
@@ -760,9 +494,7 @@ pub mod cluster {
     }
     impl ClusterCorrection for FixedToTCalibration {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
-
-            let cluster_size = cluster.iter().
-                count() as COUNTER;
+            let cluster_size = cluster.len() as COUNTER;
             
             let cluster_filter_size = cluster.iter().
                 filter(|se| se.tot() == self.0).
@@ -787,9 +519,6 @@ pub mod cluster {
             }
             Some(val)
         }
-        //fn new() -> Self {
-        //    FixedToTCalibration(10)
-        //}
         fn set_reference(&mut self, reference: u16) {
             self.0 = reference;
         }
@@ -805,15 +534,11 @@ pub mod cluster {
             }
             Some(val)
         }
-        //fn new() -> Self {
-        //    NoCorrection
-        //}
         fn must_correct(&self) -> bool {false}
     }
     impl ClusterCorrection for NoCorrectionVerbose {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
-            let cluster_size = cluster.iter().
-                count() as COUNTER;
+            let cluster_size = cluster.len() as COUNTER;
             let mut val = CollectionElectron::new();
             for electron in cluster {
                 val.add_electron(SingleElectron{

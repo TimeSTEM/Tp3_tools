@@ -26,6 +26,7 @@ fn as_bytes<T>(v: &[T]) -> &[u8] {
     }
 }
 
+/*
 fn as_mut_bytes<T>(v: &[T]) -> &mut [u8] {
     unsafe {
         std::slice::from_raw_parts_mut(
@@ -33,6 +34,7 @@ fn as_mut_bytes<T>(v: &[T]) -> &mut [u8] {
             v.len() * std::mem::size_of::<T>())
     }
 }
+*/
 
 //Generating BitDepth for the standard types
 macro_rules! genbitdepth {
@@ -103,13 +105,13 @@ pub trait SpecKind {
     type SupplementaryTdc: TdcControl;
     fn is_ready(&self) -> bool;
     fn build_output(&self) -> &[u8];
-    fn build_mut_output(&self) -> &mut [u8];
+    //fn build_mut_output(&self) -> &mut [u8];
     fn new(settings: &Settings) -> Self;
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
-        Ok(PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, pack, None)?)
+        PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, pack, None)
     }
     fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V) -> Result<Self::SupplementaryTdc, Tp3ErrorKind> {
-        Ok(Self::SupplementaryTdc::new(TdcType::TdcTwoRisingEdge, pack, None)?)
+        Self::SupplementaryTdc::new(TdcType::TdcTwoRisingEdge, pack, None)
     }
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, ref_tdc: &Self::SupplementaryTdc);
     fn add_tdc_hit(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut Self::SupplementaryTdc);
@@ -156,9 +158,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
     }
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
-    }
-    fn build_mut_output(&self) -> &mut [u8] {
-        as_mut_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, _kind: Live2D }
@@ -210,9 +209,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
     }
-    fn build_mut_output(&self) -> &mut [u8] {
-        as_mut_bytes(&self.data)
-    }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, _kind: Live1D}
     }
@@ -245,9 +241,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR2D, L> {
     }
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
-    }
-    fn build_mut_output(&self) -> &mut [u8] {
-        as_mut_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, _kind: LiveTR2D}
@@ -283,9 +276,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR1D, L> {
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
     }
-    fn build_mut_output(&self) -> &mut [u8] {
-        as_mut_bytes(&self.data)
-    }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, _kind: LiveTR1D}
     }
@@ -320,9 +310,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTilted2D, L> {
     }
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
-    }
-    fn build_mut_output(&self) -> &mut [u8] {
-        as_mut_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, _kind: LiveTilted2D }
@@ -360,9 +347,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
     }
-    fn build_mut_output(&self) -> &mut [u8] {
-        as_mut_bytes(&self.data)
-    }
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
         let mut temp_vec = vec![L::zero(); len + 1];
@@ -397,9 +381,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
     }
     fn build_output(&self) -> &[u8] {
         as_bytes(&self.data)
-    }
-    fn build_mut_output(&self) -> &mut [u8] {
-        as_mut_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
