@@ -51,7 +51,7 @@ pub mod coincidence {
         x: Vec<u16>,
         y: Vec<u16>,
         tot: Vec<u16>,
-        cluster_size: Vec<usize>,
+        cluster_size: Vec<u16>,
         spectrum: Vec<usize>,
         corr_spectrum: Vec<usize>,
         is_spim: bool,
@@ -102,6 +102,7 @@ pub mod coincidence {
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).try_into().unwrap());
             self.corrected_rel_time.push(val.corrected_relative_time_from_abs_tdc(photon.0).try_into().unwrap());
             self.fully_corrected_rel_time.push(val.fully_corrected_relative_time_from_abs_tdc(photon.0).try_into().unwrap());
+            self.cluster_size.push(val.cluster_size().try_into().unwrap());
             match val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 Some(index) => self.spim_index.push(index),
                 None => self.spim_index.push(POSITION::MAX),
@@ -1231,7 +1232,7 @@ pub mod calibration {
         x: Vec<u16>,
         y: Vec<u8>,
         tot: Vec<u16>,
-        cluster_size: Vec<usize>,
+        cluster_size: Vec<u16>,
     }
 
     impl CalibrationData {
@@ -1250,7 +1251,7 @@ pub mod calibration {
                 let electron_tot_reference = electron.frame_dt() as i64;
                 let time_diference = (electron_time - electron_tot_reference) as i8;
                 self.rel_time.push(time_diference);
-                self.cluster_size.push(electron.cluster_size());
+                self.cluster_size.push(electron.cluster_size().try_into().unwrap());
             }
         }
         pub fn output_relative_calibration_time(&self) {
@@ -1264,6 +1265,9 @@ pub mod calibration {
         }
         pub fn output_tot(&self) {
             output_data(&self.tot, "relative_calibration_tot.txt");
+        }
+        pub fn output_cluster_size(&self) {
+            output_data(&self.cluster_size, "relative_calibration_cluster_size.txt");
         }
     }
 
@@ -1310,6 +1314,7 @@ pub mod calibration {
         calibration_data.output_x();
         calibration_data.output_y();
         calibration_data.output_tot();
+        calibration_data.output_cluster_size();
         println!("Total number of bytes read {}", total_size);
         Ok(())
     }

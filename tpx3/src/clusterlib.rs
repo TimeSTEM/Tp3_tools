@@ -280,7 +280,7 @@ pub mod cluster {
     ///ToA, X, Y, Spim dT, Spim Slice, ToT, Cluster Size
     #[derive(Copy, Clone, Debug)]
     pub struct SingleElectron {
-        data: (TIME, POSITION, POSITION, TIME, COUNTER, u16, usize),
+        data: (TIME, POSITION, POSITION, TIME, COUNTER, u16, COUNTER),
     }
 
     impl ToString for SingleElectron {
@@ -360,7 +360,7 @@ pub mod cluster {
         pub fn spim_slice(&self) -> COUNTER {
             self.data.4
         }
-        pub fn cluster_size(&self) -> usize {
+        pub fn cluster_size(&self) -> COUNTER {
             self.data.6
         }
 
@@ -372,6 +372,7 @@ pub mod cluster {
             }
         }
         
+        /*
         fn new_from_cluster_max_tot(cluster: &[SingleElectron]) -> Option<CollectionElectron> {
 
             let cluster_size = cluster.iter().
@@ -506,6 +507,7 @@ pub mod cluster {
             }
             Some(val)
         }
+        */
 
         pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
             if let Some(frame_tdc) = spim_tdc {
@@ -539,7 +541,8 @@ pub mod cluster {
             "3" => {Box::new(LargestToTWithThreshold(30, 80))},
             "4" => {Box::new(ClosestToTWithThreshold(50, 30, 80))},
             "5" => {Box::new(FixedToT(10))},
-            "6" => {Box::new(FixedToTCalibration(10))},
+            "6" => {Box::new(FixedToTCalibration(60))},
+            "7" => {Box::new(NoCorrectionVerbose)},
             _ => {Box::new(NoCorrection)},
         }
     }
@@ -552,6 +555,7 @@ pub mod cluster {
     pub struct FixedToT(pub u16); //Reference
     pub struct FixedToTCalibration(pub u16); //Reference
     pub struct NoCorrection; //
+    pub struct NoCorrectionVerbose; //
 
     pub trait ClusterCorrection: {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron>;
@@ -581,7 +585,7 @@ pub mod cluster {
     impl ClusterCorrection for AverageCorrection {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
             let cluster_size = cluster.iter().
-                count();
+                count() as COUNTER;
 
             let t_mean:TIME = cluster.iter().
                 map(|se| se.time()).
@@ -609,8 +613,6 @@ pub mod cluster {
                 map(|se| se.tot() as usize).
                 sum::<usize>() as u16;
             
-            let cluster_size: usize = cluster_size;
-            
             let mut val = CollectionElectron::new();
             val.add_electron(SingleElectron {
                 data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
@@ -627,14 +629,12 @@ pub mod cluster {
     impl ClusterCorrection for LargestToT {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
             let cluster_size = cluster.iter().
-                count();
+                count() as COUNTER;
 
             let electron = cluster.iter().
                 reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
                 unwrap();
 
-            let cluster_size: usize = cluster_size;
-            
             let mut val = CollectionElectron::new();
             val.add_electron(SingleElectron {
                 data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
@@ -649,7 +649,7 @@ pub mod cluster {
     impl ClusterCorrection for LargestToTWithThreshold {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
             let cluster_size = cluster.iter().
-                count();
+                count() as COUNTER;
 
             let electron = cluster.iter().
                 reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
@@ -658,8 +658,6 @@ pub mod cluster {
             if electron.tot() < self.0 {return None;}
             if electron.tot() > self.1 {return None;}
 
-            let cluster_size: usize = cluster_size;
-            
             let mut val = CollectionElectron::new();
             val.add_electron(SingleElectron {
                 data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
@@ -679,7 +677,7 @@ pub mod cluster {
     impl ClusterCorrection for ClosestToTWithThreshold {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
             let cluster_size = cluster.iter().
-                count();
+                count() as COUNTER;
 
             let electron = cluster.iter().
                 reduce(|accum, item| if (accum.tot() as i16 - self.0 as i16).abs() < (item.tot() as i16 - self.0 as i16).abs() {accum} else {item}).
@@ -688,8 +686,6 @@ pub mod cluster {
             if electron.tot() < self.1 {return None;}
             if electron.tot() > self.2 {return None;}
 
-            let cluster_size: usize = cluster_size;
-            
             let mut val = CollectionElectron::new();
             val.add_electron(SingleElectron {
                 data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
@@ -714,7 +710,7 @@ pub mod cluster {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
 
             let cluster_size = cluster.iter().
-                count();
+                count() as COUNTER;
             
             let cluster_filter_size = cluster.iter().
                 filter(|se| se.tot() == self.0).
@@ -748,8 +744,6 @@ pub mod cluster {
                 map(|se| se.tot() as usize).
                 sum::<usize>() as u16;
 
-            let cluster_size: usize = cluster_size;
-
             let mut val = CollectionElectron::new();
             val.add_electron(SingleElectron{
                 data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size),
@@ -768,7 +762,7 @@ pub mod cluster {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
 
             let cluster_size = cluster.iter().
-                count();
+                count() as COUNTER;
             
             let cluster_filter_size = cluster.iter().
                 filter(|se| se.tot() == self.0).
@@ -815,5 +809,18 @@ pub mod cluster {
         //    NoCorrection
         //}
         fn must_correct(&self) -> bool {false}
+    }
+    impl ClusterCorrection for NoCorrectionVerbose {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
+            let cluster_size = cluster.iter().
+                count() as COUNTER;
+            let mut val = CollectionElectron::new();
+            for electron in cluster {
+                val.add_electron(SingleElectron{
+                    data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
+            });
+            }
+            Some(val)
+        }
     }
 }

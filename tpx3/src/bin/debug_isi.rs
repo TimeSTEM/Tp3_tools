@@ -27,4 +27,5 @@ fn main() {
     coinc_data.output_non_dispersive();
     coinc_data.output_spim_index();
     coinc_data.output_tot();
+    coinc_data.output_cluster_size();
 }

@@ -6,7 +6,7 @@ use std::env;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args: Vec<String> = env::args().collect();
-    let config_set = ConfigAcquisition::new(&args, cluster::FixedToTCalibration(10));
+    let config_set = ConfigAcquisition::new(&args, cluster::FixedToTCalibration(30));
     calibrate(&config_set.file(), &config_set.correction_type).unwrap();
     Ok(())
 }
