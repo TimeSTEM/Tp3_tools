@@ -16,7 +16,8 @@ pub mod cluster {
     //"time_walk_correction" is by meaning the coefficients. time_walk_correction_x1 is by fitting
     //everything with a single exponential. time_walk_correction_x1_new is by doing a double exponential from 0-20 and 20-60. Time_walk_correction_30 is by using the reference value as ToT==30 using a single exponential but with the coefficient d in the fitting. Leads to the best results so far. Time_shift_correction_4by4 is by isi323 using single fitting and double fitting (_new). The _new_22-11-2022 is by using more experimental data
     static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction_30.dat");
-    static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_new_22-11-2022.dat");
+    //static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_new_22-11-2022.dat");
+    static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_30.dat");
     
     /*
     fn as_bytes<T>(v: &[T]) -> &[u8] {
