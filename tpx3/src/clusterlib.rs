@@ -134,7 +134,7 @@ pub mod cluster {
                         last = *x;
                         cluster_vec.push(*x);
                     //} else {
-                    //    nelist.push(*x);
+                    //    new_elist.add_electron(*x);
                     //}
             }
             self.data = new_elist.data;
@@ -167,8 +167,8 @@ pub mod cluster {
         fn clean<T: ClusterCorrection>(&mut self, correction_type: &T) {
             //self.sort();
             self.remove_clusters(correction_type);
-            //for _x in 0..2 {
-            //    self.remove_clusters();
+            //for _x in 0..10 {
+            //    self.remove_clusters(correction_type);
             //}
         }
 
@@ -327,6 +327,7 @@ pub mod cluster {
             "5" => {Box::new(FixedToT(10))},
             "6" => {Box::new(FixedToTCalibration(30))},
             "7" => {Box::new(NoCorrectionVerbose)},
+            "8" => {Box::new(SingleClusterToTCalibration)},
             _ => {Box::new(NoCorrection)},
         }
     }
@@ -340,6 +341,7 @@ pub mod cluster {
     pub struct FixedToTCalibration(pub u16); //Reference
     pub struct NoCorrection; //
     pub struct NoCorrectionVerbose; //
+    pub struct SingleClusterToTCalibration; //
 
     pub trait ClusterCorrection: {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron>;
@@ -572,6 +574,19 @@ pub mod cluster {
                 val.add_electron(SingleElectron{
                     data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
             });
+            }
+            Some(val)
+        }
+    }
+    impl ClusterCorrection for SingleClusterToTCalibration {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
+            let cluster_size = cluster.len() as COUNTER;
+            if cluster_size != 1 {return None}; //It must be single cluster
+            let mut val = CollectionElectron::new();
+            for electron in cluster {
+                val.add_electron(SingleElectron {
+                    data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
+                });
             }
             Some(val)
         }

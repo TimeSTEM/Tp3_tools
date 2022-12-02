@@ -1242,6 +1242,7 @@ pub mod calibration {
             let mut temp_electrons = CollectionElectron::new();
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
+            //if total_size / 1_000_000_000 > 2 {break;}
             bar.inc(512_000_000_u64);
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match *pack_oct {
