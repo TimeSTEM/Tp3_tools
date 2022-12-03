@@ -16,10 +16,13 @@ pub mod cluster {
     //"time_walk_correction" is by meaning the coefficients. time_walk_correction_x1 is by fitting
     //everything with a single exponential. time_walk_correction_x1_new is by doing a double exponential from 0-20 and 20-60. Time_walk_correction_30 is by using the reference value as ToT==30 using a single exponential but with the coefficient d in the fitting. _30_100 keV is by using tot==30 at 100 keV and only fitting an exponencial decay between 20 and 80. //Time_shift_correction_4by4 is by isi323 using single fitting and double fitting (_new). The _new_22-11-2022 is by using more experimental data. 1by1_30 is after aligning time walk with reference tot == 30.
     //static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction_30_100keV.dat");
-    static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 105 * 2] = include_bytes!("time_walk_correction_30_100keV_after_direct_fitting_x2.dat");
-    static TIME_WALK_SHIFT_MASK: &[u8; 1024 * 256] = include_bytes!("time_walk_correction_30_100keV_mask.dat");
+    //static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 105 * 2] = include_bytes!("time_walk_correction_30_100keV_after_direct_fitting_x2.dat");
+    //static TIME_WALK_SHIFT_MASK: &[u8; 1024 * 256] = include_bytes!("time_walk_correction_30_100keV_mask.dat");
     //static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_new_22-11-2022.dat");
-    static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_30.dat");
+    //static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_30.dat");
+    
+    static ATOT: &[u8; 1024 * 256 * 4] = include_bytes!("atot.dat");
+    static BTOT: &[u8; 1024 * 256 * 4] = include_bytes!("btot.dat");
     
     /*
     fn as_bytes<T>(v: &[T]) -> &[u8] {
@@ -44,6 +47,14 @@ pub mod cluster {
             std::slice::from_raw_parts(
                 v.as_ptr() as *const i16,
                 v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<i16>() )
+        }
+    }
+    
+    fn transform_energy_calibration(v: &[u8]) -> &[f32] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const f32,
+                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<f32>() )
         }
     }
 
@@ -275,6 +286,16 @@ pub mod cluster {
         pub fn relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
             (self.data.0*6) as i64 - reference_time as i64
         }
+        fn tot_to_energy(&self) -> u16 {
+            let index = self.x() as usize + 1024 * self.y() as usize;
+            let temp = (self.tot() as f32 - transform_energy_calibration(BTOT)[index]) / transform_energy_calibration(ATOT)[index];
+            if temp < 0.0 {
+                0 as u16
+            } else {
+                temp.round() as u16
+            }
+        }
+        /*
         fn correct_time_walk(&self) -> i64 {
             if self.tot() > 4 {
                 let value_to_correct = transform_time_walk(TIME_WALK_SHIFT).get(105 * (self.x() as usize + 1024 * self.y() as usize) + (self.tot()-5) as usize);
@@ -297,6 +318,7 @@ pub mod cluster {
             //TIME_WALK_SHIFT_MASK[self.x() as usize + 1024 * self.y() as usize] == 1
             false
         }
+        */
         pub fn spim_slice(&self) -> COUNTER {
             self.data.4
         }
@@ -527,24 +549,24 @@ pub mod cluster {
             let cluster_size = cluster.len() as COUNTER;
             
             let cluster_filter_size = cluster.iter().
-                filter(|se| se.tot() == self.0).
+                filter(|se| se.tot_to_energy() == self.0).
                 count();
 
             if cluster_filter_size != 1 {return None}; //It must be one for complete control
 
             let time_reference = cluster.iter().
-                filter(|se| se.tot() == self.0).
+                filter(|se| se.tot_to_energy() == self.0).
                 map(|se| se.time()).
                 next().
                 unwrap();
 
             let mut val = CollectionElectron::new();
             for electron in cluster {
-                if electron.tot() == self.0 {continue;} //ToT reference not need to be output
+                if electron.tot_to_energy() == self.0 {continue;} //ToT reference not need to be output
                 let time_diference = electron.time() as i64 - time_reference as i64;
                 if time_diference.abs() > 100 {continue;} //must not output far-away data from tot==reference value
                 val.add_electron(SingleElectron{
-                    data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot(), cluster_size),
+                    data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot_to_energy(), cluster_size),
                 });
             }
             Some(val)
