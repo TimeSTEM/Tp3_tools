@@ -295,6 +295,7 @@ pub mod cluster {
                 temp.round() as u16
             }
         }
+
         /*
         fn correct_time_walk(&self) -> i64 {
             if self.tot() > 4 {
@@ -347,7 +348,7 @@ pub mod cluster {
             "3" => {Box::new(LargestToTWithThreshold(20, 100))},
             "4" => {Box::new(ClosestToTWithThreshold(50, 20, 100))},
             "5" => {Box::new(FixedToT(10))},
-            "6" => {Box::new(FixedToTCalibration(30))},
+            "6" => {Box::new(FixedToTCalibration(30, 60))},
             "7" => {Box::new(NoCorrectionVerbose)},
             "8" => {Box::new(SingleClusterToTCalibration)},
             _ => {Box::new(NoCorrection)},
@@ -360,7 +361,8 @@ pub mod cluster {
     pub struct LargestToTWithThreshold(pub u16, pub u16); //Threshold min and max
     pub struct ClosestToTWithThreshold(pub u16, pub u16, pub u16); //Reference, Threshold min and max
     pub struct FixedToT(pub u16); //Reference
-    pub struct FixedToTCalibration(pub u16); //Reference
+    pub struct FixedToTCalibration(pub u16, pub u16); //Reference
+    pub struct MuonTrack; //
     pub struct NoCorrection; //
     pub struct NoCorrectionVerbose; //
     pub struct SingleClusterToTCalibration; //
@@ -547,12 +549,21 @@ pub mod cluster {
     impl ClusterCorrection for FixedToTCalibration {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
             let cluster_size = cluster.len() as COUNTER;
+
+            if ((cluster_size < 3) || (cluster_size > 4)) {return None;} //3 to 4 objects in the cluster
             
             let cluster_filter_size = cluster.iter().
                 filter(|se| se.tot_to_energy() == self.0).
-                count();
-
+                count(); //Number of elements in the reference energy value
+            
             if cluster_filter_size != 1 {return None}; //It must be one for complete control
+            
+            let energy_sum: u16 = cluster.iter().
+                map(|se| se.tot_to_energy() as usize).
+                sum::<usize>() as u16;
+
+            if energy_sum < self.1 - 15 {return None;} //The energy sum must be close to the electron energy value
+            if energy_sum > self.1 + 15 {return None;}
 
             let time_reference = cluster.iter().
                 filter(|se| se.tot_to_energy() == self.0).
@@ -573,6 +584,27 @@ pub mod cluster {
         }
         fn set_reference(&mut self, reference: u16) {
             self.0 = reference;
+        }
+    }
+    impl ClusterCorrection for MuonTrack {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
+            let cluster_size = cluster.len() as COUNTER;
+            
+            if cluster_size == 1 {return None;}
+
+            let time_reference = cluster.iter().
+                map(|se| se.time()).
+                next().
+                unwrap();
+
+            let mut val = CollectionElectron::new();
+            for electron in cluster {
+                let time_diference = electron.time() as i64 - time_reference as i64;
+                val.add_electron(SingleElectron{
+                    data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot(), cluster_size),
+                });
+            }
+            Some(val)
         }
     }
 
