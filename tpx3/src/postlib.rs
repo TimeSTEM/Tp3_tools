@@ -1164,6 +1164,7 @@ pub mod calibration {
     use std::convert::TryInto;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
     use indicatif::{ProgressBar, ProgressStyle};
+    use rayon::prelude::*;
     
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
