@@ -44,8 +44,8 @@ pub mod coincidence {
         time: Vec<TIME>,
         channel: Vec<u8>,
         rel_time: Vec<i16>,
-        corrected_rel_time: Vec<i16>,
-        fully_corrected_rel_time: Vec<i16>,
+        //corrected_rel_time: Vec<i16>,
+        //fully_corrected_rel_time: Vec<i16>,
         double_photon_rel_time: Vec<i16>,
         g2_time: Vec<Option<i16>>,
         x: Vec<u16>,
@@ -96,8 +96,8 @@ pub mod coincidence {
             self.y.push(val.y().try_into().unwrap());
             self.channel.push(photon.1.try_into().unwrap());
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).try_into().unwrap());
-            self.corrected_rel_time.push(val.corrected_relative_time_from_abs_tdc(photon.0).try_into().unwrap());
-            self.fully_corrected_rel_time.push(val.fully_corrected_relative_time_from_abs_tdc(photon.0).try_into().unwrap());
+            //self.corrected_rel_time.push(val.corrected_relative_time_from_abs_tdc(photon.0).try_into().unwrap());
+            //self.fully_corrected_rel_time.push(val.fully_corrected_relative_time_from_abs_tdc(photon.0).try_into().unwrap());
             self.cluster_size.push(val.cluster_size().try_into().unwrap());
             match val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 Some(index) => self.spim_index.push(index),
@@ -175,8 +175,8 @@ pub mod coincidence {
                 time: Vec::new(),
                 channel: Vec::new(),
                 rel_time: Vec::new(),
-                corrected_rel_time: Vec::new(),
-                fully_corrected_rel_time: Vec::new(),
+                //corrected_rel_time: Vec::new(),
+                //fully_corrected_rel_time: Vec::new(),
                 double_photon_rel_time: Vec::new(),
                 g2_time: Vec::new(),
                 x: Vec::new(),
@@ -229,9 +229,11 @@ pub mod coincidence {
 
         pub fn output_relative_time(&self) {
             output_data(&self.rel_time, "tH.txt");
+            output_data(&self.double_photon_rel_time, "double_tH.txt");
+            /*
             output_data(&self.corrected_rel_time, "corrected_tH.txt");
             output_data(&self.fully_corrected_rel_time, "fully_corrected_tH.txt");
-            output_data(&self.double_photon_rel_time, "double_tH.txt");
+            */
         }
         
         pub fn output_time(&self) {
@@ -1241,6 +1243,7 @@ pub mod calibration {
             let mut temp_electrons = CollectionElectron::new();
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
+            //if total_size / 1_000_000_000 > 2 {break;}
             bar.inc(512_000_000_u64);
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match *pack_oct {

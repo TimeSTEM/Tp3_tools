@@ -12,11 +12,17 @@ pub mod cluster {
     use crate::auxiliar::value_types::*;
     
     const CLUSTER_DET: TIME = 128; //Cluster time window (in 640 Mhz or 1.5625).
-    const CLUSTER_SPATIAL: isize = 2; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
+    const CLUSTER_SPATIAL: isize = 256; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
     //"time_walk_correction" is by meaning the coefficients. time_walk_correction_x1 is by fitting
-    //everything with a single exponential. time_walk_correction_x1_new is by doing a double exponential from 0-20 and 20-60. Time_walk_correction_30 is by using the reference value as ToT==30 using a single exponential but with the coefficient d in the fitting. Leads to the best results so far. Time_shift_correction_4by4 is by isi323 using single fitting and double fitting (_new). The _new_22-11-2022 is by using more experimental data
-    static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction_30.dat");
-    static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_new_22-11-2022.dat");
+    //everything with a single exponential. time_walk_correction_x1_new is by doing a double exponential from 0-20 and 20-60. Time_walk_correction_30 is by using the reference value as ToT==30 using a single exponential but with the coefficient d in the fitting. _30_100 keV is by using tot==30 at 100 keV and only fitting an exponencial decay between 20 and 80. //Time_shift_correction_4by4 is by isi323 using single fitting and double fitting (_new). The _new_22-11-2022 is by using more experimental data. 1by1_30 is after aligning time walk with reference tot == 30.
+    //static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction_30_100keV.dat");
+    //static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 105 * 2] = include_bytes!("time_walk_correction_30_100keV_after_direct_fitting_x2.dat");
+    //static TIME_WALK_SHIFT_MASK: &[u8; 1024 * 256] = include_bytes!("time_walk_correction_30_100keV_mask.dat");
+    //static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_new_22-11-2022.dat");
+    //static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_30.dat");
+    
+    static ATOT: &[u8; 1024 * 256 * 4] = include_bytes!("atot.dat");
+    static BTOT: &[u8; 1024 * 256 * 4] = include_bytes!("btot.dat");
     
     /*
     fn as_bytes<T>(v: &[T]) -> &[u8] {
@@ -35,6 +41,24 @@ pub mod cluster {
                 v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<i16>() )
         }
     }
+    
+    fn transform_time_walk(v: &[u8]) -> &[i16] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const i16,
+                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<i16>() )
+        }
+    }
+    
+    fn transform_energy_calibration(v: &[u8]) -> &[f32] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const f32,
+                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<f32>() )
+        }
+    }
+
+
     
     /*
     fn read_time_shift() -> Vec<u8> {
@@ -121,7 +145,7 @@ pub mod cluster {
                         last = *x;
                         cluster_vec.push(*x);
                     //} else {
-                    //    nelist.push(*x);
+                    //    new_elist.add_electron(*x);
                     //}
             }
             self.data = new_elist.data;
@@ -154,8 +178,8 @@ pub mod cluster {
         fn clean<T: ClusterCorrection>(&mut self, correction_type: &T) {
             //self.sort();
             self.remove_clusters(correction_type);
-            //for _x in 0..2 {
-            //    self.remove_clusters();
+            //for _x in 0..10 {
+            //    self.remove_clusters(correction_type);
             //}
         }
 
@@ -262,12 +286,40 @@ pub mod cluster {
         pub fn relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
             (self.data.0*6) as i64 - reference_time as i64
         }
+        fn tot_to_energy(&self) -> u16 {
+            let index = self.x() as usize + 1024 * self.y() as usize;
+            let temp = (self.tot() as f32 - transform_energy_calibration(BTOT)[index]) / transform_energy_calibration(ATOT)[index];
+            if temp < 0.0 {
+                0 as u16
+            } else {
+                temp.round() as u16
+            }
+        }
+
+        /*
+        fn correct_time_walk(&self) -> i64 {
+            if self.tot() > 4 {
+                let value_to_correct = transform_time_walk(TIME_WALK_SHIFT).get(105 * (self.x() as usize + 1024 * self.y() as usize) + (self.tot()-5) as usize);
+                match value_to_correct {
+                    Some(val) => 1 * (*val) as i64,
+                    None => 0,
+                }
+            } else {
+                0
+            }
+        }
         pub fn corrected_relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
-            self.relative_time_from_abs_tdc(reference_time) - transform_time_shift(TIME_WALK_SHIFT)[401 * (self.x() as usize + 1024 * self.y() as usize) + self.tot() as usize] as i64
+            self.relative_time_from_abs_tdc(reference_time) - self.correct_time_walk()
         }
         pub fn fully_corrected_relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
-            self.relative_time_from_abs_tdc(reference_time) - transform_time_shift(TIME_WALK_SHIFT)[401 * (self.x() as usize + 1024 * self.y() as usize) + self.tot() as usize] as i64 - transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64
+            self.relative_time_from_abs_tdc(reference_time) as i64 - self.correct_time_walk() - transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64
+            //self.relative_time_from_abs_tdc(reference_time) as i64 - 2*transform_time_walk(TIME_WALK_SHIFT)[401 * (self.x() as usize + 1024 * self.y() as usize) + self.tot() as usize] as i64 - transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64
         }
+        pub fn is_masked(&self) -> bool {
+            //TIME_WALK_SHIFT_MASK[self.x() as usize + 1024 * self.y() as usize] == 1
+            false
+        }
+        */
         pub fn spim_slice(&self) -> COUNTER {
             self.data.4
         }
@@ -293,11 +345,12 @@ pub mod cluster {
             "0" => {Box::new(NoCorrection)},
             "1" => {Box::new(AverageCorrection)},
             "2" => {Box::new(LargestToT)},
-            "3" => {Box::new(LargestToTWithThreshold(30, 80))},
-            "4" => {Box::new(ClosestToTWithThreshold(50, 30, 80))},
+            "3" => {Box::new(LargestToTWithThreshold(20, 100))},
+            "4" => {Box::new(ClosestToTWithThreshold(50, 20, 100))},
             "5" => {Box::new(FixedToT(10))},
-            "6" => {Box::new(FixedToTCalibration(60))},
+            "6" => {Box::new(FixedToTCalibration(30, 60))},
             "7" => {Box::new(NoCorrectionVerbose)},
+            "8" => {Box::new(SingleClusterToTCalibration)},
             _ => {Box::new(NoCorrection)},
         }
     }
@@ -308,9 +361,11 @@ pub mod cluster {
     pub struct LargestToTWithThreshold(pub u16, pub u16); //Threshold min and max
     pub struct ClosestToTWithThreshold(pub u16, pub u16, pub u16); //Reference, Threshold min and max
     pub struct FixedToT(pub u16); //Reference
-    pub struct FixedToTCalibration(pub u16); //Reference
+    pub struct FixedToTCalibration(pub u16, pub u16); //Reference
+    pub struct MuonTrack; //
     pub struct NoCorrection; //
     pub struct NoCorrectionVerbose; //
+    pub struct SingleClusterToTCalibration; //
 
     pub trait ClusterCorrection: {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron>;
@@ -494,32 +549,62 @@ pub mod cluster {
     impl ClusterCorrection for FixedToTCalibration {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
             let cluster_size = cluster.len() as COUNTER;
+
+            if ((cluster_size < 3) || (cluster_size > 4)) {return None;} //3 to 4 objects in the cluster
             
             let cluster_filter_size = cluster.iter().
-                filter(|se| se.tot() == self.0).
-                count();
-
+                filter(|se| se.tot_to_energy() == self.0).
+                count(); //Number of elements in the reference energy value
+            
             if cluster_filter_size != 1 {return None}; //It must be one for complete control
+            
+            let energy_sum: u16 = cluster.iter().
+                map(|se| se.tot_to_energy() as usize).
+                sum::<usize>() as u16;
+
+            if energy_sum < self.1 - 15 {return None;} //The energy sum must be close to the electron energy value
+            if energy_sum > self.1 + 15 {return None;}
 
             let time_reference = cluster.iter().
-                filter(|se| se.tot() == self.0).
+                filter(|se| se.tot_to_energy() == self.0).
                 map(|se| se.time()).
                 next().
                 unwrap();
 
             let mut val = CollectionElectron::new();
             for electron in cluster {
-                if electron.tot() == self.0 {continue;} //ToT reference not need to be output
+                if electron.tot_to_energy() == self.0 {continue;} //ToT reference not need to be output
                 let time_diference = electron.time() as i64 - time_reference as i64;
                 if time_diference.abs() > 100 {continue;} //must not output far-away data from tot==reference value
                 val.add_electron(SingleElectron{
-                    data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot(), cluster_size),
+                    data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot_to_energy(), cluster_size),
                 });
             }
             Some(val)
         }
         fn set_reference(&mut self, reference: u16) {
             self.0 = reference;
+        }
+    }
+    impl ClusterCorrection for MuonTrack {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
+            let cluster_size = cluster.len() as COUNTER;
+            
+            if cluster_size == 1 {return None;}
+
+            let time_reference = cluster.iter().
+                map(|se| se.time()).
+                next().
+                unwrap();
+
+            let mut val = CollectionElectron::new();
+            for electron in cluster {
+                let time_diference = electron.time() as i64 - time_reference as i64;
+                val.add_electron(SingleElectron{
+                    data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot(), cluster_size),
+                });
+            }
+            Some(val)
         }
     }
 
@@ -543,6 +628,19 @@ pub mod cluster {
                 val.add_electron(SingleElectron{
                     data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
             });
+            }
+            Some(val)
+        }
+    }
+    impl ClusterCorrection for SingleClusterToTCalibration {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
+            let cluster_size = cluster.len() as COUNTER;
+            if cluster_size != 1 {return None}; //It must be single cluster
+            let mut val = CollectionElectron::new();
+            for electron in cluster {
+                val.add_electron(SingleElectron {
+                    data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size),
+                });
             }
             Some(val)
         }
