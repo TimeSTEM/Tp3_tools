@@ -12,7 +12,7 @@ pub mod cluster {
     use crate::auxiliar::value_types::*;
     
     const CLUSTER_DET: TIME = 128; //Cluster time window (in 640 Mhz or 1.5625).
-    const CLUSTER_SPATIAL: isize = 2; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
+    const CLUSTER_SPATIAL: isize = 256; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
     //"time_walk_correction" is by meaning the coefficients. time_walk_correction_x1 is by fitting
     //everything with a single exponential. time_walk_correction_x1_new is by doing a double exponential from 0-20 and 20-60. Time_walk_correction_30 is by using the reference value as ToT==30 using a single exponential but with the coefficient d in the fitting. _30_100 keV is by using tot==30 at 100 keV and only fitting an exponencial decay between 20 and 80. //Time_shift_correction_4by4 is by isi323 using single fitting and double fitting (_new). The _new_22-11-2022 is by using more experimental data. 1by1_30 is after aligning time walk with reference tot == 30.
     //static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction_30_100keV.dat");
