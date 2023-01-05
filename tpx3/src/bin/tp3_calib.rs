@@ -1,6 +1,6 @@
 use timepix3::postlib::calibration::*;
 use timepix3::auxiliar::ConfigAcquisition;
-use timepix3::clusterlib::{cluster, cluster::ClusterCorrection};
+use timepix3::clusterlib::cluster;
 use std::env;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
