@@ -69,7 +69,6 @@ pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: PO
     if val < spim_tdc.low_time {
         let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
         let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
-        //let rin = xspim  * (val / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
             
             if r > (yspim-1) {
                 if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
