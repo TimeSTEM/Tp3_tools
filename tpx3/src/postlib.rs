@@ -1019,7 +1019,9 @@ pub mod ntime_resolved {
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial<T> {
         spectra: Vec<POSITION>, //Main data,
-        indices: Vec<u16>,
+        return_spectra: Vec<POSITION>, //Main data from flyback,
+        indices: Vec<u16>, //indexes from main scan
+        return_indices: Vec<u16>, //indexes from flyback
         ensemble: CollectionElectron, //A collection of single electrons,
         spimx: POSITION, //The horinzontal axis of the spim,
         spimy: POSITION, //The vertical axis of the spim,
@@ -1077,20 +1079,42 @@ pub mod ntime_resolved {
                         self.spectra.push(index);
                         self.indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
                     }
+                    
+                    if let Some(index) = val.get_or_not_return_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
+                        self.return_spectra.push(index);
+                        self.return_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
+                    }
             }
             self.ensemble.clear();
+
             let mut tfile = OpenOptions::new()
                 .append(true)
                 .create(true)
                 .open("si_complete.txt").expect("Could not output time histogram.");
             tfile.write_all(as_bytes(&self.spectra)).expect("Could not write time to file.");
+            
+            let mut return_tfile = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open("si_return_complete.txt").expect("Could not output time histogram.");
+            return_tfile.write_all(as_bytes(&self.return_spectra)).expect("Could not write time to file.");
+            
             let mut tfile2 = OpenOptions::new()
                 .append(true)
                 .create(true)
                 .open("si_complete_indices.txt").expect("Could not output time histogram.");
             tfile2.write_all(as_bytes(&self.indices)).expect("Could not write time to indices file.");
+            
+            let mut return_tfile2 = OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open("si_complete_return_indices.txt").expect("Could not output time histogram.");
+            return_tfile2.write_all(as_bytes(&self.return_indices)).expect("Could not write time to indices file.");
+
             self.spectra.clear();
+            self.return_spectra.clear();
             self.indices.clear();
+            self.return_indices.clear();
             }
             Ok(())
         }
@@ -1099,7 +1123,9 @@ pub mod ntime_resolved {
 
             Ok(Self {
                 spectra: Vec::new(),
+                return_spectra: Vec::new(),
                 indices: Vec::new(),
+                return_indices: Vec::new(),
                 ensemble: CollectionElectron::new(),
                 spimx: my_config.xspim,
                 spimy: my_config.yspim,

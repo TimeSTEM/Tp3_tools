@@ -338,6 +338,14 @@ pub mod cluster {
                 None
             }
         }
+        
+        pub fn get_or_not_return_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+            if let Some(frame_tdc) = spim_tdc {
+                spimlib::get_return_spimindex(self.x(), self.frame_dt(), &frame_tdc, xspim, yspim)
+            } else {
+                None
+            }
+        }
     }
 
     pub fn grab_cluster_correction(val: &str) -> Box<dyn ClusterCorrection> {
