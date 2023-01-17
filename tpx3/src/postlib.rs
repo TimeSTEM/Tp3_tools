@@ -1005,6 +1005,7 @@ pub mod ntime_resolved {
     use std::convert::TryInto;
     use std::time::Instant;
     use std::fs;
+    use indicatif::{ProgressBar, ProgressStyle};
     use crate::auxiliar::{value_types::*, ConfigAcquisition};
 
     #[derive(Debug)]
@@ -1141,18 +1142,25 @@ pub mod ntime_resolved {
 
     pub fn analyze_data<T: ClusterCorrection>(data: &mut TimeSpectralSpatial<T>) {
         let mut prepare_file = fs::File::open(&data.file).expect("Could not open desired file.");
+        let progress_size = prepare_file.metadata().unwrap().len() as u64;
         data.prepare(&mut prepare_file);
         
         let start = Instant::now();
         let mut my_file = fs::File::open(&data.file).expect("Could not open desired file.");
-        let mut buffer: Vec<u8> = vec![0; 1_000_000_000];
+        let mut buffer: Vec<u8> = vec![0; 512_000_000];
         
         let mut total_size = 0;
         let mut ci = 0;
+            
+        let bar = ProgressBar::new(progress_size);
+        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Checking for issues in the IsiBox data")
+                      .unwrap()
+                      .progress_chars("=>-"));
 
         while let Ok(size) = my_file.read(&mut buffer) {
             if size==0 {break;}
             total_size += size;
+            bar.inc(512_000_000_u64);
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match pack_oct {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci = nci},
@@ -1174,9 +1182,10 @@ pub mod ntime_resolved {
                 };
             });
             data.process().expect("Error in processing");
-            println!("File: {:?}. Total number of bytes read (MB): ~ {}", &data.file, total_size/1_000_000);
-            println!("Time elapsed: {:?}", start.elapsed());
+            //println!("File: {:?}. Total number of bytes read (MB): ~ {}", &data.file, total_size/1_000_000);
+            //println!("Time elapsed: {:?}", start.elapsed());
         };
+        println!("File has been succesfully read.");
     }
 }
 
