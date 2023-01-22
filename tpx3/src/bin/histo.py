@@ -10,7 +10,7 @@ from scipy.optimize import curve_fit
 off = 0
 disp = 1
 SPIM_PIXELS = 1225
-TIME_DELAY = 525
+TIME_DELAY = 443
 TIME_WIDTH = 25
 
 def gaussian(x, mean, amplitude, sigma, offset):
@@ -91,24 +91,23 @@ plt.tight_layout()
 
 
 #Plot of the histograms
-fig, ax = plt.subplots(nrows=3, ncols=2, sharex=False, figsize=(8, 8))
+fig, ax = plt.subplots(nrows=2, ncols=2, sharex=False, figsize=(8, 8))
 ax[0, 0].hist(t[indexes2], density=False, bins=tbin, range=(tmin, tmax), alpha=0.2, color='red', label='Channel 0')
 ax[0, 0].hist(t[indexes12], density = False, bins=tbin, range=(tmin, tmax), alpha=0.2, color='blue', label='Channel 12')
 
 ax[1, 0].hist(t[indexes_g2], bins=tbin, range=(tmin, tmax), alpha=0.2, color='green', label='g2')
 ax[1, 0].hist(t[indexes_g2_correlated], bins=tbin, range=(tmin, tmax), alpha=0.2, color='magenta', label='g2_eff')
 
-ax[2, 0].hist(t[indexes_begin_time], density=False, bins=tbin, range=(tmin, tmax), alpha=1.0, color='red', label='Beginning')
-ax[2, 0].hist(t[indexes_end_time], density=False, bins=tbin, range=(tmin, tmax), alpha=0.6, color='blue', label='Ending')
+ax[0, 1].hist(t[indexes_begin_time], density=False, bins=tbin, range=(tmin, tmax), alpha=1.0, color='red', label='Beginning')
+ax[0, 1].hist(t[indexes_end_time], density=False, bins=tbin, range=(tmin, tmax), alpha=0.6, color='blue', label='Ending')
 
 #2, 1
-ax[2, 1].hist(double_t, density = False, bins=tbin, range=(tmin, tmax), alpha=0.8, color='blue', label='Double electrons')
+ax[1, 1].hist(double_t, density = False, bins=tbin, range=(tmin, tmax), alpha=0.8, color='blue', label='Double electrons')
 
 ax[0, 0].legend()
 ax[0, 1].legend()
 ax[1, 0].legend()
 ax[1, 1].legend()
-ax[2, 0].legend()
 ax[1, 0].set_xlabel('Time delay (units of 260 ps)')
 
 #Plot of the ToTs

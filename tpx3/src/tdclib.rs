@@ -545,7 +545,7 @@ pub mod isi_box {
             impl IsiBoxTools for $x<$y> {
                 fn bind_and_connect(&mut self) -> Result<(), Tp3ErrorKind>{
                     for _ in 0..self.nchannels {
-                        let sock = match TcpStream::connect("192.168.198.10:9592") {
+                        let sock = match TcpStream::connect("192.168.199.10:9592") {
                             Ok(val) => val,
                             Err(_) => return Err(Tp3ErrorKind::IsiBoxCouldNotConnect),
                         };
@@ -553,7 +553,7 @@ pub mod isi_box {
                         //let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
                         self.sockets.push(sock);
                     }
-                    let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
+                    let sock = TcpStream::connect("192.168.199.10:9592").expect("Could not connect to IsiBox.");
                     //let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
                     self.ext_socket = Some(sock);
                     Ok(())

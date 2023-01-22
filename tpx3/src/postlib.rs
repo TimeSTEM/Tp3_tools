@@ -476,6 +476,8 @@ pub mod coincidence {
         let mut buffer: Vec<u8> = vec![0; ISI_BUFFER_SIZE];
         let mut total_size = 0;
         let mut quit = false;
+        let ignore_lines = 0;
+        let mut counter_ignore_lines = 0;
         
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {break;}
@@ -507,6 +509,11 @@ pub mod coincidence {
                                         let _val = tdc_iter.next().unwrap();
                                     }
                                 }
+                                
+
+
+
+
 
                                 
                                 coinc_data.add_spim_line(&packet);
@@ -514,6 +521,11 @@ pub mod coincidence {
                                 let isi_val = tdc_iter.next().unwrap();
                                 let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
                                 let mut t_dif = tdc_val - isi_val.1;
+                                
+                                if ignore_lines > counter_ignore_lines {
+                                    counter_ignore_lines += 1;
+                                    return;
+                                }
                                 
                                 
                                 //Sometimes the estimative time does not work, underestimating it.
