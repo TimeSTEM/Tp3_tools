@@ -10,8 +10,9 @@ from scipy.optimize import curve_fit
 off = 0
 disp = 1
 SPIM_PIXELS = 1225
-TIME_DELAY = 443
-TIME_WIDTH = 25
+TIME_DELAY = 443 #Peak value of e-photon correlation
+TIME_WIDTH = 25 #Peak interval of e-photon correlation
+PP_FILTER = 500 #Max time between two photons (units of 120 ps)
 
 def gaussian(x, mean, amplitude, sigma, offset):
     return offset + amplitude * numpy.exp( -(x-mean)**2 / (2*sigma ** 2))
@@ -20,7 +21,7 @@ disparray = numpy.linspace(off, disp*SPIM_PIXELS, SPIM_PIXELS)
 t = numpy.fromfile("tH.txt", dtype='int16')
 double_t = numpy.fromfile("double_tH.txt", dtype='int16')
 tabs = numpy.fromfile("tabsH.txt", dtype='uint64')
-g2t = numpy.fromfile("g2tH.txt", dtype='int16')
+g2t = numpy.fromfile("g2tH.txt", dtype='int16') #Photon-Photon time difference
 g2_total = numpy.fromfile("isi_g2.txt", dtype='int64')
 xT = numpy.loadtxt("spec.txt", delimiter=',')
 x = numpy.loadtxt("cspec.txt", delimiter=',')
@@ -50,8 +51,8 @@ for val in xH[indexes_cle]:
 
 
 #Getting g2
-indexes_g2 = numpy.where( (numpy.abs(g2t) < 50))
-indexes_g2_correlated = numpy.where( (numpy.abs(g2t) < 50) & (numpy.abs(t+TIME_DELAY) < TIME_WIDTH))
+indexes_g2 = numpy.where( (numpy.abs(g2t) < PP_FILTER))
+indexes_g2_correlated = numpy.where( (numpy.abs(g2t) < PP_FILTER) & (numpy.abs(t+TIME_DELAY) < TIME_WIDTH))
 indexes_g2_chip1 = numpy.where( (numpy.abs(g2t) < 25) & (xH < 256))
 indexes_g2_chip2 = numpy.where( (numpy.abs(g2t) < 25) & (xH < 512) & (xH > 256))
 indexes_g2_chip3 = numpy.where( (numpy.abs(g2t) < 25) & (xH < 768) & (xH > 512))
