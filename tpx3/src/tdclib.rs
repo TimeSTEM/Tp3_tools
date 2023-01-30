@@ -470,9 +470,6 @@ impl TdcControl for NonPeriodicTdcRef {
 }
 
 pub mod isi_box {
-    //use rand_distr::{Normal, Distribution};
-    //use rand::{thread_rng};
-    //use std::fs::OpenOptions;
     use crate::errorlib::Tp3ErrorKind;
     use std::net::TcpStream;
     use std::io::{Read, Write};
@@ -480,6 +477,7 @@ pub mod isi_box {
     use std::thread;
     use crate::spimlib::SPIM_PIXELS;
     use std::time::Duration;
+    use crate::constlib::*;
 
     pub const CHANNELS: usize = 200;
     
@@ -545,16 +543,16 @@ pub mod isi_box {
             impl IsiBoxTools for $x<$y> {
                 fn bind_and_connect(&mut self) -> Result<(), Tp3ErrorKind>{
                     for _ in 0..self.nchannels {
-                        let sock = match TcpStream::connect("192.168.199.10:9592") {
+                        let sock = match TcpStream::connect(ISI_IP_PORT) {
                             Ok(val) => val,
                             Err(_) => return Err(Tp3ErrorKind::IsiBoxCouldNotConnect),
                         };
-                        //let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
-                        //let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
                         self.sockets.push(sock);
                     }
-                    let sock = TcpStream::connect("192.168.199.10:9592").expect("Could not connect to IsiBox.");
-                    //let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
+                    let sock = match TcpStream::connect(ISI_IP_PORT) {
+                        Ok(val) => val,
+                        Err(_) => return Err(Tp3ErrorKind::IsiBoxCouldNotConnect),
+                    };
                     self.ext_socket = Some(sock);
                     Ok(())
                 }

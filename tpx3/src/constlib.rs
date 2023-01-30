@@ -1,3 +1,4 @@
+//***POSTLIB***//
 //Coincidence values using the IsiBox//
 pub const ISI_BUFFER_SIZE: usize = 128_000_000; //Buffer size when reading files
 pub const ISI_TIME_WIDTH: u64 = 200; //Time width considered for coincidence (units of 1.5625 ns)
@@ -14,3 +15,6 @@ pub const ISI_NB_CORRECTION_ITERACTION: u64 = 100; //How many times your IsiBox 
 pub const TP3_BUFFER_SIZE: usize = 512_000_000; //Buffer size when reading files
 pub const TP3_TIME_WIDTH: u64 = 50; //Time width considered for coincidence
 pub const TP3_TIME_DELAY: u64 = 104; //Time delay considered for coincidence
+
+//***TDCLIB***//
+pub const ISI_IP_PORT: &str = "192.168.199.10:9592";
