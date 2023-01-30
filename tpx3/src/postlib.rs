@@ -14,11 +14,9 @@ pub mod coincidence {
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use crate::auxiliar::ConfigAcquisition;
     use crate::auxiliar::value_types::*;
+    use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
 
-    const BUFFER_SIZE: usize = 512_000_000; //Buffer size reading files when using TP3 and IsiBox
-    const ISI_BUFFER_SIZE: usize = 512_000_000; //Buffer size reading files when using TP3 and IsiBox
-    const ISI_TP3_MAX_DIF: u64 = 1_000; //In units of 640 Mhz;
     const PHOTON_LIST_STEP: usize = 10;
     
     fn as_bytes<T>(v: &[T]) -> &[u8] {
@@ -44,8 +42,6 @@ pub mod coincidence {
         time: Vec<TIME>,
         channel: Vec<u8>,
         rel_time: Vec<i16>,
-        //corrected_rel_time: Vec<i16>,
-        //fully_corrected_rel_time: Vec<i16>,
         double_photon_rel_time: Vec<i16>,
         g2_time: Vec<Option<i16>>,
         x: Vec<u16>,
@@ -96,16 +92,11 @@ pub mod coincidence {
             self.y.push(val.y().try_into().unwrap());
             self.channel.push(photon.1.try_into().unwrap());
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).try_into().unwrap());
-            //self.corrected_rel_time.push(val.corrected_relative_time_from_abs_tdc(photon.0).try_into().unwrap());
-            //self.fully_corrected_rel_time.push(val.fully_corrected_relative_time_from_abs_tdc(photon.0).try_into().unwrap());
             self.cluster_size.push(val.cluster_size().try_into().unwrap());
             match val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 Some(index) => self.spim_index.push(index),
                 None => self.spim_index.push(POSITION::MAX),
             }
-            //if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
-            //    self.spim_index.push(index);
-            //}
         }
         
         fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME) {
@@ -396,7 +387,7 @@ pub mod coincidence {
 
         let mut ci = 0;
         let mut file = fs::File::open(&coinc_data.file)?;
-        let mut buffer: Vec<u8> = vec![0; BUFFER_SIZE];
+        let mut buffer: Vec<u8> = vec![0; TP3_BUFFER_SIZE];
         let mut total_size = 0;
         
         let bar = ProgressBar::new(progress_size);
@@ -407,7 +398,7 @@ pub mod coincidence {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
-            bar.inc(BUFFER_SIZE as u64);
+            bar.inc(TP3_BUFFER_SIZE as u64);
             //println!("MB Read: {}", total_size / 1_000_000 );
             let mut temp_edata = TempElectronData::new();
             let mut temp_tdc = TempTdcData::new();
@@ -433,7 +424,7 @@ pub mod coincidence {
                     },
                 };
             });
-        coinc_data.add_events(temp_edata, &mut temp_tdc, 104, 40);
+        coinc_data.add_events(temp_edata, &mut temp_tdc, TP3_TIME_DELAY, TP3_TIME_WIDTH);
         //println!("Time elapsed: {:?}", start.elapsed());
 
         }
@@ -635,7 +626,7 @@ pub mod coincidence {
                     },
                 };
             });
-        coinc_data.add_events(temp_edata, &mut temp_tdc, 78, 50); //Fast start (NIM)
+        coinc_data.add_events(temp_edata, &mut temp_tdc, ISI_TIME_DELAY, ISI_TIME_WIDTH); //Fast start (NIM)
         //coinc_data.add_events(temp_edata, &mut temp_tdc, 87, 100); //Slow start (TTL)
         }
         println!("***IsiBox***: Coincidence search is over.");
