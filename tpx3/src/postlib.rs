@@ -635,14 +635,13 @@ pub mod coincidence {
 }
 
 pub mod isi_box {
-    //use rand_distr::{Normal, Distribution};
-    //use rand::{thread_rng};
     use std::fs::OpenOptions;
     use std::io::{Read, Write};
     use crate::spimlib::VIDEO_TIME;
     use crate::tdclib::isi_box::CHANNELS;
     use crate::auxiliar::value_types::*;
     use indicatif::{ProgressBar, ProgressStyle};
+    use crate::constlib::*;
     
     const ISI_CHANNEL_SHIFT: [u32; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
@@ -765,7 +764,7 @@ pub mod isi_box {
                 }
             }
             
-            let progress_size = 100;
+            let progress_size = ISI_NB_CORRECTION_ITERACTION;
             let bar = ProgressBar::new(progress_size);
             bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Checking for issues in the IsiBox data")
                           .unwrap()
@@ -774,7 +773,7 @@ pub mod isi_box {
             for _ in 0..progress_size {
                 bar.inc(1);
                 let iter = self.scan_iterator().
-                    filter(|(val1, val2)| ((subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) || (subtract_overflow(val2.1.0, val1.1.0) < self.line_time.unwrap() as u64 - 1_000))).
+                    filter(|(val1, val2)| ((subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + ISI_CORRECTION_MAX_DIF) || (subtract_overflow(val2.1.0, val1.1.0) < self.line_time.unwrap() as u64 - ISI_CORRECTION_MAX_DIF))).
                     collect::<Vec<_>>();
                 //println!("***IsiBox***: Start of a correction cycle. The size is {}.", iter.len());
                 let mut number_of_insertions = 0;
@@ -1193,7 +1192,6 @@ pub mod calibration {
     use std::convert::TryInto;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
     use indicatif::{ProgressBar, ProgressStyle};
-    use rayon::prelude::*;
     
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
