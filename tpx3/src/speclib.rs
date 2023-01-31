@@ -2,21 +2,16 @@
 
 use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
 use crate::auxiliar::{Settings, misc::TimepixRead};
-//use crate::tdclib::{TdcControl, PeriodicTdcRef};
 use crate::tdclib::{TdcType, TdcControl, PeriodicTdcRef, NonPeriodicTdcRef, SingleTriggerPeriodicTdcRef, isi_box, isi_box::{CHANNELS, IsiBoxTools, IsiBoxHand}};
 use crate::isi_box_new;
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::Write;
-//use rayon::prelude::*;
 use core::ops::{Add, AddAssign};
 use crate::auxiliar::value_types::*;
 
 const CAM_DESIGN: (POSITION, POSITION) = Pack::chip_array();
 const BUFFER_SIZE: usize = 16384 * 2;
-//const SR_TIME: usize = 10_000; //Time window (10_000 -> 10 us);
-//const SR_INDEX: usize = 64; //Maximum x index value to account in the average calculation;
-//const SR_MIN: usize = 0; //Minimum array size to perform the average in super resolution;
 
 fn as_bytes<T>(v: &[T]) -> &[u8] {
     unsafe {
@@ -25,16 +20,6 @@ fn as_bytes<T>(v: &[T]) -> &[u8] {
             v.len() * std::mem::size_of::<T>())
     }
 }
-
-/*
-fn as_mut_bytes<T>(v: &[T]) -> &mut [u8] {
-    unsafe {
-        std::slice::from_raw_parts_mut(
-            v.as_ptr() as *mut u8,
-            v.len() * std::mem::size_of::<T>())
-    }
-}
-*/
 
 //Generating BitDepth for the standard types
 macro_rules! genbitdepth {
@@ -598,8 +583,8 @@ pub fn build_spectrum_isi<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings
 
     let mut handler = isi_box_new!(spec);
     handler.bind_and_connect()?;
-    handler.configure_scan_parameters(32, 32, 8334);
-    handler.configure_measurement_type(false);
+    handler.configure_scan_parameters(32, 32, 8334)?;
+    handler.configure_measurement_type(false)?;
     handler.start_threads();
     
     let mut last_ci = 0;

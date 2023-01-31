@@ -18,3 +18,4 @@ pub const TP3_TIME_DELAY: u64 = 104; //Time delay considered for coincidence
 
 //***TDCLIB***//
 pub const ISI_IP_PORT: &str = "192.168.199.10:9592";
+pub const THREAD_POOL_PERIOD: u64 = 10; //Pooling time from socket thread for the IsiBox;

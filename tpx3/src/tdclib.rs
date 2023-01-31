@@ -500,8 +500,8 @@ pub mod isi_box {
 
     pub trait IsiBoxTools {
         fn bind_and_connect(&mut self) -> Result<(), Tp3ErrorKind>;
-        fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32);
-        fn configure_measurement_type(&self, save_locally: bool);
+        fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32) -> Result<(), Tp3ErrorKind>;
+        fn configure_measurement_type(&self, save_locally: bool) -> Result<(), Tp3ErrorKind>;
         fn new() -> Self;
     }
 
@@ -556,7 +556,7 @@ pub mod isi_box {
                     self.ext_socket = Some(sock);
                     Ok(())
                 }
-                fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32) {
+                fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32) -> Result<(), Tp3ErrorKind> {
                     let mut config_array: [u32; 3] = [0; 3];
                     config_array[0] = xscan;
                     config_array[1] = yscan;
@@ -564,18 +564,20 @@ pub mod isi_box {
                     let mut sock = &self.sockets[0];
                     match sock.write(as_bytes(&config_array)) {
                         Ok(size) => {println!("data sent to configure scan parameters: {}", size);},
-                        Err(e) => {println!("{}", e);},
+                        Err(_) => {return Err(Tp3ErrorKind::IsiBoxCouldNotSetParameters);},
                     };
+                    Ok(())
                 }
-                fn configure_measurement_type(&self, save_locally: bool) {
+                fn configure_measurement_type(&self, save_locally: bool) -> Result<(), Tp3ErrorKind> {
                     let mut config_array: [u32; 1] = [0; 1];
                     config_array[0] = measurement_type!($z);
                     if save_locally {config_array[0] = 2;}
                     let mut sock = &self.sockets[0];
                     match sock.write(as_bytes(&config_array)) {
                         Ok(size) => {println!("data sent to configure the measurement type: {}", size);},
-                        Err(e) => {println!("{}", e);},
+                        Err(_) => {return Err(Tp3ErrorKind::IsiBoxCouldNotConfigure);},
                     };
+                    Ok(())
                 }
                 fn new() -> Self{
                     Self {
@@ -632,7 +634,7 @@ pub mod isi_box {
                         let stop_val = stop_arc.lock().unwrap();
                         if *stop_val {break;}
                         drop(stop_val);
-                        thread::sleep(Duration::from_millis(10));
+                        thread::sleep(Duration::from_millis(THREAD_POOL_PERIOD));
                     };
                 });
                 self.thread_handle.push(handle);
@@ -689,7 +691,7 @@ pub mod isi_box {
                     let stop_val = stop_arc.lock().unwrap();
                     if *stop_val {break;}
                     drop(stop_val);
-                    thread::sleep(Duration::from_millis(10));
+                    thread::sleep(Duration::from_millis(THREAD_POOL_PERIOD));
                 }
             });
             self.thread_handle.push(handle);
