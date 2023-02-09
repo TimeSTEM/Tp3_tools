@@ -23,5 +23,7 @@ pub enum Tp3ErrorKind {
 
     IsiBoxAttempt(u8),
     IsiBoxCouldNotConnect,
+    IsiBoxCouldNotSetParameters,
+    IsiBoxCouldNotConfigure,
     IsiBoxCouldNotSync,
 }

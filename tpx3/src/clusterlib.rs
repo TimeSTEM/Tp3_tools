@@ -13,13 +13,6 @@ pub mod cluster {
     
     const CLUSTER_DET: TIME = 128; //Cluster time window (in 640 Mhz or 1.5625).
     const CLUSTER_SPATIAL: isize = 256; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
-    //"time_walk_correction" is by meaning the coefficients. time_walk_correction_x1 is by fitting
-    //everything with a single exponential. time_walk_correction_x1_new is by doing a double exponential from 0-20 and 20-60. Time_walk_correction_30 is by using the reference value as ToT==30 using a single exponential but with the coefficient d in the fitting. _30_100 keV is by using tot==30 at 100 keV and only fitting an exponencial decay between 20 and 80. //Time_shift_correction_4by4 is by isi323 using single fitting and double fitting (_new). The _new_22-11-2022 is by using more experimental data. 1by1_30 is after aligning time walk with reference tot == 30.
-    //static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 401 * 2] = include_bytes!("time_walk_correction_30_100keV.dat");
-    //static TIME_WALK_SHIFT: &[u8; 1024 * 256 * 105 * 2] = include_bytes!("time_walk_correction_30_100keV_after_direct_fitting_x2.dat");
-    //static TIME_WALK_SHIFT_MASK: &[u8; 1024 * 256] = include_bytes!("time_walk_correction_30_100keV_mask.dat");
-    //static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_new_22-11-2022.dat");
-    //static TIME_SHIFT: &[u8; 1024 * 256 * 2] = include_bytes!("time_shift_correction_1by1_30.dat");
     
     static ATOT: &[u8; 1024 * 256 * 4] = include_bytes!("atot.dat");
     static BTOT: &[u8; 1024 * 256 * 4] = include_bytes!("btot.dat");
@@ -32,7 +25,6 @@ pub mod cluster {
                 v.len() * std::mem::size_of::<T>())
         }
     }
-    */
     
     fn transform_time_shift(v: &[u8]) -> &[i16] {
         unsafe {
@@ -49,6 +41,7 @@ pub mod cluster {
                 v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<i16>() )
         }
     }
+    */
     
     fn transform_energy_calibration(v: &[u8]) -> &[f32] {
         unsafe {
@@ -558,7 +551,7 @@ pub mod cluster {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
             let cluster_size = cluster.len() as COUNTER;
 
-            if ((cluster_size < 3) || (cluster_size > 4)) {return None;} //3 to 4 objects in the cluster
+            if (cluster_size < 3) || (cluster_size > 4) {return None;} //3 to 4 objects in the cluster
             
             let cluster_filter_size = cluster.iter().
                 filter(|se| se.tot_to_energy() == self.0).
@@ -607,7 +600,7 @@ pub mod cluster {
 
             let mut val = CollectionElectron::new();
             for electron in cluster {
-                let time_diference = electron.time() as i64 - time_reference as i64;
+                //let time_diference = electron.time() as i64 - time_reference as i64;
                 val.add_electron(SingleElectron{
                     data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot(), cluster_size),
                 });

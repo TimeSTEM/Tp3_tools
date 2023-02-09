@@ -6,6 +6,7 @@
 //!Ethernet.
 
 pub mod auxiliar;
+pub mod constlib;
 pub mod tdclib;
 pub mod packetlib;
 pub mod postlib;

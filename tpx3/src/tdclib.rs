@@ -470,9 +470,6 @@ impl TdcControl for NonPeriodicTdcRef {
 }
 
 pub mod isi_box {
-    //use rand_distr::{Normal, Distribution};
-    //use rand::{thread_rng};
-    //use std::fs::OpenOptions;
     use crate::errorlib::Tp3ErrorKind;
     use std::net::TcpStream;
     use std::io::{Read, Write};
@@ -480,8 +477,9 @@ pub mod isi_box {
     use std::thread;
     use crate::spimlib::SPIM_PIXELS;
     use std::time::Duration;
+    use crate::constlib::*;
 
-    pub const CHANNELS: usize = 200;
+    //pub const CHANNELS: usize = 200;
     
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
@@ -502,8 +500,8 @@ pub mod isi_box {
 
     pub trait IsiBoxTools {
         fn bind_and_connect(&mut self) -> Result<(), Tp3ErrorKind>;
-        fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32);
-        fn configure_measurement_type(&self, save_locally: bool);
+        fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32) -> Result<(), Tp3ErrorKind>;
+        fn configure_measurement_type(&self, save_locally: bool) -> Result<(), Tp3ErrorKind>;
         fn new() -> Self;
     }
 
@@ -545,20 +543,20 @@ pub mod isi_box {
             impl IsiBoxTools for $x<$y> {
                 fn bind_and_connect(&mut self) -> Result<(), Tp3ErrorKind>{
                     for _ in 0..self.nchannels {
-                        let sock = match TcpStream::connect("192.168.198.10:9592") {
+                        let sock = match TcpStream::connect(ISI_IP_PORT) {
                             Ok(val) => val,
                             Err(_) => return Err(Tp3ErrorKind::IsiBoxCouldNotConnect),
                         };
-                        //let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
-                        //let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
                         self.sockets.push(sock);
                     }
-                    let sock = TcpStream::connect("192.168.198.10:9592").expect("Could not connect to IsiBox.");
-                    //let sock = TcpStream::connect("127.0.0.1:9592").expect("Could not connect to IsiBox.");
+                    let sock = match TcpStream::connect(ISI_IP_PORT) {
+                        Ok(val) => val,
+                        Err(_) => return Err(Tp3ErrorKind::IsiBoxCouldNotConnect),
+                    };
                     self.ext_socket = Some(sock);
                     Ok(())
                 }
-                fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32) {
+                fn configure_scan_parameters(&self, xscan: u32, yscan: u32, pixel_time: u32) -> Result<(), Tp3ErrorKind> {
                     let mut config_array: [u32; 3] = [0; 3];
                     config_array[0] = xscan;
                     config_array[1] = yscan;
@@ -566,18 +564,20 @@ pub mod isi_box {
                     let mut sock = &self.sockets[0];
                     match sock.write(as_bytes(&config_array)) {
                         Ok(size) => {println!("data sent to configure scan parameters: {}", size);},
-                        Err(e) => {println!("{}", e);},
+                        Err(_) => {return Err(Tp3ErrorKind::IsiBoxCouldNotSetParameters);},
                     };
+                    Ok(())
                 }
-                fn configure_measurement_type(&self, save_locally: bool) {
+                fn configure_measurement_type(&self, save_locally: bool) -> Result<(), Tp3ErrorKind> {
                     let mut config_array: [u32; 1] = [0; 1];
                     config_array[0] = measurement_type!($z);
                     if save_locally {config_array[0] = 2;}
                     let mut sock = &self.sockets[0];
                     match sock.write(as_bytes(&config_array)) {
                         Ok(size) => {println!("data sent to configure the measurement type: {}", size);},
-                        Err(e) => {println!("{}", e);},
+                        Err(_) => {return Err(Tp3ErrorKind::IsiBoxCouldNotConfigure);},
                     };
+                    Ok(())
                 }
                 fn new() -> Self{
                     Self {
@@ -634,7 +634,7 @@ pub mod isi_box {
                         let stop_val = stop_arc.lock().unwrap();
                         if *stop_val {break;}
                         drop(stop_val);
-                        thread::sleep(Duration::from_millis(10));
+                        thread::sleep(Duration::from_millis(THREAD_POOL_PERIOD));
                     };
                 });
                 self.thread_handle.push(handle);
@@ -691,7 +691,7 @@ pub mod isi_box {
                     let stop_val = stop_arc.lock().unwrap();
                     if *stop_val {break;}
                     drop(stop_val);
-                    thread::sleep(Duration::from_millis(10));
+                    thread::sleep(Duration::from_millis(THREAD_POOL_PERIOD));
                 }
             });
             self.thread_handle.push(handle);
