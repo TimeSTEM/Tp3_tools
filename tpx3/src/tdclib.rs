@@ -479,7 +479,7 @@ pub mod isi_box {
     use std::time::Duration;
     use crate::constlib::*;
 
-    pub const CHANNELS: usize = 200;
+    //pub const CHANNELS: usize = 200;
     
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {

@@ -1,11 +1,11 @@
 use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::*;
 use timepix3::tdclib::{*, isi_box::*};
-//use timepix3::tdclib::{TdcControl, PeriodicTdcRef, isi_box, isi_box::{CHANNELS, IsiBoxTools, IsiBoxHand}};
 use timepix3::{speclib, speclib::IsiBoxKind, spimlib, spimlib::SpimKind};
 use timepix3::isi_box_new;
 use std::{thread, time};
 use std::convert::TryInto;
+use timepix3::constlib::*;
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {

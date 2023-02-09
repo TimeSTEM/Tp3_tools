@@ -638,7 +638,6 @@ pub mod isi_box {
     use std::fs::OpenOptions;
     use std::io::{Read, Write};
     use crate::spimlib::VIDEO_TIME;
-    use crate::tdclib::isi_box::CHANNELS;
     use crate::auxiliar::value_types::*;
     use indicatif::{ProgressBar, ProgressStyle};
     use crate::constlib::*;
