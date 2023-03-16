@@ -441,10 +441,21 @@ pub mod coincidence {
         coinc_data.prepare_spim(spim_tdc);
         let _begin_tp3_time = spim_tdc.begin_frame;
         let mut tp3_tdc_counter = 0;
+		
+		//Checking if the line period is compatible with IsiBox (roughly 8 ms)
+		println!("{:?}", spim_tdc.period().unwrap());
+		let isi_overflow_correction = if spim_tdc.period().unwrap() > 5_120_000 {
+			println!("***IsiBox***: Acquisition line time is superior than IsiBox dynamic range. Measurement will take place anyway.");
+			1
+		} else {
+			0
+		};
+		
+			
     
         //IsiBox loading file & setting up synchronization
         let f = fs::File::open(file2).unwrap();
-        let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, spim_tdc.pixel_time(coinc_data.spim_size.0) * 15_625 / 10_000);
+        let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, spim_tdc.pixel_time(coinc_data.spim_size.0) * 15_625 / 10_000, isi_overflow_correction);
         println!("***IsiBox***: Selected pixel time is (ns): {}.", spim_tdc.pixel_time(coinc_data.spim_size.0) * 15_625 / 10_000);
         let _begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
@@ -501,12 +512,6 @@ pub mod coincidence {
                                     }
                                 }
                                 
-
-
-
-
-
-                                
                                 coinc_data.add_spim_line(&packet);
                                 let of = coinc_data.estimate_overflow(&packet).unwrap();
                                 let isi_val = tdc_iter.next().unwrap();
@@ -536,7 +541,8 @@ pub mod coincidence {
                                 };
 
                                 //println!("{} and {} and {} and {} and {} and {} and {}", offset, t_dif, isi_val.1, packet.tdc_time_abs(), tdc_val, of, packet.tdc_counter());
-                                
+                                //println!("{} and {}", isi_val.1, packet.tdc_time_abs());
+								
                                 if (offset != 0) && ((t_dif > offset + ISI_TP3_MAX_DIF) || (offset > t_dif + ISI_TP3_MAX_DIF)) {
                                     //println!("***IsiBox***: Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
                                     //println!("{:?}", isi_val);
@@ -788,7 +794,7 @@ pub mod isi_box {
             println!("***IsiBox***: reference values corrected.");
         }
 
-        fn correct_data(&mut self) {
+        fn correct_data(&mut self, isi_overflow_correction: u32) {
             let mut counter = 0;
             let mut last_time = 0;
             let mut overflow = 0;
@@ -817,9 +823,9 @@ pub mod isi_box {
                 //Correction time
                 let raw_time = x.0;
                 if x.0 > last_time {
-                    x.0 += overflow as TIME * 67108864;
+                    x.0 += (overflow + counter * isi_overflow_correction) as TIME * 67108864;
                 } else {
-                    x.0 += (overflow + 1) as TIME  * 67108864;
+                    x.0 += (overflow + counter * isi_overflow_correction + 1) as TIME  * 67108864;
                 };
                 //Correcting spim index
                 x.2 = spim_index(raw_time, counter, last_time);
@@ -970,7 +976,7 @@ pub mod isi_box {
     }
 
     //Pixel time must be in nanoseconds.
-    pub fn get_channel_timelist<V>(mut data: V, spim_size: (POSITION, POSITION), pixel_time: TIME) -> IsiList 
+    pub fn get_channel_timelist<V>(mut data: V, spim_size: (POSITION, POSITION), pixel_time: TIME, isi_overflow_correction: u32) -> IsiList 
         where V: Read
         {
             let mut list = IsiList{data_raw: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
@@ -989,7 +995,7 @@ pub mod isi_box {
             }
             list.determine_line_time();
             list.check_for_issues();
-            list.correct_data();
+            list.correct_data(isi_overflow_correction);
             list.output_spim();
             list.search_coincidence(0, 12);
             list
