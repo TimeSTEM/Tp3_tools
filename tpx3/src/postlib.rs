@@ -367,6 +367,56 @@ pub mod coincidence {
         }
     }
 
+
+    pub fn check_for_error_in_tpx3_data<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<usize, Tp3ErrorKind> {
+        let mut file0 = fs::File::open(&coinc_data.file).unwrap();
+        let progress_size = file0.metadata().unwrap().len();
+        let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
+        coinc_data.prepare_spim(spim_tdc);
+        
+        let bar = ProgressBar::new(512_000_000);
+        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Checking if there are problems using only Timepix3 data.")
+                      .unwrap()
+                      .progress_chars("=>-"));
+        
+        let mut ci = 0;
+        let mut file = fs::File::open(&coinc_data.file).unwrap();
+        let mut buffer: Vec<u8> = vec![0; ISI_BUFFER_SIZE];
+        let mut total_size = 0;
+        let mut quit = false;
+        let mut current_value = 0;
+        let mut counter = 0;
+        
+        while let Ok(size) = file.read(&mut buffer) {
+            if size == 0 {break;}
+            if quit {break;}
+            if (total_size / 1_000) > 512_000 {break;} //512 MB and then quits
+            total_size += size;
+            bar.inc(ISI_BUFFER_SIZE as u64);
+            buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+                match *pack_oct {
+                    [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
+                    _ => {
+                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
+                        match packet.id() {
+                            6 if packet.tdc_type() == spim_tdc.id() => {
+                                if (current_value != 0) && (packet.tdc_time_abs() > current_value + 100_000_000) {
+                                    quit = true;
+                                }
+                                current_value = packet.tdc_time_abs();
+                                if !quit {counter = counter + 1};
+
+                            }
+                            _ => {},
+                        }
+                    },
+                }
+            })
+        }
+        let result = if quit { Ok(counter) } else { Ok(0) };
+        println!("***IsiBox***: Timepix3-only data showed {} line errors.", result.as_ref().unwrap());
+        result
+    }
             
 
     pub fn search_coincidence<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> io::Result<()> {
@@ -501,7 +551,7 @@ pub mod coincidence {
                                     return;
                                 }
                                 
-                                //This jumps IsiBox lines when the Timepix3 raw data loses TDCs
+                                //This jumps IsiBox lines when the Timepix3 raw data loses TDCs.
                                 tp3_tdc_counter = spim_tdc.counter();
                                 spim_tdc.upt(packet.tdc_time_abs(), packet.tdc_counter());
                                 let tp3_values_to_skip = (spim_tdc.counter() - tp3_tdc_counter - 2) / 2;
@@ -541,7 +591,7 @@ pub mod coincidence {
                                 };
 
                                 //println!("{} and {} and {} and {} and {} and {} and {}", offset, t_dif, isi_val.1, packet.tdc_time_abs(), tdc_val, of, packet.tdc_counter());
-                                //println!("{} and {}", isi_val.1, packet.tdc_time_abs());
+                                //println!("{} and {} and {}", isi_val.1, packet.tdc_time_abs(), t_dif);
 								
                                 if (offset != 0) && ((t_dif > offset + ISI_TP3_MAX_DIF) || (offset > t_dif + ISI_TP3_MAX_DIF)) {
                                     //println!("***IsiBox***: Possibly problem in acquiring TDC in both TP3 and IsiBox. Values for debug (Time difference, TDC, Isi, Packet_tdc, overflow, current offset) are: {} and {} and {} and {} and {} and {}", t_dif, tdc_val, isi_val.1, packet.tdc_time_abs(), of, offset);
@@ -581,7 +631,10 @@ pub mod coincidence {
     }
 
     pub fn search_coincidence_isi<T: ClusterCorrection>(file2: &str, coinc_data: &mut ElectronData<T>) -> io::Result<()> {
-    
+
+        //Check for error using only the Timepix3 data
+        let val = check_for_error_in_tpx3_data(coinc_data);
+
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file)?;
         let progress_size = file0.metadata().unwrap().len() as u64;
