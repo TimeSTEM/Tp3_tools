@@ -137,7 +137,7 @@ pub mod coincidence {
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
-            let line_period = self.spim_tdc.unwrap().period().unwrap() as i64;
+            let line_period_offset = line_offset * self.spim_tdc.unwrap().period().unwrap() as i64;
             
             let mut first_corr_photon = 0;
             for val in temp_edata.electron.values() {
@@ -146,9 +146,11 @@ pub mod coincidence {
                 let mut index = 0;
                 let mut index_to_increase = None;
                 for ph in &temp_tdc.clean_tdc[min_index..] {
+                    let new_photon_time = ((ph.0 / 6) as i64 + line_period_offset) as TIME;
                     //if ((ph.0/6) < val.time() + time_delay + time_width) && (val.time() + time_delay < (ph.0/6) + time_width) {
-                    let difference = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64 + line_offset * line_period;
-                    if difference.abs() < time_width as i64 {
+                    if (new_photon_time < val.time() + time_delay + time_width) && (val.time() + time_delay < new_photon_time + time_width) {
+                    //let difference = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64 + line_offset * line_period;
+                    //if difference.abs() < time_width as i64 {
                         self.add_coincident_electron(*val, *ph);
                         if index_to_increase.is_none() {
                             index_to_increase = Some(index)
@@ -163,8 +165,8 @@ pub mod coincidence {
                         first_corr_photon = ph.0;
 
                     }
-                    if (ph.0/6) > val.time() + time_delay + (line_offset * line_period).abs() as u64 + 10_000 {break;}
-                    //if (ph.0/6) > val.time() + time_delay + (line_offset * line_period).abs() as u64 + 10_000 {break;}
+                    //if (ph.0/6) - line_period > val.time() + time_delay + 10_000 {break;}
+                    if new_photon_time > val.time() + time_delay + 10_000 {break;}
                     index += 1;
                 }
                 if let Some(increase) = index_to_increase {
@@ -342,6 +344,14 @@ pub mod coincidence {
             });
             //println!("{:?}", self.tdc.get(0..100));
         }
+
+        /*
+        fn correct_tdc_by_line(&mut self) {
+            self.tdc.iter_mut().for_each(|(time, _channel, _dt)| 
+                                         *time = *time + line_period
+                                         );
+        }
+        */
         
         pub fn get_sync(&self) -> Vec<(usize, TIME)> {
             self.tdc.iter().
