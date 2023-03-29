@@ -41,7 +41,7 @@ pub mod coincidence {
     pub struct ElectronData<T> {
         time: Vec<TIME>,
         channel: Vec<u8>,
-        rel_time: Vec<i16>,
+        rel_time: Vec<i32>,
         double_photon_rel_time: Vec<i16>,
         g2_time: Vec<Option<i16>>,
         x: Vec<u16>,
@@ -99,7 +99,7 @@ pub mod coincidence {
             }
         }
         
-        fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME) {
+        fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME, line_offset: i64) {
             let _ntotal = temp_tdc.tdc.len();
             let nphotons = temp_tdc.tdc.iter().
                 filter(|(_time, channel, _dt)| *channel != 16 && *channel != 24).
@@ -122,7 +122,7 @@ pub mod coincidence {
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
-            //let mut photon_vec = temp_tdc.tdc.iter().filter(|ph| ph.1 != 16 && ph.1 != 24).collect::<Vec<_>>();
+            let line_period = self.spim_tdc.unwrap().period().unwrap() as i64;
             
             let mut first_corr_photon = 0;
             for val in temp_edata.electron.values() {
@@ -131,16 +131,18 @@ pub mod coincidence {
                 let mut index = 0;
                 let mut index_to_increase = None;
                 for ph in &temp_tdc.clean_tdc[min_index..] {
-                    if ((ph.0/6) < val.time() + time_delay + time_width) && (val.time() + time_delay < (ph.0/6) + time_width) {
+                    //if ((ph.0/6) < val.time() + time_delay + time_width) && (val.time() + time_delay < (ph.0/6) + time_width) {
+                    let difference = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64 + line_offset * line_period;
+                    if difference.abs() < time_width as i64 {
                         self.add_coincident_electron(*val, *ph);
                         if index_to_increase.is_none() {
                             index_to_increase = Some(index)
                         }
                         photons_per_electron += 1;
-                        if photons_per_electron == 2 {
-                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon).try_into().unwrap());
-                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.0).try_into().unwrap());
-                        }
+                        //if photons_per_electron == 2 {
+                        //    self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon).try_into().unwrap());
+                        //    self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.0).try_into().unwrap());
+                        //}
                         first_corr_photon = ph.0;
 
                     }
@@ -368,13 +370,12 @@ pub mod coincidence {
     }
 
 
-    pub fn check_for_error_in_tpx3_data<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<usize, Tp3ErrorKind> {
+    pub fn check_for_error_in_tpx3_data<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<u32, Tp3ErrorKind> {
         let mut file0 = fs::File::open(&coinc_data.file).unwrap();
-        let progress_size = file0.metadata().unwrap().len();
         let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         
-        let bar = ProgressBar::new(512_000_000);
+        let bar = ProgressBar::new(ISI_BUFFER_SIZE as u64);
         bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Checking if there are problems using only Timepix3 data.")
                       .unwrap()
                       .progress_chars("=>-"));
@@ -383,14 +384,14 @@ pub mod coincidence {
         let mut file = fs::File::open(&coinc_data.file).unwrap();
         let mut buffer: Vec<u8> = vec![0; ISI_BUFFER_SIZE];
         let mut total_size = 0;
-        let mut quit = false;
-        let mut current_value = 0;
         let mut counter = 0;
+        let mut current_value = 0;
+        
+        let mut last_index = 0;
         
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {break;}
-            if quit {break;}
-            if (total_size / 1_000) > 512_000 {break;} //512 MB and then quits
+            if total_size >= ISI_BUFFER_SIZE {break;} //128 MB and then quits
             total_size += size;
             bar.inc(ISI_BUFFER_SIZE as u64);
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
@@ -401,11 +402,10 @@ pub mod coincidence {
                         match packet.id() {
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 if (current_value != 0) && (packet.tdc_time_abs() > current_value + 100_000_000) {
-                                    quit = true;
+                                    last_index = counter;
                                 }
                                 current_value = packet.tdc_time_abs();
-                                if !quit {counter = counter + 1};
-
+                                counter = counter + 1;
                             }
                             _ => {},
                         }
@@ -413,9 +413,8 @@ pub mod coincidence {
                 }
             })
         }
-        let result = if quit { Ok(counter) } else { Ok(0) };
-        println!("***IsiBox***: Timepix3-only data showed {} line errors.", result.as_ref().unwrap());
-        result
+        println!("***IsiBox***: Timepix3-only data showed {} line errors.", last_index);
+        Ok(last_index)
     }
             
 
@@ -474,7 +473,7 @@ pub mod coincidence {
                     },
                 };
             });
-        coinc_data.add_events(temp_edata, &mut temp_tdc, TP3_TIME_DELAY, TP3_TIME_WIDTH);
+        coinc_data.add_events(temp_edata, &mut temp_tdc, TP3_TIME_DELAY, TP3_TIME_WIDTH, 0);
         //println!("Time elapsed: {:?}", start.elapsed());
 
         }
@@ -482,7 +481,7 @@ pub mod coincidence {
         Ok(())
     }
     
-    pub fn correct_coincidence_isi<T: ClusterCorrection>(file2: &str, coinc_data: &mut ElectronData<T>, jump_tp3_tdc: usize) -> Result<(TempTdcData, usize), Tp3ErrorKind> {
+    pub fn correct_coincidence_isi<T: ClusterCorrection>(file2: &str, coinc_data: &mut ElectronData<T>, jump_tp3_tdc: u32) -> Result<(TempTdcData, usize), Tp3ErrorKind> {
     
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file).unwrap();
@@ -493,7 +492,6 @@ pub mod coincidence {
         let mut tp3_tdc_counter = 0;
 		
 		//Checking if the line period is compatible with IsiBox (roughly 8 ms)
-		println!("{:?}", spim_tdc.period().unwrap());
 		let isi_overflow_correction = if spim_tdc.period().unwrap() > 5_120_000 {
 			println!("***IsiBox***: Acquisition line time is superior than IsiBox dynamic range. Measurement will take place anyway.");
 			1
@@ -501,16 +499,16 @@ pub mod coincidence {
 			0
 		};
 		
-			
+        //Check for error using only the Timepix3 data. This can happens if we have few hits in the
+        //begining of the acquisition in both timepix and IsiBox that are unrelated to the scanning unit. 
+        let lines_to_correct_both = check_for_error_in_tpx3_data(coinc_data).unwrap();
     
         //IsiBox loading file & setting up synchronization
         let f = fs::File::open(file2).unwrap();
-        let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, spim_tdc.pixel_time(coinc_data.spim_size.0) * 15_625 / 10_000, isi_overflow_correction);
+        let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, spim_tdc.pixel_time(coinc_data.spim_size.0) * 15_625 / 10_000, lines_to_correct_both, isi_overflow_correction);
         println!("***IsiBox***: Selected pixel time is (ns): {}.", spim_tdc.pixel_time(coinc_data.spim_size.0) * 15_625 / 10_000);
-        let _begin_isi_time = temp_list.start_time;
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
         let tdc_vec = temp_tdc.get_sync();
-        let _isi_tdc_counter = tdc_vec.len();
         let mut tdc_iter = tdc_vec.iter();
 
         let mut counter_jump_tp3_tdc = 0;
@@ -528,8 +526,6 @@ pub mod coincidence {
         let mut buffer: Vec<u8> = vec![0; ISI_BUFFER_SIZE];
         let mut total_size = 0;
         let mut quit = false;
-        let ignore_lines = 0;
-        let mut counter_ignore_lines = 0;
         
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {break;}
@@ -546,7 +542,7 @@ pub mod coincidence {
                             6 if packet.tdc_type() == spim_tdc.id() => {
 
                                 //This jumps timepix3 TDCs based on the value given to jump_tp3_tdc
-                                if jump_tp3_tdc > counter_jump_tp3_tdc {
+                                if jump_tp3_tdc + lines_to_correct_both > counter_jump_tp3_tdc {
                                     counter_jump_tp3_tdc += 1;
                                     return;
                                 }
@@ -556,7 +552,8 @@ pub mod coincidence {
                                 spim_tdc.upt(packet.tdc_time_abs(), packet.tdc_counter());
                                 let tp3_values_to_skip = (spim_tdc.counter() - tp3_tdc_counter - 2) / 2;
 
-                                if spim_tdc.counter() != 0 {
+                                //if spim_tdc.counter() != 0 {
+                                if tp3_tdc_counter != 0 {
                                     for _ in 0..tp3_values_to_skip {
                                         let _val = tdc_iter.next().unwrap();
                                     }
@@ -567,12 +564,6 @@ pub mod coincidence {
                                 let isi_val = tdc_iter.next().unwrap();
                                 let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
                                 let mut t_dif = tdc_val - isi_val.1;
-                                
-                                if ignore_lines > counter_ignore_lines {
-                                    counter_ignore_lines += 1;
-                                    return;
-                                }
-                                
                                 
                                 //Sometimes the estimative time does not work, underestimating it.
                                 //This tries to recover it out by adding a single offset;
@@ -632,16 +623,12 @@ pub mod coincidence {
 
     pub fn search_coincidence_isi<T: ClusterCorrection>(file2: &str, coinc_data: &mut ElectronData<T>) -> io::Result<()> {
 
-        //Check for error using only the Timepix3 data
-        let val = check_for_error_in_tpx3_data(coinc_data);
-
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file)?;
         let progress_size = file0.metadata().unwrap().len() as u64;
         let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
         //coinc_data.prepare_spim(spim_tdc);
     
-        
         let (mut temp_tdc, max_total_size) = match correct_coincidence_isi(file2, coinc_data, 0) {
             Ok((tt, mts)) => (tt, mts),
             Err(_) => correct_coincidence_isi(file2, coinc_data, 1).unwrap(),
@@ -685,7 +672,7 @@ pub mod coincidence {
                     },
                 };
             });
-        coinc_data.add_events(temp_edata, &mut temp_tdc, ISI_TIME_DELAY, ISI_TIME_WIDTH); //Fast start (NIM)
+        coinc_data.add_events(temp_edata, &mut temp_tdc, ISI_TIME_DELAY, ISI_TIME_WIDTH, 1); //Fast start (NIM)
         //coinc_data.add_events(temp_edata, &mut temp_tdc, 87, 100); //Slow start (TTL)
         }
         println!("***IsiBox***: Coincidence search is over.");
@@ -748,6 +735,7 @@ pub mod isi_box {
         last_time: u32,
         pub start_time: Option<u32>,
         line_time: Option<u32>,
+        line_offset: u32,
     }
 
 
@@ -787,7 +775,9 @@ pub mod isi_box {
             } else {
                 data
             };
-            self.data_raw.0.push((data as u64, channel, None, None, None));
+            if self.counter >= self.line_offset {
+                self.data_raw.0.push((data as u64, channel, None, None, None));
+            }
         }
 
         fn determine_line_time(&mut self) {
@@ -1029,10 +1019,10 @@ pub mod isi_box {
     }
 
     //Pixel time must be in nanoseconds.
-    pub fn get_channel_timelist<V>(mut data: V, spim_size: (POSITION, POSITION), pixel_time: TIME, isi_overflow_correction: u32) -> IsiList 
+    pub fn get_channel_timelist<V>(mut data: V, spim_size: (POSITION, POSITION), pixel_time: TIME, line_offset: u32, isi_overflow_correction: u32) -> IsiList 
         where V: Read
         {
-            let mut list = IsiList{data_raw: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None};
+            let mut list = IsiList{data_raw: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None, line_offset: line_offset};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
                 if size == 0 {println!("***IsiBox***: Finished reading file."); break;}
