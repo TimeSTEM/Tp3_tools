@@ -37,11 +37,25 @@ pub mod coincidence {
         println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
     }
 
+
+    //When we would like to have large E-PH timeoffsets, such as skipping entire line periods, the
+    //difference between E-PH could not fit in i16. We fold these big numbers to fit in a i16
+    //vector, and thus reducing the size of the output data
+    trait FoldNumber<T>: Sized {
+        fn fold(self) -> T;
+    }
+
+    impl FoldNumber<i16> for i64 {
+        fn fold(self) -> i16 {
+            (self % i16::MAX as i64) as i16
+        }
+    }
+
     //Non-standard data types 
     pub struct ElectronData<T> {
         time: Vec<TIME>,
         channel: Vec<u8>,
-        rel_time: Vec<i32>,
+        rel_time: Vec<i16>,
         double_photon_rel_time: Vec<i16>,
         g2_time: Vec<Option<i16>>,
         x: Vec<u16>,
@@ -91,7 +105,8 @@ pub mod coincidence {
             self.x.push(val.x().try_into().unwrap());
             self.y.push(val.y().try_into().unwrap());
             self.channel.push(photon.1.try_into().unwrap());
-            self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).try_into().unwrap());
+            self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).fold());
+            //self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).try_into().unwrap());
             self.cluster_size.push(val.cluster_size().try_into().unwrap());
             match val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 Some(index) => self.spim_index.push(index),
@@ -139,14 +154,17 @@ pub mod coincidence {
                             index_to_increase = Some(index)
                         }
                         photons_per_electron += 1;
-                        //if photons_per_electron == 2 {
-                        //    self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon).try_into().unwrap());
-                        //    self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.0).try_into().unwrap());
-                        //}
+                        if photons_per_electron == 2 {
+                            //self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon).try_into().unwrap());
+                            //self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.0).try_into().unwrap());
+                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon).fold());
+                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.0).fold());
+                        }
                         first_corr_photon = ph.0;
 
                     }
-                    if (ph.0/6) > val.time() + time_delay + 10_000 {break;}
+                    if (ph.0/6) > val.time() + time_delay + (line_offset * line_period).abs() as u64 + 10_000 {break;}
+                    //if (ph.0/6) > val.time() + time_delay + (line_offset * line_period).abs() as u64 + 10_000 {break;}
                     index += 1;
                 }
                 if let Some(increase) = index_to_increase {
@@ -672,7 +690,7 @@ pub mod coincidence {
                     },
                 };
             });
-        coinc_data.add_events(temp_edata, &mut temp_tdc, ISI_TIME_DELAY, ISI_TIME_WIDTH, 1); //Fast start (NIM)
+        coinc_data.add_events(temp_edata, &mut temp_tdc, ISI_TIME_DELAY, ISI_TIME_WIDTH, ISI_LINE_OFFSET); //Fast start (NIM)
         //coinc_data.add_events(temp_edata, &mut temp_tdc, 87, 100); //Slow start (TTL)
         }
         println!("***IsiBox***: Coincidence search is over.");
