@@ -52,8 +52,52 @@ pub mod coincidence {
         }
     }
 
-    pub struct PlotConstructor {
+    pub struct PlotConstructor<'a, A: DrawingBackend, B: CoordTranslate> {
+        //file_name: &'static str,
+        Drawing: DrawingArea<A, B>,
+        min_time: i32,
+        max_time: i32,
+        data: &'a [i32],
     }
+
+    impl<'a, A: DrawingBackend, B: CoordTranslate + std::ops::Deref> PlotConstructor<'a, A, B> {
+        fn new(min_time: i32, max_time: i32) {
+            let drawing_area = BitMapBackend::new("test.png", (640, 480)).into_drawing_area();
+            
+            let mut chart = ChartBuilder::on(&drawing_area)
+                .x_label_area_size(35)
+                .y_label_area_size(40)
+                .margin(5)
+                .caption("Coincidence Histogram", ("sans-serif", 50.0))
+                .build_cartesian_2d((min_time..max_time).into_segmented(), 0i32..10000i32).unwrap();
+        }
+    }
+    /*
+        const OUT_FILE_NAME: &'static str = "plotters-doc-data/histogram.png";
+        let root = BitMapBackend::new(OUT_FILE_NAME, (640, 480)).into_drawing_area();
+
+        root.fill(&WHITE).unwrap();
+
+        let min_time = -(ISI_TIME_DELAY as i32) * 6 - (ISI_TIME_WIDTH as i32) * 6;
+        let max_time = -(ISI_TIME_DELAY as i32) * 6 + (ISI_TIME_WIDTH as i32) * 6;
+        let mut chart = ChartBuilder::on(&root)
+            .x_label_area_size(35)
+            .y_label_area_size(40)
+            .margin(5)
+            .caption("Coincidence Histogram", ("sans-serif", 50.0))
+            .build_cartesian_2d((min_time..max_time).into_segmented(), 0i32..10000i32).unwrap();
+
+        chart
+            .configure_mesh()
+            .disable_x_mesh()
+            .bold_line_style(&WHITE.mix(0.3))
+            .y_desc("Count")
+            .x_desc("Bucket")
+            .axis_desc_style(("sans-serif", 15))
+            .draw().unwrap();
+        
+        chart.draw_series(
+        */
 
     //Non-standard data types 
     pub struct ElectronData<T> {
@@ -661,12 +705,14 @@ pub mod coincidence {
 
         root.fill(&WHITE).unwrap();
 
+        let min_time = -(ISI_TIME_DELAY as i32) * 6 - (ISI_TIME_WIDTH as i32) * 6;
+        let max_time = -(ISI_TIME_DELAY as i32) * 6 + (ISI_TIME_WIDTH as i32) * 6;
         let mut chart = ChartBuilder::on(&root)
             .x_label_area_size(35)
             .y_label_area_size(40)
             .margin(5)
-            .caption("Histogram Test", ("sans-serif", 50.0))
-            .build_cartesian_2d((-1024i32..1024i32).into_segmented(), 0i32..10024i32).unwrap();
+            .caption("Coincidence Histogram", ("sans-serif", 50.0))
+            .build_cartesian_2d((min_time..max_time).into_segmented(), 0i32..10000i32).unwrap();
 
         chart
             .configure_mesh()
@@ -676,11 +722,7 @@ pub mod coincidence {
             .x_desc("Bucket")
             .axis_desc_style(("sans-serif", 15))
             .draw().unwrap();
-
-        let data = [
-            0i32, 1, 1, 1, 4, 2, 5, 7, 8, 6, 4, 2, 1, 8, 3, 3, 3, 4, 4, 3, 3, 3,
-        ];
-
+        
         /*
         chart.draw_series(
             Histogram::vertical(&chart)
@@ -747,14 +789,14 @@ pub mod coincidence {
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, ISI_TIME_DELAY, ISI_TIME_WIDTH, ISI_LINE_OFFSET); //Fast start (NIM)
         
-        /*
+        ///*
         chart.draw_series(
             Histogram::vertical(&chart)
-            .style(RED.mix(0.5).filled())
+            .style(RED.mix(0.1).filled())
             .data(coinc_data.rel_time.iter().map(|x| *x as i32).map(|x: i32| (x, 1))),
             ).unwrap();
         root.present().unwrap();
-        */
+        //*/
         
         //coinc_data.add_events(temp_edata, &mut temp_tdc, 87, 100); //Slow start (TTL)
         }
@@ -1286,7 +1328,7 @@ pub mod ntime_resolved {
         let mut ci = 0;
             
         let bar = ProgressBar::new(progress_size);
-        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Checking for issues in the IsiBox data")
+        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Reconstructing hyperspectral image.")
                       .unwrap()
                       .progress_chars("=>-"));
 
