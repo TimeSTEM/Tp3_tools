@@ -1,5 +1,6 @@
 pub mod coincidence {
 
+    use plotters::prelude::*;
     use std::fs::OpenOptions;
     use crate::spimlib::SPIM_PIXELS;
     use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack, packet_change};
@@ -49,6 +50,9 @@ pub mod coincidence {
         fn fold(self) -> i16 {
             (self % i16::MAX as i64) as i16
         }
+    }
+
+    pub struct PlotConstructor {
     }
 
     //Non-standard data types 
@@ -651,6 +655,47 @@ pub mod coincidence {
 
     pub fn search_coincidence_isi<T: ClusterCorrection>(file2: &str, coinc_data: &mut ElectronData<T>) -> io::Result<()> {
 
+        //Configuring plotters to have live preview of data
+        const OUT_FILE_NAME: &'static str = "plotters-doc-data/histogram.png";
+        let root = BitMapBackend::new(OUT_FILE_NAME, (640, 480)).into_drawing_area();
+
+        root.fill(&WHITE).unwrap();
+
+        let mut chart = ChartBuilder::on(&root)
+            .x_label_area_size(35)
+            .y_label_area_size(40)
+            .margin(5)
+            .caption("Histogram Test", ("sans-serif", 50.0))
+            .build_cartesian_2d((-1024i32..1024i32).into_segmented(), 0i32..10024i32).unwrap();
+
+        chart
+            .configure_mesh()
+            .disable_x_mesh()
+            .bold_line_style(&WHITE.mix(0.3))
+            .y_desc("Count")
+            .x_desc("Bucket")
+            .axis_desc_style(("sans-serif", 15))
+            .draw().unwrap();
+
+        let data = [
+            0i32, 1, 1, 1, 4, 2, 5, 7, 8, 6, 4, 2, 1, 8, 3, 3, 3, 4, 4, 3, 3, 3,
+        ];
+
+        /*
+        chart.draw_series(
+            Histogram::vertical(&chart)
+            .style(RED.mix(0.5).filled())
+            .data(data.iter().map(|x: &i32| (*x, 1))),
+            ).unwrap();
+
+        // To avoid the IO failure being ignored silently, we manually call
+        // the present function
+        root.present().expect("Unable to write result to file,
+        please make sure 'plotters-doc-data' dir exists under
+        current dir");
+        println!("Result has been saved to {}", OUT_FILE_NAME);
+        */
+
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file)?;
         let progress_size = file0.metadata().unwrap().len() as u64;
@@ -701,6 +746,16 @@ pub mod coincidence {
                 };
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, ISI_TIME_DELAY, ISI_TIME_WIDTH, ISI_LINE_OFFSET); //Fast start (NIM)
+        
+        /*
+        chart.draw_series(
+            Histogram::vertical(&chart)
+            .style(RED.mix(0.5).filled())
+            .data(coinc_data.rel_time.iter().map(|x| *x as i32).map(|x: i32| (x, 1))),
+            ).unwrap();
+        root.present().unwrap();
+        */
+        
         //coinc_data.add_events(temp_edata, &mut temp_tdc, 87, 100); //Slow start (TTL)
         }
         println!("***IsiBox***: Coincidence search is over.");
