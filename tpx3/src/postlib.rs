@@ -1,6 +1,5 @@
 pub mod coincidence {
 
-    use plotters::prelude::*;
     use std::fs::OpenOptions;
     use crate::spimlib::SPIM_PIXELS;
     use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack, packet_change};
@@ -12,6 +11,7 @@ pub mod coincidence {
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
+    use std::collections::HashMap;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use crate::auxiliar::ConfigAcquisition;
     use crate::auxiliar::value_types::*;
@@ -52,53 +52,6 @@ pub mod coincidence {
         }
     }
 
-    pub struct PlotConstructor<'a, A: DrawingBackend, B: CoordTranslate> {
-        //file_name: &'static str,
-        Drawing: DrawingArea<A, B>,
-        min_time: i32,
-        max_time: i32,
-        data: &'a [i32],
-    }
-
-    impl<'a, A: DrawingBackend, B: CoordTranslate + std::ops::Deref> PlotConstructor<'a, A, B> {
-        fn new(min_time: i32, max_time: i32) {
-            let drawing_area = BitMapBackend::new("test.png", (640, 480)).into_drawing_area();
-            
-            let mut chart = ChartBuilder::on(&drawing_area)
-                .x_label_area_size(35)
-                .y_label_area_size(40)
-                .margin(5)
-                .caption("Coincidence Histogram", ("sans-serif", 50.0))
-                .build_cartesian_2d((min_time..max_time).into_segmented(), 0i32..10000i32).unwrap();
-        }
-    }
-    /*
-        const OUT_FILE_NAME: &'static str = "plotters-doc-data/histogram.png";
-        let root = BitMapBackend::new(OUT_FILE_NAME, (640, 480)).into_drawing_area();
-
-        root.fill(&WHITE).unwrap();
-
-        let min_time = -(ISI_TIME_DELAY as i32) * 6 - (ISI_TIME_WIDTH as i32) * 6;
-        let max_time = -(ISI_TIME_DELAY as i32) * 6 + (ISI_TIME_WIDTH as i32) * 6;
-        let mut chart = ChartBuilder::on(&root)
-            .x_label_area_size(35)
-            .y_label_area_size(40)
-            .margin(5)
-            .caption("Coincidence Histogram", ("sans-serif", 50.0))
-            .build_cartesian_2d((min_time..max_time).into_segmented(), 0i32..10000i32).unwrap();
-
-        chart
-            .configure_mesh()
-            .disable_x_mesh()
-            .bold_line_style(&WHITE.mix(0.3))
-            .y_desc("Count")
-            .x_desc("Bucket")
-            .axis_desc_style(("sans-serif", 15))
-            .draw().unwrap();
-        
-        chart.draw_series(
-        */
-
     //Non-standard data types 
     pub struct ElectronData<T> {
         time: Vec<TIME>,
@@ -112,6 +65,7 @@ pub mod coincidence {
         cluster_size: Vec<u16>,
         spectrum: Vec<usize>,
         corr_spectrum: Vec<usize>,
+        frequency_list: HashMap<i16, u32>,
         is_spim: bool,
         spim_size: (POSITION, POSITION),
         spim_index: Vec<POSITION>,
@@ -156,6 +110,11 @@ pub mod coincidence {
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).fold());
             //self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).try_into().unwrap());
             self.cluster_size.push(val.cluster_size().try_into().unwrap());
+            
+            //This is a frequency list. Helps to preview data.
+            let mut count = self.frequency_list.entry(val.relative_time_from_abs_tdc(photon.0).fold()).or_insert(0);
+            *count += 1;
+            
             match val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 Some(index) => self.spim_index.push(index),
                 None => self.spim_index.push(POSITION::MAX),
@@ -231,13 +190,23 @@ pub mod coincidence {
             self.spim_tdc = Some(spim_tdc);
         }
 
+        fn estimate_histogram_from_hash(&self) -> f32 {
+            let number_index_values: usize = self.frequency_list.iter().map(|(index, _count)| *index).count();
+            let count_values = self.frequency_list.iter().map(|(_index, count)| *count).collect::<Vec<u32>>();
+
+            let sum: f32 = (count_values.iter().sum::<u32>()) as f32;
+            let size = number_index_values as f32; 
+            let mean = sum / size;
+            let std_sum: f32 = count_values.iter().map(|x| *x as f32).map(|x| x*x + mean * mean - 2.0 *x * mean).sum::<f32>();
+            
+            (std_sum / size).sqrt()
+        }
+
         pub fn new(my_config: ConfigAcquisition<T>) -> Self {
             Self {
                 time: Vec::new(),
                 channel: Vec::new(),
                 rel_time: Vec::new(),
-                //corrected_rel_time: Vec::new(),
-                //fully_corrected_rel_time: Vec::new(),
                 double_photon_rel_time: Vec::new(),
                 g2_time: Vec::new(),
                 x: Vec::new(),
@@ -246,6 +215,7 @@ pub mod coincidence {
                 cluster_size: Vec::new(),
                 spectrum: vec![0; SPIM_PIXELS as usize],
                 corr_spectrum: vec![0; SPIM_PIXELS as usize],
+                frequency_list: HashMap::new(),
                 is_spim: my_config.is_spim,
                 spim_size: (my_config.xspim, my_config.yspim),
                 spim_index: Vec::new(),
@@ -291,10 +261,6 @@ pub mod coincidence {
         pub fn output_relative_time(&self) {
             output_data(&self.rel_time, "tH.txt");
             output_data(&self.double_photon_rel_time, "double_tH.txt");
-            /*
-            output_data(&self.corrected_rel_time, "corrected_tH.txt");
-            output_data(&self.fully_corrected_rel_time, "fully_corrected_tH.txt");
-            */
         }
         
         pub fn output_time(&self) {
@@ -699,8 +665,9 @@ pub mod coincidence {
 
     pub fn search_coincidence_isi<T: ClusterCorrection>(file2: &str, coinc_data: &mut ElectronData<T>) -> io::Result<()> {
 
+        /*
         //Configuring plotters to have live preview of data
-        const OUT_FILE_NAME: &'static str = "plotters-doc-data/histogram.png";
+        const OUT_FILE_NAME: &'static str = "histogram.png";
         let root = BitMapBackend::new(OUT_FILE_NAME, (640, 480)).into_drawing_area();
 
         root.fill(&WHITE).unwrap();
@@ -712,7 +679,7 @@ pub mod coincidence {
             .y_label_area_size(40)
             .margin(5)
             .caption("Coincidence Histogram", ("sans-serif", 50.0))
-            .build_cartesian_2d((min_time..max_time).into_segmented(), 0i32..10000i32).unwrap();
+            .build_cartesian_2d((min_time..max_time).into_segmented(), 0i32..1000i32).unwrap();
 
         chart
             .configure_mesh()
@@ -722,22 +689,8 @@ pub mod coincidence {
             .x_desc("Bucket")
             .axis_desc_style(("sans-serif", 15))
             .draw().unwrap();
-        
-        /*
-        chart.draw_series(
-            Histogram::vertical(&chart)
-            .style(RED.mix(0.5).filled())
-            .data(data.iter().map(|x: &i32| (*x, 1))),
-            ).unwrap();
-
-        // To avoid the IO failure being ignored silently, we manually call
-        // the present function
-        root.present().expect("Unable to write result to file,
-        please make sure 'plotters-doc-data' dir exists under
-        current dir");
-        println!("Result has been saved to {}", OUT_FILE_NAME);
         */
-
+        
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file)?;
         let progress_size = file0.metadata().unwrap().len() as u64;
@@ -788,17 +741,17 @@ pub mod coincidence {
                 };
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, ISI_TIME_DELAY, ISI_TIME_WIDTH, ISI_LINE_OFFSET); //Fast start (NIM)
+        //coinc_data.add_events(temp_edata, &mut temp_tdc, 87, 100); //Slow start (TTL)
         
-        ///*
+        /*
         chart.draw_series(
             Histogram::vertical(&chart)
             .style(RED.mix(0.1).filled())
-            .data(coinc_data.rel_time.iter().map(|x| *x as i32).map(|x: i32| (x, 1))),
+            .data(coinc_data.rel_time.iter().take(100000).map(|x| *x as i32).map(|x: i32| (x, 1))),
             ).unwrap();
         root.present().unwrap();
-        //*/
+        */
         
-        //coinc_data.add_events(temp_edata, &mut temp_tdc, 87, 100); //Slow start (TTL)
         }
         println!("***IsiBox***: Coincidence search is over.");
         Ok(())
