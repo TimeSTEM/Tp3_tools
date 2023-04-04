@@ -29,14 +29,15 @@ fn as_bytes<T>(v: &[T]) -> &[u8] {
 ///`SpimKind` is the main trait that measurement types must obey. Custom measurements must all
 ///implement these methods.
 pub trait SpimKind {
-    type MyOutput;
+    type InputData;
+    type OutputSize;
 
-    fn data(&self) -> &Vec<Self::MyOutput>;
+    fn data(&self) -> &Vec<Self::InputData>;
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef);
     fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T);
     fn upt_line(&self, packet: &PacketEELS, settings: &Settings, line_tdc: &mut PeriodicTdcRef);
     fn check(&self) -> bool;
-    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<POSITION>;
+    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<Self::OutputSize>;
     fn copy_empty(&self) -> Self;
     fn clear(&mut self);
     fn new() -> Self;
@@ -167,6 +168,15 @@ pub struct Live4D {
 }
 
 impl Live4D {
+    fn number_of_masks(&self) -> usize {
+        self.channels.len()
+    }
+
+    //fn create_mask(&mut self, array: [bool; DETECTOR_SIZE.0 * DETECTOR_SIZE.1]) {
+    fn create_mask<T: std::io::Read>(&mut self, array: T) {
+
+    }
+
     fn get_mask_values(&self, x:POSITION, y: POSITION) -> u32 {
         let mut mask_value = 0u32;
         let index = y as usize * DETECTOR_SIZE.0 + x as usize;
@@ -184,7 +194,8 @@ pub struct Live4DChannel {
 }
 
 impl SpimKind for Live {
-    type MyOutput = (POSITION, TIME);
+    type InputData = (POSITION, TIME);
+    type OutputSize = u32;
 
     fn data(&self) -> &Vec<(POSITION, TIME)> {
         &self.data
@@ -208,7 +219,7 @@ impl SpimKind for Live {
         self.data.get(0).is_some()
     }
     #[inline]
-    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<POSITION> {
+    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<Self::OutputSize> {
 
         //First step is to find the index of the (X, Y) of the spectral image in a flattened way
         //(last index is X*Y). The line value is thus multiplied by the spim size in the X
@@ -230,7 +241,7 @@ impl SpimKind for Live {
         let my_vec = self.data.iter()
             .filter_map(|&(x, dt)| {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
-            }).collect::<Vec<POSITION>>();
+            }).collect::<Vec<Self::OutputSize>>();
         
         //let my_vec = self.data.iter()
         //    .map(|&(x, dt)| get_complete_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size))
@@ -249,8 +260,10 @@ impl SpimKind for Live {
     }
 }
 
+
 impl SpimKind for Live4D {
-    type MyOutput = (POSITION, POSITION, TIME);
+    type InputData = (POSITION, POSITION, TIME);
+    type OutputSize = u64;
 
     fn data(&self) -> &Vec<(POSITION, POSITION, TIME)> {
         &self.data
@@ -276,7 +289,7 @@ impl SpimKind for Live4D {
         self.data.get(0).is_some()
     }
     #[inline]
-    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<POSITION> {
+    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<Self::OutputSize> {
 
         //First step is to find the index of the (X, Y) of the spectral image in a flattened way
         //(last index is X*Y). The line value is thus multiplied by the spim size in the X
@@ -294,23 +307,13 @@ impl SpimKind for Live4D {
         //
         //index = index + x
         
-        
-        let my_vec = self.data.iter()
-            .filter_map(|&(x, y, dt)| {
-                get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
-            }).collect::<Vec<POSITION>>();
-
         let my_vec = self.data.iter()
             .filter_map(|&(x, y, dt)| {
                 let mask_value = self.get_mask_values(x, y);
-                //get_4d_complete_positional_index(mask_value, dt, spim_tdc, set.xspim_size, set.yspim_size)})
-                get_positional_index(dt, spim_tdc, set.xspim_size, set.yspim_size)})
-            .collect::<Vec<POSITION>>();
+                get_4d_complete_positional_index(mask_value, dt, spim_tdc, set.xspim_size, set.yspim_size)})
+                //get_positional_index(dt, spim_tdc, set.xspim_size, set.yspim_size)})
+            .collect::<Vec<Self::OutputSize>>();
         
-        //let my_vec = self.data.iter()
-        //    .map(|&(x, dt)| get_complete_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size))
-        //    .collect::<Vec<POSITION>>();
-
         my_vec
     }
     fn clear(&mut self) {
@@ -348,6 +351,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     for tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
         if ns_sock.write(as_bytes(&result)).is_err() {println!("Client disconnected on data."); break;}
+        //if ns_sock.write(as_bytes(&tl.build_output(&my_settings, &spim_tdc))).is_err() {println!("Client disconnected on data."); break;}
     }
 
     let elapsed = start.elapsed(); 
