@@ -9,6 +9,7 @@ use std::io::Write;
 use std::sync::mpsc;
 use std::thread;
 use crate::auxiliar::value_types::*;
+use crate::constlib::*;
 //use rayon::prelude::*;
 
 pub const VIDEO_TIME: TIME = 3200;
@@ -101,6 +102,7 @@ pub fn get_complete_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, 
         index
 }
 
+//This recovers the position of the probe given the TDC and the electron ToA
 #[inline]
 pub fn get_positional_index(dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
     let val = dt % spim_tdc.period;
@@ -116,6 +118,27 @@ pub fn get_positional_index(dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION
             let index = r * xspim + rin;
         
             Some(index)
+        } else {
+            None
+        }
+}
+
+//This recovers the position of the probe given the TDC and the electron ToA
+#[inline]
+pub fn get_4d_complete_positional_index(mask: u32, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u64> {
+    let val = dt % spim_tdc.period;
+    if val < spim_tdc.low_time {
+        let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
+        let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
+            
+            if r > (yspim-1) {
+                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
+                r %= yspim;
+            }
+            
+            let index = r * xspim + rin;
+        
+            Some( ((index as u64) << 32) + mask as u64)
         } else {
             None
         }
@@ -139,10 +162,25 @@ pub struct Live {
 
 ///It outputs a list of index to be used to reconstruct a channel in 4D STEM
 pub struct Live4D {
-    data: Vec<(POSITION, TIME)>,
-    camera_size: (POSITION, POSITION),
-    mask: Vec<i8>,
-    channel_index: u8,
+    data: Vec<(POSITION, POSITION, TIME)>,
+    channels: Vec<Live4DChannel>,
+}
+
+impl Live4D {
+    fn get_mask_values(&self, x:POSITION, y: POSITION) -> u32 {
+        let mut mask_value = 0u32;
+        let index = y as usize * DETECTOR_SIZE.0 + x as usize;
+        for (channel_number, channel) in self.channels.iter().enumerate() {
+            if channel.mask[index] {
+                mask_value = mask_value | (1 << channel_number);
+            }
+        }
+        mask_value
+    }
+}
+
+pub struct Live4DChannel {
+    mask: [bool; DETECTOR_SIZE.0 * DETECTOR_SIZE.1],
 }
 
 impl SpimKind for Live {
@@ -212,22 +250,24 @@ impl SpimKind for Live {
 }
 
 impl SpimKind for Live4D {
-    type MyOutput = (POSITION, TIME);
+    type MyOutput = (POSITION, POSITION, TIME);
 
-    fn data(&self) -> &Vec<(POSITION, TIME)> {
+    fn data(&self) -> &Vec<(POSITION, POSITION, TIME)> {
         &self.data
     }
     #[inline]
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
-        self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
+        self.data.push((packet.x(), packet.y(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
+        /*
         let tdc_time = packet.tdc_time_norm();
         ref_tdc.upt(tdc_time, packet.tdc_counter());
         if tdc_time > line_tdc.begin_frame + VIDEO_TIME {
             self.data.push((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame - VIDEO_TIME))
         }
+        */
     }
     fn upt_line(&self, packet: &PacketEELS, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
@@ -256,9 +296,16 @@ impl SpimKind for Live4D {
         
         
         let my_vec = self.data.iter()
-            .filter_map(|&(x, dt)| {
+            .filter_map(|&(x, y, dt)| {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
             }).collect::<Vec<POSITION>>();
+
+        let my_vec = self.data.iter()
+            .filter_map(|&(x, y, dt)| {
+                let mask_value = self.get_mask_values(x, y);
+                //get_4d_complete_positional_index(mask_value, dt, spim_tdc, set.xspim_size, set.yspim_size)})
+                get_positional_index(dt, spim_tdc, set.xspim_size, set.yspim_size)})
+            .collect::<Vec<POSITION>>();
         
         //let my_vec = self.data.iter()
         //    .map(|&(x, dt)| get_complete_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size))
@@ -270,10 +317,10 @@ impl SpimKind for Live4D {
         self.data.clear();
     }
     fn copy_empty(&self) -> Self {
-        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), camera_size: (0, 0), mask: Vec::new(), channel_index: 0}
+        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: Vec::new()}
     }
     fn new() -> Self {
-        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), camera_size: (0, 0), mask: Vec::new(), channel_index: 0}
+        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: Vec::new()}
     }
 }
 
