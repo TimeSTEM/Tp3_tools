@@ -126,7 +126,13 @@ pub fn get_positional_index(dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION
 
 //This recovers the position of the probe given the TDC and the electron ToA
 #[inline]
-pub fn get_4d_complete_positional_index(mask: u32, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u64> {
+pub fn get_4d_complete_positional_index(mask: Option<POSITION>, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u64> {
+    
+    let mask = match mask {
+        Some(val) => val,
+        None => return None,
+    };
+    
     let val = dt % spim_tdc.period;
     if val < spim_tdc.low_time {
         let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
@@ -162,35 +168,52 @@ pub struct Live {
 }
 
 ///It outputs a list of index to be used to reconstruct a channel in 4D STEM
-pub struct Live4D {
+pub struct Live4D<T> {
     data: Vec<(POSITION, POSITION, TIME)>,
-    channels: Vec<Live4DChannel>,
+    channels: Vec<Live4DChannel<T>>,
 }
 
-impl Live4D {
+impl Live4D<u8> {
     fn number_of_masks(&self) -> usize {
         self.channels.len()
     }
 
-    //fn create_mask(&mut self, array: [bool; DETECTOR_SIZE.0 * DETECTOR_SIZE.1]) {
-    fn create_mask<T: std::io::Read>(&mut self, array: T) {
+    fn create_mask<R: std::io::Read>(&mut self, mut array: R) {
+        let mut mask = [0_u8; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
+        let mut total_size = 0;
+        while let Ok(size) = array.read(&mut mask) {
+            total_size += size;
+        }
+        println!("***4D STEM***: Mask is created. Number of bytes read is {}.", total_size);
+        let new_channel = Live4DChannel::new(mask);
+        self.channels.push(new_channel);
 
     }
 
-    fn get_mask_values(&self, x:POSITION, y: POSITION) -> u32 {
+    fn get_mask_values(&self, x:POSITION, y: POSITION) -> Option<u32> {
         let mut mask_value = 0u32;
-        let index = y as usize * DETECTOR_SIZE.0 + x as usize;
+        if (x > DETECTOR_LIMITS.0.1) || (x < DETECTOR_LIMITS.0.0) || (y > DETECTOR_LIMITS.1.1) || (y < DETECTOR_LIMITS.1.0) {
+            return None;
+        }
+        let index = y * DETECTOR_SIZE.0 + x;
         for (channel_number, channel) in self.channels.iter().enumerate() {
-            if channel.mask[index] {
+            if channel.mask[index as usize] > 0 {
                 mask_value = mask_value | (1 << channel_number);
             }
         }
-        mask_value
+        if mask_value == 0 { return None; }
+        Some(mask_value)
     }
 }
 
-pub struct Live4DChannel {
-    mask: [bool; DETECTOR_SIZE.0 * DETECTOR_SIZE.1],
+pub struct Live4DChannel<T> {
+    mask: [T; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize],
+}
+
+impl<T> Live4DChannel<T> {
+    fn new(array: [T; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize]) -> Self {
+        Self {mask: array}
+    }
 }
 
 impl SpimKind for Live {
@@ -261,7 +284,7 @@ impl SpimKind for Live {
 }
 
 
-impl SpimKind for Live4D {
+impl SpimKind for Live4D<u8> {
     type InputData = (POSITION, POSITION, TIME);
     type OutputSize = u64;
 

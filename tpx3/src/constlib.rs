@@ -1,3 +1,5 @@
+use crate::auxiliar::value_types::*;
+
 //***POSTLIB***//
 //Coincidence values using the IsiBox//
 pub const ISI_BUFFER_SIZE: usize = 128_000_000; //Buffer size when reading files
@@ -23,4 +25,5 @@ pub const ISI_IP_PORT: &str = "192.168.199.10:9592";
 pub const THREAD_POOL_PERIOD: u64 = 10; //Pooling time from socket thread for the IsiBox;
 
 //***4D STEM***//
-pub const DETECTOR_SIZE: (usize, usize) = (256, 256);
+pub const DETECTOR_SIZE: (POSITION, POSITION) = (256, 256);
+pub const DETECTOR_LIMITS: ((POSITION, POSITION), (POSITION, POSITION)) = ((0, 256), (0, 256));
