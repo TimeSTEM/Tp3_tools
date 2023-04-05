@@ -254,8 +254,8 @@ impl Live4DChannel<u8> {
         let array = [1; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
         Self {mask: array}
     }
-    fn new_circle(center: (u32, u32), radius: u32, value: u8) -> Self {
-        let mut array = [0; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
+    fn new_circle(center: (u32, u32), radius: u32, start_value: u8, value: u8) -> Self {
+        let mut array = [start_value; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
         for x in 0..DETECTOR_SIZE.0 {
             for y in 0..DETECTOR_SIZE.1 {
                 if (x as i32 - center.0 as i32) * (x as i32 - center.0 as i32) + (y as i32 - center.1 as i32) * (y as i32 - center.1 as i32) < (radius * radius) as i32 {
@@ -264,8 +264,6 @@ impl Live4DChannel<u8> {
                 }
             }
         }
-
-        let array = [1; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
         Self {mask:array}
     }
 }
@@ -402,12 +400,11 @@ impl SpimKind for Live4D<u8> {
         self.data.clear();
     }
     fn copy_empty(&mut self) -> Self {
-        //Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: std::mem::take(&mut self.channels)}
-        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: vec![Live4DChannel::new_standard()]}
+        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: std::mem::take(&mut self.channels)}
     }
     fn new() -> Self {
-        //Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: vec![Live4DChannel::new_circle((128, 128), 128, 0), Live4DChannel::new_circle((128, 128), 128, 1)]}
-        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: vec![Live4DChannel::new_standard()]}
+        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: vec![Live4DChannel::new_circle((128, 128), 128, 1, 0), Live4DChannel::new_circle((128, 128), 128, 0, 1)]}
+        //Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: vec![Live4DChannel::new_standard()]}
     }
 }
 
@@ -426,8 +423,9 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
             build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+            let list2 = list.copy_empty();
             if tx.send(list).is_err() {println!("Cannot send data over the thread channel."); break;}
-            list = meas_type.copy_empty();
+            list = list2;
         }
     });
  
