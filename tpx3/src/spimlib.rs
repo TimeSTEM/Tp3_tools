@@ -38,7 +38,7 @@ pub trait SpimKind {
     fn upt_line(&self, packet: &PacketEELS, settings: &Settings, line_tdc: &mut PeriodicTdcRef);
     fn check(&self) -> bool;
     fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<Self::OutputSize>;
-    fn copy_empty(&self) -> Self;
+    fn copy_empty(&mut self) -> Self;
     fn clear(&mut self);
     fn new() -> Self;
 }
@@ -126,12 +126,14 @@ pub fn get_positional_index(dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION
 
 //This recovers the position of the probe given the TDC and the electron ToA
 #[inline]
-pub fn get_4d_complete_positional_index(mask: Option<POSITION>, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u64> {
+pub fn get_4d_complete_positional_index(number_of_masks: u8, mask: u8, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u32> {
     
+    /*
     let mask = match mask {
         Some(val) => val,
         None => return None,
     };
+    */
     
     let val = dt % spim_tdc.period;
     if val < spim_tdc.low_time {
@@ -145,7 +147,8 @@ pub fn get_4d_complete_positional_index(mask: Option<POSITION>, dt: TIME, spim_t
             
             let index = r * xspim + rin;
         
-            Some( ((index as u64) << 32) + mask as u64)
+            //Some( ((index as u64) << 32) + mask as u64)
+            Some( (index * number_of_masks as u32) + mask as u32)
             //Some( ((index as u64) << 32))
         } else {
             None
@@ -170,13 +173,14 @@ pub struct Live {
 
 ///It outputs a list of index to be used to reconstruct a channel in 4D STEM
 pub struct Live4D<T> {
-    data: Vec<(POSITION, POSITION, TIME)>,
+    data: Vec<(POSITION, POSITION, TIME, u8)>,
     channels: Vec<Live4DChannel<T>>,
 }
 
 impl Live4D<u8> {
-    fn number_of_masks(&self) -> usize {
-        self.channels.len()
+    fn number_of_masks(&self) -> u8 {
+        //self.channels.len() as u8
+        8
     }
 
     fn grab_mask<R: std::io::Read>(mut array: R) -> Result<Live4DChannel<u8>, Tp3ErrorKind> {
@@ -216,6 +220,23 @@ impl Live4D<u8> {
         }
         Some(mask_value)
     }
+
+    fn collect_mask_values(&self, x: POSITION, y: POSITION) -> Option<Vec<u8>> {
+        let mut channel_vec = Vec::new();
+        if !((x > DETECTOR_LIMITS.0.0) && (x < DETECTOR_LIMITS.0.1) && (y > DETECTOR_LIMITS.1.0) && (y < DETECTOR_LIMITS.1.1)) {
+            return None;
+        }
+        let index = y * DETECTOR_SIZE.0 + x;
+        for (channel_number, channel) in self.channels.iter().enumerate() {
+            if channel.mask[index as usize] > 0 {
+                channel_vec.push(channel_number as u8);
+            }
+        }
+        if channel_vec.is_empty() { 
+            return None; 
+        }
+        Some(channel_vec)
+    }
 }
 
 pub struct Live4DChannel<T> {
@@ -232,6 +253,20 @@ impl Live4DChannel<u8> {
     fn new_standard() -> Self {
         let array = [1; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
         Self {mask: array}
+    }
+    fn new_circle(center: (u32, u32), radius: u32, value: u8) -> Self {
+        let mut array = [0; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
+        for x in 0..DETECTOR_SIZE.0 {
+            for y in 0..DETECTOR_SIZE.1 {
+                if (x as i32 - center.0 as i32) * (x as i32 - center.0 as i32) + (y as i32 - center.1 as i32) * (y as i32 - center.1 as i32) < (radius * radius) as i32 {
+                    let index = (x * y) as usize;
+                    array[index] = value;
+                }
+            }
+        }
+
+        let array = [1; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
+        Self {mask:array}
     }
 }
 
@@ -294,7 +329,7 @@ impl SpimKind for Live {
     fn clear(&mut self) {
         self.data.clear();
     }
-    fn copy_empty(&self) -> Self {
+    fn copy_empty(&mut self) -> Self {
         Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) }
     }
     fn new() -> Self {
@@ -303,17 +338,23 @@ impl SpimKind for Live {
 }
 
 
+//x, y, dt, channel
 impl SpimKind for Live4D<u8> {
-    type InputData = (POSITION, POSITION, TIME);
-    type OutputSize = u64;
+    type InputData = (POSITION, POSITION, TIME, u8);
+    type OutputSize = u32;
 
-    fn data(&self) -> &Vec<(POSITION, POSITION, TIME)> {
+    fn data(&self) -> &Vec<(POSITION, POSITION, TIME, u8)> {
         &self.data
     }
     #[inline]
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
-        self.data.push((packet.x(), packet.y(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
+        let mask_value = self.collect_mask_values(packet.x(), packet.y());
+        if let Some(mask_value) = mask_value {
+            for val in mask_value {
+                self.data.push((packet.x(), packet.y(), ele_time - line_tdc.begin_frame - VIDEO_TIME, val)); //This added the overflow.
+            }
+        }
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
         /*
@@ -349,11 +390,10 @@ impl SpimKind for Live4D<u8> {
         //
         //index = index + x
         
+        let number_of_masks = self.number_of_masks();
         let my_vec = self.data.iter()
-            .filter_map(|&(x, y, dt)| {
-                let mask_value = self.get_mask_values(x, y);
-                get_4d_complete_positional_index(mask_value, dt, spim_tdc, set.xspim_size, set.yspim_size)})
-                //get_positional_index(dt, spim_tdc, set.xspim_size, set.yspim_size)})
+            .filter_map(|&(x, y, dt, channel)| {
+                get_4d_complete_positional_index(number_of_masks, channel, dt, spim_tdc, set.xspim_size, set.yspim_size)})
             .collect::<Vec<Self::OutputSize>>();
 
         my_vec
@@ -361,18 +401,18 @@ impl SpimKind for Live4D<u8> {
     fn clear(&mut self) {
         self.data.clear();
     }
-    fn copy_empty(&self) -> Self {
+    fn copy_empty(&mut self) -> Self {
+        //Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: std::mem::take(&mut self.channels)}
         Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: vec![Live4DChannel::new_standard()]}
-        //Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: Vec::new()}
     }
     fn new() -> Self {
+        //Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: vec![Live4DChannel::new_circle((128, 128), 128, 0), Live4DChannel::new_circle((128, 128), 128, 1)]}
         Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: vec![Live4DChannel::new_standard()]}
-        //Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: Vec::new()}
     }
 }
 
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
-pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, meas_type: W) -> Result<(), Tp3ErrorKind>
+pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W) -> Result<(), Tp3ErrorKind>
     where V: 'static + Send + TimepixRead,
           T: 'static + Send + TdcControl,
           W: 'static + Send + SpimKind,
@@ -403,7 +443,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     Ok(())
 }
 
-pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, meas_type: W, mut handler: IsiBoxType<Vec<u32>>) -> Result<(), Tp3ErrorKind>
+pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W, mut handler: IsiBoxType<Vec<u32>>) -> Result<(), Tp3ErrorKind>
     where V: 'static + Send + TimepixRead,
           T: 'static + Send + TdcControl,
           W: 'static + Send + SpimKind,
