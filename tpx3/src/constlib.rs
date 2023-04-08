@@ -27,3 +27,4 @@ pub const THREAD_POOL_PERIOD: u64 = 10; //Pooling time from socket thread for th
 //***4D STEM***//
 pub const DETECTOR_SIZE: (POSITION, POSITION) = (256, 256);
 pub const DETECTOR_LIMITS: ((POSITION, POSITION), (POSITION, POSITION)) = ((0, 256), (0, 256));
+pub const MAX_CHANNELS: usize = 8;

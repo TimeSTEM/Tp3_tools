@@ -175,6 +175,7 @@ pub struct Live {
 pub struct Live4D<T> {
     data: Vec<(POSITION, POSITION, TIME, u8)>,
     channels: Vec<Live4DChannel<T>>,
+    on_mask: [bool; MAX_CHANNELS],
 }
 
 impl Live4D<u8> {
@@ -221,21 +222,38 @@ impl Live4D<u8> {
         Some(mask_value)
     }
 
-    fn collect_mask_values(&self, x: POSITION, y: POSITION) -> Option<Vec<u8>> {
-        let mut channel_vec = Vec::new();
+    //fn collect_mask_values(&self, x: POSITION, y: POSITION) -> Option<Vec<u8>> {
+    //fn collect_mask_values(&self, x: POSITION, y: POSITION) -> Option<[u8; 8]> {
+    fn collect_mask_values(&mut self, x: POSITION, y: POSITION) {
+        //let mut channel_vec = Vec::new();
+        //let mut channel_vec: [u8; 8] = [0; 8];
         if !((x > DETECTOR_LIMITS.0.0) && (x < DETECTOR_LIMITS.0.1) && (y > DETECTOR_LIMITS.1.0) && (y < DETECTOR_LIMITS.1.1)) {
-            return None;
+            //return None;
+            return;
         }
         let index = y * DETECTOR_SIZE.0 + x;
+
+        self.on_mask
+            .iter_mut()
+            .zip(self.channels.iter())
+            .filter(|(_mask, channel)| channel.mask[index as usize] > 0)
+            .for_each(|(mask, _channel)| *mask = true);
+ 
+        /*
         for (channel_number, channel) in self.channels.iter().enumerate() {
-            if channel.mask[index as usize] > 0 {
-                channel_vec.push(channel_number as u8);
-            }
+            self.on_mask[channel_number] = channel.mask[index as usize] > 0
+            //if channel.mask[index as usize] > 0 {
+                //channel_vec[channel_number] = 1;
+                //channel_vec.push(channel_number as u8);
+            //}
         }
-        if channel_vec.is_empty() { 
-            return None; 
-        }
-        Some(channel_vec)
+        */
+
+
+        //if channel_vec.is_empty() { 
+        //    return None; 
+        //}
+        //Some(channel_vec)
     }
 }
 
@@ -259,7 +277,7 @@ impl Live4DChannel<u8> {
         for x in 0..DETECTOR_SIZE.0 {
             for y in 0..DETECTOR_SIZE.1 {
                 if (x as i32 - center.0 as i32) * (x as i32 - center.0 as i32) + (y as i32 - center.1 as i32) * (y as i32 - center.1 as i32) < (radius * radius) as i32 {
-                    let index = (x * y) as usize;
+                    let index = (y * DETECTOR_SIZE.1 + x) as usize;
                     array[index] = value;
                 }
             }
@@ -347,12 +365,18 @@ impl SpimKind for Live4D<u8> {
     #[inline]
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
-        let mask_value = self.collect_mask_values(packet.x(), packet.y());
-        if let Some(mask_value) = mask_value {
-            for val in mask_value {
-                self.data.push((packet.x(), packet.y(), ele_time - line_tdc.begin_frame - VIDEO_TIME, val)); //This added the overflow.
+        self.collect_mask_values(packet.x(), packet.y());
+        for (channel_index, val) in self.on_mask.iter().enumerate() {
+            if *val == true {
+                //self.data.push((packet.x(), packet.y(), ele_time - line_tdc.begin_frame - VIDEO_TIME, channel_index as u8)); //This added the overflow.
             }
         }
+        //let mask_value = self.collect_mask_values(packet.x(), packet.y());
+        //if let Some(mask_value) = mask_value {
+            //for val in mask_value {
+                //self.data.push((packet.x(), packet.y(), ele_time - line_tdc.begin_frame - VIDEO_TIME, val)); //This added the overflow.
+            //}
+        //}
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
         /*
@@ -400,10 +424,10 @@ impl SpimKind for Live4D<u8> {
         self.data.clear();
     }
     fn copy_empty(&mut self) -> Self {
-        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: std::mem::take(&mut self.channels)}
+        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: std::mem::take(&mut self.channels), on_mask: [false; MAX_CHANNELS]}
     }
     fn new() -> Self {
-        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: vec![Live4DChannel::new_circle((128, 128), 128, 1, 0), Live4DChannel::new_circle((128, 128), 128, 0, 1)]}
+        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: vec![Live4DChannel::new_circle((128, 128), 8, 1, 0), Live4DChannel::new_circle((128, 128), 8, 0, 1)], on_mask: [false; MAX_CHANNELS]}
         //Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: vec![Live4DChannel::new_standard()]}
     }
 }
