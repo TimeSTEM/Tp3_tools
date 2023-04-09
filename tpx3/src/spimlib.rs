@@ -10,7 +10,7 @@ use std::sync::mpsc;
 use std::thread;
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
-//use rayon::prelude::*;
+use rayon::prelude::*;
 
 pub const VIDEO_TIME: TIME = 3200;
 pub const SPIM_PIXELS: POSITION = 1025 + 200;
@@ -147,9 +147,7 @@ pub fn get_4d_complete_positional_index(number_of_masks: u8, mask: u8, dt: TIME,
             
             let index = r * xspim + rin;
         
-            //Some( ((index as u64) << 32) + mask as u64)
             Some( (index * number_of_masks as u32) + mask as u32)
-            //Some( ((index as u64) << 32))
         } else {
             None
         }
@@ -173,7 +171,7 @@ pub struct Live {
 
 ///It outputs a list of index to be used to reconstruct a channel in 4D STEM
 pub struct Live4D<T> {
-    data: Vec<(POSITION, POSITION, TIME, u8)>,
+    data: Vec<(TIME, u8)>,
     channels: Vec<Live4DChannel<T>>,
     on_mask: [bool; MAX_CHANNELS],
 }
@@ -222,8 +220,6 @@ impl Live4D<u8> {
         Some(mask_value)
     }
 
-    //fn collect_mask_values(&self, x: POSITION, y: POSITION) -> Option<Vec<u8>> {
-    //fn collect_mask_values(&self, x: POSITION, y: POSITION) -> Option<[u8; 8]> {
     fn collect_mask_values(&mut self, x: POSITION, y: POSITION) {
         //let mut channel_vec = Vec::new();
         //let mut channel_vec: [u8; 8] = [0; 8];
@@ -231,14 +227,17 @@ impl Live4D<u8> {
             //return None;
             return;
         }
-        let index = y * DETECTOR_SIZE.0 + x;
+        
+        let index = |x: u32, y: u32| -> usize
+        {
+            (y * DETECTOR_SIZE.0 + x) as usize
+        };
 
         self.on_mask
             .iter_mut()
             .zip(self.channels.iter())
-            .filter(|(_mask, channel)| channel.mask[index as usize] > 0)
-            .for_each(|(mask, _channel)| *mask = true);
- 
+            .for_each(|(mask, channel)| *mask = channel.mask[index(x, y)] > 0);
+
         /*
         for (channel_number, channel) in self.channels.iter().enumerate() {
             self.on_mask[channel_number] = channel.mask[index as usize] > 0
@@ -356,21 +355,37 @@ impl SpimKind for Live {
 
 //x, y, dt, channel
 impl SpimKind for Live4D<u8> {
-    type InputData = (POSITION, POSITION, TIME, u8);
+    type InputData = (TIME, u8);
     type OutputSize = u32;
 
-    fn data(&self) -> &Vec<(POSITION, POSITION, TIME, u8)> {
+    fn data(&self) -> &Vec<(TIME, u8)> {
         &self.data
     }
     #[inline]
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
         self.collect_mask_values(packet.x(), packet.y());
+
+
+        let temp_data = &mut self.data;
+        self.on_mask
+            .iter()
+            .enumerate()
+            .filter(|(_channel_index, val)| **val == true)
+            .for_each(|(channel_index, _val)| {
+                //temp_data.push((packet.x(), packet.y(), ele_time - line_tdc.begin_frame - VIDEO_TIME, channel_index as u8)); //This added the overflow.
+                temp_data.push((ele_time - line_tdc.begin_frame - VIDEO_TIME, channel_index as u8)); //This added the overflow.
+            });
+
+        /*
         for (channel_index, val) in self.on_mask.iter().enumerate() {
             if *val == true {
-                //self.data.push((packet.x(), packet.y(), ele_time - line_tdc.begin_frame - VIDEO_TIME, channel_index as u8)); //This added the overflow.
+                self.data.push((packet.x(), packet.y(), ele_time - line_tdc.begin_frame - VIDEO_TIME, channel_index as u8)); //This added the overflow.
             }
         }
+        */
+    
+
         //let mask_value = self.collect_mask_values(packet.x(), packet.y());
         //if let Some(mask_value) = mask_value {
             //for val in mask_value {
@@ -414,7 +429,8 @@ impl SpimKind for Live4D<u8> {
         
         let number_of_masks = self.number_of_masks();
         let my_vec = self.data.iter()
-            .filter_map(|&(x, y, dt, channel)| {
+            //.filter_map(|&(x, y, dt, channel)| {
+            .filter_map(|&(dt, channel)| {
                 get_4d_complete_positional_index(number_of_masks, channel, dt, spim_tdc, set.xspim_size, set.yspim_size)})
             .collect::<Vec<Self::OutputSize>>();
 
@@ -443,13 +459,20 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     let mut list = meas_type.copy_empty();
+    
+    //let mut current_read = 0;
+    //let minimal_read = 512_000;
 
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
             build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+            //current_read += size;
+            //if current_read > minimal_read {
             let list2 = list.copy_empty();
             if tx.send(list).is_err() {println!("Cannot send data over the thread channel."); break;}
             list = list2;
+            //current_read = 0;
+            //}
         }
     });
  
@@ -475,6 +498,7 @@ pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings:
     let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     let mut list = meas_type.copy_empty();
+
     
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
