@@ -30,14 +30,14 @@ fn as_bytes<T>(v: &[T]) -> &[u8] {
 ///implement these methods.
 pub trait SpimKind {
     type InputData;
-    type OutputSize;
+    //type Output;
 
     fn data(&self) -> &Vec<Self::InputData>;
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef);
     fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T);
     fn upt_line(&self, packet: &PacketEELS, settings: &Settings, line_tdc: &mut PeriodicTdcRef);
     fn check(&self) -> bool;
-    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<Self::OutputSize>;
+    fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8];
     fn copy_empty(&mut self) -> Self;
     fn clear(&mut self);
     fn new() -> Self;
@@ -167,6 +167,7 @@ pub fn correct_or_not_etime(mut ele_time: TIME, line_tdc: &PeriodicTdcRef) -> TI
 ///must be incremented. This is Hyperspectral Imaging
 pub struct Live {
     data: Vec<(POSITION, TIME)>,
+    data_out: Vec<u32>,
 }
 
 ///It outputs a list of index to be used to reconstruct a channel in 4D STEM
@@ -176,7 +177,15 @@ pub struct Live4D<T> {
     on_mask: [bool; MAX_CHANNELS],
 }
 
-impl Live4D<u8> {
+///It outputs a frame-based to be used to reconstruct a channel in 4D STEM
+pub struct LiveFrame4D<T> {
+    data: Vec<(TIME, u8)>,
+    data_out: Vec<u32>,
+    channels: Vec<Live4DChannel<T>>,
+    on_mask: [bool; MAX_CHANNELS],
+}
+
+impl LiveFrame4D<u8> {
     fn number_of_masks(&self) -> u8 {
         //self.channels.len() as u8
         8
@@ -196,11 +205,11 @@ impl Live4D<u8> {
     }
 
     pub fn create_mask<R: std::io::Read>(&mut self, array: R) -> Result<(), Tp3ErrorKind> {
-        Ok(self.channels.push(Live4D::grab_mask(array)?))
+        Ok(self.channels.push(LiveFrame4D::grab_mask(array)?))
     }
     
     fn replace_mask<R: std::io::Read>(&mut self, channel: usize, array: R) -> Result<(), Tp3ErrorKind> {
-        Ok(self.channels[channel] = Live4D::grab_mask(array)?)
+        Ok(self.channels[channel] = LiveFrame4D::grab_mask(array)?)
     }
 
     fn get_mask_values(&self, x:POSITION, y: POSITION) -> Option<u32> {
@@ -287,7 +296,7 @@ impl Live4DChannel<u8> {
 
 impl SpimKind for Live {
     type InputData = (POSITION, TIME);
-    type OutputSize = u32;
+    //type Output = Vec<u32>;
 
     fn data(&self) -> &Vec<(POSITION, TIME)> {
         &self.data
@@ -311,7 +320,7 @@ impl SpimKind for Live {
         self.data.get(0).is_some()
     }
     #[inline]
-    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<Self::OutputSize> {
+    fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8] {
 
         //First step is to find the index of the (X, Y) of the spectral image in a flattened way
         //(last index is X*Y). The line value is thus multiplied by the spim size in the X
@@ -330,33 +339,40 @@ impl SpimKind for Live {
         //index = index + x
         
         
+        //let my_vec = self.data.iter()
+        //    .filter_map(|&(x, dt)| {
+        //        get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
+        //    }).collect::<Vec<u32>>();
+        
+        
+        let temp = &mut self.data_out;
         let my_vec = self.data.iter()
             .filter_map(|&(x, dt)| {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
-            }).collect::<Vec<Self::OutputSize>>();
+            }).for_each(|x| temp.push(x));
         
         //let my_vec = self.data.iter()
         //    .map(|&(x, dt)| get_complete_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size))
         //    .collect::<Vec<POSITION>>();
 
-        my_vec
+        as_bytes(&self.data_out)
     }
     fn clear(&mut self) {
         self.data.clear();
     }
     fn copy_empty(&mut self) -> Self {
-        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) }
+        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) , data_out: Vec::new()}
     }
     fn new() -> Self {
-        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) }
+        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new()}
     }
 }
 
 
 //x, y, dt, channel
-impl SpimKind for Live4D<u8> {
+impl SpimKind for LiveFrame4D<u8> {
     type InputData = (TIME, u8);
-    type OutputSize = u32;
+    //type Output = Vec<u32>;
 
     fn data(&self) -> &Vec<(TIME, u8)> {
         &self.data
@@ -409,7 +425,7 @@ impl SpimKind for Live4D<u8> {
         self.data.get(0).is_some()
     }
     #[inline]
-    fn build_output(&self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> Vec<Self::OutputSize> {
+    fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8] {
 
         //First step is to find the index of the (X, Y) of the spectral image in a flattened way
         //(last index is X*Y). The line value is thus multiplied by the spim size in the X
@@ -432,18 +448,18 @@ impl SpimKind for Live4D<u8> {
             //.filter_map(|&(x, y, dt, channel)| {
             .filter_map(|&(dt, channel)| {
                 get_4d_complete_positional_index(number_of_masks, channel, dt, spim_tdc, set.xspim_size, set.yspim_size)})
-            .collect::<Vec<Self::OutputSize>>();
+            .collect::<Vec<u32>>();
 
-        my_vec
+        as_bytes(&self.data_out)
     }
     fn clear(&mut self) {
         self.data.clear();
     }
     fn copy_empty(&mut self) -> Self {
-        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: std::mem::take(&mut self.channels), on_mask: [false; MAX_CHANNELS]}
+        LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), channels: std::mem::take(&mut self.channels), on_mask: [false; MAX_CHANNELS]}
     }
     fn new() -> Self {
-        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: vec![Live4DChannel::new_circle((128, 128), 8, 1, 0), Live4DChannel::new_circle((128, 128), 8, 0, 1)], on_mask: [false; MAX_CHANNELS]}
+        LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), channels: vec![Live4DChannel::new_circle((128, 128), 8, 1, 0), Live4DChannel::new_circle((128, 128), 8, 0, 1)], on_mask: [false; MAX_CHANNELS]}
         //Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), channels: vec![Live4DChannel::new_standard()]}
     }
 }
@@ -477,9 +493,9 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     });
  
     let start = Instant::now();
-    for tl in rx {
+    for mut tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
-        if ns_sock.write(as_bytes(&result)).is_err() {println!("Client disconnected on data."); break;}
+        if ns_sock.write(result).is_err() {println!("Client disconnected on data."); break;}
         //if ns_sock.write(as_bytes(&tl.build_output(&my_settings, &spim_tdc))).is_err() {println!("Client disconnected on data."); break;}
     }
 
@@ -509,7 +525,7 @@ pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings:
     });
  
     let start = Instant::now();
-    for tl in rx {
+    for mut tl in rx {
         let result = tl.build_output(&my_settings, &spim_tdc);
         let x = handler.get_data();
         if ns_sock.write(as_bytes(&result)).is_err() {println!("Client disconnected on data."); break;}
