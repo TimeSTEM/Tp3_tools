@@ -36,10 +36,9 @@ pub trait SpimKind {
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef);
     fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T);
     fn upt_line(&self, packet: &PacketEELS, settings: &Settings, line_tdc: &mut PeriodicTdcRef);
-    fn check(&self) -> bool;
     fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8];
     fn copy_empty(&mut self) -> Self;
-    fn clear(&mut self);
+    fn is_ready(&mut self, line_tdc: &PeriodicTdcRef) -> bool;
     fn new(settings: &Settings) -> Self;
 }
 
@@ -187,107 +186,71 @@ pub struct Live4D<T> {
 ///It outputs a frame-based to be used to reconstruct a channel in 4D STEM
 pub struct LiveFrame4D<T, U> {
     data: Vec<(TIME, u8)>,
+    data_out: Vec<U>,
     scan_size: (POSITION, POSITION),
     channels: Vec<Live4DChannelMask<T>>,
-    channels_data: Vec<Live4DChannelData<U>>,
     on_mask: [T; MAX_CHANNELS],
 }
 
-impl Live4D<u8> {
-    pub fn number_of_masks(&self) -> u8 {
-        8
-    }
 
-    fn create_mask<R: std::io::Read>(&mut self, array: R) -> Result<(), Tp3ErrorKind> {
-        Ok(self.channels.push(grab_mask(array)?))
-    }
-    
-    fn create_dummy_mask(&mut self, center: (u32, u32), radius: u32, start_value: u8, value: u8) -> Result<(), Tp3ErrorKind> {
-        let mut array = [start_value; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
-        for x in 0..DETECTOR_SIZE.0 {
-            for y in 0..DETECTOR_SIZE.1 {
-                if (x as i32 - center.0 as i32) * (x as i32 - center.0 as i32) + (y as i32 - center.1 as i32) * (y as i32 - center.1 as i32) < (radius * radius) as i32 {
-                    let index = (y * DETECTOR_SIZE.1 + x) as usize;
-                    array[index] = value;
-                }
-            }
-        }
-        Ok(self.channels.push(Live4DChannelMask::new(array)))
-    }
-    
-    fn replace_mask<R: std::io::Read>(&mut self, channel: usize, array: R) -> Result<(), Tp3ErrorKind> {
-        Ok(self.channels[channel] = grab_mask(array)?)
-    }
-
-    fn collect_mask_values(&mut self, x: POSITION, y: POSITION) {
-        if !((x > DETECTOR_LIMITS.0.0) && (x < DETECTOR_LIMITS.0.1) && (y > DETECTOR_LIMITS.1.0) && (y < DETECTOR_LIMITS.1.1)) {
-            return;
-        }
-        
-        let index = |x: u32, y: u32| -> usize
-        {
-            (y * DETECTOR_SIZE.0 + x) as usize
-        };
-
-        self.on_mask
-            .iter_mut()
-            .zip(self.channels.iter())
-            .for_each(|(mask, channel)| *mask = channel.mask[index(x, y)]);
-
-    }
-}
-
+//Only method of this struct. Must be called to initialize the data_out array, as it is not
+//a list-based output
 impl LiveFrame4D<u8, u32> {
-    pub fn number_of_masks(&self) -> u8 {
-        8
-    }
-    
-    fn create_data_channel(&mut self) {
-        let data = Live4DChannelData {data: vec![0u32; (self.scan_size.0 * self.scan_size.1) as usize]};
-        self.channels_data.push(data);
-    }
-
-    fn create_mask<R: std::io::Read>(&mut self, array: R) -> Result<(), Tp3ErrorKind> {
-        let data = Live4DChannelData {data: vec![0u32; (self.scan_size.0 * self.scan_size.1) as usize]};
-        self.channels_data.push(data);
-        Ok(self.channels.push(grab_mask(array)?))
-    }
-    
-    fn create_dummy_mask(&mut self, center: (u32, u32), radius: u32, start_value: u8, value: u8) -> Result<(), Tp3ErrorKind> {
-        let mut array = [start_value; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
-        for x in 0..DETECTOR_SIZE.0 {
-            for y in 0..DETECTOR_SIZE.1 {
-                if (x as i32 - center.0 as i32) * (x as i32 - center.0 as i32) + (y as i32 - center.1 as i32) * (y as i32 - center.1 as i32) < (radius * radius) as i32 {
-                    let index = (y * DETECTOR_SIZE.1 + x) as usize;
-                    array[index] = value;
-                }
-            }
-        }
-        self.create_data_channel();
-        Ok(self.channels.push(Live4DChannelMask::new(array)))
-    }
-
-    fn replace_mask<R: std::io::Read>(&mut self, channel: usize, array: R) -> Result<(), Tp3ErrorKind> {
-        Ok(self.channels[channel] = grab_mask(array)?)
-    }
-
-    fn collect_mask_values(&mut self, x: POSITION, y: POSITION) {
-        if !((x > DETECTOR_LIMITS.0.0) && (x < DETECTOR_LIMITS.0.1) && (y > DETECTOR_LIMITS.1.0) && (y < DETECTOR_LIMITS.1.1)) {
-            return;
-        }
-        
-        let index = |x: u32, y: u32| -> usize
-        {
-            (y * DETECTOR_SIZE.0 + x) as usize
-        };
-
-        self.on_mask
-            .iter_mut()
-            .zip(self.channels.iter())
-            .for_each(|(mask, channel)| *mask = channel.mask[index(x, y)]);
-
+    pub fn create_data_channels(&mut self) {
+        self.data_out = vec![0; (self.scan_size.0 * self.scan_size.1) as usize * self.number_of_masks() as usize];
     }
 }
+
+macro_rules! implement_mask_control {
+    ($l: ty) => {
+        impl $l {
+            pub fn number_of_masks(&self) -> u8 {
+                self.channels.len() as u8
+            }
+        
+            pub fn create_mask<R: std::io::Read>(&mut self, array: R) -> Result<(), Tp3ErrorKind> {
+                Ok(self.channels.push(grab_mask(array)?))
+            }
+        
+            fn create_dummy_mask(&mut self, center: (u32, u32), radius: u32, start_value: u8, value: u8) -> Result<(), Tp3ErrorKind> {
+                let mut array = [start_value; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
+                for x in 0..DETECTOR_SIZE.0 {
+                    for y in 0..DETECTOR_SIZE.1 {
+                        if (x as i32 - center.0 as i32) * (x as i32 - center.0 as i32) + (y as i32 - center.1 as i32) * (y as i32 - center.1 as i32) < (radius * radius) as i32 {
+                            let index = (y * DETECTOR_SIZE.1 + x) as usize;
+                            array[index] = value;
+                        }
+                    }
+                }
+                Ok(self.channels.push(Live4DChannelMask::new(array)))
+            }
+
+            fn replace_mask<R: std::io::Read>(&mut self, channel: usize, array: R) -> Result<(), Tp3ErrorKind> {
+                Ok(self.channels[channel] = grab_mask(array)?)
+            }
+
+            fn collect_mask_values(&mut self, x: POSITION, y: POSITION) {
+                if !((x > DETECTOR_LIMITS.0.0) && (x < DETECTOR_LIMITS.0.1) && (y > DETECTOR_LIMITS.1.0) && (y < DETECTOR_LIMITS.1.1)) {
+                    return;
+                }
+            
+                let index = |x: u32, y: u32| -> usize
+                {
+                    (y * DETECTOR_SIZE.0 + x) as usize
+                };
+
+                self.on_mask
+                    .iter_mut()
+                    .zip(self.channels.iter())
+                    .for_each(|(mask, channel)| *mask = channel.mask[index(x, y)]);
+
+            }
+        }
+    }
+}
+
+implement_mask_control!(Live4D<u8>);
+implement_mask_control!(LiveFrame4D<u8, u32>);
 
 //T is mask data type
 pub struct Live4DChannelMask<T> {
@@ -298,11 +261,6 @@ impl<T> Live4DChannelMask<T> {
     fn new(array: [T; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize]) -> Self {
         Self {mask: array}
     }
-}
-
-//U is the type of the frame data
-pub struct Live4DChannelData<U> {
-    data: Vec<U>,
 }
 
 impl SpimKind for Live {
@@ -325,9 +283,6 @@ impl SpimKind for Live {
     }
     fn upt_line(&self, packet: &PacketEELS, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
-    }
-    fn check(&self) -> bool {
-        self.data.get(0).is_some()
     }
     #[inline]
     fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8] {
@@ -364,8 +319,8 @@ impl SpimKind for Live {
         
         as_bytes(&self.data_out)
     }
-    fn clear(&mut self) {
-        self.data.clear();
+    fn is_ready(&mut self, _line_tdc: &PeriodicTdcRef) -> bool {
+        true
     }
     fn copy_empty(&mut self) -> Self {
         Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) , data_out: Vec::new()}
@@ -409,9 +364,6 @@ impl SpimKind for Live4D<u8> {
     fn upt_line(&self, packet: &PacketEELS, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
     }
-    fn check(&self) -> bool {
-        self.data.get(0).is_some()
-    }
     #[inline]
     fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8] {
 
@@ -439,8 +391,8 @@ impl SpimKind for Live4D<u8> {
 
         as_bytes(&self.data_out)
     }
-    fn clear(&mut self) {
-        self.data.clear();
+    fn is_ready(&mut self, _line_tdc: &PeriodicTdcRef) -> bool {
+        true
     }
     fn copy_empty(&mut self) -> Self {
         Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), channels: std::mem::take(&mut self.channels), on_mask: [0; MAX_CHANNELS]}
@@ -486,9 +438,6 @@ impl SpimKind for LiveFrame4D<u8, u32> {
     fn upt_line(&self, packet: &PacketEELS, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
     }
-    fn check(&self) -> bool {
-        self.data.get(0).is_some()
-    }
     #[inline]
     fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8] {
 
@@ -508,33 +457,34 @@ impl SpimKind for LiveFrame4D<u8, u32> {
         //
         //index = index + x
         
-        let temp = &mut self.channels_data;
+        let number_of_masks = self.number_of_masks();
+        let temp = &mut self.data_out;
         self.data.iter()
             .filter_map(|&(dt, channel)| {
-                get_positional_index(channel, dt, spim_tdc, set.xspim_size, set.yspim_size)})
-            .for_each(|(index, channel)| temp[channel as usize].data[index as usize] += 1);
+                get_4d_complete_positional_index(number_of_masks, channel, dt, spim_tdc, set.xspim_size, set.yspim_size)})
+            .for_each(|index| temp[index as usize] += 1);
 
-        as_bytes(&self.channels_data[0].data)
+        as_bytes(&self.data_out)
     }
-    fn clear(&mut self) {
-        self.data.clear();
+    fn is_ready(&mut self, _line_tdc: &PeriodicTdcRef) -> bool {
+        true
     }
     fn copy_empty(&mut self) -> Self {
-        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), scan_size: self.scan_size, channels: std::mem::take(&mut self.channels), channels_data: Vec::new(), on_mask: [0; MAX_CHANNELS]};
-        frame.create_data_channel();
-        frame.create_data_channel();
+        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), scan_size: self.scan_size, channels: std::mem::take(&mut self.channels), on_mask: [0; MAX_CHANNELS]};
+        frame.create_data_channels();
         frame
     }
     fn new(settings: &Settings) -> Self {
-        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), scan_size: (settings.xspim_size, settings.yspim_size), channels: Vec::new(), channels_data: Vec::new(), on_mask: [0; MAX_CHANNELS]};
+        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), scan_size: (settings.xspim_size, settings.yspim_size), channels: Vec::new(), on_mask: [0; MAX_CHANNELS]};
         frame.create_dummy_mask((128, 128), 8, 0, 1).unwrap();
         frame.create_dummy_mask((128, 128), 8, 1, 0).unwrap();
+        frame.create_data_channels();
         frame
     }
 }
 
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
-pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W) -> Result<(), Tp3ErrorKind>
+pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut line_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W) -> Result<(), Tp3ErrorKind>
     where V: 'static + Send + TimepixRead,
           T: 'static + Send + TdcControl,
           W: 'static + Send + SpimKind,
@@ -543,27 +493,22 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     let (tx, rx) = mpsc::channel();
     let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
-    let mut list = meas_type.copy_empty();
+    //let mut list = meas_type.copy_empty();
     
-    //let mut current_read = 0;
-    //let minimal_read = 512_000;
-
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
-            build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
-            //current_read += size;
-            //if current_read > minimal_read {
-            let list2 = list.copy_empty();
-            if tx.send(list).is_err() {println!("Cannot send data over the thread channel."); break;}
-            list = list2;
-            //current_read = 0;
-            //}
+            build_spim_data(&mut meas_type, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut line_tdc, &mut ref_tdc);
+            if meas_type.is_ready(&line_tdc) {
+               let list2 = meas_type.copy_empty();
+                if tx.send(meas_type).is_err() {println!("Cannot send data over the thread channel."); break;}
+                meas_type = list2;
+            }
         }
     });
  
     let start = Instant::now();
     for mut tl in rx {
-        let result = tl.build_output(&my_settings, &spim_tdc);
+        let result = tl.build_output(&my_settings, &line_tdc);
         if ns_sock.write(result).is_err() {println!("Client disconnected on data."); break;}
         //if ns_sock.write(as_bytes(&tl.build_output(&my_settings, &spim_tdc))).is_err() {println!("Client disconnected on data."); break;}
     }
@@ -573,7 +518,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     Ok(())
 }
 
-pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut spim_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W, mut handler: IsiBoxType<Vec<u32>>) -> Result<(), Tp3ErrorKind>
+pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut line_tdc: PeriodicTdcRef, mut ref_tdc: T, mut meas_type: W, mut handler: IsiBoxType<Vec<u32>>) -> Result<(), Tp3ErrorKind>
     where V: 'static + Send + TimepixRead,
           T: 'static + Send + TdcControl,
           W: 'static + Send + SpimKind,
@@ -587,7 +532,7 @@ pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings:
     
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
-            build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut spim_tdc, &mut ref_tdc);
+            build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut line_tdc, &mut ref_tdc);
             if tx.send(list).is_err() {println!("Cannot send data over the thread channel."); break;}
             list = meas_type.copy_empty();
         }
@@ -595,7 +540,7 @@ pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings:
  
     let start = Instant::now();
     for mut tl in rx {
-        let result = tl.build_output(&my_settings, &spim_tdc);
+        let result = tl.build_output(&my_settings, &line_tdc);
         let x = handler.get_data();
         if ns_sock.write(as_bytes(&result)).is_err() {println!("Client disconnected on data."); break;}
         if x.len() > 0 {
