@@ -10,11 +10,13 @@ use std::sync::mpsc;
 use std::thread;
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
-use rayon::prelude::*;
+//use rayon::prelude::*;
 
 pub const VIDEO_TIME: TIME = 3200;
 pub const SPIM_PIXELS: POSITION = 1025 + 200;
 const BUFFER_SIZE: usize = 16384 * 2;
+
+type MaskValues = i16;
 
 
 ///This is little endian
@@ -22,6 +24,15 @@ fn as_bytes<T>(v: &[T]) -> &[u8] {
     unsafe {
         std::slice::from_raw_parts(
             v.as_ptr() as *const u8,
+            v.len() * std::mem::size_of::<T>())
+    }
+}
+
+///This is little endian
+fn as_bytes_mut<T>(v: &mut [T]) -> &mut [u8] {
+    unsafe {
+        std::slice::from_raw_parts_mut(
+            v.as_ptr() as *mut u8,
             v.len() * std::mem::size_of::<T>())
     }
 }
@@ -145,10 +156,11 @@ pub fn get_4d_complete_positional_index(number_of_masks: u8, mask: u8, dt: TIME,
         }
 }
 
-fn grab_mask<R: std::io::Read>(mut array: R) -> Result<Live4DChannelMask<u8>, Tp3ErrorKind> {
-    let mut mask = [0_u8; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
+fn grab_mask<R: std::io::Read>(mut array: R) -> Result<Live4DChannelMask<MaskValues>, Tp3ErrorKind> {
+    let mut mask = [0_i16; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
     let mut total_size = 0;
-    while let Ok(size) = array.read(&mut mask) {
+    //while let Ok(size) = array.read(&mut mask) {
+    while let Ok(size) = array.read(as_bytes_mut(&mut mask)) {
         total_size += size;
     }
     if total_size != (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize {
@@ -183,19 +195,20 @@ pub struct Live4D<T> {
     on_mask: [T; MAX_CHANNELS],
 }
 
-///It outputs a frame-based to be used to reconstruct a channel in 4D STEM
-pub struct LiveFrame4D<T, U> {
-    data: Vec<(TIME, u8)>,
-    data_out: Vec<U>,
+///It outputs a frame-based to be used to reconstruct a channel in 4D STEM.
+pub struct LiveFrame4D<T> {
+    data: Vec<(TIME, u8, T)>,
+    data_out: Vec<T>,
     scan_size: (POSITION, POSITION),
     channels: Vec<Live4DChannelMask<T>>,
     on_mask: [T; MAX_CHANNELS],
+    debouncer: bool,
 }
 
 
 //Only method of this struct. Must be called to initialize the data_out array, as it is not
 //a list-based output
-impl LiveFrame4D<u8, u32> {
+impl LiveFrame4D<MaskValues> {
     pub fn create_data_channels(&mut self) {
         self.data_out = vec![0; (self.scan_size.0 * self.scan_size.1) as usize * self.number_of_masks() as usize];
     }
@@ -205,19 +218,20 @@ macro_rules! implement_mask_control {
     ($l: ty) => {
         impl $l {
             pub fn number_of_masks(&self) -> u8 {
-                self.channels.len() as u8
+                //self.channels.len() as u8
+                2 as u8
             }
         
             pub fn create_mask<R: std::io::Read>(&mut self, array: R) -> Result<(), Tp3ErrorKind> {
                 Ok(self.channels.push(grab_mask(array)?))
             }
         
-            fn create_dummy_mask(&mut self, center: (u32, u32), radius: u32, start_value: u8, value: u8) -> Result<(), Tp3ErrorKind> {
+            fn create_dummy_mask(&mut self, center: (u32, u32), radius: u32, start_value: MaskValues, value: MaskValues) -> Result<(), Tp3ErrorKind> {
                 let mut array = [start_value; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
                 for x in 0..DETECTOR_SIZE.0 {
                     for y in 0..DETECTOR_SIZE.1 {
-                        if (x as i32 - center.0 as i32) * (x as i32 - center.0 as i32) + (y as i32 - center.1 as i32) * (y as i32 - center.1 as i32) < (radius * radius) as i32 {
-                            let index = (y * DETECTOR_SIZE.1 + x) as usize;
+                        if ((x + DETECTOR_LIMITS.0.0) as i32 - center.0 as i32) * ((x + DETECTOR_LIMITS.0.0) as i32 - center.0 as i32) + (y as i32 - center.1 as i32) * (y as i32 - center.1 as i32) < (radius * radius) as i32 {
+                            let index = (y * DETECTOR_SIZE.1 + (x - DETECTOR_LIMITS.0.0)) as usize;
                             array[index] = value;
                         }
                     }
@@ -225,9 +239,11 @@ macro_rules! implement_mask_control {
                 Ok(self.channels.push(Live4DChannelMask::new(array)))
             }
 
+            /*
             fn replace_mask<R: std::io::Read>(&mut self, channel: usize, array: R) -> Result<(), Tp3ErrorKind> {
                 Ok(self.channels[channel] = grab_mask(array)?)
             }
+            */
 
             fn collect_mask_values(&mut self, x: POSITION, y: POSITION) {
                 if !((x > DETECTOR_LIMITS.0.0) && (x < DETECTOR_LIMITS.0.1) && (y > DETECTOR_LIMITS.1.0) && (y < DETECTOR_LIMITS.1.1)) {
@@ -236,7 +252,7 @@ macro_rules! implement_mask_control {
             
                 let index = |x: u32, y: u32| -> usize
                 {
-                    (y * DETECTOR_SIZE.0 + x) as usize
+                    (y * DETECTOR_SIZE.0 + (x - DETECTOR_LIMITS.0.0)) as usize
                 };
 
                 self.on_mask
@@ -249,8 +265,8 @@ macro_rules! implement_mask_control {
     }
 }
 
-implement_mask_control!(Live4D<u8>);
-implement_mask_control!(LiveFrame4D<u8, u32>);
+implement_mask_control!(Live4D<MaskValues>);
+implement_mask_control!(LiveFrame4D<MaskValues>);
 
 //T is mask data type
 pub struct Live4DChannelMask<T> {
@@ -266,7 +282,7 @@ impl<T> Live4DChannelMask<T> {
 impl SpimKind for Live {
     type InputData = (POSITION, TIME);
 
-    fn data(&self) -> &Vec<(POSITION, TIME)> {
+    fn data(&self) -> &Vec<Self::InputData> {
         &self.data
     }
     #[inline]
@@ -330,10 +346,10 @@ impl SpimKind for Live {
     }
 }
 
-impl SpimKind for Live4D<u8> {
+impl SpimKind for Live4D<MaskValues> {
     type InputData = (TIME, u8);
 
-    fn data(&self) -> &Vec<(TIME, u8)> {
+    fn data(&self) -> &Vec<Self::InputData> {
         &self.data
     }
     #[inline]
@@ -352,7 +368,7 @@ impl SpimKind for Live4D<u8> {
             });
 
     }
-    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
+    fn add_tdc_hit<T: TdcControl>(&mut self, _packet: &PacketEELS, _line_tdc: &PeriodicTdcRef, _ref_tdc: &mut T) {
         /*
         let tdc_time = packet.tdc_time_norm();
         ref_tdc.upt(tdc_time, packet.tdc_counter());
@@ -399,16 +415,16 @@ impl SpimKind for Live4D<u8> {
     }
     fn new(_settings: &Settings) -> Self {
         let mut data_structure = Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), channels: Vec::new(), on_mask: [0; MAX_CHANNELS]};
-        data_structure.create_dummy_mask((128, 128), 8, 0, 1).unwrap();
-        data_structure.create_dummy_mask((128, 128), 8, 1, 0).unwrap();
+        data_structure.create_dummy_mask((648, 148), 44, 0, 1).unwrap();
+        data_structure.create_dummy_mask((648, 148), 44, 1, 0).unwrap();
         data_structure
     }
 }
 
-impl SpimKind for LiveFrame4D<u8, u32> {
-    type InputData = (TIME, u8);
+impl SpimKind for LiveFrame4D<MaskValues> {
+    type InputData = (TIME, u8, MaskValues);
 
-    fn data(&self) -> &Vec<(TIME, u8)> {
+    fn data(&self) -> &Vec<Self::InputData> {
         &self.data
     }
     #[inline]
@@ -421,12 +437,12 @@ impl SpimKind for LiveFrame4D<u8, u32> {
             .iter()
             .enumerate()
             .filter(|(_channel_index, val)| **val != 0)
-            .for_each(|(channel_index, _val)| {
-                temp_data.push((ele_time - line_tdc.begin_frame - VIDEO_TIME, channel_index as u8)); //This added the overflow.
+            .for_each(|(channel_index, &val)| {
+                temp_data.push((ele_time - line_tdc.begin_frame - VIDEO_TIME, channel_index as u8, val));
             });
 
     }
-    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
+    fn add_tdc_hit<T: TdcControl>(&mut self, _packet: &PacketEELS, _line_tdc: &PeriodicTdcRef, _ref_tdc: &mut T) {
         /*
         let tdc_time = packet.tdc_time_norm();
         ref_tdc.upt(tdc_time, packet.tdc_counter());
@@ -459,25 +475,40 @@ impl SpimKind for LiveFrame4D<u8, u32> {
         
         let number_of_masks = self.number_of_masks();
         let temp = &mut self.data_out;
-        self.data.iter()
-            .filter_map(|&(dt, channel)| {
-                get_4d_complete_positional_index(number_of_masks, channel, dt, spim_tdc, set.xspim_size, set.yspim_size)})
-            .for_each(|index| temp[index as usize] += 1);
+        
+         self.data.iter()
+            .filter_map(|&(dt, channel, value)| {
+                match get_4d_complete_positional_index(number_of_masks, channel, dt, spim_tdc, set.xspim_size, set.yspim_size) {
+                    Some(index) => Some((index, value)),
+                    None => None,
+                }
+            })
+            .for_each(|(index, value)| {
+                      temp[index as usize] += value});
 
         as_bytes(&self.data_out)
     }
-    fn is_ready(&mut self, _line_tdc: &PeriodicTdcRef) -> bool {
-        true
+    #[inline]
+    fn is_ready(&mut self, line_tdc: &PeriodicTdcRef) -> bool {
+        let is_new_frame = line_tdc.new_frame;
+        if is_new_frame {
+            if self.debouncer { 
+                self.debouncer = false;
+                return true
+            }
+        } else {
+            self.debouncer = true;
+        }
+        false
     }
     fn copy_empty(&mut self) -> Self {
-        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), scan_size: self.scan_size, channels: std::mem::take(&mut self.channels), on_mask: [0; MAX_CHANNELS]};
-        frame.create_data_channels();
+        let frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: vec![0; (self.scan_size.0 * self.scan_size.1) as usize * self.number_of_masks() as usize], scan_size: self.scan_size, channels: std::mem::take(&mut self.channels), on_mask: [0; MAX_CHANNELS], debouncer: false};
         frame
     }
     fn new(settings: &Settings) -> Self {
-        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), scan_size: (settings.xspim_size, settings.yspim_size), channels: Vec::new(), on_mask: [0; MAX_CHANNELS]};
-        frame.create_dummy_mask((128, 128), 8, 0, 1).unwrap();
-        frame.create_dummy_mask((128, 128), 8, 1, 0).unwrap();
+        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), scan_size: (settings.xspim_size, settings.yspim_size), channels: Vec::new(), on_mask: [0; MAX_CHANNELS], debouncer: false};
+        frame.create_dummy_mask((648, 108), 44, 0, 1).unwrap();
+        frame.create_dummy_mask((648, 108), 44, 1, 0).unwrap();
         frame.create_data_channels();
         frame
     }
