@@ -212,7 +212,7 @@ pub struct Live4D<T> {
 
 ///It outputs a frame-based to be used to reconstruct a channel in 4D STEM.
 pub struct LiveFrame4D<T> {
-    data: Vec<(TIME, u32, T)>,
+    data: Vec<(POSITION, POSITION, TIME)>,
     data_out: Vec<T>,
     com: (T, T),
     scan_size: (POSITION, POSITION),
@@ -289,6 +289,9 @@ macro_rules! implement_mask_control {
                 self.on_mask[1] = y as i16 - self.com.1; //COM-y
 
             }
+
+            //fn get_mask_values(x: POSITION, y: POSITION) {
+
         }
     }
 }
@@ -453,7 +456,7 @@ impl SpimKind for Live4D<MaskValues> {
 }
 
 impl SpimKind for LiveFrame4D<MaskValues> {
-    type InputData = (TIME, u32, MaskValues);
+    type InputData = (POSITION, POSITION, TIME);
 
     fn data(&self) -> &Vec<Self::InputData> {
         &self.data
@@ -461,8 +464,10 @@ impl SpimKind for LiveFrame4D<MaskValues> {
     #[inline]
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
+        self.data.push((packet.x(), packet.y(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
+        //self.data.push
+        /*
         self.collect_mask_values(packet.x(), packet.y());
-
         let temp_data = &mut self.data;
         self.on_mask
             .iter()
@@ -471,6 +476,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
             .for_each(|(channel_index, &mask_val)| {
                 temp_data.push((ele_time - line_tdc.begin_frame - VIDEO_TIME, channel_index as u32, mask_val));
             });
+        */
 
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, _packet: &PacketEELS, _line_tdc: &PeriodicTdcRef, _ref_tdc: &mut T) {
@@ -508,7 +514,54 @@ impl SpimKind for LiveFrame4D<MaskValues> {
             //.iter()
             //.filter(|(dt, channel, value)| *channel == 0);
             //Some( (index * number_of_masks as u32) + mask as u32)
+        
+        let channel_array_index = |x: u32, y: u32| -> usize
+        {
+            (y * DETECTOR_SIZE.0 + (x - DETECTOR_LIMITS.0.0)) as usize
+        };
+        let is_inside = |x: u32, y: u32| -> bool {
+            (x > DETECTOR_LIMITS.0.0) && (x < DETECTOR_LIMITS.0.1) && (y > DETECTOR_LIMITS.1.0) && (y < DETECTOR_LIMITS.1.1)
+        };
 
+        let mut frequency = vec![0i16; (set.xspim_size * set.yspim_size) as usize];
+        let number_of_masks = self.number_of_masks() as u32;
+        let com = self.com;
+        let temp = &mut self.data_out;
+        let temp2 = &self.channels;
+
+
+        self.data
+            .iter()
+            .filter_map(|&(x, y, dt)| {
+                match get_4d_complete_positional_index(dt, spim_tdc, set.xspim_size, set.yspim_size) {
+                    Some(index) => Some((x, y, index)),
+                    None => None,
+                }
+            })
+            .filter(|&(x, y, _index)| is_inside(x, y))
+            .for_each(|(x, y, index)| {
+                frequency[index as usize] += 1;
+                temp[(index * number_of_masks) as usize + 0] += x as i16 - com.0;
+                temp[(index * number_of_masks) as usize + 1] += y as i16 - com.1;
+                for (channel_number, channel) in temp2.iter().enumerate() {
+                    let value = channel.mask[channel_array_index(x, y)];
+                    temp[(index * number_of_masks) as usize + channel_number+2] += value;
+                }
+                  
+            });
+        
+        self.data_out
+            .chunks_exact_mut(number_of_masks as usize)
+            .zip(frequency.iter())
+            .for_each(|(chunk, frequency)| {
+                if *frequency > 0 {
+                    chunk[0] /= frequency;
+                    chunk[1] /= frequency;
+                }
+            });
+
+
+        /*
         let mut frequency = vec![0i16; (set.xspim_size * set.yspim_size) as usize];
         let number_of_masks = self.number_of_masks() as u32;
         let temp = &mut self.data_out;
@@ -536,6 +589,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
                     chunk[1] /= frequency;
                 }
             });
+        */
         /*
         self.data_out
             .iter_mut()
