@@ -576,14 +576,14 @@ impl SpimKind for LiveFrame4D<MaskValues> {
     fn copy_empty(&mut self) -> Self {
         let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: vec![0; (self.scan_size.0 * self.scan_size.1) as usize * self.number_of_masks() as usize], com: self.com, scan_size: self.scan_size, channels: Vec::new(), on_mask: [0; MAX_CHANNELS], debouncer: false};
         //let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: vec![0; (self.scan_size.0 * self.scan_size.1) as usize * self.number_of_masks() as usize], com: self.com, scan_size: self.scan_size, channels: std::mem::take(&mut self.channels), on_mask: [0; MAX_CHANNELS], debouncer: false};
-        let file = std::fs::File::open("masks.dat").unwrap();
+        let file = std::fs::File::open(MASK_FILE).unwrap();
         frame.create_mask(file).unwrap();
         frame.create_data_channels();
         frame
     }
     fn new(settings: &Settings) -> Self {
         let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), com: (647, 106), scan_size: (settings.xspim_size, settings.yspim_size), channels: Vec::new(), on_mask: [0; MAX_CHANNELS], debouncer: false};
-        let file = std::fs::File::open("masks.dat").unwrap();
+        let file = std::fs::File::open(MASK_FILE).unwrap();
         frame.create_mask(file).unwrap();
         //frame.create_dummy_mask((647, 106), 44, 0, 1).unwrap();
         //frame.create_dummy_mask((647, 106), 44, 1, 0).unwrap();
