@@ -212,7 +212,7 @@ pub struct Live4D<T> {
 
 ///It outputs a frame-based to be used to reconstruct a channel in 4D STEM.
 pub struct LiveFrame4D<T> {
-    data: Vec<(POSITION, POSITION, TIME)>,
+    data: Vec<(POSITION, TIME)>,
     data_out: Vec<T>,
     com: (T, T),
     scan_size: (POSITION, POSITION),
@@ -456,7 +456,7 @@ impl SpimKind for Live4D<MaskValues> {
 }
 
 impl SpimKind for LiveFrame4D<MaskValues> {
-    type InputData = (POSITION, POSITION, TIME);
+    type InputData = (POSITION, TIME);
 
     fn data(&self) -> &Vec<Self::InputData> {
         &self.data
@@ -464,19 +464,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
     #[inline]
     fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
-        self.data.push((packet.x(), packet.y(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
-        //self.data.push
-        /*
-        self.collect_mask_values(packet.x(), packet.y());
-        let temp_data = &mut self.data;
-        self.on_mask
-            .iter()
-            .enumerate()
-            .filter(|(_channel_index, val)| **val != 0)
-            .for_each(|(channel_index, &mask_val)| {
-                temp_data.push((ele_time - line_tdc.begin_frame - VIDEO_TIME, channel_index as u32, mask_val));
-            });
-        */
+        self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
 
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, _packet: &PacketEELS, _line_tdc: &PeriodicTdcRef, _ref_tdc: &mut T) {
@@ -532,9 +520,9 @@ impl SpimKind for LiveFrame4D<MaskValues> {
 
         self.data
             .iter()
-            .filter_map(|&(x, y, dt)| {
+            .filter_map(|&(x_y, dt)| {
                 match get_4d_complete_positional_index(dt, spim_tdc, set.xspim_size, set.yspim_size) {
-                    Some(index) => Some((x, y, index)),
+                    Some(index) => Some((x_y >> 16, x_y & 65535, index)),
                     None => None,
                 }
             })
@@ -559,7 +547,6 @@ impl SpimKind for LiveFrame4D<MaskValues> {
                     chunk[1] /= frequency;
                 }
             });
-
 
         /*
         let mut frequency = vec![0i16; (set.xspim_size * set.yspim_size) as usize];
@@ -629,7 +616,6 @@ impl SpimKind for LiveFrame4D<MaskValues> {
     }
     fn copy_empty(&mut self) -> Self {
         let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: vec![0; (self.scan_size.0 * self.scan_size.1) as usize * self.number_of_masks() as usize], com: self.com, scan_size: self.scan_size, channels: Vec::new(), on_mask: [0; MAX_CHANNELS], debouncer: false};
-        //let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: vec![0; (self.scan_size.0 * self.scan_size.1) as usize * self.number_of_masks() as usize], com: self.com, scan_size: self.scan_size, channels: std::mem::take(&mut self.channels), on_mask: [0; MAX_CHANNELS], debouncer: false};
         let file = std::fs::File::open(MASK_FILE).unwrap();
         frame.create_mask(file).unwrap();
         frame.create_data_channels();
@@ -639,8 +625,6 @@ impl SpimKind for LiveFrame4D<MaskValues> {
         let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), com: (647, 106), scan_size: (settings.xspim_size, settings.yspim_size), channels: Vec::new(), on_mask: [0; MAX_CHANNELS], debouncer: false};
         let file = std::fs::File::open(MASK_FILE).unwrap();
         frame.create_mask(file).unwrap();
-        //frame.create_dummy_mask((647, 106), 44, 0, 1).unwrap();
-        //frame.create_dummy_mask((647, 106), 44, 1, 0).unwrap();
         frame.create_data_channels();
         frame
     }
