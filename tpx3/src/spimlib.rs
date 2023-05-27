@@ -1,6 +1,6 @@
 //!`spimlib` is a collection of tools to set hyperspectral EELS acquisition.
 
-use crate::packetlib::{Packet, PacketEELS, packet_change};
+use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
 use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box::{IsiBoxHand, IsiBoxType}};
 use crate::errorlib::Tp3ErrorKind;
@@ -44,9 +44,9 @@ pub trait SpimKind {
     //type Output;
 
     fn data(&self) -> &Vec<Self::InputData>;
-    fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef);
-    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T);
-    fn upt_line(&self, packet: &PacketEELS, settings: &Settings, line_tdc: &mut PeriodicTdcRef);
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef);
+    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T);
+    fn upt_line(&self, packet: &Pack, settings: &Settings, line_tdc: &mut PeriodicTdcRef);
     fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8];
     fn copy_empty(&mut self) -> Self;
     fn is_ready(&mut self, line_tdc: &PeriodicTdcRef) -> bool;
@@ -256,18 +256,18 @@ impl SpimKind for Live {
         &self.data
     }
     #[inline]
-    fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
         self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
     }
-    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
+    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
         let tdc_time = packet.tdc_time_norm();
         ref_tdc.upt(tdc_time, packet.tdc_counter());
         if tdc_time > line_tdc.begin_frame + VIDEO_TIME {
             self.data.push((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame - VIDEO_TIME))
         }
     }
-    fn upt_line(&self, packet: &PacketEELS, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
+    fn upt_line(&self, packet: &Pack, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
     }
     #[inline]
@@ -323,12 +323,12 @@ impl SpimKind for LiveFrame4D<MaskValues> {
         &self.data
     }
     #[inline]
-    fn add_electron_hit(&mut self, packet: &PacketEELS, line_tdc: &PeriodicTdcRef) {
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
         self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
 
     }
-    fn add_tdc_hit<T: TdcControl>(&mut self, _packet: &PacketEELS, _line_tdc: &PeriodicTdcRef, _ref_tdc: &mut T) {
+    fn add_tdc_hit<T: TdcControl>(&mut self, _packet: &Pack, _line_tdc: &PeriodicTdcRef, _ref_tdc: &mut T) {
         /*
         let tdc_time = packet.tdc_time_norm();
         ref_tdc.upt(tdc_time, packet.tdc_counter());
@@ -337,7 +337,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
         }
         */
     }
-    fn upt_line(&self, packet: &PacketEELS, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
+    fn upt_line(&self, packet: &Pack, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
     }
     #[inline]
@@ -496,7 +496,7 @@ fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_c
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
-                let packet = PacketEELS { chip_index: *last_ci, data: packet_change(x)[0]};
+                let packet = Pack { chip_index: *last_ci, data: packet_change(x)[0]};
                 let id = packet.id();
                 match id {
                     11 => {
