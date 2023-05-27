@@ -477,7 +477,6 @@ pub mod isi_box {
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
     use std::thread;
-    use crate::spimlib::SPIM_PIXELS;
     use std::time::Duration;
     use crate::constlib::*;
 

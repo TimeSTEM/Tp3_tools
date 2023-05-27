@@ -12,10 +12,6 @@ use crate::auxiliar::value_types::*;
 use crate::constlib::*;
 //use rayon::prelude::*;
 
-pub const VIDEO_TIME: TIME = 3200;
-pub const SPIM_PIXELS: POSITION = 1025 + 200;
-const BUFFER_SIZE: usize = 16384 * 2;
-
 type MaskValues = i16;
 
 

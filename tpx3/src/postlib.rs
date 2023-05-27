@@ -1,7 +1,6 @@
 pub mod coincidence {
 
     use std::fs::OpenOptions;
-    use crate::spimlib::SPIM_PIXELS;
     use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack, packet_change};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
     use crate::postlib::isi_box;
@@ -761,7 +760,6 @@ pub mod coincidence {
 pub mod isi_box {
     use std::fs::OpenOptions;
     use std::io::{Read, Write};
-    use crate::spimlib::VIDEO_TIME;
     use crate::auxiliar::value_types::*;
     use indicatif::{ProgressBar, ProgressStyle};
     use crate::constlib::*;

@@ -1,12 +1,13 @@
 use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::*;
 use timepix3::tdclib::*;
+use timepix3::constlib::*;
 use timepix3::{speclib, spimlib, spimlib::SpimKind};
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
     
-    let (my_settings, mut pack, ns) = Settings::create_settings([192, 168, 199, 11], 8088)?;
+    let (my_settings, mut pack, ns) = Settings::create_settings(NIONSWIFT_IP_ADDRESS, NIONSWIFT_PORT)?;
 
     match my_settings.mode {
         0 if my_settings.bin => {

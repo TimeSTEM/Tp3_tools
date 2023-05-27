@@ -1,13 +1,13 @@
 //!`clusterlib` is a collection of tools to identify and manipulate TPX3 cluster.
 
 pub mod cluster {
-    use crate::spimlib::{SPIM_PIXELS, VIDEO_TIME};
     use crate::packetlib::{Packet, PacketEELS as Pack};
     use crate::spimlib;
     use crate::tdclib::PeriodicTdcRef;
     use std::fs::OpenOptions;
     use std::io::Write;
     use std::ops::Deref;
+    use crate::constlib::*;
     use rayon::prelude::*;
     use crate::auxiliar::value_types::*;
     

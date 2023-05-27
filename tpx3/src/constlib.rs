@@ -1,5 +1,12 @@
 use crate::auxiliar::value_types::*;
 
+//***General Values***//
+pub const VIDEO_TIME: TIME = 3200;
+pub const SPIM_PIXELS: POSITION = 1025 + 200;
+pub const BUFFER_SIZE: usize = 16384 * 2;
+pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 199, 11];
+pub const NIONSWIFT_PORT: u16 = 8088;
+
 //***POSTLIB***//
 //Coincidence values using the IsiBox//
 pub const ISI_BUFFER_SIZE: usize = 128_000_000; //Buffer size when reading files
@@ -7,7 +14,6 @@ pub const ISI_TIME_WIDTH: u64 = 200; //Time width considered for coincidence (un
 pub const ISI_TIME_DELAY: u64 = 78; //Time delay considered for coincidence (units of 1.5625 ns)
 pub const ISI_LINE_OFFSET: i64 = 0; //Line offset when searching coincidences
 pub const ISI_TP3_MAX_DIF: u64 = 1000; //Maximum clock difference to synchronize IsiBox and Timepix3 (in units of 1.5625 ns)
-
 
 //IsiBox alone constants//
 pub const ISI_CORRECTION_MAX_DIF: u64 = 1_000; //Maximum clock difference between two detected lines. If the difference is bigger than this value, a new line is put in between (in units of 120 ps)
