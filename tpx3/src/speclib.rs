@@ -12,7 +12,6 @@ use crate::auxiliar::value_types::*;
 use crate::constlib::*;
 
 const CAM_DESIGN: (POSITION, POSITION) = Pack::chip_array();
-const BUFFER_SIZE: usize = 16384 * 2;
 
 fn as_bytes<T>(v: &[T]) -> &[u8] {
     unsafe {

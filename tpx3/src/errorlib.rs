@@ -26,4 +26,6 @@ pub enum Tp3ErrorKind {
     IsiBoxCouldNotSetParameters,
     IsiBoxCouldNotConfigure,
     IsiBoxCouldNotSync,
+
+    STEM4DCouldNotSetMask,
 }

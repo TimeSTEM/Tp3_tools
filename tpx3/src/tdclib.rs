@@ -262,6 +262,7 @@ pub struct PeriodicTdcRef {
     pub period: TIME,
     pub high_time: TIME,
     pub low_time: TIME,
+    pub new_frame: bool,
     time: TIME,
 }
 
@@ -280,8 +281,8 @@ impl TdcControl for PeriodicTdcRef {
         if let Some(spimy) = self.ticks_to_frame {
             if (self.counter / 2) % spimy == 0 {
                 self.begin_frame = time;
-                
-            }
+                self.new_frame = true
+            } else { self.new_frame = false }
         }
     }
 
@@ -332,9 +333,10 @@ impl TdcControl for PeriodicTdcRef {
             period,
             high_time,
             low_time,
+            new_frame: false,
             time: last_time,
         };
-        println!("***TDC Lib***: Creating a new tdc reference: {:?}.", per_ref);
+        println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
         Ok(per_ref)
     }
 }
@@ -475,7 +477,6 @@ pub mod isi_box {
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
     use std::thread;
-    use crate::spimlib::SPIM_PIXELS;
     use std::time::Duration;
     use crate::constlib::*;
 

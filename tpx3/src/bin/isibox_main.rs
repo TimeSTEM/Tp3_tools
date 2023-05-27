@@ -10,7 +10,7 @@ use timepix3::constlib::*;
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
     
-    let (my_settings, mut pack, ns) = Settings::create_settings([192, 168, 199, 11], 8088)?;
+    let (my_settings, mut pack, ns) = Settings::create_settings(NIONSWIFT_IP_ADDRESS, NIONSWIFT_PORT)?;
 
     match my_settings.mode {
         0 if my_settings.bin => {
@@ -33,7 +33,7 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             
             let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size))?;
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
-            let measurement = spimlib::Live::new();
+            let measurement = spimlib::Live::new(&my_settings);
             spimlib::build_spim_isi(pack, ns, my_settings, spim_tdc, np_tdc, measurement, handler)?;
             Ok(my_settings.mode)
         },

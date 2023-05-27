@@ -164,6 +164,10 @@ pub trait Packet {
     fn tdc_overflow() -> TIME {
         68_719_476_736
     }
+
+    fn chip_array_size() -> (POSITION, POSITION) {
+        (1025, 256)
+    }
 }
 
 pub struct PacketEELS {
@@ -235,20 +239,19 @@ impl Packet for PacketDiffraction {
     fn data(&self) -> u64 {
         self.data
     }
-    /*
     fn x(&self) -> POSITION {
-        let temp = (((self.data[6] & 224)>>4 | (self.data[7] & 15)<<4) | (((self.data[5] & 112)>>4)>>2)) as POSITION;
+        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
         match self.chip_index {
-            0 => 255 - temp,
-            1 => temp,
-            2 => temp + 256,
-            3 => 256 * 2 - 1 - temp,
+            0 => 255 - temp2,
+            1 => temp2,
+            2 => temp2 + 256,
+            3 => 256 * 2 - 1 - temp2,
             _ => panic!("More than four CI."),
         }
     }
 
     fn y(&self) -> POSITION {
-        let temp = (   ( (self.data[5] & 128)>>5 | (self.data[6] & 31)<<3 ) | ( ((self.data[5] & 112)>>4) & 3 )   ) as POSITION;
+        let temp = (((self.data() & 0x00_1F_80_00_00_00_00_00) >> 45) | ((self.data() & 0x00_00_30_00_00_00_00_00) >> 44)) as POSITION;
         match self.chip_index {
             0 => temp,
             1 => 256 * 2 - 1 - temp,
@@ -257,7 +260,6 @@ impl Packet for PacketDiffraction {
             _ => panic!("More than four CI."),
         }
     }
-    */
 }
 
 impl PacketDiffraction {
