@@ -509,7 +509,7 @@ macro_rules! Live2DFrameImplementation {
             //    Err(Tp3ErrorKind::FrameBasedModeHasNoTdc)
             //}
 
-            fn upt_frame(&mut self, pack: &Pack, _frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
+            fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
                 if pack.id() == 5 {
                     self.is_ready = false;
                     match self.frame_based_time {
@@ -521,6 +521,9 @@ macro_rules! Live2DFrameImplementation {
                         },
                         None => {},
                     };
+                }
+                else if pack.id() == 6 {
+                    frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
                 }
             }
             fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
@@ -564,7 +567,7 @@ macro_rules! Live1DFrameImplementation {
             //fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
             //    Err(Tp3ErrorKind::FrameBasedModeHasNoTdc)
             //}
-            fn upt_frame(&mut self, pack: &Pack, _frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
+            fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
                 if pack.id() == 5 {
                     self.is_ready = false;
                     match self.frame_based_time {
@@ -576,6 +579,9 @@ macro_rules! Live1DFrameImplementation {
                         },
                         None => {},
                     };
+                }
+                else if pack.id() == 6 {
+                    frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
                 }
             }
             fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
