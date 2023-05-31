@@ -122,6 +122,11 @@ pub trait Packet {
     fn tdc_type(&self) -> u8 {
         ((self.data() & 0x0F_00_00_00_00_00_00_00) >> 56) as u8
     }
+    
+    #[inline]
+    fn frame_time(&self) -> u64 {
+        ((self.data() & 0x00_00_3F_FF_FF_FF_F0_00) >> 12) as u64
+    }
 
     #[inline]
     fn tdc_time(&self) -> TIME {

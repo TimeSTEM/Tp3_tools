@@ -28,4 +28,6 @@ pub enum Tp3ErrorKind {
     IsiBoxCouldNotSync,
 
     STEM4DCouldNotSetMask,
+
+    FrameBasedModeHasNoTdc,
 }
