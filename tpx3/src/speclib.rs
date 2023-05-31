@@ -75,7 +75,7 @@ pub trait GenerateDepth {
     gendepth!(gen8, u8);
 }
 
-genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, SuperResolution, Live2DFrame, Live1DFrame); //create struct and implement GenerateDepth. GenDepth gets this struct and transforms into a SpecMeasurement struct, which is ready for acquisition;
+genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, SuperResolution, Live1DFrame, Live2DFrame); //create struct and implement GenerateDepth. GenDepth gets this struct and transforms into a SpecMeasurement struct, which is ready for acquisition;
 
 pub struct SpecMeasurement<T, K: BitDepth> {
     data: Vec<K>,
@@ -484,51 +484,116 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<SuperResolution, L> {
 }
 */
 
-impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
-    type SupplementaryTdc = NonPeriodicTdcRef;
-    fn is_ready(&self) -> bool {
-        self.is_ready
-    }
-    fn build_output(&self) -> &[u8] {
-        as_bytes(&self.data)
-    }
-    fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, frame_based_time: Some(0), _kind: Live2DFrame }
-    }
+macro_rules! Live2DFrameImplementation {
+    ($x: ty) => {
+        impl SpecKind for SpecMeasurement<Live2DFrame, $x> {
+            type SupplementaryTdc = NonPeriodicTdcRef;
+            fn is_ready(&self) -> bool {
+                self.is_ready
+            }
+            fn build_output(&self) -> &[u8] {
+                as_bytes(&self.data)
+            }
+            fn new(_settings: &Settings) -> Self {
+                let len = (CAM_DESIGN.0 * CAM_DESIGN.1) as usize;
+                SpecMeasurement{ data: vec![0; len+1], aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, frame_based_time: Some(0), _kind: Live2DFrame }
+            }
 
-    #[inline]
-    fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
-        let index = pack.x() + CAM_DESIGN.0 * pack.y();
-        add_index!(self, index);
-    }
-    fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
+            #[inline]
+            fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+                let index = pack.x() + CAM_DESIGN.0 * pack.y();
+                self.data[index as usize] += pack.tot() as $x;
+            }
+            fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
+            //fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
+            //    Err(Tp3ErrorKind::FrameBasedModeHasNoTdc)
+            //}
 
-    fn upt_frame(&mut self, pack: &Pack, _frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
-        if pack.id() == 5 {
-            self.is_ready = false;
-            match self.frame_based_time {
-                Some(val) => {
-                    if val != pack.frame_time() {
-                        self.is_ready = true;
-                        self.frame_based_time = Some(pack.frame_time());
-                    }
-                },
-                None => {},
-            };
+            fn upt_frame(&mut self, pack: &Pack, _frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
+                if pack.id() == 5 {
+                    self.is_ready = false;
+                    match self.frame_based_time {
+                        Some(val) => {
+                            if val != pack.frame_time() {
+                                self.is_ready = true;
+                                self.frame_based_time = Some(pack.frame_time());
+                            }
+                        },
+                        None => {},
+                    };
+                }
+            }
+            fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
+                self.is_ready = false;
+                if !settings.cumul {
+                    self.data.iter_mut().for_each(|x| *x = 0);
+                    *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
+                }
+            }
+            fn set_repeat(&mut self, val: u32) {
+                self.repeat = Some(val);
+            }
         }
-    }
-    fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
-        self.is_ready = false;
-        if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = L::zero());
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::ten();
-        }
-    }
-    fn set_repeat(&mut self, val: u32) {
-        self.repeat = Some(val);
     }
 }
+Live2DFrameImplementation!(u8);
+Live2DFrameImplementation!(u16);
+Live2DFrameImplementation!(u32);
 
+macro_rules! Live1DFrameImplementation {
+    ($x: ty) => {
+        impl SpecKind for SpecMeasurement<Live1DFrame, $x> {
+            type SupplementaryTdc = NonPeriodicTdcRef;
+            fn is_ready(&self) -> bool {
+                self.is_ready
+            }
+            fn build_output(&self) -> &[u8] {
+                as_bytes(&self.data)
+            }
+            fn new(_settings: &Settings) -> Self {
+                let len = CAM_DESIGN.0 as usize;
+                SpecMeasurement{ data: vec![0; len+1], aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, frame_based_time: Some(0), _kind: Live1DFrame }
+            }
+
+            #[inline]
+            fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+                let index = pack.x();
+                self.data[index as usize] += pack.tot() as $x;
+            }
+            fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
+            //fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
+            //    Err(Tp3ErrorKind::FrameBasedModeHasNoTdc)
+            //}
+            fn upt_frame(&mut self, pack: &Pack, _frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
+                if pack.id() == 5 {
+                    self.is_ready = false;
+                    match self.frame_based_time {
+                        Some(val) => {
+                            if val != pack.frame_time() {
+                                self.is_ready = true;
+                                self.frame_based_time = Some(pack.frame_time());
+                            }
+                        },
+                        None => {},
+                    };
+                }
+            }
+            fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
+                self.is_ready = false;
+                if !settings.cumul {
+                    self.data.iter_mut().for_each(|x| *x = 0);
+                    *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
+                }
+            }
+            fn set_repeat(&mut self, val: u32) {
+                self.repeat = Some(val);
+            }
+        }
+    }
+}
+Live1DFrameImplementation!(u8);
+Live1DFrameImplementation!(u16);
+Live1DFrameImplementation!(u32);
 
 impl LiveTR1D {
     fn tr_check_if_in<T: TdcControl>(ele_time: TIME, ref_tdc: &T, settings: &Settings) -> bool {
@@ -598,7 +663,7 @@ pub fn run_spectrum<V, U, Y>(mut pack: V, ns: U, my_settings: Settings, kind: Y)
     
     Ok(my_settings.mode)
 }
-    
+
 fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: W::SupplementaryTdc, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
     where V: TimepixRead,
           U: Write,

@@ -48,6 +48,14 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             speclib::run_spectrum(pack, ns, my_settings, speclib::Chrono)?;
             Ok(my_settings.mode)
         },
+        10 if my_settings.bin => {
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1DFrame)?;
+            Ok(my_settings.mode)
+        },
+        10 if !my_settings.bin => {
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2DFrame)?;
+            Ok(my_settings.mode)
+        },
         _ => Err(Tp3ErrorKind::MiscModeNotImplemented(my_settings.mode)),
     }
 }
