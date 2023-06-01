@@ -75,7 +75,7 @@ pub trait GenerateDepth {
     gendepth!(gen8, u8);
 }
 
-genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, SuperResolution, Live1DFrame, Live2DFrame); //create struct and implement GenerateDepth. GenDepth gets this struct and transforms into a SpecMeasurement struct, which is ready for acquisition;
+genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, SuperResolution, Live1DFrame, Live2DFrame, Live1DFrameHyperspec); //create struct and implement GenerateDepth. GenDepth gets this struct and transforms into a SpecMeasurement struct, which is ready for acquisition;
 
 pub struct SpecMeasurement<T, K: BitDepth> {
     data: Vec<K>,
@@ -90,6 +90,8 @@ pub struct SpecMeasurement<T, K: BitDepth> {
 pub struct ShutterControl {
     time: TIME,
     counter: COUNTER,
+    hyperspectral: bool,
+    hyperspectral_complete: bool,
 }
 
 impl ShutterControl {
@@ -101,6 +103,15 @@ impl ShutterControl {
         }
         false
     }
+    fn set_as_hyperspectral(&mut self) {
+        self.hyperspectral = true;
+    }
+    fn set_hyperspectral_as_complete(&mut self) {
+        self.hyperspectral_complete = true;
+    }
+    fn is_hyperspectral_complete(&self) -> bool {
+        self.hyperspectral_complete
+    }
     fn get_counter(&self) -> COUNTER {
         self.counter
     }
@@ -111,6 +122,8 @@ impl Default for ShutterControl {
         Self {
             time: 0,
             counter: 0,
+            hyperspectral: false,
+            hyperspectral_complete: false,
         }
     }
 }
@@ -626,6 +639,77 @@ macro_rules! Live1DFrameImplementation {
 Live1DFrameImplementation!(u8);
 Live1DFrameImplementation!(u16);
 Live1DFrameImplementation!(u32);
+
+macro_rules! Live1DFrameHyperspecImplementation {
+    ($x: ty) => {
+        impl SpecKind for SpecMeasurement<Live1DFrameHyperspec, $x> {
+            type SupplementaryTdc = NonPeriodicTdcRef;
+            fn is_ready(&self) -> bool {
+                self.is_ready
+            }
+            fn build_output(&self) -> &[u8] {
+                as_bytes(&self.data)
+            }
+            fn new(settings: &Settings) -> Self {
+                let len = (CAM_DESIGN.0 * settings.xspim_size * settings.yspim_size) as usize;
+                let mut shutter = ShutterControl::default();
+                shutter.set_as_hyperspectral();
+                SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, shutter: Some(shutter), _kind: Live1DFrameHyperspec }
+            }
+
+            #[inline]
+            fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+                let frame_number = match &self.shutter {
+                    Some(shut) => {
+                        if shut.is_hyperspectral_complete() { return }
+                        shut.get_counter()
+                    }
+                    None => return,
+                };
+                let index = frame_number * CAM_DESIGN.0 + pack.x();
+                self.data[index as usize] += pack.tot() as $x;
+            }
+            fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
+            //fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
+            //    Err(Tp3ErrorKind::FrameBasedModeHasNoTdc)
+            //}
+            fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
+                if pack.id() == 5 {
+                    self.is_ready = false;
+                    match &mut self.shutter {
+                        Some(shutter) => {
+                            self.is_ready = shutter.try_set_time(pack.frame_time());
+                            if shutter.get_counter() > settings.xspim_size * settings.yspim_size {
+                                shutter.set_hyperspectral_as_complete();
+                            }
+                            println!("{}", shutter.get_counter());
+                        },
+                        None => {},
+                    }
+                }
+                else if pack.id() == 6 {
+                    frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+                }
+            }
+            fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
+                self.is_ready = false;
+                if !settings.cumul {
+                    self.data.iter_mut().for_each(|x| *x = 0);
+                }
+            }
+            fn set_repeat(&mut self, val: u32) {
+                self.repeat = Some(val);
+            }
+            fn frame_based_counter(&self) -> Option<COUNTER> {
+                match &self.shutter {
+                    Some(shutter) => {return Some(shutter.get_counter());},
+                    None => None,
+                }
+            }
+        }
+    }
+}
+Live1DFrameHyperspecImplementation!(u8);
 
 impl LiveTR1D {
     fn tr_check_if_in<T: TdcControl>(ele_time: TIME, ref_tdc: &T, settings: &Settings) -> bool {
