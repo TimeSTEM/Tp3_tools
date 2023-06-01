@@ -56,6 +56,10 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             speclib::run_spectrum(pack, ns, my_settings, speclib::Live2DFrame)?;
             Ok(my_settings.mode)
         },
+        11 => {
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1DFrameHyperspec)?;
+            Ok(my_settings.mode)
+        },
         _ => Err(Tp3ErrorKind::MiscModeNotImplemented(my_settings.mode)),
     }
 }

@@ -651,7 +651,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
                 as_bytes(&self.data)
             }
             fn new(settings: &Settings) -> Self {
-                let len = (CAM_DESIGN.0 * settings.xspim_size * settings.yspim_size) as usize;
+                let len = (CAM_DESIGN.0 * settings.xscan_size * settings.yscan_size) as usize;
                 let mut shutter = ShutterControl::default();
                 shutter.set_as_hyperspectral();
                 SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, shutter: Some(shutter), _kind: Live1DFrameHyperspec }
@@ -678,11 +678,12 @@ macro_rules! Live1DFrameHyperspecImplementation {
                     self.is_ready = false;
                     match &mut self.shutter {
                         Some(shutter) => {
-                            self.is_ready = shutter.try_set_time(pack.frame_time());
-                            if shutter.get_counter() > settings.xspim_size * settings.yspim_size {
+                            let new_frame = shutter.try_set_time(pack.frame_time());
+                            self.is_ready = (shutter.get_counter() % settings.yscan_size) == 0 && new_frame;
+                            if shutter.get_counter() > settings.xscan_size * settings.yscan_size {
                                 shutter.set_hyperspectral_as_complete();
                             }
-                            println!("{}", shutter.get_counter());
+                            //println!("{} and {}", shutter.get_counter(), shutter.is_hyperspectral_complete());
                         },
                         None => {},
                     }
@@ -693,9 +694,9 @@ macro_rules! Live1DFrameHyperspecImplementation {
             }
             fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
                 self.is_ready = false;
-                if !settings.cumul {
-                    self.data.iter_mut().for_each(|x| *x = 0);
-                }
+                //if !settings.cumul {
+                //    self.data.iter_mut().for_each(|x| *x = 0);
+                //}
             }
             fn set_repeat(&mut self, val: u32) {
                 self.repeat = Some(val);
@@ -710,6 +711,8 @@ macro_rules! Live1DFrameHyperspecImplementation {
     }
 }
 Live1DFrameHyperspecImplementation!(u8);
+Live1DFrameHyperspecImplementation!(u16);
+Live1DFrameHyperspecImplementation!(u32);
 
 impl LiveTR1D {
     fn tr_check_if_in<T: TdcControl>(ele_time: TIME, ref_tdc: &T, settings: &Settings) -> bool {
@@ -883,6 +886,8 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T, extra_pixels: POSITION,
     msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
     if set.mode == 6 || set.mode == 7 { //ChronoMode
         msg.push_str(&((set.xspim_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
+    } else if set.mode == 11 {
+        msg.push_str(&((set.xscan_size*set.yscan_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
     } else {
         match set.bin {
             true => { msg.push_str(&((set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()))},
