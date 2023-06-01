@@ -122,8 +122,7 @@ macro_rules! tp3_vec {
                 2 => CAM_DESIGN.1*CAM_DESIGN.0,
                 _ => {panic!("One or two dimensions only!")},
             } as usize;
-            let mut temp_vec: Vec<L> = vec![L::zero(); len+1];
-            temp_vec[len] = L::ten();
+            let mut temp_vec: Vec<L> = vec![L::zero(); len];
             temp_vec
         }
     }
@@ -182,7 +181,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
         self.is_ready = false;
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = L::zero());
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::ten();
         }
     }
     fn set_repeat(&mut self, val: u32) {
@@ -218,7 +216,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
         self.is_ready = false;
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = L::zero());
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::ten();
         }
     }
 }
@@ -252,7 +249,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR2D, L> {
         self.is_ready = false;
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = L::zero());
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::ten();
         }
     }
 }
@@ -286,7 +282,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR1D, L> {
         self.is_ready = false;
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = L::zero());
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::ten();
         }
     }
 }
@@ -322,7 +317,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTilted2D, L> {
         self.is_ready = false;
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = L::zero());
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::ten();
         }
     }
 }
@@ -400,7 +394,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
         if self.aux_data.len() > 0 { //Refresh frame if true;
             self.aux_data.pop(); //Remove for the next cycle;
             self.data.iter_mut().for_each(|x| *x = L::zero());
-            *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = L::zero();
         }
     }
 }
@@ -498,7 +491,7 @@ macro_rules! Live2DFrameImplementation {
             }
             fn new(_settings: &Settings) -> Self {
                 let len = (CAM_DESIGN.0 * CAM_DESIGN.1) as usize;
-                SpecMeasurement{ data: vec![0; len+1], aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, frame_based_time: Some(0), frame_based_counter: Some(0), _kind: Live2DFrame }
+                SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, frame_based_time: Some(0), frame_based_counter: Some(0), _kind: Live2DFrame }
             }
 
             #[inline]
@@ -533,7 +526,6 @@ macro_rules! Live2DFrameImplementation {
                 self.is_ready = false;
                 if !settings.cumul {
                     self.data.iter_mut().for_each(|x| *x = 0);
-                    *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
                 }
             }
             fn set_repeat(&mut self, val: u32) {
@@ -561,7 +553,7 @@ macro_rules! Live1DFrameImplementation {
             }
             fn new(_settings: &Settings) -> Self {
                 let len = CAM_DESIGN.0 as usize;
-                SpecMeasurement{ data: vec![0; len+1], aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, frame_based_time: Some(0), frame_based_counter: Some(0), _kind: Live1DFrame }
+                SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, repeat: None, frame_based_time: Some(0), frame_based_counter: Some(0), _kind: Live1DFrame }
             }
 
             #[inline]
@@ -595,7 +587,6 @@ macro_rules! Live1DFrameImplementation {
                 self.is_ready = false;
                 if !settings.cumul {
                     self.data.iter_mut().for_each(|x| *x = 0);
-                    *self.data.iter_mut().last().expect("SpecKind: Last value is none.") = 10;
                 }
             }
             fn set_repeat(&mut self, val: u32) {
