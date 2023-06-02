@@ -6,9 +6,10 @@ use crate::clusterlib::cluster::ClusterCorrection;
 use std::io::{Read, Write};
 use std::fs::File;
 use crate::auxiliar::value_types::*;
+use chrono::{DateTime, Utc};
 //use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
 
-const CONFIG_SIZE: usize = 18;
+const CONFIG_SIZE: usize = 20;
 
 ///Configures the detector for acquisition. Each new measurement must send 20 bytes
 ///containing instructions.
@@ -153,7 +154,14 @@ impl BytesConfig {
         println!("Time delay is (ns): {}.", tw);
         tw
     }
-    
+
+    ///Should we also save-locally the data. Byte[18]
+    fn save_locally(&self) -> Result<bool, Tp3ErrorKind> {
+        let save_locally = self.data[18] == 1;
+        println!("Save locally is activated: {}.", save_locally);
+        Ok(save_locally)
+    }
+
     ///Convenience method. Returns the ratio between scan and spim size in X.
     fn spimoverscanx(&self) -> Result<POSITION, Tp3ErrorKind> {
         let xspim = (self.data[4] as POSITION)<<8 | (self.data[5] as POSITION);
@@ -207,10 +215,10 @@ impl BytesConfig {
             time_width: self.time_width(),
             spimoverscanx: self.spimoverscanx()?,
             spimoverscany: self.spimoverscany()?,
+            save_locally: self.save_locally()?,
         };
         Ok(my_set)
     }
-
 }
 
 
@@ -247,9 +255,44 @@ pub struct Settings {
     pub time_width: TIME,
     pub spimoverscanx: POSITION,
     pub spimoverscany: POSITION,
+    pub save_locally: bool,
 }
 
 impl Settings {
+
+    pub fn create_savefile_header(&self) -> String {
+        let now: DateTime<Utc> = Utc::now();
+        let mut val = String::new();
+        let custom_datetime_format = now.format("%Y_%m_%y_%H_%M_%S").to_string();
+        val.push_str(&custom_datetime_format);
+        val.push_str("_bin");
+        val.push_str(&self.bin.to_string());
+        val.push_str("_byteDepth");
+        val.push_str(&self.bytedepth.to_string());
+        val.push_str("_cumul");
+        val.push_str(&self.cumul.to_string());
+        val.push_str("_mode");
+        val.push_str(&self.mode.to_string());
+        val.push_str("_xspim");
+        val.push_str(&self.xspim_size.to_string());
+        val.push_str("_yspim");
+        val.push_str(&self.yspim_size.to_string());
+        val.push_str("_xscan");
+        val.push_str(&self.xscan_size.to_string());
+        val.push_str("_yscan");
+        val.push_str(&self.yscan_size.to_string());
+        val.push_str("_pixeltime");
+        val.push_str(&self.pixel_time.to_string());
+        val.push_str("_timedelay");
+        val.push_str(&self.time_delay.to_string());
+        val.push_str("_timewidth");
+        val.push_str(&self.time_width.to_string());
+        val.push_str("_savelocally");
+        val.push_str(&self.save_locally.to_string());
+        val.push_str("_mode");
+        val.push_str(".tpx3");
+        val
+    }
 
     ///Create Settings structure reading from a TCP.
     pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
@@ -328,6 +371,7 @@ impl Settings {
             time_width: 1000,
             spimoverscanx: 1,
             spimoverscany: 1,
+            save_locally: false,
         }
     }
     
@@ -346,6 +390,7 @@ impl Settings {
             time_width: 1000,
             spimoverscanx: 1,
             spimoverscany: 1,
+            save_locally: false,
         }
     }
 
