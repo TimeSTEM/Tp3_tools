@@ -1,6 +1,7 @@
 use crate::auxiliar::value_types::*;
 
 //***General Values***//
+pub const TIME_INTERVAL_FRAMES: u128 = 0; //in milliseconds
 pub const VIDEO_TIME: TIME = 3200;
 pub const SPIM_PIXELS: POSITION = 1025 + 200;
 pub const BUFFER_SIZE: usize = 16384 * 2;
@@ -35,3 +36,4 @@ pub const MASK_FILE: &str = "C:\\ProgramData\\Microscope\\masks.dat";
 pub const DETECTOR_SIZE: (POSITION, POSITION) = (256, 256);
 pub const DETECTOR_LIMITS: ((POSITION, POSITION), (POSITION, POSITION)) = ((512, 768), (0, 256));
 pub const MAX_CHANNELS: usize = 8;
+pub const TIME_INTERVAL_4DFRAMES: u128 = 100; //In milliseconds

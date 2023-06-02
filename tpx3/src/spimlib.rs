@@ -205,6 +205,7 @@ pub struct LiveFrame4D<T> {
     scan_size: (POSITION, POSITION),
     channels: Vec<Live4DChannelMask<T>>,
     debouncer: bool,
+    timer: Instant,
 }
 
 
@@ -392,6 +393,10 @@ impl SpimKind for LiveFrame4D<MaskValues> {
         if is_new_frame {
             if self.debouncer { 
                 self.debouncer = false;
+                if self.timer.elapsed().as_millis() < TIME_INTERVAL_4DFRAMES {
+                    self.data.clear();
+                    return false
+                }
                 return true
             }
         } else {
@@ -400,14 +405,14 @@ impl SpimKind for LiveFrame4D<MaskValues> {
         false
     }
     fn copy_empty(&mut self) -> Self {
-        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: vec![0; (self.scan_size.0 * self.scan_size.1) as usize * self.number_of_masks() as usize], com: self.com, scan_size: self.scan_size, channels: Vec::new(), debouncer: false};
+        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: vec![0; (self.scan_size.0 * self.scan_size.1) as usize * self.number_of_masks() as usize], com: self.com, scan_size: self.scan_size, channels: Vec::new(), debouncer: false, timer: Instant::now()};
         let file = std::fs::File::open(MASK_FILE).unwrap();
         frame.create_mask(file).unwrap();
         frame.create_data_channels();
         frame
     }
     fn new(settings: &Settings) -> Self {
-        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), com: (647, 106), scan_size: (settings.xspim_size, settings.yspim_size), channels: Vec::new(), debouncer: false};
+        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), com: (0, 0), scan_size: (settings.xspim_size, settings.yspim_size), channels: Vec::new(), debouncer: false, timer: Instant::now()};
         let file = std::fs::File::open(MASK_FILE).unwrap();
         frame.create_mask(file).unwrap();
         frame.create_data_channels();
@@ -432,8 +437,8 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
             build_spim_data(&mut meas_type, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut line_tdc, &mut ref_tdc);
             if meas_type.is_ready(&line_tdc) {
                let list2 = meas_type.copy_empty();
-                if tx.send(meas_type).is_err() {println!("Cannot send data over the thread channel."); break;}
-                meas_type = list2;
+               if tx.send(meas_type).is_err() {println!("Cannot send data over the thread channel."); break;}
+               meas_type = list2;
             }
         }
     });
