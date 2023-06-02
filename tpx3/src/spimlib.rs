@@ -199,6 +199,16 @@ pub struct Live {
     timer: Instant,
 }
 
+///It outputs a list of indices that must
+///be increment. This is Hyperspectral imaging with
+///coincident photons around
+pub struct LiveCoincidence {
+    data: Vec<(POSITION, TIME)>,
+    photon_data: Vec<TIME>,
+    data_out: Vec<u32>,
+    timer: Instant,
+}
+
 ///It outputs a frame-based to be used to reconstruct a channel in 4D STEM.
 pub struct LiveFrame4D<T> {
     data: Vec<(POSITION, TIME)>,
@@ -312,6 +322,93 @@ impl SpimKind for Live {
     }
     fn new(_settings: &Settings) -> Self {
         Live{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), timer: Instant::now()}
+    }
+}
+
+impl SpimKind for LiveCoincidence {
+    type InputData = (POSITION, TIME);
+
+    fn data(&self) -> &Vec<Self::InputData> {
+        &self.data
+    }
+    #[inline]
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef) {
+        let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
+        self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
+    }
+    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
+        let tdc_time = packet.tdc_time_norm();
+        ref_tdc.upt(tdc_time, packet.tdc_counter());
+        if tdc_time > line_tdc.begin_frame + VIDEO_TIME {
+            self.photon_data.push(tdc_time - line_tdc.begin_frame - VIDEO_TIME)
+        }
+    }
+    fn upt_line(&self, packet: &Pack, settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
+        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+    }
+    #[inline]
+    fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8] {
+
+        //First step is to find the index of the (X, Y) of the spectral image in a flattened way
+        //(last index is X*Y). The line value is thus multiplied by the spim size in the X
+        //direction. The column must be between [0, X]. So we have, for the position:
+        //
+        //index = line * xspim + column
+        //
+        //To find the actuall index value, one multiply this value by the number of signal pixels
+        //(the spectra) because every spatial point has SPIM_PIXELS channels.
+        //
+        //index = index * SPIM_PIXELS
+        //
+        //With this, we place every electron in the first channel of the signal dimension. We must
+        //thus add the pixel address to correct reconstruct the spectral image
+        //
+        //index = index + x
+        
+        let mut coincident_electrons_data: Vec<(POSITION, TIME)> = Vec::new();
+        let mut min_index = 0;
+
+        for val in &self.data {
+            let mut index = 0;
+            let mut index_to_increase = None;
+            for ph in &self.photon_data[min_index..] {
+                if (*ph < val.1 + set.time_delay + set.time_width) && (val.1 + set.time_delay < ph + set.time_width) {
+                    coincident_electrons_data.push(*val);
+                    if index_to_increase.is_none() {
+                        index_to_increase = Some(index)
+                    }
+                }
+                index += 1;
+            }
+            if let Some(increase) = index_to_increase {
+                min_index += increase / PHOTON_LIST_STEP;
+            }
+        }
+        
+        
+        self.data_out = coincident_electrons_data.iter()
+            .filter_map(|&(x, dt)| {
+                get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
+            }).collect::<Vec<u32>>();
+        
+        /*
+        let temp = &mut self.data_out;
+        let my_vec = self.data.iter()
+            .filter_map(|&(x, dt)| {
+                get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
+            }).for_each(|x| temp.push(x));
+        */
+        
+        as_bytes(&self.data_out)
+    }
+    fn is_ready(&mut self, _line_tdc: &PeriodicTdcRef) -> bool {
+        true
+    }
+    fn copy_empty(&mut self) -> Self {
+        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8) , photon_data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), timer: Instant::now()}
+    }
+    fn new(_settings: &Settings) -> Self {
+        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8), photon_data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), timer: Instant::now()}
     }
 }
 

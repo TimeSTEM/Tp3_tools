@@ -17,8 +17,6 @@ pub mod coincidence {
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
 
-    const PHOTON_LIST_STEP: usize = 10;
-    
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
             std::slice::from_raw_parts(
