@@ -93,6 +93,29 @@ pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: PO
 }
 
 #[inline]
+pub fn get_spimindex_4d(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u64> {
+    let val = dt % spim_tdc.period;
+    if val < spim_tdc.low_time {
+        let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
+        let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
+            
+            if r > (yspim-1) {
+                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
+                r %= yspim;
+            }
+            
+            //let index = (r * xspim + rin) as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 +
+            //    (y * RAW4D_PIXELS_X + x) as u64;
+            let index = (y * RAW4D_PIXELS_X + x) as u64;
+        
+            Some(index as u64)
+        } else {
+            None
+        }
+}
+
+
+#[inline]
 pub fn get_complete_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> POSITION {
     let val = dt % spim_tdc.period;
     let xspim = xspim;
@@ -196,7 +219,7 @@ pub fn correct_or_not_etime(mut ele_time: TIME, line_tdc: &PeriodicTdcRef) -> TI
 pub struct Live {
     data: Vec<(POSITION, TIME)>,
     data_out: Vec<u32>,
-    timer: Instant,
+    _timer: Instant,
 }
 
 ///It outputs a list of indices that must
@@ -206,7 +229,16 @@ pub struct LiveCoincidence {
     data: Vec<(POSITION, TIME)>,
     photon_data: Vec<TIME>,
     data_out: Vec<u32>,
-    timer: Instant,
+    _timer: Instant,
+}
+
+///It outputs a list of indices that must
+///be increment. This is Hyperspectral imaging with
+///coincident photons around
+pub struct Live4D {
+    data: Vec<(POSITION, TIME)>,
+    data_out: Vec<u64>,
+    _timer: Instant,
 }
 
 ///It outputs a frame-based to be used to reconstruct a channel in 4D STEM.
@@ -318,10 +350,10 @@ impl SpimKind for Live {
         true
     }
     fn copy_empty(&mut self) -> Self {
-        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) , data_out: Vec::new(), timer: Instant::now()}
+        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) , data_out: Vec::new(), _timer: Instant::now()}
     }
     fn new(_settings: &Settings) -> Self {
-        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), timer: Instant::now()}
+        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), _timer: Instant::now()}
     }
 }
 
@@ -405,10 +437,77 @@ impl SpimKind for LiveCoincidence {
         true
     }
     fn copy_empty(&mut self) -> Self {
-        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8) , photon_data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), timer: Instant::now()}
+        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8) , photon_data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), _timer: Instant::now()}
     }
     fn new(_settings: &Settings) -> Self {
-        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8), photon_data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), timer: Instant::now()}
+        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8), photon_data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), _timer: Instant::now()}
+    }
+}
+
+impl SpimKind for Live4D {
+    type InputData = (POSITION, TIME);
+
+    fn data(&self) -> &Vec<Self::InputData> {
+        &self.data
+    }
+    #[inline]
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef) {
+        let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
+        self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
+    }
+    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
+        let tdc_time = packet.tdc_time_norm();
+        ref_tdc.upt(tdc_time, packet.tdc_counter());
+        if tdc_time > line_tdc.begin_frame + VIDEO_TIME {
+            self.data.push((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame - VIDEO_TIME))
+        }
+    }
+    fn upt_line(&self, packet: &Pack, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
+        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+    }
+    #[inline]
+    fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8] {
+
+        //First step is to find the index of the (X, Y) of the spectral image in a flattened way
+        //(last index is X*Y). The line value is thus multiplied by the spim size in the X
+        //direction. The column must be between [0, X]. So we have, for the position:
+        //
+        //index = line * xspim + column
+        //
+        //To find the actuall index value, one multiply this value by the number of signal pixels
+        //(the spectra) because every spatial point has SPIM_PIXELS channels.
+        //
+        //index = index * SPIM_PIXELS
+        //
+        //With this, we place every electron in the first channel of the signal dimension. We must
+        //thus add the pixel address to correct reconstruct the spectral image
+        //
+        //index = index + x
+        
+        self.data_out = self.data.iter()
+            .filter_map(|&(x_y, dt)| {
+                //get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
+                get_spimindex_4d(x_y >> 16, x_y & 65535, dt, spim_tdc, set.xspim_size, set.yspim_size)
+            }).collect::<Vec<u64>>();
+        
+        /*
+        let temp = &mut self.data_out;
+        let my_vec = self.data.iter()
+            .filter_map(|&(x, dt)| {
+                get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
+            }).for_each(|x| temp.push(x));
+        */
+        
+        as_bytes(&self.data_out)
+    }
+    fn is_ready(&mut self, _line_tdc: &PeriodicTdcRef) -> bool {
+        true
+    }
+    fn copy_empty(&mut self) -> Self {
+        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8) , data_out: Vec::new(), _timer: Instant::now()}
+    }
+    fn new(_settings: &Settings) -> Self {
+        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), _timer: Instant::now()}
     }
 }
 

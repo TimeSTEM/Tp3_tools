@@ -67,6 +67,13 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement)?;
             Ok(my_settings.mode)
         },
+        13 => {
+            let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size))?;
+            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
+            let measurement = spimlib::Live4D::new(&my_settings);
+            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement)?;
+            Ok(my_settings.mode)
+        },
         _ => Err(Tp3ErrorKind::MiscModeNotImplemented(my_settings.mode)),
     }
 }

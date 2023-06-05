@@ -4,6 +4,8 @@ use crate::auxiliar::value_types::*;
 pub const TIME_INTERVAL_FRAMES: u128 = 10; //in milliseconds
 pub const VIDEO_TIME: TIME = 3200;
 pub const SPIM_PIXELS: POSITION = 1025 + 200;
+pub const RAW4D_PIXELS_X: POSITION = 1024;
+pub const RAW4D_PIXELS_Y: POSITION = 256;
 pub const BUFFER_SIZE: usize = 16384 * 2;
 pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 199, 11];
 pub const NIONSWIFT_PORT: u16 = 8088;
