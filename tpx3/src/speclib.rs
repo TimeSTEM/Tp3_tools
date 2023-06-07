@@ -75,11 +75,11 @@ pub trait GenerateDepth {
     gendepth!(gen8, u8);
 }
 
-genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, SuperResolution, Live1DFrame, Live2DFrame, Live1DFrameHyperspec); //create struct and implement GenerateDepth. GenDepth gets this struct and transforms into a SpecMeasurement struct, which is ready for acquisition;
+genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, SuperResolution, Live1DFrame, Live2DFrame, Live1DFrameHyperspec, Coincidence2D); //create struct and implement GenerateDepth. GenDepth gets this struct and transforms into a SpecMeasurement struct, which is ready for acquisition;
 
 pub struct SpecMeasurement<T, K: BitDepth> {
     data: Vec<K>,
-    aux_data: Vec<usize>,
+    aux_data: Vec<TIME>,
     is_ready: bool,
     global_stop: bool,
     //repeat: Option<u32>,
@@ -201,7 +201,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         if pack.id() != 6 {println!("{}", pack.id())};
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        //println!("{}", self.timer.elapsed().as_millis());
         if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
             self.reset_or_else(frame_tdc, settings);
         } else {
@@ -349,6 +348,56 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTilted2D, L> {
         }
     }
 }
+
+impl<L: BitDepth> SpecKind for SpecMeasurement<Coincidence2D, L> {
+    type SupplementaryTdc = NonPeriodicTdcRef;
+    fn is_ready(&self) -> bool {
+        self.is_ready && !self.global_stop
+    }
+    fn build_output(&self) -> &[u8] {
+        as_bytes(&self.data)
+    }
+    fn new(settings: &Settings) -> Self {
+        let len = 2*settings.time_width as usize * CAM_DESIGN.0 as usize;
+        let temp_vec = vec![L::zero(); len];
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Coincidence2D}
+    }
+    #[inline]
+    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+        let etime = pack.electron_time();
+        for ph in &self.aux_data {
+            if (*ph < etime + settings.time_delay + settings.time_width) && (etime + settings.time_delay < ph + settings.time_width) {
+                let delay = (*ph - settings.time_delay + settings.time_width - etime) as u32;
+                //println!("{} and {} and {} and {}", etime, settings.time_delay, *ph, delay);
+                let index = pack.x() + delay * CAM_DESIGN.0;
+                //let index = pack.x();
+                add_index!(self, index);
+            }
+        }
+    }
+    fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut Self::SupplementaryTdc) {
+        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        self.aux_data.push(pack.tdc_time_norm());
+        //add_index!(self, CAM_DESIGN.0-1);
+    }
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
+        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
+            self.reset_or_else(frame_tdc, settings);
+        } else {
+            self.is_ready = true;
+            self.timer = Instant::now();
+        }
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
+        self.is_ready = false;
+        self.aux_data.clear();
+        if !settings.cumul {
+            self.data.iter_mut().for_each(|x| *x = L::zero());
+        }
+    }
+}
+
 
 
 impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
@@ -868,8 +917,10 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T, extra_pixels: POSITION,
         msg.push_str(&((tdc.counter()/2).to_string()));
     }
     msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
-    if set.mode == 6 || set.mode == 7 { //ChronoMode
+    if set.mode == 6 { //ChronoMode
         msg.push_str(&((set.xspim_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
+    } else if set.mode == 7 { //Coincidence2D
+        msg.push_str(&((set.time_width as POSITION*2*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
     } else if set.mode == 11 {
         msg.push_str(&((set.xscan_size*set.yscan_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
     } else {
@@ -883,8 +934,10 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T, extra_pixels: POSITION,
     msg.push_str(",\"width\":");
     msg.push_str(&((CAM_DESIGN.0+extra_pixels).to_string()));
     msg.push_str(",\"height\":");
-    if set.mode == 6 || set.mode == 7 { //ChronoMode
+    if set.mode == 6 { //ChronoMode
         msg.push_str(&(set.xspim_size.to_string()));
+    } else if set.mode == 7 { //Coincidence2D Mode
+        msg.push_str(&((set.time_width*2).to_string()));
     } else {
         match set.bin {
             true=>{msg.push_str(&(1.to_string()))},

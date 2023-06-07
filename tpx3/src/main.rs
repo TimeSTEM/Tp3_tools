@@ -45,7 +45,8 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             Ok(my_settings.mode)
         },
         7 => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Chrono)?;
+            //speclib::run_spectrum(pack, ns, my_settings, speclib::Chrono)?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Coincidence2D)?;
             Ok(my_settings.mode)
         },
         10 if my_settings.bin => {

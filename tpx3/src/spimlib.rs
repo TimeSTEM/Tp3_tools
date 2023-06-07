@@ -102,10 +102,8 @@ pub fn get_spimindex_4d(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicT
                 if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
                 r %= yspim;
             }
-            
-            //let index = (r * xspim + rin) as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 +
-            //    (y * RAW4D_PIXELS_X + x) as u64;
-            let index = (y * RAW4D_PIXELS_X + x) as u64;
+        
+            let index = (r * xspim + rin) as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 + (y * RAW4D_PIXELS_X + x) as u64;
         
             Some(index as u64)
         } else {

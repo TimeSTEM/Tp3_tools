@@ -5,6 +5,7 @@ use crate::auxiliar::misc::TimepixRead;
 use crate::clusterlib::cluster::ClusterCorrection;
 use std::io::{Read, Write, BufWriter};
 use std::fs::File;
+use crate::constlib::*;
 use crate::auxiliar::value_types::*;
 use std::fs::OpenOptions;
 use chrono::{DateTime, Utc};
@@ -149,14 +150,14 @@ impl BytesConfig {
     ///Time delay. Must be sent with 2 bytes in big-endian mode. Byte[14..15]
     fn time_delay(&self) -> TIME {
         let td = (self.data[14] as TIME)<<8 | (self.data[15] as TIME);
-        println!("Time delay is (ns): {}.", td);
+        println!("Time delay is (units of 1.5625 ns): {}.", td);
         td
     }
     
     ///Time width. Must be sent with 2 bytes in big-endian mode. Byte[16..17].
     fn time_width(&self) -> TIME {
         let tw = (self.data[16] as TIME)<<8 | (self.data[17] as TIME);
-        println!("Time delay is (ns): {}.", tw);
+        println!("Time width is (units of 1.5625 ns): {}.", tw);
         tw
     }
 
@@ -365,7 +366,7 @@ impl Settings {
                 Ok((my_settings, Box::new(pack_sock), Box::new(ns_sock)))
             },
             true => {
-                let file = match File::open("bin/Data/raw000000.tpx3") {
+                let file = match File::open(READ_DEBUG_FILE) {
                     Ok(file) => file,
                     Err(_) => return Err(Tp3ErrorKind::SetNoReadFile),
                 };
