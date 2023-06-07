@@ -3,9 +3,10 @@ use crate::errorlib::Tp3ErrorKind;
 use std::net::{TcpListener, TcpStream, SocketAddr};
 use crate::auxiliar::misc::TimepixRead;
 use crate::clusterlib::cluster::ClusterCorrection;
-use std::io::{Read, Write};
+use std::io::{Read, Write, BufWriter};
 use std::fs::File;
 use crate::auxiliar::value_types::*;
+use std::fs::OpenOptions;
 use chrono::{DateTime, Utc};
 //use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
 
@@ -47,6 +48,10 @@ impl BytesConfig {
             2 => {
                 println!("Bitdepth is 32.");
                 Ok(4)
+            },
+            4 => {
+                println!("Bitdepth is 64.");
+                Ok(8)
             },
             _ => Err(Tp3ErrorKind::SetByteDepth),
         }
@@ -260,7 +265,7 @@ pub struct Settings {
 
 impl Settings {
 
-    pub fn create_savefile_header(&self) -> String {
+    fn create_savefile_header(&self) -> String {
         let now: DateTime<Utc> = Utc::now();
         let mut val = String::new();
         let custom_datetime_format = now.format("%Y_%m_%y_%H_%M_%S").to_string();
@@ -292,6 +297,21 @@ impl Settings {
         val.push_str("_mode");
         val.push_str(".tpx3");
         val
+    }
+
+    pub fn create_file(&self) -> Option<BufWriter<File>> {
+        match self.save_locally {
+            false => {None},
+            true => {
+            let file =
+                OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(self.create_savefile_header()).
+                unwrap();
+            Some(BufWriter::new(file))
+            }
+        }
     }
 
     ///Create Settings structure reading from a TCP.

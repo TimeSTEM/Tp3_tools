@@ -6,9 +6,8 @@ use crate::tdclib::{TdcType, TdcControl, PeriodicTdcRef, NonPeriodicTdcRef, Sing
 use crate::isi_box_new;
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
-use std::io::{BufWriter, Write};
+use std::io::Write;
 use core::ops::{Add, AddAssign};
-use std::fs::OpenOptions;
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
 
@@ -774,16 +773,11 @@ fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     let start = Instant::now();
     
-    let file =
-        OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(my_settings.create_savefile_header()).
-        unwrap();
-    let mut file_to_write = BufWriter::new(file);
-
+    let mut file_to_write = my_settings.create_file();
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
-        if my_settings.save_locally {file_to_write.write(&buffer_pack_data);}
+        if let Some(file) = &mut file_to_write {
+            file.write(&buffer_pack_data);
+        }
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc, 0, meas_type.frame_based_counter());
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}

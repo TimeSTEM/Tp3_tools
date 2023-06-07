@@ -5,9 +5,8 @@ use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box::{IsiBoxHand, IsiBoxType}};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
-use std::io::{BufWriter, Write};
+use std::io::Write;
 use std::sync::mpsc;
-use std::fs::OpenOptions;
 use std::thread;
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
@@ -629,17 +628,12 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
 
-    let file =
-        OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(my_settings.create_savefile_header()).
-        unwrap();
-    let mut file_to_write = BufWriter::new(file);
-
+    let mut file_to_write = my_settings.create_file();
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
-            if my_settings.save_locally {file_to_write.write(&buffer_pack_data);}
+            if let Some(file) = &mut file_to_write {
+                file.write(&buffer_pack_data);
+            }
             build_spim_data(&mut meas_type, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut line_tdc, &mut ref_tdc);
             if meas_type.is_ready(&line_tdc) {
                let list2 = meas_type.copy_empty();
