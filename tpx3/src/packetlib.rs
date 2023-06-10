@@ -169,10 +169,6 @@ pub trait Packet {
     fn tdc_overflow() -> TIME {
         68_719_476_736
     }
-
-    fn chip_array_size() -> (POSITION, POSITION) {
-        (1025, 256)
-    }
 }
 
 pub struct PacketEELS {
@@ -194,6 +190,41 @@ impl PacketEELS {
         (1025, 256)
     }
 }
+
+pub struct PacketSheerEELS {
+    pub chip_index: u8,
+    pub data: u64,
+}
+
+impl Packet for PacketSheerEELS {
+    fn ci(&self) -> u8 {
+        self.chip_index
+    }
+    fn data(&self) -> u64 {
+        self.data
+    }
+    
+    #[inline]
+    fn x(&self) -> POSITION {
+        let hor_shift = self.y() / 16;
+        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
+        
+        match self.ci() {
+            0 => 255 - temp2 + hor_shift,
+            1 => 256 * 4 - 1 - temp2 + hor_shift,
+            2 => 256 * 3 - 1 - temp2 + hor_shift,
+            3 => 256 * 2 - 1 - temp2 + hor_shift,
+            _ => panic!("More than four CIs."),
+        }
+    }
+}
+
+impl PacketSheerEELS {
+    pub const fn chip_array() -> (POSITION, POSITION) {
+        PacketEELS::chip_array()
+    }
+}
+
 
 pub struct TimeCorrectedPacketEELS {
     pub chip_index: u8,
@@ -228,7 +259,7 @@ impl Packet for TimeCorrectedPacketEELS {
 
 impl TimeCorrectedPacketEELS {
     pub const fn chip_array() -> (POSITION, POSITION) {
-        (1025, 256)
+        PacketEELS::chip_array()
     }
 }
 
