@@ -382,7 +382,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Coincidence2D, L> {
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
+        if self.timer.elapsed().as_millis() < TIME_INTERVAL_COINCIDENCE_HISTOGRAM {
             self.reset_or_else(frame_tdc, settings);
         } else {
             self.is_ready = true;
@@ -584,13 +584,7 @@ macro_rules! Live2DFrameImplementation {
 
             fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
                 if pack.id() == 5 {
-                    self.is_ready = false;
-                    match &mut self.shutter {
-                        Some(shutter) => {
-                            self.is_ready = shutter.try_set_time(pack.frame_time());
-                        },
-                        None => {},
-                    }
+                    self.is_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time());
                 }
                 else if pack.id() == 6 {
                     frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -641,13 +635,7 @@ macro_rules! Live1DFrameImplementation {
             //}
             fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
                 if pack.id() == 5 {
-                    self.is_ready = false;
-                    match &mut self.shutter {
-                        Some(shutter) => {
-                            self.is_ready = shutter.try_set_time(pack.frame_time());
-                        },
-                        None => {},
-                    }
+                    self.is_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time());
                 }
                 else if pack.id() == 6 {
                     frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -724,7 +712,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
                     frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
                 }
             }
-            fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
+            fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) {
                 self.is_ready = false;
                 //if !settings.cumul {
                 //    self.data.iter_mut().for_each(|x| *x = 0);
@@ -825,7 +813,7 @@ fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
     let mut file_to_write = my_settings.create_file();
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         if let Some(file) = &mut file_to_write {
-            file.write(&buffer_pack_data);
+            file.write(&buffer_pack_data).unwrap();
         }
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc, 0, meas_type.frame_based_counter());

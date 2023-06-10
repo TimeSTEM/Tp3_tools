@@ -2,6 +2,7 @@ use crate::auxiliar::value_types::*;
 
 //***General Values***//
 pub const TIME_INTERVAL_FRAMES: u128 = 10; //in milliseconds
+pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 250; //in milliseconds
 pub const VIDEO_TIME: TIME = 3200;
 pub const SPIM_PIXELS: POSITION = 1025 + 200;
 pub const RAW4D_PIXELS_X: POSITION = 1024;
