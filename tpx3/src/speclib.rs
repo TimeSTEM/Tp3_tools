@@ -94,53 +94,23 @@ pub struct ShutterControl {
     hyperspectral: bool,
     hyperspectral_complete: bool,
     ci_counter: COUNTER,
-    shutter_status: [bool; 4],
+    shutter_closed_status: [bool; 4],
 }
 
 impl ShutterControl {
     fn shutter_completely_open(&self) -> bool {
-        self.shutter_status.iter().filter(|sh| **sh == false).count() == 4
+        self.shutter_closed_status.iter().filter(|sh| **sh == false).count() == 4
     }
-    fn shutter_closed(&self, ci: u8) -> bool {
-        self.shutter_status[ci as usize]
-    }
-    fn shutter_completely_closed(&self) -> bool {
-        self.shutter_status.iter().filter(|sh| **sh == true).count() == 4
-    }
-    fn try_set_time(&mut self, timestamp: TIME, ci: u8, shutter_closed: bool) -> bool {
-        self.shutter_status[ci as usize] = shutter_closed;
-        //println!("timestamp {}. chip_index: {} shutter_closed: {}. all_open: {}. all_closed:{}", timestamp, ci, shutter_closed, self.shutter_completely_open(), self.shutter_completely_closed());
+    fn try_set_time(&mut self, timestamp: TIME, ci: u8, shutter_closed: bool) {
+        self.shutter_closed_status[ci as usize] = shutter_closed;
         if shutter_closed && self.time != timestamp {
             self.ci_counter += 1;
             if self.ci_counter == 4 {
                 self.time = timestamp;
                 self.counter += 1;
                 self.ci_counter = 0;
-                return true;
             }
         }
-        false
-
-        /*
-        if self.time != value {
-            self.ci_counter += 1;
-            if self.ci_counter == 4 {
-                self.time = value;
-                self.counter += 1;
-                self.ci_counter = 0;
-                return true
-            }
-        }
-        false
-        */
-        /*
-        if self.time != value {
-            self.time = value;
-            self.counter += 1;
-            return true;
-        }
-        false
-        */
     }
     fn set_as_hyperspectral(&mut self) {
         self.hyperspectral = true;
@@ -164,7 +134,7 @@ impl Default for ShutterControl {
             hyperspectral: false,
             hyperspectral_complete: false,
             ci_counter: 0,
-            shutter_status: [false; 4],
+            shutter_closed_status: [false; 4],
         }
     }
 }
@@ -622,11 +592,20 @@ macro_rules! Live2DFrameImplementation {
             //    Err(Tp3ErrorKind::FrameBasedModeHasNoTdc)
             //}
 
-            fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
+            fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
                 if pack.id() == 5 {
                     self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
                     if !self.is_ready {
                         self.is_ready = self.shutter.as_ref().unwrap().shutter_completely_open();
+                        if self.is_ready {
+                            if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
+                                self.reset_or_else(frame_tdc, settings);
+                                self.is_ready = false;
+                            } else {
+                                self.is_ready = true;
+                                self.timer = Instant::now();
+                            }
+                        }
                     }
                     //if self.is_ready {
                     //    println!(" OK {} and {}", self.data.iter().map(|val| *val as u32).sum::<u32>(), self.timer.elapsed().as_millis());
@@ -681,7 +660,10 @@ macro_rules! Live1DFrameImplementation {
             //}
             fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
                 if pack.id() == 5 {
-                    self.is_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), true);
+                    self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
+                    if !self.is_ready {
+                        self.is_ready = self.shutter.as_ref().unwrap().shutter_completely_open();
+                    }
                 }
                 else if pack.id() == 6 {
                     frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -741,17 +723,13 @@ macro_rules! Live1DFrameHyperspecImplementation {
             //}
             fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
                 if pack.id() == 5 {
-                    self.is_ready = false;
-                    match &mut self.shutter {
-                        Some(shutter) => {
-                            let new_frame = shutter.try_set_time(pack.frame_time(), pack.ci(), true);
-                            self.is_ready = (shutter.get_counter() % settings.yscan_size) == 0 && new_frame;
-                            if shutter.get_counter() > settings.xscan_size * settings.yscan_size {
-                                shutter.set_hyperspectral_as_complete();
-                            }
-                            //println!("{} and {}", shutter.get_counter(), shutter.is_hyperspectral_complete());
-                        },
-                        None => {},
+                    self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
+                    let shutter_counter = self.shutter.as_ref().unwrap().get_counter();
+                    if shutter_counter > settings.xscan_size * settings.yscan_size {
+                        self.shutter.as_mut().unwrap().set_hyperspectral_as_complete();
+                    }
+                    if !self.is_ready {
+                        self.is_ready = self.shutter.as_ref().unwrap().shutter_completely_open() && (shutter_counter % settings.yscan_size) == 0;
                     }
                 }
                 else if pack.id() == 6 {
