@@ -172,7 +172,7 @@ macro_rules! tp3_vec {
                 2 => CAM_DESIGN.1*CAM_DESIGN.0,
                 _ => {panic!("One or two dimensions only!")},
             } as usize;
-            let mut temp_vec: Vec<L> = vec![L::zero(); len];
+            let temp_vec: Vec<L> = vec![L::zero(); len];
             temp_vec
         }
     }
@@ -373,14 +373,12 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Coincidence2D, L> {
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Coincidence2D}
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
         let etime = pack.electron_time();
         for ph in &self.aux_data {
             if (*ph < etime + settings.time_delay + settings.time_width) && (etime + settings.time_delay < ph + settings.time_width) {
                 let delay = (*ph - settings.time_delay + settings.time_width - etime) as u32;
-                //println!("{} and {} and {} and {}", etime, settings.time_delay, *ph, delay);
                 let index = pack.x() + delay * CAM_DESIGN.0;
-                //let index = pack.x();
                 add_index!(self, index);
             }
         }
@@ -906,10 +904,6 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
                     },
                     5 if packet.tdc_type() == 10 || packet.tdc_type() == 15  => { //Shutter value.
                         final_data.upt_frame(&packet, frame_tdc, settings);
-                    },
-                    5 if packet.tdc_type() == 0  => { //Shutter value.
-                        //final_data.upt_frame(&packet, frame_tdc, settings);
-                        //println!("{}", packet.shutter_packet_count());
                     },
                     _ => {},
                 };

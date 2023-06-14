@@ -372,7 +372,7 @@ impl SpimKind for LiveCoincidence {
             self.photon_data.push(tdc_time - line_tdc.begin_frame - VIDEO_TIME)
         }
     }
-    fn upt_line(&self, packet: &Pack, settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
+    fn upt_line(&self, packet: &Pack, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
     }
     #[inline]
@@ -630,7 +630,7 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
             if let Some(file) = &mut file_to_write {
-                file.write(&buffer_pack_data[0..size]);
+                file.write(&buffer_pack_data[0..size]).unwrap();
             }
             build_spim_data(&mut meas_type, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut line_tdc, &mut ref_tdc);
             if meas_type.is_ready(&line_tdc) {
@@ -690,7 +690,6 @@ pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings:
 }
 
 fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) {
-
     data.chunks_exact(8).for_each(|x| {
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,

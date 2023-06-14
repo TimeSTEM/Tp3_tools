@@ -108,9 +108,9 @@ pub mod coincidence {
             //self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).try_into().unwrap());
             self.cluster_size.push(val.cluster_size().try_into().unwrap());
             
-            //This is a frequency list. Helps to preview data.
-            let mut count = self.frequency_list.entry(val.relative_time_from_abs_tdc(photon.0).fold()).or_insert(0);
-            *count += 1;
+            //This is a frequency list. Helps to preview data. Currently unsused
+            //let mut count = self.frequency_list.entry(val.relative_time_from_abs_tdc(photon.0).fold()).or_insert(0);
+            //*count += 1;
             
             match val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 Some(index) => self.spim_index.push(index),
@@ -187,6 +187,7 @@ pub mod coincidence {
             self.spim_tdc = Some(spim_tdc);
         }
 
+        /*
         fn estimate_histogram_from_hash(&self) -> f32 {
             let number_index_values: usize = self.frequency_list.iter().map(|(index, _count)| *index).count();
             let count_values = self.frequency_list.iter().map(|(_index, count)| *count).collect::<Vec<u32>>();
@@ -198,6 +199,7 @@ pub mod coincidence {
             
             (std_sum / size).sqrt()
         }
+        */
 
         pub fn new(my_config: ConfigAcquisition<T>) -> Self {
             Self {
@@ -781,10 +783,12 @@ pub mod isi_box {
         }
     }
 
+    /*
     fn add_overflow(data: u64, value: u64) -> u64
     {
         (data + value) % 67108864
     }
+    */
     
     fn subtract_overflow(data: u64, value: u64) -> u64
     {
@@ -1096,7 +1100,7 @@ pub mod isi_box {
     pub fn get_channel_timelist<V>(mut data: V, spim_size: (POSITION, POSITION), pixel_time: TIME, line_offset: u32, isi_overflow_correction: u32) -> IsiList 
         where V: Read
         {
-            let mut list = IsiList{data_raw: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None, line_offset: line_offset};
+            let mut list = IsiList{data_raw: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None, line_offset};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
                 if size == 0 {println!("***IsiBox***: Finished reading file."); break;}
@@ -1127,7 +1131,6 @@ pub mod ntime_resolved {
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use crate::clusterlib::cluster::ClusterCorrection;
     use std::convert::TryInto;
-    use std::time::Instant;
     use std::fs;
     use indicatif::{ProgressBar, ProgressStyle};
     use crate::auxiliar::{value_types::*, ConfigAcquisition};
@@ -1269,11 +1272,10 @@ pub mod ntime_resolved {
         let progress_size = prepare_file.metadata().unwrap().len() as u64;
         data.prepare(&mut prepare_file);
         
-        let start = Instant::now();
         let mut my_file = fs::File::open(&data.file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = vec![0; 512_000_000];
         
-        let mut total_size = 0;
+        //let mut total_size = 0;
         let mut ci = 0;
             
         let bar = ProgressBar::new(progress_size);
@@ -1283,7 +1285,7 @@ pub mod ntime_resolved {
 
         while let Ok(size) = my_file.read(&mut buffer) {
             if size==0 {break;}
-            total_size += size;
+            //total_size += size;
             bar.inc(512_000_000_u64);
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match pack_oct {
