@@ -270,6 +270,7 @@ impl Settings {
         let now: DateTime<Utc> = Utc::now();
         let mut val = String::new();
         let custom_datetime_format = now.format("%Y_%m_%y_%H_%M_%S").to_string();
+        val.push_str(SAVE_LOCALLY_FILE);
         val.push_str(&custom_datetime_format);
         val.push_str("_bin");
         val.push_str(&self.bin.to_string());

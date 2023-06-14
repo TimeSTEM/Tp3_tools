@@ -127,6 +127,16 @@ pub trait Packet {
     fn frame_time(&self) -> u64 {
         ((self.data() & 0x00_00_3F_FF_FF_FF_F0_00) >> 12) as u64
     }
+    
+    #[inline]
+    fn hit_count(&self) -> u8 {
+        ((self.data() & 0x00_00_00_00_00_0F_00_00) >> 16) as u8
+    }
+    
+    #[inline]
+    fn shutter_packet_count(&self) -> u64 {
+        (self.data() & 0x00_00_FF_FF_FF_FF_FF_FF) as u64
+    }
 
     #[inline]
     fn tdc_time(&self) -> TIME {

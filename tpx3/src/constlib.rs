@@ -1,13 +1,14 @@
 use crate::auxiliar::value_types::*;
 
 //***General Values***//
-pub const TIME_INTERVAL_FRAMES: u128 = 10; //in milliseconds
+pub const SAVE_LOCALLY_FILE: &str = "/media/asi/Data21/TP3_Data/";
+pub const TIME_INTERVAL_FRAMES: u128 = 25; //in milliseconds
 pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 250; //in milliseconds
 pub const VIDEO_TIME: TIME = 3200;
 pub const SPIM_PIXELS: POSITION = 1025 + 200;
 pub const RAW4D_PIXELS_X: POSITION = 1024;
 pub const RAW4D_PIXELS_Y: POSITION = 256;
-pub const BUFFER_SIZE: usize = 16384 * 2;
+pub const BUFFER_SIZE: usize = 2048; //16384 * 2;
 pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 199, 11];
 pub const NIONSWIFT_PORT: u16 = 8088;
 pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coicncidence searching
