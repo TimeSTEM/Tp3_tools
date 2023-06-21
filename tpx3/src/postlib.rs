@@ -141,7 +141,10 @@ pub mod coincidence {
 
             self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
 
-            let line_period_offset = line_offset * self.spim_tdc.unwrap().period().unwrap() as i64;
+            let line_period_offset = match self.spim_tdc {
+                Some(spim_tdc) => line_offset * spim_tdc.period().unwrap() as i64,
+                None => 0,
+            };
             
             let mut first_corr_photon = 0;
             for val in temp_edata.electron.values() {
