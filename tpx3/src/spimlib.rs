@@ -51,6 +51,8 @@ pub trait SpimKind {
 
 #[inline]
 pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+    Some(get_positional_index(dt, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
+    /*
     let val = dt % spim_tdc.period;
     let xspim = xspim;
     let yspim = yspim;
@@ -69,10 +71,13 @@ pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xs
         } else {
             None
         }
+    */
 }
 
 #[inline]
 pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+    Some(get_positional_index(dt, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
+    /*
     let val = dt % spim_tdc.period;
     if val < spim_tdc.low_time {
         let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
@@ -89,10 +94,13 @@ pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: PO
         } else {
             None
         }
+    */
 }
 
 #[inline]
-pub fn get_spimindex_4d(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u64> {
+pub fn get_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u64> {
+    Some(get_positional_index(dt, spim_tdc, xspim, yspim)? as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 + (y * RAW4D_PIXELS_X + x)as u64)
+    /*
     let val = dt % spim_tdc.period;
     if val < spim_tdc.low_time {
         let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
@@ -109,9 +117,15 @@ pub fn get_spimindex_4d(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicT
         } else {
             None
         }
+    */
 }
 
+#[inline]
+pub fn get_return_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u64> {
+    Some(get_return_positional_index(dt, spim_tdc, xspim, yspim)? as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 + (y * RAW4D_PIXELS_X + x)as u64)
+}
 
+/*
 #[inline]
 pub fn get_complete_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> POSITION {
     let val = dt % spim_tdc.period;
@@ -129,7 +143,9 @@ pub fn get_complete_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, 
         
         index
 }
+*/
 
+/*
 //This recovers the position of the probe given the TDC and the electron ToA
 #[inline]
 pub fn get_positional_index(channel: u8, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<(POSITION, u8)> {
@@ -150,13 +166,34 @@ pub fn get_positional_index(channel: u8, dt: TIME, spim_tdc: &PeriodicTdcRef, xs
             None
         }
 }
+*/
 
 //This recovers the position of the probe given the TDC and the electron ToA
 #[inline]
-pub fn get_4d_complete_positional_index(dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u32> {
-    
+pub fn get_positional_index(dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
     let val = dt % spim_tdc.period;
     if val < spim_tdc.low_time {
+        let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
+        let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
+            
+            if r > (yspim-1) {
+                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
+                r %= yspim;
+            }
+            
+            let index = r * xspim + rin;
+        
+            Some( index )
+        } else {
+            None
+        }
+}
+
+//This recovers the position of the probe during the return given the TDC and the electron ToA
+#[inline]
+pub fn get_return_positional_index(dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+    let val = dt % spim_tdc.period;
+    if val >= spim_tdc.low_time {
         let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
         let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
             
@@ -484,7 +521,7 @@ impl SpimKind for Live4D {
         self.data_out = self.data.iter()
             .filter_map(|&(x_y, dt)| {
                 //get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
-                get_spimindex_4d(x_y >> 16, x_y & 65535, dt, spim_tdc, set.xspim_size, set.yspim_size)
+                get_4dindex(x_y >> 16, x_y & 65535, dt, spim_tdc, set.xspim_size, set.yspim_size)
             }).collect::<Vec<u64>>();
         
         /*
@@ -553,7 +590,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
         self.data
             .iter()
             .filter_map(|&(x_y, dt)| {
-                match get_4d_complete_positional_index(dt, spim_tdc, set.xspim_size, set.yspim_size) {
+                match get_positional_index(dt, spim_tdc, set.xspim_size, set.yspim_size) {
                     Some(index) => Some((x_y >> 16, x_y & 65535, index)),
                     None => None,
                 }

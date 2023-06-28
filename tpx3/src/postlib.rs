@@ -1171,6 +1171,16 @@ pub mod ntime_resolved {
         }
     }
     
+    fn output_data<T>(data: &[T], name: &str) {
+        let mut tfile = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(name).unwrap();
+        tfile.write_all(as_bytes(data)).unwrap();
+        println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
+    }
+    
     impl<T: ClusterCorrection> TimeSpectralSpatial<T> {
         fn prepare(&mut self, file: &mut fs::File) {
             self.tdc_periodic = match self.tdc_periodic {

@@ -289,30 +289,6 @@ pub mod cluster {
             }
         }
 
-        /*
-        fn correct_time_walk(&self) -> i64 {
-            if self.tot() > 4 {
-                let value_to_correct = transform_time_walk(TIME_WALK_SHIFT).get(105 * (self.x() as usize + 1024 * self.y() as usize) + (self.tot()-5) as usize);
-                match value_to_correct {
-                    Some(val) => 1 * (*val) as i64,
-                    None => 0,
-                }
-            } else {
-                0
-            }
-        }
-        pub fn corrected_relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
-            self.relative_time_from_abs_tdc(reference_time) - self.correct_time_walk()
-        }
-        pub fn fully_corrected_relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
-            self.relative_time_from_abs_tdc(reference_time) as i64 - self.correct_time_walk() - transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64
-            //self.relative_time_from_abs_tdc(reference_time) as i64 - 2*transform_time_walk(TIME_WALK_SHIFT)[401 * (self.x() as usize + 1024 * self.y() as usize) + self.tot() as usize] as i64 - transform_time_shift(TIME_SHIFT)[self.x() as usize + 1024 * self.y() as usize] as i64
-        }
-        pub fn is_masked(&self) -> bool {
-            //TIME_WALK_SHIFT_MASK[self.x() as usize + 1024 * self.y() as usize] == 1
-            false
-        }
-        */
         pub fn spim_slice(&self) -> COUNTER {
             self.data.4
         }
@@ -325,19 +301,31 @@ pub mod cluster {
         }
         
         pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+            spimlib::get_spimindex(self.x(), self.frame_dt(), &spim_tdc?, xspim, yspim)
+            /*
             if let Some(frame_tdc) = spim_tdc {
                 spimlib::get_spimindex(self.x(), self.frame_dt(), &frame_tdc, xspim, yspim)
             } else {
                 None
             }
+            */
         }
         
         pub fn get_or_not_return_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+            spimlib::get_return_spimindex(self.x(), self.frame_dt(), &spim_tdc?, xspim, yspim)
+            /*
             if let Some(frame_tdc) = spim_tdc {
                 spimlib::get_return_spimindex(self.x(), self.frame_dt(), &frame_tdc, xspim, yspim)
             } else {
                 None
             }
+            */
+        }
+        pub fn get_or_not_4d_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<u64> {
+            spimlib::get_4dindex(self.x(), self.y(), self.frame_dt(), &spim_tdc?, xspim, yspim)
+        }
+        pub fn get_or_not_return_4d_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<u64> {
+            spimlib::get_return_4dindex(self.x(), self.y(), self.frame_dt(), &spim_tdc?, xspim, yspim)
         }
     }
 
