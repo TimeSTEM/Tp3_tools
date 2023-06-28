@@ -775,8 +775,7 @@ impl LiveTR1D {
 impl IsiBoxKind for SpecMeasurement<Live1D, u32> {
     fn isi_new(_settings: &Settings) -> Self {
         let len = (CAM_DESIGN.0 + CHANNELS as POSITION) as usize;
-        let mut temp_vec: Vec<u32> = vec![0; len+1];
-        temp_vec[len] = 10;
+        let temp_vec: Vec<u32> = vec![0; len];
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live1D }
     }
     fn append_from_isi(&mut self, ext_data: &[u32]) {
