@@ -14,8 +14,8 @@ pub mod cluster {
     const CLUSTER_DET: TIME = 128; //Cluster time window (in 640 Mhz or 1.5625).
     const CLUSTER_SPATIAL: isize = 256; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
     
-    static ATOT: &[u8; 1024 * 256 * 4] = include_bytes!("atot.dat");
-    static BTOT: &[u8; 1024 * 256 * 4] = include_bytes!("btot.dat");
+    static ATOT: &[u8; 1024 * 256 * 4] = include_bytes!("atot_v2.dat");
+    static BTOT: &[u8; 1024 * 256 * 4] = include_bytes!("btot_v2.dat");
     
     /*
     fn as_bytes<T>(v: &[T]) -> &[u8] {
