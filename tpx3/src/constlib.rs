@@ -8,11 +8,11 @@ pub const VIDEO_TIME: TIME = 3200;
 pub const SPIM_PIXELS: POSITION = 1025 + 200;
 pub const RAW4D_PIXELS_X: POSITION = 1024;
 pub const RAW4D_PIXELS_Y: POSITION = 256;
-pub const BUFFER_SIZE: usize = 2048; //16384 * 2;
+pub const BUFFER_SIZE: usize = 16384 * 2; //16384 * 2;
 pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 199, 11];
 pub const NIONSWIFT_PORT: u16 = 8088;
 pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coicncidence searching
-pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_4d.tpx3";
+pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_spim.tpx3";
 
 //***POSTLIB***//
 //Coincidence values using the IsiBox//

@@ -52,121 +52,22 @@ pub trait SpimKind {
 #[inline]
 pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
     Some(get_positional_index(dt, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
-    /*
-    let val = dt % spim_tdc.period;
-    let xspim = xspim;
-    let yspim = yspim;
-    if val >= spim_tdc.low_time {
-        let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-        let rin = ((xspim as TIME * (val-spim_tdc.low_time)) / spim_tdc.high_time) as POSITION; //Column correction. Maybe not even needed.
-            
-            if r > (yspim-1) {
-                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
-                r %= yspim;
-            }
-            
-            let index = (r * xspim + rin) * SPIM_PIXELS + x;
-        
-            Some(index)
-        } else {
-            None
-        }
-    */
 }
 
 #[inline]
 pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
-    //Some(get_positional_index(dt, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
-    ///*
-    let val = dt % spim_tdc.period;
-    if val < spim_tdc.low_time {
-        let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-        let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
-            
-            if r > (yspim-1) {
-                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
-                r %= yspim;
-            }
-            
-            let index = (r * xspim + rin) * SPIM_PIXELS + x;
-        
-            Some(index)
-        } else {
-            None
-        }
-    //*/
+    Some(get_positional_index(dt, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
 }
 
 #[inline]
 pub fn get_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u64> {
     Some(get_positional_index(dt, spim_tdc, xspim, yspim)? as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 + (y * RAW4D_PIXELS_X + x)as u64)
-    /*
-    let val = dt % spim_tdc.period;
-    if val < spim_tdc.low_time {
-        let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-        let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
-            
-            if r > (yspim-1) {
-                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
-                r %= yspim;
-            }
-        
-            let index = (r * xspim + rin) as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 + (y * RAW4D_PIXELS_X + x) as u64;
-        
-            Some(index as u64)
-        } else {
-            None
-        }
-    */
 }
 
 #[inline]
 pub fn get_return_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u64> {
     Some(get_return_positional_index(dt, spim_tdc, xspim, yspim)? as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 + (y * RAW4D_PIXELS_X + x)as u64)
 }
-
-/*
-#[inline]
-pub fn get_complete_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> POSITION {
-    let val = dt % spim_tdc.period;
-    let xspim = xspim;
-    let yspim = yspim;
-        
-    let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-    let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
-            
-        if r > (yspim-1) {
-            r %= yspim;
-        }
-            
-        let index = (r * xspim + rin) * SPIM_PIXELS + x;
-        
-        index
-}
-*/
-
-/*
-//This recovers the position of the probe given the TDC and the electron ToA
-#[inline]
-pub fn get_positional_index(channel: u8, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<(POSITION, u8)> {
-    let val = dt % spim_tdc.period;
-    if val < spim_tdc.low_time {
-        let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-        let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
-            
-            if r > (yspim-1) {
-                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
-                r %= yspim;
-            }
-            
-            let index = r * xspim + rin;
-        
-            Some((index, channel))
-        } else {
-            None
-        }
-}
-*/
 
 //This recovers the position of the probe given the TDC and the electron ToA
 #[inline]
@@ -221,23 +122,6 @@ fn grab_mask<R: std::io::Read>(mut array: R) -> Result<Vec<Live4DChannelMask<Mas
     //println!("***4D STEM***: Mask received. Number of masks received is {}.", vec_of_channels.len());
     Ok(vec_of_channels)
 }
-
-/*
-fn grab_mask<R: std::io::Read>(mut array: R) -> Result<Live4DChannelMask<MaskValues>, Tp3ErrorKind> {
-    let mut mask = [0_i16; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
-    let mut total_size = 0;
-    //while let Ok(size) = array.read(&mut mask) {
-    while let Ok(size) = array.read(as_bytes_mut(&mut mask)) {
-        total_size += size;
-    }
-    if total_size != (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize {
-        return Err(Tp3ErrorKind::STEM4DCouldNotSetMask);
-    }
-    println!("***4D STEM***: Mask received. Number of bytes read is {}.", total_size);
-    Ok(Live4DChannelMask::new(mask))
-}
-*/
-
 
 #[inline]
 pub fn correct_or_not_etime(mut ele_time: TIME, line_tdc: &PeriodicTdcRef) -> TIME {

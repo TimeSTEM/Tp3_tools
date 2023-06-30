@@ -1148,11 +1148,13 @@ pub mod ntime_resolved {
     }
 
     /// This enables spatial+spectral analysis in a certain spectral window.
-    pub struct TimeSpectralSpatial<T, K> {
-        spectra: Vec<K>, //Main data,
-        return_spectra: Vec<POSITION>, //Main data from flyback,
-        indices: Vec<u16>, //indexes from main scan
-        return_indices: Vec<u16>, //indexes from flyback
+    pub struct TimeSpectralSpatial<T> {
+        hyperspec_index: Vec<u32>, //Main data,
+        hyperspec_return_index: Vec<u32>, //Main data from flyback,
+        fourd_index: Vec<u64>,
+        fourd_return_index: Vec<u64>,
+        frame_indices: Vec<u16>, //indexes from main scan
+        frame_return_indices: Vec<u16>, //indexes from flyback
         ensemble: CollectionElectron, //A collection of single electrons,
         spimx: POSITION, //The horinzontal axis of the spim,
         spimy: POSITION, //The vertical axis of the spim,
@@ -1161,6 +1163,7 @@ pub mod ntime_resolved {
         extra_tdc_type: TdcType, //The tdc type for the external,
         remove_clusters: T,
         file: String,
+        fourd_data: bool,
     }
 
     fn as_bytes<T>(v: &[T]) -> &[u8] {
@@ -1180,7 +1183,7 @@ pub mod ntime_resolved {
         println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
     }
     
-    impl<T: ClusterCorrection> TimeSpectralSpatial<T, u32> {
+    impl<T: ClusterCorrection> TimeSpectralSpatial<T> {
         fn prepare(&mut self, file: &mut fs::File) {
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
@@ -1213,40 +1216,78 @@ pub mod ntime_resolved {
         }
 
         fn process(&mut self) -> Result<(), ErrorType> {
+            if self.fourd_data {
+                Ok(self.process_fourd()?)
+            } else {
+                Ok(self.process_hyperspec()?)
+            }
+        }
+        
+        fn process_hyperspec(&mut self) -> Result<(), ErrorType> {
             if self.ensemble.try_clean(0, &self.remove_clusters) {
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
-                        self.spectra.push(index);
-                        self.indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
+                        self.hyperspec_index.push(index);
+                        self.frame_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
                     }
                     
                     if let Some(index) = val.get_or_not_return_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
-                        self.return_spectra.push(index);
-                        self.return_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
+                        self.hyperspec_return_index.push(index);
+                        self.frame_return_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
                     }
             }
             self.ensemble.clear();
 
-            output_data(&self.spectra, "si_complete.txt");
-            output_data(&self.return_spectra, "si_return_complete.txt");
-            output_data(&self.indices, "si_complete_indices.txt");
-            output_data(&self.return_indices, "si_complete_return_indices.txt");
+            output_data(&self.hyperspec_index, "si_complete.txt");
+            output_data(&self.hyperspec_return_index, "si_return_complete.txt");
+            output_data(&self.frame_indices, "si_complete_indices.txt");
+            output_data(&self.frame_return_indices, "si_complete_return_indices.txt");
 
-            self.spectra.clear();
-            self.return_spectra.clear();
-            self.indices.clear();
-            self.return_indices.clear();
+            self.hyperspec_index.clear();
+            self.hyperspec_return_index.clear();
+            self.frame_indices.clear();
+            self.frame_return_indices.clear();
             }
             Ok(())
         }
-            
-        pub fn new(my_config: ConfigAcquisition<T>) -> Result<Self, ErrorType> {
+        
+        fn process_fourd(&mut self) -> Result<(), ErrorType> {
+            if self.ensemble.try_clean(0, &self.remove_clusters) {
+                for val in self.ensemble.values() {
+                    if let Some(index) = val.get_or_not_4d_index(self.tdc_periodic, self.spimx, self.spimy) {
+                        self.fourd_index.push(index);
+                        self.frame_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
+                    }
+                    
+                    if let Some(index) = val.get_or_not_return_4d_index(self.tdc_periodic, self.spimx, self.spimy) {
+                        self.fourd_return_index.push(index);
+                        self.frame_return_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
+                    }
+            }
+            self.ensemble.clear();
+
+            output_data(&self.fourd_index, "fourd_complete.txt");
+            output_data(&self.fourd_return_index, "fourd_return_complete.txt");
+            output_data(&self.frame_indices, "si_complete_indices.txt");
+            output_data(&self.frame_return_indices, "si_complete_return_indices.txt");
+
+            self.fourd_index.clear();
+            self.fourd_return_index.clear();
+            self.frame_indices.clear();
+            self.frame_return_indices.clear();
+            }
+            Ok(())
+        }
+        
+        pub fn new(my_config: ConfigAcquisition<T>, fourd_data: bool) -> Result<Self, ErrorType> {
 
             Ok(Self {
-                spectra: Vec::new(),
-                return_spectra: Vec::new(),
-                indices: Vec::new(),
-                return_indices: Vec::new(),
+                hyperspec_index: Vec::new(),
+                hyperspec_return_index: Vec::new(),
+                fourd_index: Vec::new(),
+                fourd_return_index: Vec::new(),
+                frame_indices: Vec::new(),
+                frame_return_indices: Vec::new(),
                 ensemble: CollectionElectron::new(),
                 spimx: my_config.xspim,
                 spimy: my_config.yspim,
@@ -1255,12 +1296,13 @@ pub mod ntime_resolved {
                 extra_tdc_type: TdcType::TdcTwoRisingEdge,
                 remove_clusters: my_config.correction_type,
                 file: my_config.file,
+                fourd_data,
                 
             })
         }
     }
 
-    pub fn analyze_data<T: ClusterCorrection>(data: &mut TimeSpectralSpatial<T, u32>) {
+    pub fn analyze_data<T: ClusterCorrection>(data: &mut TimeSpectralSpatial<T>) {
         let mut prepare_file = fs::File::open(&data.file).expect("Could not open desired file.");
         let progress_size = prepare_file.metadata().unwrap().len() as u64;
         data.prepare(&mut prepare_file);
@@ -1298,7 +1340,7 @@ pub mod ntime_resolved {
                             _ => {},
                         };
                     },
-                };
+                }
             });
             data.process().expect("Error in processing");
             //println!("File: {:?}. Total number of bytes read (MB): ~ {}", &data.file, total_size/1_000_000);

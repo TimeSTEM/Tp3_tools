@@ -302,24 +302,10 @@ pub mod cluster {
         
         pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
             spimlib::get_spimindex(self.x(), self.frame_dt(), &spim_tdc?, xspim, yspim)
-            /*
-            if let Some(frame_tdc) = spim_tdc {
-                spimlib::get_spimindex(self.x(), self.frame_dt(), &frame_tdc, xspim, yspim)
-            } else {
-                None
-            }
-            */
         }
         
         pub fn get_or_not_return_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
             spimlib::get_return_spimindex(self.x(), self.frame_dt(), &spim_tdc?, xspim, yspim)
-            /*
-            if let Some(frame_tdc) = spim_tdc {
-                spimlib::get_return_spimindex(self.x(), self.frame_dt(), &frame_tdc, xspim, yspim)
-            } else {
-                None
-            }
-            */
         }
         pub fn get_or_not_4d_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<u64> {
             spimlib::get_4dindex(self.x(), self.y(), self.frame_dt(), &spim_tdc?, xspim, yspim)
