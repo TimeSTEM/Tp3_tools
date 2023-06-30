@@ -76,8 +76,8 @@ pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xs
 
 #[inline]
 pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
-    Some(get_positional_index(dt, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
-    /*
+    //Some(get_positional_index(dt, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
+    ///*
     let val = dt % spim_tdc.period;
     if val < spim_tdc.low_time {
         let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
@@ -94,7 +94,7 @@ pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: PO
         } else {
             None
         }
-    */
+    //*/
 }
 
 #[inline]

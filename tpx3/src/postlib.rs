@@ -1148,8 +1148,8 @@ pub mod ntime_resolved {
     }
 
     /// This enables spatial+spectral analysis in a certain spectral window.
-    pub struct TimeSpectralSpatial<T> {
-        spectra: Vec<POSITION>, //Main data,
+    pub struct TimeSpectralSpatial<T, K> {
+        spectra: Vec<K>, //Main data,
         return_spectra: Vec<POSITION>, //Main data from flyback,
         indices: Vec<u16>, //indexes from main scan
         return_indices: Vec<u16>, //indexes from flyback
@@ -1173,15 +1173,14 @@ pub mod ntime_resolved {
     
     fn output_data<T>(data: &[T], name: &str) {
         let mut tfile = OpenOptions::new()
-            .write(true)
-            .truncate(true)
+            .append(true)
             .create(true)
             .open(name).unwrap();
         tfile.write_all(as_bytes(data)).unwrap();
         println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
     }
     
-    impl<T: ClusterCorrection> TimeSpectralSpatial<T> {
+    impl<T: ClusterCorrection> TimeSpectralSpatial<T, u32> {
         fn prepare(&mut self, file: &mut fs::File) {
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
@@ -1228,29 +1227,10 @@ pub mod ntime_resolved {
             }
             self.ensemble.clear();
 
-            let mut tfile = OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open("si_complete.txt").expect("Could not output time histogram.");
-            tfile.write_all(as_bytes(&self.spectra)).expect("Could not write time to file.");
-            
-            let mut return_tfile = OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open("si_return_complete.txt").expect("Could not output time histogram.");
-            return_tfile.write_all(as_bytes(&self.return_spectra)).expect("Could not write time to file.");
-            
-            let mut tfile2 = OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open("si_complete_indices.txt").expect("Could not output time histogram.");
-            tfile2.write_all(as_bytes(&self.indices)).expect("Could not write time to indices file.");
-            
-            let mut return_tfile2 = OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open("si_complete_return_indices.txt").expect("Could not output time histogram.");
-            return_tfile2.write_all(as_bytes(&self.return_indices)).expect("Could not write time to indices file.");
+            output_data(&self.spectra, "si_complete.txt");
+            output_data(&self.return_spectra, "si_return_complete.txt");
+            output_data(&self.indices, "si_complete_indices.txt");
+            output_data(&self.return_indices, "si_complete_return_indices.txt");
 
             self.spectra.clear();
             self.return_spectra.clear();
@@ -1280,7 +1260,7 @@ pub mod ntime_resolved {
         }
     }
 
-    pub fn analyze_data<T: ClusterCorrection>(data: &mut TimeSpectralSpatial<T>) {
+    pub fn analyze_data<T: ClusterCorrection>(data: &mut TimeSpectralSpatial<T, u32>) {
         let mut prepare_file = fs::File::open(&data.file).expect("Could not open desired file.");
         let progress_size = prepare_file.metadata().unwrap().len() as u64;
         data.prepare(&mut prepare_file);
