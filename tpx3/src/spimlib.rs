@@ -1,6 +1,6 @@
 //!`spimlib` is a collection of tools to set hyperspectral EELS acquisition.
 
-use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
+use crate::packetlib::{Packet, PacketDiffraction as Pack, packet_change};
 use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box::{IsiBoxHand, IsiBoxType}};
 use crate::errorlib::Tp3ErrorKind;
@@ -96,7 +96,7 @@ pub fn get_return_positional_index(dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: P
     let val = dt % spim_tdc.period;
     if val >= spim_tdc.low_time {
         let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-        let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
+        let rin = ((xspim as TIME * (val - spim_tdc.low_time)) / spim_tdc.high_time) as POSITION; //Column correction. Maybe not even needed.
             
             if r > (yspim-1) {
                 if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
