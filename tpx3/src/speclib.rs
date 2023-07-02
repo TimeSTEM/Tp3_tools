@@ -98,19 +98,21 @@ pub struct ShutterControl {
 }
 
 impl ShutterControl {
-    fn shutter_completely_open(&self) -> bool {
-        self.shutter_closed_status.iter().filter(|sh| **sh == false).count() == 4
-    }
-    fn try_set_time(&mut self, timestamp: TIME, ci: u8, shutter_closed: bool) {
+    fn try_set_time(&mut self, timestamp: TIME, ci: u8, shutter_closed: bool) -> bool {
+        //When shutter is closed, data transfer initiates. Shutter false means a new one just
+        //started, but we must wait <ACQUISITION_TIME> in order to close it and receive our data
         self.shutter_closed_status[ci as usize] = shutter_closed;
-        if shutter_closed && self.time != timestamp {
+        //println!("{:?} and {} and {} and {}", self.shutter_closed_status, timestamp, shutter_closed, ci);
+        if !shutter_closed && self.time != timestamp {
             self.ci_counter += 1;
             if self.ci_counter == 4 {
                 self.time = timestamp;
                 self.counter += 1;
                 self.ci_counter = 0;
+                return true;
             }
         }
+        false
     }
     fn set_as_hyperspectral(&mut self) {
         self.hyperspectral = true;
@@ -592,9 +594,10 @@ macro_rules! Live2DFrameImplementation {
 
             fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
                 if pack.id() == 5 {
-                    self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
+                    let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
                     if !self.is_ready {
-                        self.is_ready = self.shutter.as_ref().unwrap().shutter_completely_open();
+                        //self.is_ready = self.shutter.as_ref().unwrap().shutter_completely_open();
+                        self.is_ready = temp_ready;
                         if self.is_ready {
                             if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
                                 self.reset_or_else(frame_tdc, settings);
@@ -658,9 +661,10 @@ macro_rules! Live1DFrameImplementation {
             //}
             fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
                 if pack.id() == 5 {
-                    self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
+                    let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
                     if !self.is_ready {
-                        self.is_ready = self.shutter.as_ref().unwrap().shutter_completely_open();
+                        //self.is_ready = self.shutter.as_ref().unwrap().shutter_completely_open();
+                        self.is_ready = temp_ready;
                     }
                 }
                 else if pack.id() == 6 {
@@ -721,13 +725,14 @@ macro_rules! Live1DFrameHyperspecImplementation {
             //}
             fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
                 if pack.id() == 5 {
-                    self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
+                    let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
                     let shutter_counter = self.shutter.as_ref().unwrap().get_counter();
                     if shutter_counter > settings.xscan_size * settings.yscan_size {
                         self.shutter.as_mut().unwrap().set_hyperspectral_as_complete();
                     }
                     if !self.is_ready {
-                        self.is_ready = self.shutter.as_ref().unwrap().shutter_completely_open() && (shutter_counter % settings.yscan_size) == 0;
+                        //self.is_ready = self.shutter.as_ref().unwrap().shutter_completely_open() && (shutter_counter % settings.yscan_size) == 0;
+                        self.is_ready = temp_ready;
                     }
                 }
                 else if pack.id() == 6 {
