@@ -234,7 +234,7 @@ pub mod cluster {
     }
 
     impl SingleElectron {
-        pub fn new<T: Packet>(pack: &T, begin_frame: Option<PeriodicTdcRef>) -> Self {
+        pub fn new<T: Packet + ?Sized>(pack: &T, begin_frame: Option<PeriodicTdcRef>) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
                     let ele_time = spimlib::correct_or_not_etime(pack.electron_time(), &spim_tdc);

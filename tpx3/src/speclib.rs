@@ -732,7 +732,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
                     }
                     if !self.is_ready {
                         //self.is_ready = self.shutter.as_ref().unwrap().shutter_completely_open() && (shutter_counter % settings.yscan_size) == 0;
-                        self.is_ready = temp_ready;
+                        self.is_ready = temp_ready && (shutter_counter % settings.yscan_size == 0);
                     }
                 }
                 else if pack.id() == 6 {

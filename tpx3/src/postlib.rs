@@ -1128,7 +1128,7 @@ pub mod isi_box {
 
 pub mod ntime_resolved {
     use std::fs::OpenOptions;
-    use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
+    use crate::packetlib::{Packet, PacketEELS, PacketDiffraction, packet_change};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use std::io::prelude::*;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
@@ -1194,12 +1194,12 @@ pub mod ntime_resolved {
             };
         }
 
-        fn add_electron(&mut self, packet: &Pack) {
+        fn add_electron<P: Packet + ?Sized>(&mut self, packet: &P) {
             let se = SingleElectron::new(packet, self.tdc_periodic);
             self.ensemble.add_electron(se);
         }
 
-        fn add_spim_tdc(&mut self, packet: &Pack) {
+        fn add_spim_tdc<P: Packet + ?Sized>(&mut self, packet: &P) {
             //Synchronizing clocks using two different approaches. It is always better to use a multiple of 2 and use the FPGA counter.
             match &mut self.tdc_periodic {
                 //Some(my_tdc_periodic) if packet.tdc_type() == self.tdc_type.associate_value() => {
@@ -1210,7 +1210,7 @@ pub mod ntime_resolved {
             };
         }
         
-        fn add_extra_tdc(&mut self, _packet: &Pack) {
+        fn add_extra_tdc<P: Packet + ?Sized>(&mut self, _packet: &P) {
             //self.spectra.push(SPIM_PIXELS);
             //spimlib::get_spimindex(, dt: TIME, spim_tdc: &PeriodicTdcRef, self.spimx, self.spimy;
         }
@@ -1326,16 +1326,21 @@ pub mod ntime_resolved {
                 match pack_oct {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci = nci},
                     _ => {
-                        let packet = Pack{chip_index: ci, data: packet_change(pack_oct)[0]};
+                        //let packet = Pack{chip_index: ci, data: packet_change(pack_oct)[0]};
+                        let packet: Box<dyn Packet> = if data.fourd_data {
+                            Box::new(PacketEELS{chip_index: ci, data: packet_change(pack_oct)[0]})
+                        } else {
+                            Box::new(PacketDiffraction{chip_index: ci, data: packet_change(pack_oct)[0]})
+                        };
                         match packet.id() {
                             6 if packet.tdc_type() == data.spim_tdc_type.associate_value() => {
-                                data.add_spim_tdc(&packet);
+                                data.add_spim_tdc(&*packet);
                             },
                             6 if packet.tdc_type() == data.extra_tdc_type.associate_value() => {
-                                data.add_extra_tdc(&packet);
+                                data.add_extra_tdc(&*packet);
                             },
                             11 => {
-                                data.add_electron(&packet);
+                                data.add_electron(&*packet);
                             },
                             _ => {},
                         };
