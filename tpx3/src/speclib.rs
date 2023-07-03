@@ -93,7 +93,6 @@ pub struct ShutterControl {
     counter: COUNTER,
     hyperspectral: bool,
     hyperspectral_complete: bool,
-    ci_counter: COUNTER,
     shutter_closed_status: [bool; 4],
 }
 
@@ -102,15 +101,18 @@ impl ShutterControl {
         //When shutter is closed, data transfer initiates. Shutter false means a new one just
         //started, but we must wait <ACQUISITION_TIME> in order to close it and receive our data
         self.shutter_closed_status[ci as usize] = shutter_closed;
+        if self.time == 0 {
+            self.time = timestamp;
+        }
         //println!("{:?} and {} and {} and {}", self.shutter_closed_status, timestamp, shutter_closed, ci);
         if !shutter_closed && self.time != timestamp {
-            self.ci_counter += 1;
-            if self.ci_counter == 4 {
-                self.time = timestamp;
-                self.counter += 1;
-                self.ci_counter = 0;
-                return true;
-            }
+            //self.ci_counter += 1;
+            //if self.ci_counter == 4 {
+            self.time = timestamp;
+            self.counter += 1;
+            //self.ci_counter = 0;
+            return true;
+            //}
         }
         false
     }
@@ -135,7 +137,6 @@ impl Default for ShutterControl {
             counter: 0,
             hyperspectral: false,
             hyperspectral_complete: false,
-            ci_counter: 0,
             shutter_closed_status: [false; 4],
         }
     }
@@ -157,7 +158,7 @@ pub trait SpecKind {
     fn add_tdc_hit(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut Self::SupplementaryTdc);
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings);
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings);
-    fn frame_based_counter(&self) -> Option<COUNTER> {None}
+    fn shutter_control(&self) -> Option<&ShutterControl> {None}
 }
 
 pub trait IsiBoxKind: SpecKind {
@@ -622,11 +623,8 @@ macro_rules! Live2DFrameImplementation {
                     self.data.iter_mut().for_each(|x| *x = 0);
                 }
             }
-            fn frame_based_counter(&self) -> Option<COUNTER> {
-                match &self.shutter {
-                    Some(shutter) => {return Some(shutter.get_counter());},
-                    None => None,
-                }
+            fn shutter_control(&self) -> Option<&ShutterControl> {
+                self.shutter.as_ref()
             }
         }
     }
@@ -677,11 +675,8 @@ macro_rules! Live1DFrameImplementation {
                     self.data.iter_mut().for_each(|x| *x = 0);
                 }
             }
-            fn frame_based_counter(&self) -> Option<COUNTER> {
-                match &self.shutter {
-                    Some(shutter) => {return Some(shutter.get_counter());},
-                    None => None,
-                }
+            fn shutter_control(&self) -> Option<&ShutterControl> {
+                self.shutter.as_ref()
             }
         }
     }
@@ -727,12 +722,15 @@ macro_rules! Live1DFrameHyperspecImplementation {
                 if pack.id() == 5 {
                     let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
                     let shutter_counter = self.shutter.as_ref().unwrap().get_counter();
-                    if shutter_counter > settings.xscan_size * settings.yscan_size {
+                    if shutter_counter >= settings.xscan_size * settings.yscan_size {
                         self.shutter.as_mut().unwrap().set_hyperspectral_as_complete();
                     }
                     if !self.is_ready {
                         //self.is_ready = self.shutter.as_ref().unwrap().shutter_completely_open() && (shutter_counter % settings.yscan_size) == 0;
                         self.is_ready = temp_ready && (shutter_counter % settings.yscan_size == 0);
+                        //if temp_ready {
+                        //    println!("{} and {}", shutter_counter, self.data.iter().map(|x| *x as u32).sum::<u32>());
+                        //}
                     }
                 }
                 else if pack.id() == 6 {
@@ -745,11 +743,8 @@ macro_rules! Live1DFrameHyperspecImplementation {
                 //    self.data.iter_mut().for_each(|x| *x = 0);
                 //}
             }
-            fn frame_based_counter(&self) -> Option<COUNTER> {
-                match &self.shutter {
-                    Some(shutter) => {return Some(shutter.get_counter());},
-                    None => None,
-                }
+            fn shutter_control(&self) -> Option<&ShutterControl> {
+                self.shutter.as_ref()
             }
         }
     }
@@ -842,7 +837,7 @@ fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
             file.write(&buffer_pack_data[0..size]).unwrap();
         }
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
-            let msg = create_header(&my_settings, &frame_tdc, 0, meas_type.frame_based_counter());
+            let msg = create_header(&my_settings, &frame_tdc, 0, meas_type.shutter_control());
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             if ns_sock.write(meas_type.build_output()).is_err() {println!("Client disconnected on data."); break;}
             meas_type.reset_or_else(&frame_tdc, &my_settings);
@@ -873,7 +868,7 @@ pub fn build_spectrum_isi<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let x = handler.get_data();
-            let msg = create_header(&my_settings, &frame_tdc, CHANNELS as POSITION, meas_type.frame_based_counter());
+            let msg = create_header(&my_settings, &frame_tdc, CHANNELS as POSITION, meas_type.shutter_control());
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             meas_type.append_from_isi(&x);
             let result = meas_type.build_output();
@@ -921,12 +916,12 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
 //    data[CAM_DESIGN.0..].iter_mut().zip(as_bytes(&isi_box_data).iter()).for_each(|(a, b)| *a+=b);
 //}
 
-fn create_header<T: TdcControl>(set: &Settings, tdc: &T, extra_pixels: POSITION, frame_based_counter: Option<COUNTER>) -> Vec<u8> {
+fn create_header<T: TdcControl>(set: &Settings, tdc: &T, extra_pixels: POSITION, shutter_control: Option<&ShutterControl>) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(tdc.time().to_string()));
     msg.push_str(",\"frameNumber\":");
-    if let Some(counter) = frame_based_counter {
-        msg.push_str(&((counter).to_string()));
+    if let Some(shutter) = shutter_control {
+        msg.push_str(&((shutter.counter).to_string()));
     } else {
         msg.push_str(&((tdc.counter()/2).to_string()));
     }
