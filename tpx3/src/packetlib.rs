@@ -201,6 +201,40 @@ impl PacketEELS {
     }
 }
 
+pub struct PacketEELSInverted {
+    pub chip_index: u8,
+    pub data: u64,
+}
+
+impl Packet for PacketEELSInverted {
+    fn ci(&self) -> u8 {
+        self.chip_index
+    }
+    fn data(&self) -> u64 {
+        self.data
+    }
+    
+    #[inline]
+    fn x(&self) -> POSITION {
+        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
+        
+        match self.ci() {
+            0 => temp2 + 256 * 1,
+            1 => temp2 + 256 * 2,
+            2 => temp2 + 256 * 3,
+            3 => temp2,
+            _ => panic!("More than four CIs."),
+        }
+    }
+}
+
+impl PacketEELSInverted {
+    pub const fn chip_array() -> (POSITION, POSITION) {
+        (1025, 256)
+    }
+}
+
+
 pub struct PacketSheerEELS {
     pub chip_index: u8,
     pub data: u64,
