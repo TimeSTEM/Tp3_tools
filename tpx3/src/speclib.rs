@@ -1,6 +1,6 @@
 //!`speclib` is a collection of tools to set EELS/4D acquisition.
 
-use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
+use crate::packetlib::{Packet, PacketEELSInverted as Pack, packet_change};
 use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::tdclib::{TdcType, TdcControl, PeriodicTdcRef, NonPeriodicTdcRef, SingleTriggerPeriodicTdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
 use crate::isi_box_new;
@@ -91,6 +91,7 @@ pub struct SpecMeasurement<T, K: BitDepth> {
 
 pub struct ShutterControl {
     time: TIME,
+    ci_counter: COUNTER,
     counter: COUNTER,
     hyperspectral: bool,
     hyperspectral_complete: bool,
@@ -107,13 +108,14 @@ impl ShutterControl {
         }
         //println!("{:?} and {} and {} and {}", self.shutter_closed_status, timestamp, shutter_closed, ci);
         if !shutter_closed && self.time != timestamp {
-            //self.ci_counter += 1;
-            //if self.ci_counter == 4 {
-            self.time = timestamp;
-            self.counter += 1;
-            //self.ci_counter = 0;
-            return true;
-            //}
+            self.ci_counter += 1;
+            if self.ci_counter == 4 {
+                //println!("ready");
+                self.time = timestamp;
+                self.counter += 1;
+                self.ci_counter = 0;
+                return true;
+            }
         }
         false
     }
@@ -135,6 +137,7 @@ impl Default for ShutterControl {
     fn default() -> Self {
         Self {
             time: 0,
+            ci_counter: 0,
             counter: 0,
             hyperspectral: false,
             hyperspectral_complete: false,
@@ -587,11 +590,11 @@ macro_rules! Live2DFrameImplementation {
             #[inline]
             fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
                 let index = pack.x() + CAM_DESIGN.0 * pack.y();
-                if !self.is_ready {
-                    self.data[index as usize] += pack.tot() as $x;
-                } else {
-                    self.extra_data[index as usize] += pack.tot() as $x;
-                }
+                //if !self.is_ready {
+                self.data[index as usize] += pack.tot() as $x;
+                //} else {
+                //    //self.extra_data[index as usize] += pack.tot() as $x;
+                //}
             }
             fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
             //fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
@@ -602,7 +605,6 @@ macro_rules! Live2DFrameImplementation {
                 if pack.id() == 5 {
                     let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
                     if !self.is_ready {
-                        //self.is_ready = self.shutter.as_ref().unwrap().shutter_completely_open();
                         self.is_ready = temp_ready;
                         if self.is_ready {
                             if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
@@ -626,14 +628,17 @@ macro_rules! Live2DFrameImplementation {
                 self.is_ready = false;
                 if !settings.cumul { //No cumulation
                     self.data.iter_mut()
-                        .zip(self.extra_data.iter())
-                        .for_each(|(old, new)| *old = *new);
-                } else { //Cumulation
-                    self.data.iter_mut()
-                        .zip(self.extra_data.iter())
-                        .for_each(|(old, new)| *old += *new);
+                        //.zip(self.extra_data.iter())
+                        //.for_each(|(old, new)| *old = *new);
+                        .for_each(|x| *x = 0);
+                        //.for_each(|(old, new)| *old = 0);
                 }
-                self.extra_data.iter_mut().for_each(|x| *x = 0);
+                //else { //Cumulation
+                //    self.data.iter_mut()
+                //        .zip(self.extra_data.iter())
+                //        .for_each(|(old, new)| *old += *new);
+                //}
+                //self.extra_data.iter_mut().for_each(|x| *x = 0);
             }
             fn shutter_control(&self) -> Option<&ShutterControl> {
                 self.shutter.as_ref()
