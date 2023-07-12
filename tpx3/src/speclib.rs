@@ -711,6 +711,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
                     }
                     None => return,
                 };
+                //We cannot depass frame_number otherwise the indexation will be bad
                 let index = frame_number * CAM_DESIGN.0 + pack.x();
                 self.data[index as usize] += pack.tot() as $x;
             }
@@ -725,8 +726,16 @@ macro_rules! Live1DFrameHyperspecImplementation {
                     if shutter_counter >= settings.xscan_size * settings.yscan_size {
                         self.shutter.as_mut().unwrap().set_hyperspectral_as_complete();
                     }
+                    //if !self.is_ready {
+                    //    self.is_ready = temp_ready && (shutter_counter % (4*settings.yscan_size) == 0);
+                    //}
                     if !self.is_ready {
-                        self.is_ready = temp_ready && (shutter_counter % settings.yscan_size == 0);
+                        if self.timer.elapsed().as_millis() < TIME_INTERVAL_HYPERSPECTRAL_FRAME {
+                            self.is_ready = false;
+                        } else {
+                            println!("sending_data with counter {}", shutter_counter);
+                            self.is_ready = true;
+                        }
                     }
                 }
                 else if pack.id() == 6 {
@@ -735,6 +744,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
             }
             fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) {
                 self.is_ready = false;
+                self.timer = Instant::now();
                 //if !settings.cumul {
                 //    self.data.iter_mut().for_each(|x| *x = 0);
                 //}
