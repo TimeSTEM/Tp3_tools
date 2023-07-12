@@ -79,11 +79,9 @@ genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, Su
 
 pub struct SpecMeasurement<T, K: BitDepth> {
     data: Vec<K>,
-    extra_data: Vec<K>,
     aux_data: Vec<TIME>,
     is_ready: bool,
     global_stop: bool,
-    //repeat: Option<u32>,
     timer: Instant,
     shutter: Option<ShutterControl>,
     _kind: T,
@@ -204,7 +202,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
         as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(2), extra_data: Vec::new(), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live2D }
+        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live2D }
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
@@ -242,7 +240,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
         as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(1), extra_data: Vec::new(), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live1D}
+        SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live1D}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
@@ -274,7 +272,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR2D, L> {
         as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(2), extra_data: Vec::new(), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTR2D}
+        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTR2D}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &Self::SupplementaryTdc) {
@@ -307,7 +305,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR1D, L> {
         as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(1), extra_data: Vec::new(), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTR1D}
+        SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTR1D}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &Self::SupplementaryTdc) {
@@ -341,7 +339,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTilted2D, L> {
         as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(2), extra_data: Vec::new(), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTilted2D }
+        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTilted2D }
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
@@ -377,7 +375,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Coincidence2D, L> {
     fn new(settings: &Settings) -> Self {
         let len = 2*settings.time_width as usize * CAM_DESIGN.0 as usize;
         let temp_vec = vec![L::zero(); len];
-        SpecMeasurement{ data: temp_vec, extra_data: Vec::new(), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Coincidence2D}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Coincidence2D}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
@@ -427,7 +425,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
         let mut temp_vec = vec![L::zero(); len + 1];
         temp_vec[len] = L::ten();
-        SpecMeasurement{ data: temp_vec, extra_data: Vec::new(), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: FastChrono}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: FastChrono}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
@@ -462,7 +460,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
         let mut temp_vec = vec![L::zero(); len + 1];
         temp_vec[len] = L::ten();
-        SpecMeasurement{ data: temp_vec, extra_data: Vec::new(), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Chrono}
+        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Chrono}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
@@ -584,17 +582,13 @@ macro_rules! Live2DFrameImplementation {
             }
             fn new(_settings: &Settings) -> Self {
                 let len = (CAM_DESIGN.0 * CAM_DESIGN.1) as usize;
-                SpecMeasurement{ data: vec![0; len], extra_data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live2DFrame }
+                SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live2DFrame }
             }
 
             #[inline]
             fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
                 let index = pack.x() + CAM_DESIGN.0 * pack.y();
-                //if !self.is_ready {
                 self.data[index as usize] += pack.tot() as $x;
-                //} else {
-                //    //self.extra_data[index as usize] += pack.tot() as $x;
-                //}
             }
             fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
             //fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
@@ -627,18 +621,8 @@ macro_rules! Live2DFrameImplementation {
             fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
                 self.is_ready = false;
                 if !settings.cumul { //No cumulation
-                    self.data.iter_mut()
-                        //.zip(self.extra_data.iter())
-                        //.for_each(|(old, new)| *old = *new);
-                        .for_each(|x| *x = 0);
-                        //.for_each(|(old, new)| *old = 0);
+                    self.data.iter_mut().for_each(|x| *x = 0);
                 }
-                //else { //Cumulation
-                //    self.data.iter_mut()
-                //        .zip(self.extra_data.iter())
-                //        .for_each(|(old, new)| *old += *new);
-                //}
-                //self.extra_data.iter_mut().for_each(|x| *x = 0);
             }
             fn shutter_control(&self) -> Option<&ShutterControl> {
                 self.shutter.as_ref()
@@ -662,7 +646,7 @@ macro_rules! Live1DFrameImplementation {
             }
             fn new(_settings: &Settings) -> Self {
                 let len = CAM_DESIGN.0 as usize;
-                SpecMeasurement{ data: vec![0; len], extra_data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live1DFrame }
+                SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live1DFrame }
             }
 
             #[inline]
@@ -715,7 +699,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
                 let len = (CAM_DESIGN.0 * settings.xscan_size * settings.yscan_size) as usize;
                 let mut shutter = ShutterControl::default();
                 shutter.set_as_hyperspectral();
-                SpecMeasurement{ data: vec![0; len], extra_data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(shutter), _kind: Live1DFrameHyperspec }
+                SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(shutter), _kind: Live1DFrameHyperspec }
             }
 
             #[inline]
@@ -742,11 +726,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
                         self.shutter.as_mut().unwrap().set_hyperspectral_as_complete();
                     }
                     if !self.is_ready {
-                        //self.is_ready = self.shutter.as_ref().unwrap().shutter_completely_open() && (shutter_counter % settings.yscan_size) == 0;
                         self.is_ready = temp_ready && (shutter_counter % settings.yscan_size == 0);
-                        //if temp_ready {
-                        //    println!("{} and {}", shutter_counter, self.data.iter().map(|x| *x as u32).sum::<u32>());
-                        //}
                     }
                 }
                 else if pack.id() == 6 {
@@ -791,7 +771,7 @@ impl LiveTR1D {
 impl IsiBoxKind for SpecMeasurement<Live1D, u32> {
     fn isi_new(_settings: &Settings) -> Self {
         let len = (CAM_DESIGN.0 + CHANNELS as POSITION) as usize;
-        SpecMeasurement{ data: vec![0; len], extra_data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live1D }
+        SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live1D }
     }
     fn append_from_isi(&mut self, ext_data: &[u32]) {
         self.data[CAM_DESIGN.0 as usize..].iter_mut().zip(ext_data.iter()).for_each(|(a, b)| *a+=b);
