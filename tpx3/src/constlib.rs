@@ -2,18 +2,18 @@ use crate::auxiliar::value_types::*;
 
 //***General Values***//
 pub const SAVE_LOCALLY_FILE: &str = "/media/asi/Data21/TP3_Data/";
-pub const TIME_INTERVAL_FRAMES: u128 = 50; //in milliseconds
+pub const TIME_INTERVAL_FRAMES: u128 = 0; //in milliseconds
 pub const TIME_INTERVAL_HYPERSPECTRAL_FRAME: u128 = 5000; //in milliseconds
 pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 250; //in milliseconds
 pub const VIDEO_TIME: TIME = 3200;
 pub const SPIM_PIXELS: POSITION = 1025 + 200;
 pub const RAW4D_PIXELS_X: POSITION = 1024;
 pub const RAW4D_PIXELS_Y: POSITION = 256;
-pub const BUFFER_SIZE: usize = 1024; //16384 * 2;
+pub const BUFFER_SIZE: usize = 16384 * 2;
 pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
 pub const NIONSWIFT_PORT: u16 = 8088;
 pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coicncidence searching
-pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_spim.tpx3";
+pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\frame_mode03.tpx3";
 
 //***POSTLIB***//
 //Coincidence values using the IsiBox//

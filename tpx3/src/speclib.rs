@@ -578,16 +578,25 @@ macro_rules! Live2DFrameImplementation {
                 self.is_ready
             }
             fn build_output(&self) -> &[u8] {
-                as_bytes(&self.data)
+                let ref_array = if self.shutter.as_ref().unwrap().counter % 2 == 1 {
+                    &self.data[0..(CAM_DESIGN.0 * CAM_DESIGN.1) as usize]
+                } else {
+                    &self.data[(CAM_DESIGN.0 * CAM_DESIGN.1) as usize..]
+                };
+                as_bytes(&ref_array)
             }
             fn new(_settings: &Settings) -> Self {
                 let len = (CAM_DESIGN.0 * CAM_DESIGN.1) as usize;
-                SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live2DFrame }
+                SpecMeasurement{ data: vec![0; len * 2], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live2DFrame }
             }
 
             #[inline]
             fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
-                let index = pack.x() + CAM_DESIGN.0 * pack.y();
+                let index = if self.shutter.as_ref().unwrap().counter % 2 == 0 {
+                    pack.x() + CAM_DESIGN.0 * pack.y()
+                } else {
+                    (pack.x() + CAM_DESIGN.0 * pack.y()) + CAM_DESIGN.0 * CAM_DESIGN.1
+                };
                 self.data[index as usize] += pack.tot() as $x;
             }
             fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
@@ -621,7 +630,12 @@ macro_rules! Live2DFrameImplementation {
             fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
                 self.is_ready = false;
                 if !settings.cumul { //No cumulation
-                    self.data.iter_mut().for_each(|x| *x = 0);
+                    let ref_array = if self.shutter.as_ref().unwrap().counter % 2 == 1 {
+                        &mut self.data[..(CAM_DESIGN.0 * CAM_DESIGN.1)  as usize]
+                    } else {
+                        &mut self.data[(CAM_DESIGN.0 * CAM_DESIGN.1) as usize..]
+                    };
+                    ref_array.iter_mut().for_each(|x| *x = 0);
                 }
             }
             fn shutter_control(&self) -> Option<&ShutterControl> {
@@ -642,22 +656,37 @@ macro_rules! Live1DFrameImplementation {
                 self.is_ready
             }
             fn build_output(&self) -> &[u8] {
-                as_bytes(&self.data)
+                let ref_array = if self.shutter.as_ref().unwrap().counter % 2 == 1 {
+                    &self.data[0..CAM_DESIGN.0 as usize]
+                } else {
+                    &self.data[CAM_DESIGN.0 as usize..]
+                };
+                as_bytes(&ref_array)
             }
             fn new(_settings: &Settings) -> Self {
                 let len = CAM_DESIGN.0 as usize;
-                SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live1DFrame }
+                SpecMeasurement{ data: vec![0; len * 2], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live1DFrame }
             }
 
             #[inline]
-            fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+            fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+                //let index = if !self.is_ready {
                 let index = pack.x();
-                self.data[index as usize] += pack.tot() as $x;
+                if settings.cumul {
+                    self.data[index as usize] += pack.tot() as $x;
+                    self.data[(index + CAM_DESIGN.0) as usize] += pack.tot() as $x;
+                } else {
+                    if self.shutter.as_ref().unwrap().counter % 2 == 0 {
+                        self.data[index as usize] += pack.tot() as $x;
+                    } else {
+                        self.data[(index + CAM_DESIGN.0) as usize] += pack.tot() as $x;
+                    };
+                }
             }
             fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
-            //fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
-            //    Err(Tp3ErrorKind::FrameBasedModeHasNoTdc)
-            //}
+            fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
+                PeriodicTdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
+            }
             fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
                 if pack.id() == 5 {
                     let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
@@ -672,7 +701,12 @@ macro_rules! Live1DFrameImplementation {
             fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
                 self.is_ready = false;
                 if !settings.cumul {
-                    self.data.iter_mut().for_each(|x| *x = 0);
+                    let ref_array = if self.shutter.as_ref().unwrap().counter % 2 == 1 {
+                        &mut self.data[..CAM_DESIGN.0 as usize]
+                    } else {
+                        &mut self.data[CAM_DESIGN.0 as usize..]
+                    };
+                    ref_array.iter_mut().for_each(|x| *x = 0);
                 }
             }
             fn shutter_control(&self) -> Option<&ShutterControl> {
@@ -704,13 +738,9 @@ macro_rules! Live1DFrameHyperspecImplementation {
 
             #[inline]
             fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
-                let frame_number = match &self.shutter {
-                    Some(shut) => {
-                        if shut.is_hyperspectral_complete() { return }
-                        shut.get_counter()
-                    }
-                    None => return,
-                };
+                let shut = self.shutter.as_ref().unwrap();
+                if shut.is_hyperspectral_complete() { return }
+                let frame_number = shut.get_counter();
                 //We cannot depass frame_number otherwise the indexation will be bad
                 let index = frame_number * CAM_DESIGN.0 + pack.x();
                 self.data[index as usize] += pack.tot() as $x;
@@ -719,9 +749,6 @@ macro_rules! Live1DFrameHyperspecImplementation {
                 PeriodicTdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
             }
             fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
-            //fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
-            //    Err(Tp3ErrorKind::FrameBasedModeHasNoTdc)
-            //}
             fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
                 if pack.id() == 5 {
                     let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
@@ -729,9 +756,6 @@ macro_rules! Live1DFrameHyperspecImplementation {
                     if shutter_counter >= settings.xscan_size * settings.yscan_size {
                         self.shutter.as_mut().unwrap().set_hyperspectral_as_complete();
                     }
-                    //if !self.is_ready {
-                    //    self.is_ready = temp_ready && (shutter_counter % (4*settings.yscan_size) == 0);
-                    //}
                     if !self.is_ready {
                         if self.timer.elapsed().as_millis() < TIME_INTERVAL_HYPERSPECTRAL_FRAME {
                             self.is_ready = false;
