@@ -715,6 +715,9 @@ macro_rules! Live1DFrameHyperspecImplementation {
                 let index = frame_number * CAM_DESIGN.0 + pack.x();
                 self.data[index as usize] += pack.tot() as $x;
             }
+            fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
+                PeriodicTdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
+            }
             fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
             //fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
             //    Err(Tp3ErrorKind::FrameBasedModeHasNoTdc)

@@ -357,6 +357,33 @@ impl PeriodicTdcRef {
     pub fn estimate_time(&self) -> TIME {
         (self.counter as TIME / 2) * self.period + self.begin_time
     }
+    pub fn new_no_read(tdc_type: TdcType, ticks_to_frame: Option<COUNTER>) -> Result<Self, Tp3ErrorKind> {
+        println!("***Tdc Lib***: {} has been created (no read).", tdc_type.associate_str());
+        let counter_offset = 0;
+        let begin_time = 0;
+        let last_time = 0;
+        let high_time = 0;
+        let period = 0;
+        let low_time = 0;
+
+        let per_ref = Self {
+            tdctype: tdc_type.associate_value(),
+            counter: 0,
+            counter_offset,
+            last_hard_counter: 0,
+            counter_overflow: 0,
+            begin_time,
+            begin_frame: begin_time,
+            ticks_to_frame,
+            period,
+            high_time,
+            low_time,
+            new_frame: false,
+            time: last_time,
+        };
+        println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
+        Ok(per_ref)
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
