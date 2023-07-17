@@ -40,7 +40,7 @@ pub trait SpimKind {
     //type Output;
 
     fn data(&self) -> &Vec<Self::InputData>;
-    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef);
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, set: &Settings);
     fn add_tdc_hit<T: TdcControl>(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T);
     fn upt_line(&self, packet: &Pack, settings: &Settings, line_tdc: &mut PeriodicTdcRef);
     fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8];
@@ -145,7 +145,7 @@ pub struct Live {
 ///coincident photons around
 pub struct LiveCoincidence {
     data: Vec<(POSITION, TIME)>,
-    photon_data: Vec<TIME>,
+    aux_data: [TIME; LIST_SIZE_AUX_EVENTS],
     data_out: Vec<u32>,
     _timer: Instant,
 }
@@ -215,7 +215,7 @@ impl SpimKind for Live {
         &self.data
     }
     #[inline]
-    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef) {
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, _set: &Settings) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
         self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
     }
@@ -282,16 +282,21 @@ impl SpimKind for LiveCoincidence {
         &self.data
     }
     #[inline]
-    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef) {
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, set: &Settings) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
-        self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
+        for phtime in self.aux_data.iter() {
+            if (*phtime < ele_time + set.time_delay + set.time_width) && (ele_time + set.time_delay < *phtime + set.time_width) {
+                self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
+            }
+        }
     }
     fn add_tdc_hit<T: TdcControl>(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
         let tdc_time = packet.tdc_time_norm();
         ref_tdc.upt(tdc_time, packet.tdc_counter());
-        if tdc_time > line_tdc.begin_frame + VIDEO_TIME {
-            self.photon_data.push(tdc_time - line_tdc.begin_frame - VIDEO_TIME)
+        for index in 0..LIST_SIZE_AUX_EVENTS-1 {
+            self.aux_data[index+1] = self.aux_data[index];
         }
+        self.aux_data[0] = packet.tdc_time_norm();
     }
     fn upt_line(&self, packet: &Pack, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
@@ -315,28 +320,7 @@ impl SpimKind for LiveCoincidence {
         //
         //index = index + x
         
-        let mut coincident_electrons_data: Vec<(POSITION, TIME)> = Vec::new();
-        let mut min_index = 0;
-
-        for val in &self.data {
-            let mut index = 0;
-            let mut index_to_increase = None;
-            for ph in &self.photon_data[min_index..] {
-                if (*ph < val.1 + set.time_delay + set.time_width) && (val.1 + set.time_delay < ph + set.time_width) {
-                    coincident_electrons_data.push(*val);
-                    if index_to_increase.is_none() {
-                        index_to_increase = Some(index)
-                    }
-                }
-                index += 1;
-            }
-            if let Some(increase) = index_to_increase {
-                min_index += increase / PHOTON_LIST_STEP;
-            }
-        }
-        
-        
-        self.data_out = coincident_electrons_data.iter()
+        self.data_out = self.data.iter()
             .filter_map(|&(x, dt)| {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
             }).collect::<Vec<u32>>();
@@ -355,10 +339,10 @@ impl SpimKind for LiveCoincidence {
         true
     }
     fn copy_empty(&mut self) -> Self {
-        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8) , photon_data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), _timer: Instant::now()}
+        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8) , aux_data: [0; LIST_SIZE_AUX_EVENTS], data_out: Vec::new(), _timer: Instant::now()}
     }
     fn new(_settings: &Settings) -> Self {
-        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8), photon_data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), _timer: Instant::now()}
+        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8), aux_data: [0; LIST_SIZE_AUX_EVENTS], data_out: Vec::new(), _timer: Instant::now()}
     }
 }
 
@@ -369,7 +353,7 @@ impl SpimKind for Live4D {
         &self.data
     }
     #[inline]
-    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef) {
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, _set: &Settings) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
         self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
     }
@@ -436,7 +420,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
         &self.data
     }
     #[inline]
-    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef) {
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, _set: &Settings) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
         self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
 
@@ -619,7 +603,7 @@ fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_c
                 let id = packet.id();
                 match id {
                     11 => {
-                        list.add_electron_hit(&packet, line_tdc);
+                        list.add_electron_hit(&packet, line_tdc, settings);
                     },
                     6 if packet.tdc_type() == line_tdc.id() => {
                         list.upt_line(&packet, settings, line_tdc);
