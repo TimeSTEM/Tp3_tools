@@ -283,6 +283,19 @@ impl Packet for TimeCorrectedPacketEELS {
         self.data
     }
     
+    #[inline]
+    fn x(&self) -> POSITION {
+        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
+        
+        match self.ci() {
+            0 => temp2 + 256 * 3,
+            1 => temp2 + 256 * 0,
+            2 => temp2 + 256 * 1,
+            3 => temp2 + 256 * 2,
+            _ => panic!("More than four CIs."),
+        }
+    }
+    
     fn fast_electron_time(&self) -> TIME {
         let spidr = self.spidr();
         let toa = self.toa();
