@@ -62,6 +62,7 @@ pub mod coincidence {
         cluster_size: Vec<u16>,
         spectrum: Vec<usize>,
         corr_spectrum: Vec<usize>,
+        spim_frame: Vec<u32>,
         frequency_list: HashMap<i16, u32>,
         is_spim: bool,
         spim_size: (POSITION, POSITION),
@@ -75,6 +76,11 @@ pub mod coincidence {
     impl<T: ClusterCorrection> ElectronData<T> {
         fn add_electron(&mut self, val: SingleElectron) {
             self.spectrum[val.x() as usize] += 1;
+            if self.is_spim {
+                if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
+                    self.spim_frame[index as usize] += 1;
+                }
+            }
         }
 
         fn add_spim_line(&mut self, pack: &Pack) {
@@ -154,10 +160,7 @@ pub mod coincidence {
                 let mut index_to_increase = None;
                 for ph in &temp_tdc.clean_tdc[min_index..] {
                     let new_photon_time = ((ph.0 / 6) as i64 + line_period_offset) as TIME;
-                    //if ((ph.0/6) < val.time() + time_delay + time_width) && (val.time() + time_delay < (ph.0/6) + time_width) {
                     if (new_photon_time < val.time() + time_delay + time_width) && (val.time() + time_delay < new_photon_time + time_width) {
-                    //let difference = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64 + line_offset * line_period;
-                    //if difference.abs() < time_width as i64 {
                         self.add_coincident_electron(*val, *ph);
                         if index_to_increase.is_none() {
                             index_to_increase = Some(index)
@@ -172,7 +175,6 @@ pub mod coincidence {
                         first_corr_photon = ph.0;
 
                     }
-                    //if (ph.0/6) - line_period > val.time() + time_delay + 10_000 {break;}
                     if new_photon_time > val.time() + time_delay + 10_000 {break;}
                     index += 1;
                 }
@@ -214,6 +216,7 @@ pub mod coincidence {
                 x: Vec::new(),
                 y: Vec::new(),
                 tot: Vec::new(),
+                spim_frame: vec![0; (SPIM_PIXELS * my_config.xspim * my_config.yspim) as usize],
                 cluster_size: Vec::new(),
                 spectrum: vec![0; SPIM_PIXELS as usize],
                 corr_spectrum: vec![0; SPIM_PIXELS as usize],
