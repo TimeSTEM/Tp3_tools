@@ -290,7 +290,7 @@ impl SpimKind for LiveCoincidence {
             }
         }
     }
-    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
+    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &Pack, _line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
         let tdc_time = packet.tdc_time_norm();
         ref_tdc.upt(tdc_time, packet.tdc_counter());
         for index in 0..LIST_SIZE_AUX_EVENTS-1 {

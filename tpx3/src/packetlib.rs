@@ -17,15 +17,7 @@ pub trait Packet {
 
     #[inline]
     fn x(&self) -> POSITION {
-        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
-        
-        match self.ci() {
-            0 => 255 - temp2,
-            1 => 256 * 4 - 1 - temp2,
-            2 => 256 * 3 - 1 - temp2,
-            3 => 256 * 2 - 1 - temp2,
-            _ => panic!("More than four CIs."),
-        }
+        (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION
     }
     
     #[inline]
@@ -161,6 +153,20 @@ pub trait Packet {
         let fine = self.tdc_fine();
         let time = coarse * 12 + fine;
         time - (time / (103_079_215_104)) * 103_079_215_104
+    }
+}
+
+pub struct PacketStd {
+    pub chip_index: u8,
+    pub data: u64,
+}
+
+impl Packet for PacketStd {
+    fn ci(&self) -> u8 {
+        self.chip_index
+    }
+    fn data(&self) -> u64 {
+        self.data
     }
 }
 
