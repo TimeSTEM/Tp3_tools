@@ -29,11 +29,6 @@ pub trait Packet {
     }
     
     #[inline]
-    fn x_raw(&self) -> POSITION {
-        (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION
-    }
-    
-    #[inline]
     fn y(&self) -> POSITION {
         (((self.data() & 0x00_1F_80_00_00_00_00_00) >> 45) | ((self.data() & 0x00_00_30_00_00_00_00_00) >> 44)) as POSITION
     }
@@ -167,18 +162,6 @@ pub trait Packet {
         let time = coarse * 12 + fine;
         time - (time / (103_079_215_104)) * 103_079_215_104
     }
-
-    #[inline]
-    //In units of 1.5625 ns
-    fn electron_overflow() -> TIME where Self: Sized{
-        17_179_869_184
-    }
-
-    #[inline]
-    //In units of 1.5625 ns
-    fn tdc_overflow() -> TIME where Self: Sized {
-        68_719_476_736
-    }
 }
 
 pub struct PacketEELS {
@@ -192,6 +175,19 @@ impl Packet for PacketEELS {
     }
     fn data(&self) -> u64 {
         self.data
+    }
+    
+    #[inline]
+    fn x(&self) -> POSITION {
+        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
+        
+        match self.ci() {
+            0 => 255 - temp2,
+            1 => 256 * 4 - 1 - temp2,
+            2 => 256 * 3 - 1 - temp2,
+            3 => 256 * 2 - 1 - temp2,
+            _ => panic!("More than four CIs."),
+        }
     }
 }
 

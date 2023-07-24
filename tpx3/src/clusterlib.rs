@@ -1,7 +1,7 @@
 //!`clusterlib` is a collection of tools to identify and manipulate TPX3 cluster.
 
 pub mod cluster {
-    use crate::packetlib::{Packet, PacketEELS as Pack};
+    use crate::packetlib::Packet;
     use crate::spimlib;
     use crate::tdclib::PeriodicTdcRef;
     use std::fs::OpenOptions;
@@ -251,7 +251,7 @@ pub mod cluster {
         }
 
         pub fn correct_time_overflow(&mut self, overflow: COUNTER) {
-            self.data.0 += overflow as TIME * Pack::electron_overflow();
+            self.data.0 += overflow as TIME * ELECTRON_OVERFLOW;
         }
         pub fn x(&self) -> POSITION {
             self.data.1

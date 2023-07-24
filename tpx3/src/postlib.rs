@@ -86,8 +86,8 @@ pub mod coincidence {
         fn estimate_overflow(&self, pack: &Pack) -> Option<TIME> {
             if let Some(spim_tdc) = self.spim_tdc {
                 let val = spim_tdc.estimate_time();
-                if val > pack.tdc_time() + Pack::electron_overflow() {
-                    return Some(val / Pack::tdc_overflow());
+                if val > pack.tdc_time() + ELECTRON_OVERFLOW {
+                    return Some(val / TDC_OVERFLOW);
                 }
                 else {return Some(0)}
             }
@@ -606,21 +606,21 @@ pub mod coincidence {
                                 coinc_data.add_spim_line(&packet);
                                 let of = coinc_data.estimate_overflow(&packet).unwrap();
                                 let isi_val = tdc_iter.next().unwrap();
-                                let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
+                                let tdc_val = packet.tdc_time_abs() + of * TDC_OVERFLOW * 6;
                                 let mut t_dif = tdc_val - isi_val.1;
                                 
                                 //Sometimes the estimative time does not work, underestimating it.
                                 //This tries to recover it out by adding a single offset;
                                 if isi_val.1 > tdc_val {
                                     let of = of + 1;
-                                    let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
+                                    let tdc_val = packet.tdc_time_abs() + of * TDC_OVERFLOW * 6;
                                     t_dif = tdc_val - isi_val.1;
                                 } else {
                                     //Sometimes the estimative time does not work, overestimating it.
                                     //This tries to recover it out by removing a single offset
                                     if (offset != 0) && ((t_dif > offset + ISI_TP3_MAX_DIF) || (offset > t_dif + ISI_TP3_MAX_DIF)) {
                                         let of = of - 1;
-                                        let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
+                                        let tdc_val = packet.tdc_time_abs() + of * TDC_OVERFLOW * 6;
                                         t_dif = tdc_val - isi_val.1;
                                     }
                                 };
@@ -1327,7 +1327,7 @@ pub mod ntime_resolved {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci = nci},
                     _ => {
                         //let packet = Pack{chip_index: ci, data: packet_change(pack_oct)[0]};
-                        let packet: Box<dyn Packet> = if data.fourd_data {
+                        let packet: Box<dyn Packet> = if !data.fourd_data {
                             Box::new(PacketEELS{chip_index: ci, data: packet_change(pack_oct)[0]})
                         } else {
                             Box::new(PacketDiffraction{chip_index: ci, data: packet_change(pack_oct)[0]})

@@ -15,6 +15,9 @@ pub const NIONSWIFT_PORT: u16 = 8088;
 pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coicncidence searching
 pub const LIST_SIZE_AUX_EVENTS: usize = 1;
 pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_coinc02.tpx3";
+pub const ELECTRON_OVERFLOW: TIME = 17_179_869_184;
+pub const TDC_OVERFLOW: TIME = 68_719_476_736;
+
 
 //***POSTLIB***//
 //Coincidence values using the IsiBox//
@@ -31,8 +34,8 @@ pub const ISI_NB_CORRECTION_ITERACTION: u64 = 100; //How many times your IsiBox 
 
 //Coincidence values using the Timepix3//
 pub const TP3_BUFFER_SIZE: usize = 512_000_000; //Buffer size when reading files
-pub const TP3_TIME_WIDTH: u64 = 50; //Time width considered for coincidence
-pub const TP3_TIME_DELAY: u64 = 104; //Time delay considered for coincidence
+pub const TP3_TIME_WIDTH: u64 = 500; //Time width considered for coincidence (in units of 1.5625 ns)
+pub const TP3_TIME_DELAY: u64 = 104; //Time delay considered for coincidence (in units of 1.5625 ns)
 
 //***TDCLIB***//
 pub const CHANNELS: usize = 200;
