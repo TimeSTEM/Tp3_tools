@@ -16,6 +16,7 @@ pub mod coincidence {
     use crate::auxiliar::value_types::*;
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
+    use rayon::prelude::*;
 
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
@@ -261,6 +262,7 @@ pub mod coincidence {
                 },
             };
             fs::write("spec.txt", out).unwrap();
+            output_data(&self.spim_frame, "spim_frame.txt");
         }
 
         pub fn output_relative_time(&self) {
@@ -494,11 +496,10 @@ pub mod coincidence {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
+            //if total_size >= 10_000_000_000 {break;}
             bar.inc(TP3_BUFFER_SIZE as u64);
-            //println!("MB Read: {}", total_size / 1_000_000 );
             let mut temp_edata = TempElectronData::new();
             let mut temp_tdc = TempTdcData::new();
-            //let mut packet_chunks = buffer[0..size].chunks_exact(8);
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
@@ -521,7 +522,6 @@ pub mod coincidence {
                 };
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, TP3_TIME_DELAY, TP3_TIME_WIDTH, 0);
-        //println!("Time elapsed: {:?}", start.elapsed());
 
         }
         println!("Total number of bytes read {}", total_size);
