@@ -51,7 +51,7 @@ pub trait SpimKind {
 
 #[inline]
 pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
-    Some(get_positional_index(dt, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
+    Some(get_return_positional_index(dt, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
 }
 
 #[inline]
@@ -253,7 +253,7 @@ impl SpimKind for Live {
             .filter_map(|&(x, dt)| {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
             }).collect::<Vec<u32>>();
-        
+
         /*
         let temp = &mut self.data_out;
         let my_vec = self.data.iter()
