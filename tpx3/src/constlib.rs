@@ -17,6 +17,8 @@ pub const LIST_SIZE_AUX_EVENTS: usize = 1;
 pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_coinc02.tpx3";
 pub const ELECTRON_OVERFLOW: TIME = 17_179_869_184;
 pub const TDC_OVERFLOW: TIME = 68_719_476_736;
+pub const LIMIT_READ: bool = false; //early break of the file processing
+pub const LIMIT_READ_SIZE: usize = 5_000_000_000; //5GB limitations
 
 
 //***POSTLIB***//

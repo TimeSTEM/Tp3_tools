@@ -496,7 +496,7 @@ pub mod coincidence {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
-            //if total_size >= 10_000_000_000 {break;}
+            if LIMIT_READ && total_size >= LIMIT_READ_SIZE {break;}
             bar.inc(TP3_BUFFER_SIZE as u64);
             let mut temp_edata = TempElectronData::new();
             let mut temp_tdc = TempTdcData::new();
