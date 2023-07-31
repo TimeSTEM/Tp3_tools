@@ -52,6 +52,7 @@ pub mod coincidence {
 
     //Non-standard data types 
     pub struct ElectronData<T> {
+        reduced_raw_data: Vec<u64>,
         time: Vec<TIME>,
         channel: Vec<u8>,
         rel_time: Vec<i16>,
@@ -82,6 +83,10 @@ pub mod coincidence {
                     self.spim_frame[index as usize] += 1;
                 }
             }
+        }
+
+        fn add_packet_to_reduced_data(&mut self, pack: &Pack) {
+            self.reduced_raw_data.push(pack.data());
         }
 
         fn add_spim_line(&mut self, pack: &Pack) {
@@ -209,6 +214,7 @@ pub mod coincidence {
 
         pub fn new(my_config: ConfigAcquisition<T>) -> Self {
             Self {
+                reduced_raw_data: Vec::new(),
                 time: Vec::new(),
                 channel: Vec::new(),
                 rel_time: Vec::new(),
@@ -268,6 +274,10 @@ pub mod coincidence {
         pub fn output_relative_time(&self) {
             output_data(&self.rel_time, "tH.txt");
             output_data(&self.double_photon_rel_time, "double_tH.txt");
+        }
+        
+        pub fn output_reduced_raw(&self) {
+            output_data(&self.reduced_raw_data, "reduced_raw.tpx3");
         }
         
         pub fn output_time(&self) {
@@ -501,10 +511,13 @@ pub mod coincidence {
             let mut temp_edata = TempElectronData::new();
             let mut temp_tdc = TempTdcData::new();
             buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+                let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                 match *pack_oct {
-                    [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
+                    [84, 80, 88, 51, nci, _, _, _] => {
+                        ci=nci;
+                        coinc_data.add_packet_to_reduced_data(&packet);
+                    },
                     _ => {
-                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                         match packet.id() {
                             6 if packet.tdc_type() == np_tdc.id() => {
                                 temp_tdc.add_tdc(&packet, 0);

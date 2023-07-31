@@ -19,6 +19,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //    search_coincidence(dir, &mut coinc_data)?;
     //}
 
+    coinc_data.output_reduced_raw();
     coinc_data.output_spectrum(true);
     coinc_data.output_corr_spectrum(false);
     coinc_data.output_relative_time();
