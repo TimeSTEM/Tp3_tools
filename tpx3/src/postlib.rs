@@ -16,7 +16,7 @@ pub mod coincidence {
     use crate::auxiliar::value_types::*;
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
-    use rayon::prelude::*;
+    //use rayon::prelude::*;
 
     fn as_bytes<T>(v: &[T]) -> &[u8] {
         unsafe {
@@ -26,12 +26,14 @@ pub mod coincidence {
         }
     }
 
-    fn output_data<T>(data: &[T], name: &str) {
+    fn output_data<T>(data: &[T], filename: String, name: &str) {
+        let len = filename.len();
+        let complete_filename = filename[..len-5].to_string() + "\\" + name;
         let mut tfile = OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
-            .open(name).unwrap();
+            .open(complete_filename).unwrap();
         tfile.write_all(as_bytes(data)).unwrap();
         println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
     }
@@ -175,8 +177,6 @@ pub mod coincidence {
                         }
                         photons_per_electron += 1;
                         if photons_per_electron == 2 {
-                            //self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon).try_into().unwrap());
-                            //self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.0).try_into().unwrap());
                             self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon).fold());
                             self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.0).fold());
                         }
@@ -239,6 +239,28 @@ pub mod coincidence {
                 file: my_config.file,
             }
         }
+
+        fn try_create_folder(&self) -> Result<(), Tp3ErrorKind> {
+            let path_length = &self.file.len();
+            match fs::create_dir(&self.file[..path_length - 5]) {
+                Ok(_) => {Ok(())},
+                Err(_) => { Err(Tp3ErrorKind::CoincidenceFolderAlreadyCreated) }
+            }
+        }
+
+        pub fn output_data(&self) {
+            self.output_reduced_raw();
+            self.output_spectrum(true);
+            self.output_corr_spectrum(false);
+            self.output_relative_time();
+            self.output_time();
+            self.output_g2_time();
+            self.output_channel();
+            self.output_dispersive();
+            self.output_non_dispersive();
+            self.output_spim_index();
+            self.output_tot();
+        }
         
         pub fn output_corr_spectrum(&self, bin: bool) {
             let out: String = match bin {
@@ -270,20 +292,20 @@ pub mod coincidence {
                 },
             };
             fs::write("spec.txt", out).unwrap();
-            output_data(&self.spim_frame, "spim_frame.txt");
+            output_data(&self.spim_frame, self.file.clone(), "spim_frame.txt");
         }
 
         pub fn output_relative_time(&self) {
-            output_data(&self.rel_time, "tH.txt");
-            output_data(&self.double_photon_rel_time, "double_tH.txt");
+            output_data(&self.rel_time, self.file.clone(), "tH.txt");
+            output_data(&self.double_photon_rel_time, self.file.clone(), "double_tH.txt");
         }
         
         pub fn output_reduced_raw(&self) {
-            output_data(&self.reduced_raw_data, "reduced_raw.tpx3");
+            output_data(&self.reduced_raw_data, self.file.clone(), "reduced_raw.tpx3");
         }
         
         pub fn output_time(&self) {
-            output_data(&self.time, "tabsH.txt");
+            output_data(&self.time, self.file.clone(), "tabsH.txt");
         }
         
         pub fn output_g2_time(&self) {
@@ -293,23 +315,23 @@ pub mod coincidence {
                     Some(x) => *x,
                 }
             }).collect::<Vec<i16>>();
-            output_data(&vec, "g2tH.txt");
+            output_data(&vec, self.file.clone(), "g2tH.txt");
         }
         
         pub fn output_channel(&self) {
-            output_data(&self.channel, "channel.txt");
+            output_data(&self.channel, self.file.clone(), "channel.txt");
         }
         
         pub fn output_dispersive(&self) {
-            output_data(&self.x, "xH.txt");
+            output_data(&self.x, self.file.clone(), "xH.txt");
         }
         
         pub fn output_non_dispersive(&self) {
-            output_data(&self.y, "yH.txt");
+            output_data(&self.y, self.file.clone(), "yH.txt");
         }
         
         pub fn output_spim_index(&self) {
-            output_data(&self.spim_index, "si.txt");
+            output_data(&self.spim_index, self.file.clone(), "si.txt");
             /*
             println!("Outputting each spim index value under si name. Vector len is {}", self.spim_index.len());
             let out: String = self.spim_index.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
@@ -318,7 +340,7 @@ pub mod coincidence {
         }
 
         pub fn output_cluster_size(&self) {
-            output_data(&self.cluster_size, "cs.txt");
+            output_data(&self.cluster_size, self.file.clone(), "cs.txt");
             /*
             let out: String = self.cluster_size.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
             fs::write("cs.txt", out).unwrap();
@@ -326,7 +348,7 @@ pub mod coincidence {
         }
 
         pub fn output_tot(&self) {
-            output_data(&self.tot, "tot.txt");
+            output_data(&self.tot, self.file.clone(), "tot.txt");
         }
             
     }
@@ -479,13 +501,17 @@ pub mod coincidence {
     }
             
 
-    pub fn search_coincidence<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> io::Result<()> {
+    pub fn search_coincidence<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<(), Tp3ErrorKind> {
 
-        let mut file0 = fs::File::open(&coinc_data.file)?;
+        let mut file0 = match fs::File::open(&coinc_data.file) {
+            Ok(val) => val,
+            Err(_) => return Err(Tp3ErrorKind::CoincidenceCantReadFile),
+        };
+
         let progress_size = file0.metadata().unwrap().len() as u64;
         let spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
             if coinc_data.spim_size.0 == 0 || coinc_data.spim_size.1 == 0 {
-                panic!("Spim mode is on. X and Y pixels must be greater than 0.");
+                panic!("***Coincidence***: Spim mode is on. X and Y pixels must be greater than 0.");
             }
             let temp = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
             coinc_data.prepare_spim(temp);
@@ -495,8 +521,15 @@ pub mod coincidence {
         };
         let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0, None).expect("Could not create non periodic (photon) TDC reference.");
 
+        //If folder exists, the procedure does not continue.
+        coinc_data.try_create_folder()?;
+ 
         let mut ci = 0;
-        let mut file = fs::File::open(&coinc_data.file)?;
+        let mut file = match fs::File::open(&coinc_data.file) {
+            Ok(val) => val,
+            Err(_) => return Err(Tp3ErrorKind::CoincidenceCantReadFile),
+        };
+
         let mut buffer: Vec<u8> = vec![0; TP3_BUFFER_SIZE];
         let mut total_size = 0;
         
@@ -544,6 +577,7 @@ pub mod coincidence {
 
         }
         println!("Total number of bytes read {}", total_size);
+        coinc_data.output_data();
         Ok(())
     }
     
