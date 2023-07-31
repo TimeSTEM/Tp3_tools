@@ -108,6 +108,10 @@ pub mod coincidence {
             None
         }
 
+        fn add_coincident_electron_to_raw(&mut self, val: SingleElectron) {
+            self.reduced_raw_data.push(val.raw_packet_header());
+            self.reduced_raw_data.push(val.raw_packet_data());
+        }
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon: (TIME, COUNTER, Option<i16>)) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
@@ -121,8 +125,6 @@ pub mod coincidence {
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).fold());
             self.cluster_size.push(val.cluster_size().try_into().unwrap());
             
-            self.reduced_raw_data.push(val.raw_packet_header());
-            self.reduced_raw_data.push(val.raw_packet_data());
             
             //This is a frequency list. Helps to preview data. Currently unsused
             //let mut count = self.frequency_list.entry(val.relative_time_from_abs_tdc(photon.0).fold()).or_insert(0);
@@ -172,6 +174,9 @@ pub mod coincidence {
                     let new_photon_time = ((ph.0 / 6) as i64 + line_period_offset) as TIME;
                     if (new_photon_time < val.time() + time_delay + time_width) && (val.time() + time_delay < new_photon_time + time_width) {
                         self.add_coincident_electron(*val, *ph);
+                        if photons_per_electron == 0 {
+                            self.add_coincident_electron_to_raw(*val);
+                        }
                         if index_to_increase.is_none() {
                             index_to_increase = Some(index)
                         }
