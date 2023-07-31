@@ -117,9 +117,8 @@ pub mod coincidence {
             self.y.push(val.y().try_into().unwrap());
             self.channel.push(photon.1.try_into().unwrap());
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).fold());
-            //self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).try_into().unwrap());
             self.cluster_size.push(val.cluster_size().try_into().unwrap());
-            
+            self.reduced_raw_data.push(val.raw_packet_data());
             //This is a frequency list. Helps to preview data. Currently unsused
             //let mut count = self.frequency_list.entry(val.relative_time_from_abs_tdc(photon.0).fold()).or_insert(0);
             //*count += 1;
@@ -521,15 +520,19 @@ pub mod coincidence {
                         match packet.id() {
                             6 if packet.tdc_type() == np_tdc.id() => {
                                 temp_tdc.add_tdc(&packet, 0);
+                                coinc_data.add_packet_to_reduced_data(&packet);
                             },
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 coinc_data.add_spim_line(&packet);
+                                coinc_data.add_packet_to_reduced_data(&packet);
                             },
                             11 => {
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc);
                                 temp_edata.electron.add_electron(se);
                             },
-                            _ => {}, //println!("{}", packet.tdc_type());},
+                            _ => {
+                                coinc_data.add_packet_to_reduced_data(&packet);
+                            },
                         };
                     },
                 };
