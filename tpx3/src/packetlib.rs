@@ -16,6 +16,11 @@ pub trait Packet {
     fn data(&self) -> u64;
 
     #[inline]
+    fn create_header(&self) -> u64 {
+        packet_change( &[84, 80, 88, 51, self.ci(), 0, 0, 0])[0]
+    }
+
+    #[inline]
     fn x(&self) -> POSITION {
         (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION
     }

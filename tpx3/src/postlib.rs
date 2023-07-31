@@ -118,7 +118,10 @@ pub mod coincidence {
             self.channel.push(photon.1.try_into().unwrap());
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).fold());
             self.cluster_size.push(val.cluster_size().try_into().unwrap());
+            
+            self.reduced_raw_data.push(val.raw_packet_header());
             self.reduced_raw_data.push(val.raw_packet_data());
+            
             //This is a frequency list. Helps to preview data. Currently unsused
             //let mut count = self.frequency_list.entry(val.relative_time_from_abs_tdc(photon.0).fold()).or_insert(0);
             //*count += 1;
