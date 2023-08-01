@@ -9,9 +9,20 @@ use crate::constlib::*;
 use crate::auxiliar::value_types::*;
 use std::fs::OpenOptions;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json;
+
 //use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
 
-const CONFIG_SIZE: usize = 20;
+const CONFIG_SIZE: usize = 512;
+
+pub fn from_bytes<T>(v: &[u8]) -> &[T] {
+    unsafe {
+        std::slice::from_raw_parts(
+            v.as_ptr() as *const T,
+            v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<T>())
+    }
+}
 
 ///Configures the detector for acquisition. Each new measurement must send 20 bytes
 ///containing instructions.
@@ -77,97 +88,79 @@ impl BytesConfig {
     fn mode(&self) -> Result<u8, Tp3ErrorKind> {
         println!("Mode is: {}", self.data[3]);
         Ok(self.data[3])
-        
-        /*match self.data[3] {
-            0 => {
-                println!("Mode is Focus/Cumul.");
-                Ok(self.data[3])
-            },
-            1 => {
-                println!("Entering in time resolved mode (Focus/Cumul).");
-                Ok(self.data[3])
-            },
-            2 => {
-                println!("Entering in Spectral Image (SpimTP).");
-                Ok(self.data[3])
-            },
-            3 => {
-                println!("Entering in time resolved mode (SpimTP).");
-                Ok(self.data[3])
-            },
-            4 => {
-                println!("Entering in Spectral Image [TDC Mode] (SpimTP).");
-                Ok(self.data[3])
-            },
-            5 => {
-                println!("Entering in Spectral Image [Save Locally] (SpimTP).");
-                Ok(self.data[3])
-            },
-            6 => {
-                println!("Entering in Chrono Mode.");
-                Ok(self.data[3])
-            },
-            _ => Err(Tp3ErrorKind::SetMode),
-        }*/
     }
-
 
     ///X spim size. Must be sent with 2 bytes in big-endian mode. Byte[4..6]
     fn xspim_size(&self) -> POSITION {
-        let x = (self.data[4] as POSITION)<<8 | (self.data[5] as POSITION);
+        let x: u16 = from_bytes(&self.data[4..6])[0];
         println!("X Spim size is: {}.", x);
-        x
+        x as POSITION
     }
     
     ///Y spim size. Must be sent with 2 bytes in big-endian mode. Byte[6..8]
     fn yspim_size(&self) -> POSITION {
-        let y = (self.data[6] as POSITION)<<8 | (self.data[7] as POSITION);
+        let y: u16 = from_bytes(&self.data[6..8])[0];
         println!("Y Spim size is: {}.", y);
-        y
+        y as POSITION
     }
     
     ///X scan size. Must be sent with 2 bytes in big-endian mode. Byte[8..10]
     fn xscan_size(&self) -> POSITION {
-        let x = (self.data[8] as POSITION)<<8 | (self.data[9] as POSITION);
+        let x: u16 = from_bytes(&self.data[8..10])[0];
         println!("X Scan size is: {}.", x);
-        x
+        x as POSITION
     }
     
     ///Y scan size. Must be sent with 2 bytes in big-endian mode. Byte[10..12]
     fn yscan_size(&self) -> POSITION {
-        let y = (self.data[10] as POSITION)<<8 | (self.data[11] as POSITION);
+        let y: u16 = from_bytes(&self.data[10..12])[0];
         println!("Y Scan size is: {}.", y);
-        y
+        y as POSITION
     }
     
-    ///Pixel time. Must be sent with 2 bytes in big-endian mode. Byte[12..14]
+    ///Pixel time. Must be sent with 2 bytes in big-endian mode. Byte[12..15]
     fn pixel_time(&self) -> POSITION {
-        let pt = (self.data[12] as POSITION)<<8 | (self.data[13] as POSITION);
+        //let pt = (self.data[12] as POSITION)<<8 | (self.data[13] as POSITION);
+        let pt: u32 = from_bytes(&self.data[12..16])[0];
         println!("Pixel time is (units of 1.5625 ns): {}.", pt);
-        pt
+        pt as POSITION
     }
     
-    ///Time delay. Must be sent with 2 bytes in big-endian mode. Byte[14..15]
+    ///Time delay. Must be sent with 2 bytes in big-endian mode. Byte[16..17]
     fn time_delay(&self) -> TIME {
-        let td = (self.data[14] as TIME)<<8 | (self.data[15] as TIME);
+        let td: u16 = from_bytes(&self.data[16..18])[0];
         println!("Time delay is (units of 1.5625 ns): {}.", td);
-        td
+        td as TIME
     }
     
-    ///Time width. Must be sent with 2 bytes in big-endian mode. Byte[16..17].
+    ///Time width. Must be sent with 2 bytes in big-endian mode. Byte[18..19].
     fn time_width(&self) -> TIME {
-        let tw = (self.data[16] as TIME)<<8 | (self.data[17] as TIME);
+        let tw: u16 = from_bytes(&self.data[18..20])[0];
         println!("Time width is (units of 1.5625 ns): {}.", tw);
-        tw
+        tw as TIME
     }
 
-    ///Should we also save-locally the data. Byte[18]
+    ///Should we also save-locally the data. Byte[20]
     fn save_locally(&self) -> Result<bool, Tp3ErrorKind> {
-        let save_locally = self.data[18] == 1;
+        let save_locally = self.data[20] == 1;
         println!("Save locally is activated: {}.", save_locally);
         Ok(save_locally)
     }
-
+    
+    ///Should we also save-locally the data. Byte[21..24]
+    fn sup_val0(&self) -> f32 {
+        let sup = from_bytes(&self.data[21..25])[0];
+        println!("Supplementary value 0: {}.", sup);
+        sup
+    }
+    
+    ///Should we also save-locally the data. Byte[25..28]
+    fn sup_val1(&self) -> f32 {
+        let sup = from_bytes(&self.data[25..29])[0];
+        println!("Supplementary value 0: {}.", sup);
+        sup
+    }
+    
     ///Convenience method. Returns the ratio between scan and spim size in X.
     fn spimoverscanx(&self) -> Result<POSITION, Tp3ErrorKind> {
         let xspim = (self.data[4] as POSITION)<<8 | (self.data[5] as POSITION);
@@ -222,6 +215,8 @@ impl BytesConfig {
             spimoverscanx: self.spimoverscanx()?,
             spimoverscany: self.spimoverscany()?,
             save_locally: self.save_locally()?,
+            sup0: self.sup_val0(),
+            sup1: self.sup_val1(),
         };
         Ok(my_set)
     }
@@ -244,9 +239,8 @@ impl Read for DebugIO {
     }
 }
 
-
 ///`Settings` contains all relevant parameters for a given acquistion
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
     pub bin: bool,
     pub bytedepth: POSITION,
@@ -262,6 +256,8 @@ pub struct Settings {
     pub spimoverscanx: POSITION,
     pub spimoverscany: POSITION,
     pub save_locally: bool,
+    sup0: f32,
+    sup1: f32,
 }
 
 impl Settings {
@@ -272,6 +268,7 @@ impl Settings {
         let custom_datetime_format = now.format("%Y_%m_%y_%H_%M_%S").to_string();
         val.push_str(SAVE_LOCALLY_FILE);
         val.push_str(&custom_datetime_format);
+        /*
         val.push_str("_bin");
         val.push_str(&self.bin.to_string());
         val.push_str("_byteDepth");
@@ -297,7 +294,7 @@ impl Settings {
         val.push_str("_savelocally");
         val.push_str(&self.save_locally.to_string());
         val.push_str("_mode");
-        val.push_str(".tpx3");
+        */
         val
     }
 
@@ -305,11 +302,19 @@ impl Settings {
         match self.save_locally {
             false => {None},
             true => {
+            let mut jsonfile = 
+                OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(self.create_savefile_header() + ".json").
+                unwrap();
+            let jsondata = serde_json::to_vec(&self).expect("Could not serialize data to JSON.");
+            jsonfile.write(&jsondata).expect("Could not write to JSON data file.");
             let file =
                 OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open(self.create_savefile_header()).
+                .open(self.create_savefile_header() + ".tpx3").
                 unwrap();
             Some(BufWriter::new(file))
             }
@@ -350,7 +355,7 @@ impl Settings {
             }
         };
         let my_settings = my_config.create_settings()?;
-        println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
+        //println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
 
         //This is a special case. This mode saves locally so we do not need to ready
         //anything special. We do not write anything special as well, so we do not need
@@ -394,6 +399,8 @@ impl Settings {
             spimoverscanx: 1,
             spimoverscany: 1,
             save_locally: false,
+            sup0: 0.0,
+            sup1: 0.0,
         }
     }
     
@@ -413,6 +420,8 @@ impl Settings {
             spimoverscanx: 1,
             spimoverscany: 1,
             save_locally: false,
+            sup0: 0.0,
+            sup1: 0.0,
         }
     }
 
