@@ -54,6 +54,7 @@ pub mod coincidence {
 
     //Non-standard data types 
     pub struct ElectronData<T> {
+        last_raw_header: u64,
         reduced_raw_data: Vec<u64>,
         time: Vec<TIME>,
         channel: Vec<u8>,
@@ -87,6 +88,8 @@ pub mod coincidence {
             }
         }
 
+        //This is not for electrons, because coincidence is searched after reading all the packets.
+        //This functions adds on the fly all the tdcs and chip_indexes header.
         fn add_packet_to_reduced_data(&mut self, pack: &Pack) {
             self.reduced_raw_data.push(pack.data());
         }
@@ -109,7 +112,13 @@ pub mod coincidence {
         }
 
         fn add_coincident_electron_to_raw(&mut self, val: SingleElectron) {
-            self.reduced_raw_data.push(val.raw_packet_header());
+            let new_header = val.raw_packet_header();
+            //This raw_packet_header() method depends only on the chip_index so we can simply check
+            //if it changed or not.
+            if new_header != self.last_raw_header {
+                self.reduced_raw_data.push(new_header);
+                self.last_raw_header = new_header;
+            }
             self.reduced_raw_data.push(val.raw_packet_data());
         }
 
@@ -221,6 +230,7 @@ pub mod coincidence {
 
         pub fn new(my_config: ConfigAcquisition<T>) -> Self {
             Self {
+                last_raw_header: 0,
                 reduced_raw_data: Vec::new(),
                 time: Vec::new(),
                 channel: Vec::new(),
