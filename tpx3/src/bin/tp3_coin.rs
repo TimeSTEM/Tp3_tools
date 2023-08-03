@@ -38,20 +38,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let dir = path.to_str().unwrap();
         let path_length = dir.len();
         if &dir[path_length - 4 ..path_length] == "tpx3" {
-            println!("***Coincidence***: Looping over file {:?}", dir);
-            let settings = Settings::get_settings_from_json(dir[0..path_length - 4].to_owned() + ".json");
+            //println!("***Coincidence***: Looping over file {:?}", dir);
+            if let Ok(settings) = Settings::get_settings_from_json(dir[0..path_length - 5].to_owned() + ".json") {
+                let config_set = ConfigAcquisition{file: dir.to_owned(), is_spim: settings.mode != 0, xspim: settings.xscan_size, yspim: settings.yscan_size, correction_type: cluster::grab_cluster_correction("0")};
+                let mut coinc_data = ElectronData::new(config_set);
+                if let Err(_) = search_coincidence(&mut coinc_data) {
+                    println!("***Coincidence***: Skipping file {}. Possibly already done it.", dir);
+                }
+            } else {
+                println!("***Coincidence***: Skipping file {}. No JSON file is present.", dir);
+            }
+
             
             /*
             args_copy[1] = dir.to_string();
             */
 
-            let config_set = ConfigAcquisition{file: dir.to_owned(), is_spim: settings.mode != 0, xspim: settings.xscan_size, yspim: settings.yscan_size, correction_type: cluster::grab_cluster_correction("0")};
             //let cluster_correction_type = cluster::grab_cluster_correction(&args[5]);
             //let config_set = ConfigAcquisition::new(&args_copy, cluster_correction_type);
-            let mut coinc_data = ElectronData::new(config_set);
-            if let Err(_) = search_coincidence(&mut coinc_data) {
-                println!("***Coincidence***: Skipping file {}. Possibly already done it.", dir);
-            }
         }
     });
 

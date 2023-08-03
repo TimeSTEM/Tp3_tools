@@ -18,6 +18,9 @@ pub enum Tp3ErrorKind {
 
     MiscModeNotImplemented(u8),
 
+    IOGeneralError,
+    SerdeGeneralError,
+
     CoincidenceFolderAlreadyCreated,
     CoincidenceCantReadFile,
 
@@ -34,3 +37,16 @@ pub enum Tp3ErrorKind {
 
     FrameBasedModeHasNoTdc,
 }
+
+impl From<std::io::Error> for Tp3ErrorKind {
+    fn from(_: std::io::Error) -> Tp3ErrorKind {
+        Tp3ErrorKind::IOGeneralError
+    }
+}
+
+impl From<serde_json::Error> for Tp3ErrorKind {
+    fn from(_: serde_json::Error) -> Tp3ErrorKind {
+        Tp3ErrorKind::SerdeGeneralError
+    }
+}
+
