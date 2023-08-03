@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         🔧 Cluster correction is deactivated. Please request if you wish to do s;
         🕯️ The other fields of the json are currently not considered, but they give you the parameters you have used during data
         acquisition. sup0 & sup1, for example, are the EELS dispersion and offset, respectively;
-        💡 The time delay and time width are defined at compile-time, so you should change them at constlib.rs instea;
+        💡 The time delay and time width are defined at compile-time, so you should change them at constlib.rs insted;
 
     "
     );
