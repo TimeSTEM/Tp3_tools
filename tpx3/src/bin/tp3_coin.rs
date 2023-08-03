@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             args_copy[1] = dir.to_string();
             */
 
-            let config_set = ConfigAcquisition{file: dir.to_owned(), is_spim: true, xspim: settings.xscan_size, yspim: settings.yscan_size, correction_type: cluster::grab_cluster_correction("0")};
+            let config_set = ConfigAcquisition{file: dir.to_owned(), is_spim: settings.mode != 0, xspim: settings.xscan_size, yspim: settings.yscan_size, correction_type: cluster::grab_cluster_correction("0")};
             //let cluster_correction_type = cluster::grab_cluster_correction(&args[5]);
             //let config_set = ConfigAcquisition::new(&args_copy, cluster_correction_type);
             let mut coinc_data = ElectronData::new(config_set);
