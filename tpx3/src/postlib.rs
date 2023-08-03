@@ -65,8 +65,8 @@ pub mod coincidence {
         y: Vec<u16>,
         tot: Vec<u16>,
         cluster_size: Vec<u16>,
-        spectrum: Vec<usize>,
-        corr_spectrum: Vec<usize>,
+        spectrum: Vec<u32>,
+        corr_spectrum: Vec<u32>,
         spim_frame: Vec<u32>,
         frequency_list: HashMap<i16, u32>,
         is_spim: bool,
@@ -166,7 +166,7 @@ pub mod coincidence {
             temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, &self.remove_clusters);
 
-            self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
+            self.spectrum[SPIM_PIXELS as usize-1]=nphotons as u32; //Adding photons to the last pixel
 
             let line_period_offset = match self.spim_tdc {
                 Some(spim_tdc) => line_offset * spim_tdc.period().unwrap() as i64,
@@ -265,8 +265,8 @@ pub mod coincidence {
 
         pub fn output_data(&self) {
             self.output_reduced_raw();
-            self.output_spectrum(true);
-            self.output_corr_spectrum(false);
+            self.output_spectrum();
+            self.output_corr_spectrum();
             self.output_relative_time();
             self.output_time();
             self.output_g2_time();
@@ -277,7 +277,8 @@ pub mod coincidence {
             self.output_tot();
         }
         
-        pub fn output_corr_spectrum(&self, bin: bool) {
+        pub fn output_corr_spectrum(&self) {
+            /*
             let out: String = match bin {
                 true => {
                     let mut spec: Vec<usize> = vec![0; SPIM_PIXELS as usize];
@@ -291,9 +292,12 @@ pub mod coincidence {
                 },
             };
             fs::write("cspec.txt", out).unwrap();
+            */
+            output_data(&self.corr_spectrum, self.file.clone(), "cspec.txt");
         }
         
-        pub fn output_spectrum(&self, bin: bool) {
+        pub fn output_spectrum(&self) {
+            /*
             let out: String = match bin {
                 true => {
                     let mut spec: Vec<usize> = vec![0; SPIM_PIXELS as usize];
@@ -307,6 +311,8 @@ pub mod coincidence {
                 },
             };
             fs::write("spec.txt", out).unwrap();
+            */
+            output_data(&self.spectrum, self.file.clone(), "spec.txt");
             output_data(&self.spim_frame, self.file.clone(), "spim_frame.txt");
         }
 

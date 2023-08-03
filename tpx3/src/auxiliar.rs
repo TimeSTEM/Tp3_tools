@@ -298,6 +298,15 @@ impl Settings {
         val
     }
 
+    pub fn get_settings_from_json(file: String) -> Self {
+        println!("{}", file);
+        let mut json_file = File::open(file.to_owned() + ".json").expect("Could not open json_file.");
+        let mut json_buffer: Vec<u8> = Vec::new();
+        json_file.read_to_end(&mut json_buffer).expect("Could not read the json file.");
+        let my_settings: Settings = serde_json::from_slice(&json_buffer).expect("Could not get the json from file.");
+        my_settings
+    }
+
     pub fn create_file(&self) -> Option<BufWriter<File>> {
         match self.save_locally {
             false => {None},
