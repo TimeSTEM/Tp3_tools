@@ -31,7 +31,7 @@ pub mod coincidence {
         let complete_filename = filename[..len-5].to_string() + "\\" + name;
         let mut tfile = OpenOptions::new()
             .write(true)
-            .truncate(true)
+            .append(true)
             .create(true)
             .open(complete_filename).unwrap();
         tfile.write_all(as_bytes(data)).unwrap();
@@ -262,11 +262,9 @@ pub mod coincidence {
                 Err(_) => { Err(Tp3ErrorKind::CoincidenceFolderAlreadyCreated) }
             }
         }
-
-        pub fn output_data(&self) {
+        
+        fn early_output_data(&mut self) {
             self.output_reduced_raw();
-            self.output_spectrum();
-            self.output_corr_spectrum();
             self.output_relative_time();
             self.output_time();
             self.output_g2_time();
@@ -276,60 +274,43 @@ pub mod coincidence {
             self.output_spim_index();
             self.output_tot();
         }
+
+        fn output_data(&self) {
+            self.output_reduced_raw();
+            self.output_spectrum();
+            self.output_hyperspec();
+            self.output_corr_spectrum();
+        }
         
         pub fn output_corr_spectrum(&self) {
-            /*
-            let out: String = match bin {
-                true => {
-                    let mut spec: Vec<usize> = vec![0; SPIM_PIXELS as usize];
-                    for val in self.corr_spectrum.chunks_exact(SPIM_PIXELS as usize) {
-                        spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
-                    }
-                    spec.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
-                },
-                false => {
-                    self.corr_spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
-                },
-            };
-            fs::write("cspec.txt", out).unwrap();
-            */
             output_data(&self.corr_spectrum, self.file.clone(), "cspec.txt");
         }
         
-        pub fn output_spectrum(&self) {
-            /*
-            let out: String = match bin {
-                true => {
-                    let mut spec: Vec<usize> = vec![0; SPIM_PIXELS as usize];
-                    for val in self.spectrum.chunks_exact(SPIM_PIXELS as usize) {
-                        spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
-                    }
-                    spec.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
-                },
-                false => {
-                    self.spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
-                },
-            };
-            fs::write("spec.txt", out).unwrap();
-            */
+        fn output_spectrum(&self) {
             output_data(&self.spectrum, self.file.clone(), "spec.txt");
+        }
+
+        fn output_hyperspec(&self) {
             output_data(&self.spim_frame, self.file.clone(), "spim_frame.txt");
         }
 
-        pub fn output_relative_time(&self) {
+        fn output_relative_time(&mut self) {
             output_data(&self.rel_time, self.file.clone(), "tH.txt");
             output_data(&self.double_photon_rel_time, self.file.clone(), "double_tH.txt");
+            self.rel_time.clear();
+            self.double_photon_rel_time.clear();
         }
         
         pub fn output_reduced_raw(&self) {
             output_data(&self.reduced_raw_data, self.file.clone(), "reduced_raw.tpx3");
         }
         
-        pub fn output_time(&self) {
+        fn output_time(&mut self) {
             output_data(&self.time, self.file.clone(), "tabsH.txt");
+            self.time.clear();
         }
         
-        pub fn output_g2_time(&self) {
+        pub fn output_g2_time(&mut self) {
             let vec = self.g2_time.iter().map(|x| {
                 match x {
                     None => -5_000,
@@ -337,39 +318,37 @@ pub mod coincidence {
                 }
             }).collect::<Vec<i16>>();
             output_data(&vec, self.file.clone(), "g2tH.txt");
+            self.g2_time.clear();
         }
         
-        pub fn output_channel(&self) {
+        pub fn output_channel(&mut self) {
             output_data(&self.channel, self.file.clone(), "channel.txt");
+            self.channel.clear();
         }
         
-        pub fn output_dispersive(&self) {
+        pub fn output_dispersive(&mut self) {
             output_data(&self.x, self.file.clone(), "xH.txt");
+            self.x.clear();
         }
         
-        pub fn output_non_dispersive(&self) {
+        pub fn output_non_dispersive(&mut self) {
             output_data(&self.y, self.file.clone(), "yH.txt");
+            self.y.clear();
         }
         
-        pub fn output_spim_index(&self) {
+        pub fn output_spim_index(&mut self) {
             output_data(&self.spim_index, self.file.clone(), "si.txt");
-            /*
-            println!("Outputting each spim index value under si name. Vector len is {}", self.spim_index.len());
-            let out: String = self.spim_index.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-            fs::write("si.txt", out).unwrap();
-            */
+            self.spim_index.clear();
         }
 
-        pub fn output_cluster_size(&self) {
+        pub fn output_cluster_size(&mut self) {
             output_data(&self.cluster_size, self.file.clone(), "cs.txt");
-            /*
-            let out: String = self.cluster_size.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-            fs::write("cs.txt", out).unwrap();
-            */
+            self.cluster_size.clear();
         }
 
-        pub fn output_tot(&self) {
+        pub fn output_tot(&mut self) {
             output_data(&self.tot, self.file.clone(), "tot.txt");
+            self.tot.clear();
         }
             
     }
@@ -595,7 +574,7 @@ pub mod coincidence {
                 };
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, TP3_TIME_DELAY, TP3_TIME_WIDTH, 0);
-
+        coinc_data.early_output_data();
         }
         println!("Total number of bytes read {}", total_size);
         coinc_data.output_data();
