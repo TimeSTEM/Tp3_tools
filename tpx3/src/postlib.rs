@@ -277,7 +277,6 @@ pub mod coincidence {
         }
 
         fn output_data(&self) {
-            self.output_reduced_raw();
             self.output_spectrum();
             self.output_hyperspec();
             self.output_corr_spectrum();
@@ -302,8 +301,9 @@ pub mod coincidence {
             self.double_photon_rel_time.clear();
         }
         
-        fn output_reduced_raw(&self) {
+        fn output_reduced_raw(&mut self) {
             output_data(&self.reduced_raw_data, self.file.clone(), "reduced_raw.tpx3");
+            self.reduced_raw_data.clear();
         }
         
         fn output_time(&mut self) {
