@@ -298,7 +298,7 @@ impl Settings {
         val
     }
 
-    pub fn get_settings_from_json(file: String) -> Result<Self, Tp3ErrorKind> {
+    pub fn get_settings_from_json(file: &str) -> Result<Self, Tp3ErrorKind> {
 
         let mut json_file = File::open(file.to_owned() + ".json")?;
         let mut json_buffer: Vec<u8> = Vec::new();

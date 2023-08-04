@@ -28,7 +28,7 @@ pub mod coincidence {
 
     fn output_data<T>(data: &[T], filename: String, name: &str) {
         let len = filename.len();
-        let complete_filename = filename[..len-5].to_string() + "\\" + name;
+        let complete_filename = filename[..len-5].to_string() + "/" + name;
         let mut tfile = OpenOptions::new()
             .write(true)
             .append(true)
