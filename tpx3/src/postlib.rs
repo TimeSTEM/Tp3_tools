@@ -35,7 +35,7 @@ pub mod coincidence {
             .create(true)
             .open(complete_filename).unwrap();
         tfile.write_all(as_bytes(data)).unwrap();
-        println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
+        //println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
     }
 
 
@@ -273,6 +273,7 @@ pub mod coincidence {
             self.output_non_dispersive();
             self.output_spim_index();
             self.output_tot();
+            self.output_cluster_size();
         }
 
         fn output_data(&self) {
@@ -282,7 +283,7 @@ pub mod coincidence {
             self.output_corr_spectrum();
         }
         
-        pub fn output_corr_spectrum(&self) {
+        fn output_corr_spectrum(&self) {
             output_data(&self.corr_spectrum, self.file.clone(), "cspec.txt");
         }
         
@@ -301,7 +302,7 @@ pub mod coincidence {
             self.double_photon_rel_time.clear();
         }
         
-        pub fn output_reduced_raw(&self) {
+        fn output_reduced_raw(&self) {
             output_data(&self.reduced_raw_data, self.file.clone(), "reduced_raw.tpx3");
         }
         
@@ -310,7 +311,7 @@ pub mod coincidence {
             self.time.clear();
         }
         
-        pub fn output_g2_time(&mut self) {
+        fn output_g2_time(&mut self) {
             let vec = self.g2_time.iter().map(|x| {
                 match x {
                     None => -5_000,
@@ -321,32 +322,32 @@ pub mod coincidence {
             self.g2_time.clear();
         }
         
-        pub fn output_channel(&mut self) {
+        fn output_channel(&mut self) {
             output_data(&self.channel, self.file.clone(), "channel.txt");
             self.channel.clear();
         }
         
-        pub fn output_dispersive(&mut self) {
+        fn output_dispersive(&mut self) {
             output_data(&self.x, self.file.clone(), "xH.txt");
             self.x.clear();
         }
         
-        pub fn output_non_dispersive(&mut self) {
+        fn output_non_dispersive(&mut self) {
             output_data(&self.y, self.file.clone(), "yH.txt");
             self.y.clear();
         }
         
-        pub fn output_spim_index(&mut self) {
+        fn output_spim_index(&mut self) {
             output_data(&self.spim_index, self.file.clone(), "si.txt");
             self.spim_index.clear();
         }
 
-        pub fn output_cluster_size(&mut self) {
+        fn output_cluster_size(&mut self) {
             output_data(&self.cluster_size, self.file.clone(), "cs.txt");
             self.cluster_size.clear();
         }
 
-        pub fn output_tot(&mut self) {
+        fn output_tot(&mut self) {
             output_data(&self.tot, self.file.clone(), "tot.txt");
             self.tot.clear();
         }
@@ -503,6 +504,10 @@ pub mod coincidence {
 
     pub fn search_coincidence<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<(), Tp3ErrorKind> {
 
+        //If folder exists, the procedure does not continue.
+        coinc_data.try_create_folder()?;
+        
+        //Opening the raw data file.
         let mut file0 = match fs::File::open(&coinc_data.file) {
             Ok(val) => val,
             Err(_) => return Err(Tp3ErrorKind::CoincidenceCantReadFile),
@@ -521,8 +526,6 @@ pub mod coincidence {
         };
         let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0, None).expect("Could not create non periodic (photon) TDC reference.");
 
-        //If folder exists, the procedure does not continue.
-        coinc_data.try_create_folder()?;
  
         let mut ci = 0;
         let mut file = match fs::File::open(&coinc_data.file) {
