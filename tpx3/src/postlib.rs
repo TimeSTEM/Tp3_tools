@@ -166,7 +166,7 @@ pub mod coincidence {
             temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, &self.remove_clusters);
 
-            self.spectrum[SPIM_PIXELS as usize-1]=nphotons as u32; //Adding photons to the last pixel
+            self.spectrum[SPIM_PIXELS as usize-1]+=nphotons as u32; //Adding photons to the last pixel
 
             let line_period_offset = match self.spim_tdc {
                 Some(spim_tdc) => line_offset * spim_tdc.period().unwrap() as i64,
