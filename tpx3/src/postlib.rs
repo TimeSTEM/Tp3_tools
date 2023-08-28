@@ -599,8 +599,6 @@ pub mod coincidence {
                 };
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, TP3_TIME_DELAY, TP3_TIME_WIDTH, 0);
-        coinc_data.early_output_data();
-        
         //Now we must add the concerned data to the reduced raw. We should first sort the indexes
         //that we have saved
         coinc_data.index_to_add_in_raw.sort();
@@ -617,7 +615,8 @@ pub mod coincidence {
             });
         //Finally we should clear the index vector so in the next interaction everything is fresh
         coinc_data.index_to_add_in_raw.clear();
-        //Ready to next chunk of data!
+        //Ready to output early data!
+        coinc_data.early_output_data();
         }
         println!("Total number of bytes read {}", total_size);
         coinc_data.output_data();
