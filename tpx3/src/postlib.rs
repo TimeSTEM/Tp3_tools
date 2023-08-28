@@ -97,13 +97,18 @@ pub mod coincidence {
             self.index_to_add_in_raw.push(index);
         }
         
-        /*
-        //This is used to effectively add the data to the reduced data vector. This is called after
-        //having the good indexes, collected with add_packet_to_raw_index
-        fn add_packet_to_reduced_data(&mut self, data: u64) {
-            self.reduced_raw_data.push(data);
+        //This adds the packet to the reduced raw value and clear the index list afterwards
+        fn add_packets_to_reduced_data(&mut self, buffer: &[u8]) {
+            //Now we must add the concerned data to the reduced raw. We should first sort the indexes
+            //that we have saved
+            self.index_to_add_in_raw.sort();
+            //Then we should iterate and see matching indexes to add.
+            for index in self.index_to_add_in_raw.iter() {
+                let value = packet_change(&buffer[index * 8..(index + 1) * 8])[0];
+                self.reduced_raw_data.push(value);
+            }
+            self.index_to_add_in_raw.clear();
         }
-        */
 
         fn add_spim_line(&mut self, pack: &Pack) {
             if let Some(spim_tdc) = &mut self.spim_tdc {
@@ -599,40 +604,7 @@ pub mod coincidence {
                 };
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, TP3_TIME_DELAY, TP3_TIME_WIDTH, 0);
-        //Now we must add the concerned data to the reduced raw. We should first sort the indexes
-        //that we have saved
-        coinc_data.index_to_add_in_raw.sort();
-        //Borrowing only the reduced raw vector and not the entire structure
-        let raw_vector = &mut coinc_data.reduced_raw_data;
-        //Then we should iterate and see matching indexes to add.
-        for index in coinc_data.index_to_add_in_raw.iter() {
-            let value = packet_change(&buffer[index * 8..(index + 1) * 8])[0];
-            raw_vector.push(value);
-        }
-
-        /*
-        buffer[0..size]
-            .chunks_exact(8)
-            .enumerate()
-            .filter(|(index, _pack_oct)| index_vector.contains(index))
-            .for_each(|(_index, pack_oct)| {
-                raw_vector.push(packet_change(pack_oct)[0]);
-            });
-        */
-        
-        /*
-        buffer[0..size]
-            .chunks_exact(8)
-            .enumerate()
-            .zip(coinc_data.index_to_add_in_raw.iter())
-            .filter(|( (raw_index, _pack_oct), coinc_index)| raw_index == *coinc_index)
-            .for_each(|( (_raw_index, pack_oct), _coinc_index)| {
-                raw_vector.push(packet_change(pack_oct)[0]);
-            });
-        */
-        //Finally we should clear the index vector so in the next interaction everything is fresh
-        coinc_data.index_to_add_in_raw.clear();
-        //Ready to output early data!
+        coinc_data.add_packets_to_reduced_data(&buffer);
         coinc_data.early_output_data();
         }
         println!("Total number of bytes read {}", total_size);
