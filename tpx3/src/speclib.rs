@@ -93,6 +93,7 @@ pub struct ShutterControl {
     counter: COUNTER,
     hyperspectral: bool,
     hyperspectral_complete: bool,
+    hyperspec_pixels_to_send: (u32, u32), //Start and end pixel that will be sent
     shutter_closed_status: [bool; 4],
 }
 
@@ -126,6 +127,20 @@ impl ShutterControl {
     fn is_hyperspectral_complete(&self) -> bool {
         self.hyperspectral_complete
     }
+    fn set_pixel_to_send(&mut self, start_pixel: u32, end_pixel: u32) {
+        self.hyperspec_pixels_to_send = (start_pixel, end_pixel);
+    }
+    fn get_start_pixel(&self) -> u32 {
+        self.hyperspec_pixels_to_send.0
+    }
+    fn get_index_range_to_send(&self) -> std::ops::Range<usize> {
+        let (start_pixel, end_pixel) = self.hyperspec_pixels_to_send;
+        (start_pixel * CAM_DESIGN.0) as usize..(end_pixel * CAM_DESIGN.0) as usize
+    }
+    fn get_pixel_to_send_size(&self) -> u32 {
+        let (start_pixel, end_pixel) = self.hyperspec_pixels_to_send;
+        end_pixel - start_pixel
+    }
     fn get_counter(&self) -> COUNTER {
         self.counter
     }
@@ -139,6 +154,7 @@ impl Default for ShutterControl {
             counter: 0,
             hyperspectral: false,
             hyperspectral_complete: false,
+            hyperspec_pixels_to_send: (0, 0),
             shutter_closed_status: [false; 4],
         }
     }
@@ -588,6 +604,8 @@ macro_rules! Live2DFrameImplementation {
 
             #[inline]
             fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+                //You only add electrons to the pair frame number. You are going to send this one
+                //when the next one is over, so you are sure the pair one is complete.
                 
                 let index = pack.x() + CAM_DESIGN.0 * pack.y();
                 if settings.cumul || self.shutter.as_ref().unwrap().counter % 2 == 0 {
@@ -699,7 +717,9 @@ macro_rules! Live1DFrameHyperspecImplementation {
                 self.is_ready
             }
             fn build_output(&self) -> &[u8] {
-                as_bytes(&self.data)
+                //The number of pixels sent is updated on the reset or else function
+                let range = self.shutter.as_ref().expect("This mode must have the Shutter Control").get_index_range_to_send();
+                as_bytes(&self.data[range])
             }
             fn new(settings: &Settings) -> Self {
                 let len = (CAM_DESIGN.0 * settings.xscan_size * settings.yscan_size) as usize;
@@ -728,6 +748,16 @@ macro_rules! Live1DFrameHyperspecImplementation {
                     if shutter_counter >= settings.xscan_size * settings.yscan_size {
                         self.shutter.as_mut().unwrap().set_hyperspectral_as_complete();
                     }
+                    let pixels_sent = self.shutter.as_ref().expect("Shutter must be present in Frame-based mode.").hyperspec_pixels_to_send.1;
+                    if shutter_counter > pixels_sent + HYPERSPECTRAL_PIXEL_CHUNK {
+                        self.is_ready = true;
+                        let begin_pixel = pixels_sent;
+                        let end_pixel = std::cmp::min((pixels_sent + HYPERSPECTRAL_PIXEL_CHUNK), settings.xscan_size * settings.yscan_size);
+                        self.shutter.as_mut().unwrap().set_pixel_to_send(begin_pixel, end_pixel);
+                        println!("***FB Hyperspec***: Sending_data with counter {}. Begin and end pixels are {} and {}", shutter_counter, begin_pixel, end_pixel);
+
+                    }
+                    /*
                     if !self.is_ready {
                         if self.timer.elapsed().as_millis() < TIME_INTERVAL_HYPERSPECTRAL_FRAME {
                             self.is_ready = false;
@@ -736,6 +766,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
                             self.is_ready = true;
                         }
                     }
+                    */
                 }
                 else if pack.id() == 6 {
                     frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -744,9 +775,6 @@ macro_rules! Live1DFrameHyperspecImplementation {
             fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) {
                 self.is_ready = false;
                 self.timer = Instant::now();
-                //if !settings.cumul {
-                //    self.data.iter_mut().for_each(|x| *x = 0);
-                //}
             }
             fn shutter_control(&self) -> Option<&ShutterControl> {
                 self.shutter.as_ref()
@@ -925,7 +953,7 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T, extra_pixels: POSITION,
     msg.push_str(&(tdc.time().to_string()));
     msg.push_str(",\"frameNumber\":");
     if let Some(shutter) = shutter_control {
-        msg.push_str(&((shutter.counter).to_string()));
+        msg.push_str(&((shutter.get_start_pixel()).to_string()));
     } else {
         msg.push_str(&((tdc.counter()/2).to_string()));
     }
@@ -934,8 +962,9 @@ fn create_header<T: TdcControl>(set: &Settings, tdc: &T, extra_pixels: POSITION,
         msg.push_str(&((set.xspim_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
     } else if set.mode == 7 { //Coincidence2D
         msg.push_str(&((set.time_width as POSITION*2*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
-    } else if set.mode == 11 {
-        msg.push_str(&((set.xscan_size*set.yscan_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
+    } else if set.mode == 11 { //Frame-based hyperspectral image
+        let data_size = shutter_control.unwrap().get_pixel_to_send_size();
+        msg.push_str(&((data_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
     } else {
         match set.bin {
             true => { msg.push_str(&((set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()))},
