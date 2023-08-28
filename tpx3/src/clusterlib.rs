@@ -205,10 +205,11 @@ pub mod cluster {
         }
     }
 
-    ///ToA, X, Y, Spim dT, Spim Slice, ToT, Cluster Size, Copied raw header, Copied raw packet
+    ///ToA, X, Y, Spim dT, Spim Slice, ToT, Cluster Size, Copied raw header, Copied raw packet, raw
+    ///packet index
     #[derive(Copy, Clone, Debug)]
     pub struct SingleElectron {
-        data: (TIME, POSITION, POSITION, TIME, COUNTER, u16, COUNTER, u64, u64),
+        data: (TIME, POSITION, POSITION, TIME, COUNTER, u16, COUNTER, u64, u64, usize),
     }
 
     impl ToString for SingleElectron {
@@ -234,17 +235,17 @@ pub mod cluster {
     }
 
     impl SingleElectron {
-        pub fn new<T: Packet + ?Sized>(pack: &T, begin_frame: Option<PeriodicTdcRef>) -> Self {
+        pub fn new<T: Packet + ?Sized>(pack: &T, begin_frame: Option<PeriodicTdcRef>, raw_index: usize) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
                     let ele_time = spimlib::correct_or_not_etime(pack.electron_time(), &spim_tdc);
                     SingleElectron {
-                        data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.begin_frame-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1, pack.create_header(), pack.data()),
+                        data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.begin_frame-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1, pack.create_header(), pack.data(), raw_index)
                     }
                 },
                 None => {
                     SingleElectron {
-                        data: (pack.electron_time(), pack.x(), pack.y(), 0, 0, pack.tot(), 1, pack.create_header(), pack.data()),
+                        data: (pack.electron_time(), pack.x(), pack.y(), 0, 0, pack.tot(), 1, pack.create_header(), pack.data(), raw_index),
                     }
                 },
             }
@@ -302,6 +303,10 @@ pub mod cluster {
 
         pub fn raw_packet_data(&self) -> u64 {
             self.data.8
+        }
+
+        pub fn raw_packet_index(&self) -> usize {
+            self.data.9
         }
 
         fn is_new_cluster(&self, s: &SingleElectron) -> bool {
@@ -414,9 +419,14 @@ pub mod cluster {
                 next().
                 unwrap();
             
+            let raw_index = cluster.iter().
+                map(|se| se.raw_packet_index()).
+                next().
+                unwrap();
+            
             let mut val = CollectionElectron::new();
             val.add_electron(SingleElectron {
-                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size, header_data, raw_data),
+                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size, header_data, raw_data, raw_index),
             });
             Some(val)
         }
@@ -434,7 +444,7 @@ pub mod cluster {
 
             let mut val = CollectionElectron::new();
             val.add_electron(SingleElectron {
-                data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data()),
+                data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data(), electron.raw_packet_index()),
             });
             Some(val)
         }
@@ -453,7 +463,7 @@ pub mod cluster {
 
             let mut val = CollectionElectron::new();
             val.add_electron(SingleElectron {
-                data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data()),
+                data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data(), electron.raw_packet_index()),
             });
             Some(val)
         }
@@ -477,7 +487,7 @@ pub mod cluster {
 
             let mut val = CollectionElectron::new();
             val.add_electron(SingleElectron {
-                data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data()),
+                data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data(), electron.raw_packet_index()),
             });
             Some(val)
         }
@@ -537,10 +547,15 @@ pub mod cluster {
                 map(|se| se.raw_packet_data()).
                 next().
                 unwrap();
+            
+            let raw_packet_index: usize = cluster.iter().
+                map(|se| se.raw_packet_index()).
+                next().
+                unwrap();
 
             let mut val = CollectionElectron::new();
             val.add_electron(SingleElectron{
-                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size, raw_packet_header, raw_packet_data),
+                data: (t_mean, x_mean, y_mean, time_dif, slice, tot_sum, cluster_size, raw_packet_header, raw_packet_data, raw_packet_index),
             });
             Some(val)
         }
@@ -580,7 +595,7 @@ pub mod cluster {
                 let time_diference = electron.time() as i64 - time_reference as i64;
                 if time_diference.abs() > 100 {continue;} //must not output far-away data from tot==reference value
                 val.add_electron(SingleElectron{
-                    data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot_to_energy(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data()),
+                    data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot_to_energy(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data(), electron.raw_packet_index()),
                 });
             }
             Some(val)
@@ -604,7 +619,7 @@ pub mod cluster {
             for electron in cluster {
                 //let time_diference = electron.time() as i64 - time_reference as i64;
                 val.add_electron(SingleElectron{
-                    data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data()),
+                    data: (electron.time(), electron.x(), electron.y(), time_reference, electron.spim_slice(), electron.tot(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data(), electron.raw_packet_index()),
                 });
             }
             Some(val)
@@ -616,7 +631,7 @@ pub mod cluster {
             let mut val = CollectionElectron::new();
             for electron in cluster {
                 val.add_electron(SingleElectron{
-                    data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), 1, electron.raw_packet_header(), electron.raw_packet_data()),
+                    data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), 1, electron.raw_packet_header(), electron.raw_packet_data(), electron.raw_packet_index()),
             });
             }
             Some(val)
@@ -629,7 +644,7 @@ pub mod cluster {
             let mut val = CollectionElectron::new();
             for electron in cluster {
                 val.add_electron(SingleElectron{
-                    data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data()),
+                    data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data(), electron.raw_packet_index()),
             });
             }
             Some(val)
@@ -642,7 +657,7 @@ pub mod cluster {
             let mut val = CollectionElectron::new();
             for electron in cluster {
                 val.add_electron(SingleElectron {
-                    data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data()),
+                    data: (electron.time(), electron.x(), electron.y(), electron.frame_dt(), electron.spim_slice(), electron.tot(), cluster_size, electron.raw_packet_header(), electron.raw_packet_data(), electron.raw_packet_index()),
                 });
             }
             Some(val)

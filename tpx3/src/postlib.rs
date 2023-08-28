@@ -56,6 +56,7 @@ pub mod coincidence {
     pub struct ElectronData<T> {
         last_raw_header: u64,
         reduced_raw_data: Vec<u64>,
+        index_to_add_in_raw: Vec<usize>,
         time: Vec<TIME>,
         channel: Vec<u8>,
         rel_time: Vec<i16>,
@@ -88,11 +89,21 @@ pub mod coincidence {
             }
         }
 
-        //This is not for electrons, because coincidence is searched after reading all the packets.
-        //This functions adds on the fly all the tdcs and chip_indexes header.
-        fn add_packet_to_reduced_data(&mut self, pack: &Pack) {
-            self.reduced_raw_data.push(pack.data());
+        //This adds the index of the 64-bit packet that will be afterwards added to the reduced
+        //raw. We should not do on the fly as the order of the packets will not be preserved for
+        //photons and electrons, for example. So we should run once and then run again for the
+        //recorded indexes.
+        fn add_packet_to_raw_index(&mut self, index: usize) {
+            self.index_to_add_in_raw.push(index);
         }
+        
+        /*
+        //This is used to effectively add the data to the reduced data vector. This is called after
+        //having the good indexes, collected with add_packet_to_raw_index
+        fn add_packet_to_reduced_data(&mut self, data: u64) {
+            self.reduced_raw_data.push(data);
+        }
+        */
 
         fn add_spim_line(&mut self, pack: &Pack) {
             if let Some(spim_tdc) = &mut self.spim_tdc {
@@ -111,6 +122,7 @@ pub mod coincidence {
             None
         }
 
+        /*
         fn add_coincident_electron_to_raw(&mut self, val: SingleElectron) {
             let new_header = val.raw_packet_header();
             //This raw_packet_header() method depends only on the chip_index so we can simply check
@@ -121,6 +133,7 @@ pub mod coincidence {
             }
             self.reduced_raw_data.push(val.raw_packet_data());
         }
+        */
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon: (TIME, COUNTER, Option<i16>)) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
@@ -183,8 +196,9 @@ pub mod coincidence {
                     let new_photon_time = ((ph.0 / 6) as i64 + line_period_offset) as TIME;
                     if (new_photon_time < val.time() + time_delay + time_width) && (val.time() + time_delay < new_photon_time + time_width) {
                         self.add_coincident_electron(*val, *ph);
-                        if photons_per_electron == 0 {
-                            self.add_coincident_electron_to_raw(*val);
+                        if photons_per_electron == 0 { //The electrons is only added once. There could be multiple photons for the same electron
+                            //self.add_coincident_electron_to_raw(*val);
+                            self.add_packet_to_raw_index((*val).raw_packet_index());
                         }
                         if index_to_increase.is_none() {
                             index_to_increase = Some(index)
@@ -232,6 +246,7 @@ pub mod coincidence {
             Self {
                 last_raw_header: 0,
                 reduced_raw_data: Vec::new(),
+                index_to_add_in_raw: Vec::new(),
                 time: Vec::new(),
                 channel: Vec::new(),
                 rel_time: Vec::new(),
@@ -451,6 +466,9 @@ pub mod coincidence {
                 min_index: 0,
             }
         }
+        fn add_electron(&mut self, se: SingleElectron) {
+            self.electron.add_electron(se);
+        }
     }
 
 
@@ -548,29 +566,33 @@ pub mod coincidence {
             bar.inc(TP3_BUFFER_SIZE as u64);
             let mut temp_edata = TempElectronData::new();
             let mut temp_tdc = TempTdcData::new();
-            buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+            buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
                 let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {
                         ci=nci;
-                        coinc_data.add_packet_to_reduced_data(&packet);
+                        coinc_data.add_packet_to_raw_index(current_raw_index);
+                        //coinc_data.add_packet_to_reduced_data(&packet);
                     },
                     _ => {
                         match packet.id() {
                             6 if packet.tdc_type() == np_tdc.id() => {
                                 temp_tdc.add_tdc(&packet, 0);
-                                coinc_data.add_packet_to_reduced_data(&packet);
+                                coinc_data.add_packet_to_raw_index(current_raw_index);
+                                //coinc_data.add_packet_to_reduced_data(&packet);
                             },
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 coinc_data.add_spim_line(&packet);
-                                coinc_data.add_packet_to_reduced_data(&packet);
+                                coinc_data.add_packet_to_raw_index(current_raw_index);
+                                //coinc_data.add_packet_to_reduced_data(&packet);
                             },
                             11 => {
-                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc);
-                                temp_edata.electron.add_electron(se);
+                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
+                                temp_edata.add_electron(se);
                             },
                             _ => {
-                                coinc_data.add_packet_to_reduced_data(&packet);
+                                coinc_data.add_packet_to_raw_index(current_raw_index);
+                                //coinc_data.add_packet_to_reduced_data(&packet);
                             },
                         };
                     },
@@ -578,6 +600,24 @@ pub mod coincidence {
             });
         coinc_data.add_events(temp_edata, &mut temp_tdc, TP3_TIME_DELAY, TP3_TIME_WIDTH, 0);
         coinc_data.early_output_data();
+        
+        //Now we must add the concerned data to the reduced raw. We should first sort the indexes
+        //that we have saved
+        coinc_data.index_to_add_in_raw.sort();
+        //Borrowing only the reduced raw vector and not the entire structure
+        let raw_vector = &mut coinc_data.reduced_raw_data;
+        //Then we should iterate and see matching indexes to add.
+        buffer[0..size]
+            .chunks_exact(8)
+            .enumerate()
+            .zip(coinc_data.index_to_add_in_raw.iter())
+            .filter(|( (raw_index, _pack_oct), coinc_index)| raw_index == *coinc_index)
+            .for_each(|( (_raw_index, pack_oct), _coinc_index)| {
+                raw_vector.push(packet_change(pack_oct)[0]);
+            });
+        //Finally we should clear the index vector so in the next interaction everything is fresh
+        coinc_data.index_to_add_in_raw.clear();
+        //Ready to next chunk of data!
         }
         println!("Total number of bytes read {}", total_size);
         coinc_data.output_data();
@@ -783,7 +823,7 @@ pub mod coincidence {
             //println!("MB Read: {}", total_size / 1_000_000 );
             //if (total_size / 1_000_000) > 2_000 {break;}
             let mut temp_edata = TempElectronData::new();
-            buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+            buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
@@ -793,7 +833,7 @@ pub mod coincidence {
                                 coinc_data.add_spim_line(&packet);
                             },
                             11 => {
-                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc);
+                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
                                 temp_edata.electron.add_electron(se);
                             },
                             _ => {}, //println!("{}", packet.tdc_type());},
@@ -1253,8 +1293,8 @@ pub mod ntime_resolved {
             };
         }
 
-        fn add_electron<P: Packet + ?Sized>(&mut self, packet: &P) {
-            let se = SingleElectron::new(packet, self.tdc_periodic);
+        fn add_electron<P: Packet + ?Sized>(&mut self, packet: &P, packet_index: usize) {
+            let se = SingleElectron::new(packet, self.tdc_periodic, packet_index);
             self.ensemble.add_electron(se);
         }
 
@@ -1381,7 +1421,7 @@ pub mod ntime_resolved {
             if size==0 {break;}
             //total_size += size;
             bar.inc(512_000_000_u64);
-            buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+            buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
                 match pack_oct {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci = nci},
                     _ => {
@@ -1399,7 +1439,7 @@ pub mod ntime_resolved {
                                 data.add_extra_tdc(&*packet);
                             },
                             11 => {
-                                data.add_electron(&*packet);
+                                data.add_electron(&*packet, current_raw_index);
                             },
                             _ => {},
                         };
@@ -1504,13 +1544,13 @@ pub mod calibration {
             total_size += size;
             //if total_size / 1_000_000_000 > 2 {break;}
             bar.inc(512_000_000_u64);
-            buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+            buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
                         let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                         if packet.id() == 11 {
-                            let se = SingleElectron::new(&packet, None);
+                            let se = SingleElectron::new(&packet, None, current_raw_index);
                             temp_electrons.add_electron(se);
                             //temp_edata.electron.add_electron(se);
                         }
