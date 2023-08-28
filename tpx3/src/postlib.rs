@@ -605,6 +605,22 @@ pub mod coincidence {
         //Borrowing only the reduced raw vector and not the entire structure
         let raw_vector = &mut coinc_data.reduced_raw_data;
         //Then we should iterate and see matching indexes to add.
+        for index in coinc_data.index_to_add_in_raw.iter() {
+            let value = packet_change(&buffer[index * 8..(index + 1) * 8])[0];
+            raw_vector.push(value);
+        }
+
+        /*
+        buffer[0..size]
+            .chunks_exact(8)
+            .enumerate()
+            .filter(|(index, _pack_oct)| index_vector.contains(index))
+            .for_each(|(_index, pack_oct)| {
+                raw_vector.push(packet_change(pack_oct)[0]);
+            });
+        */
+        
+        /*
         buffer[0..size]
             .chunks_exact(8)
             .enumerate()
@@ -613,6 +629,7 @@ pub mod coincidence {
             .for_each(|( (_raw_index, pack_oct), _coinc_index)| {
                 raw_vector.push(packet_change(pack_oct)[0]);
             });
+        */
         //Finally we should clear the index vector so in the next interaction everything is fresh
         coinc_data.index_to_add_in_raw.clear();
         //Ready to output early data!
