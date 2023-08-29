@@ -239,6 +239,7 @@ use std::time::{Duration, Instant};
 use crate::errorlib::Tp3ErrorKind;
 use crate::auxiliar::misc::TimepixRead;
 use crate::auxiliar::value_types::*;
+use crate::constlib::*;
 
 pub trait TdcControl {
     fn id(&self) -> u8;
@@ -276,13 +277,27 @@ impl TdcControl for PeriodicTdcRef {
             self.counter_overflow += 1;
         }
         self.last_hard_counter = hard_counter;
-        self.time = time;
         self.counter = self.last_hard_counter as COUNTER + self.counter_overflow * 4096 - self.counter_offset;
+        let time_overflow = self.time > time;
+        self.time = time;
         if let Some(spimy) = self.ticks_to_frame {
             if (self.counter / 2) % spimy == 0 {
                 self.begin_frame = time;
                 self.new_frame = true
-            } else { self.new_frame = false }
+            } else if time_overflow {
+                //I slightly correct the frame time by supossing what is the next frame time. This
+                //will be correctly updated in the next cycle.
+                let frame_time = self.period * spimy as TIME;
+                self.begin_frame = if frame_time > ELECTRON_OVERFLOW {
+                    (self.begin_frame + self.period * spimy as TIME) - ELECTRON_OVERFLOW
+                } else {
+                    (self.begin_frame + self.period * spimy as TIME) % ELECTRON_OVERFLOW
+                };
+                self.new_frame = false 
+            } else {
+                //Does nothing. No new frame
+                self.new_frame = false
+            }
         }
     }
 
