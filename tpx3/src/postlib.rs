@@ -1253,6 +1253,19 @@ pub mod ntime_resolved {
         }
     }
     
+    fn output_data<T>(data: &[T], filename: String, name: &str) {
+        let len = filename.len();
+        let complete_filename = filename[..len-5].to_string() + "/" + name;
+        let mut tfile = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(complete_filename).unwrap();
+        tfile.write_all(as_bytes(data)).unwrap();
+        //println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
+    }
+    
+    /*
     fn output_data<T>(data: &[T], name: &str) {
         let mut tfile = OpenOptions::new()
             .append(true)
@@ -1261,6 +1274,7 @@ pub mod ntime_resolved {
         tfile.write_all(as_bytes(data)).unwrap();
         println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
     }
+    */
     
     impl<T: ClusterCorrection> TimeSpectralSpatial<T> {
         fn prepare(&mut self, file: &mut fs::File) {
@@ -1317,10 +1331,10 @@ pub mod ntime_resolved {
             }
             self.ensemble.clear();
 
-            output_data(&self.hyperspec_index, "si_complete.txt");
-            output_data(&self.hyperspec_return_index, "si_return_complete.txt");
-            output_data(&self.frame_indices, "si_complete_indices.txt");
-            output_data(&self.frame_return_indices, "si_complete_return_indices.txt");
+            output_data(&self.hyperspec_index, self.file.clone(), "si_complete.txt");
+            output_data(&self.hyperspec_return_index, self.file.clone(), "si_return_complete.txt");
+            output_data(&self.frame_indices, self.file.clone(), "si_complete_indices.txt");
+            output_data(&self.frame_return_indices, self.file.clone(), "si_complete_return_indices.txt");
 
             self.hyperspec_index.clear();
             self.hyperspec_return_index.clear();
@@ -1345,10 +1359,10 @@ pub mod ntime_resolved {
             }
             self.ensemble.clear();
 
-            output_data(&self.fourd_index, "fourd_complete.txt");
-            output_data(&self.fourd_return_index, "fourd_return_complete.txt");
-            output_data(&self.frame_indices, "si_complete_indices.txt");
-            output_data(&self.frame_return_indices, "si_complete_return_indices.txt");
+            output_data(&self.fourd_index, self.file.clone(), "fourd_complete.txt");
+            output_data(&self.fourd_return_index, self.file.clone(), "fourd_return_complete.txt");
+            output_data(&self.frame_indices, self.file.clone(), "si_complete_indices.txt");
+            output_data(&self.frame_return_indices, self.file.clone(), "si_complete_return_indices.txt");
 
             self.fourd_index.clear();
             self.fourd_return_index.clear();
