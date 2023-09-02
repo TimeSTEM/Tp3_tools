@@ -21,8 +21,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {{bin: false, bytedepth: 2, cumul: false, mode: 0, xspim_size: 10, yspim_size: 10, xscan_size: 512, yscan_size: 512, pixel_time: 320, time_delay: 0, time_width: 0, spimoverscanx: 1, spimoverscany: 1, save_locally: true, sup0: 0.0155, sup1: 0.0}}
 
     For this particular script:
-        🤜 (mode == 0) => No hyperspectral image;
-        🤜 (mode == 1) => Hyperspectral image;
+        🤜 (mode== 0) => No hyperspectral image;
+        🤜 (mode!= 0) => Hyperspectral image;
             👀 xscan_size & yscan_size => Hyperspectral image sampling;
         🔧 Cluster correction is deactivated. Please request if you wish to do o;
         🕯️ The other fields of the json are currently not considered, but they give you the parameters you have used during data

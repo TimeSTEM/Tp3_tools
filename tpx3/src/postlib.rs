@@ -1217,6 +1217,7 @@ pub mod ntime_resolved {
     use std::fs::OpenOptions;
     use crate::packetlib::{Packet, PacketEELS, PacketDiffraction, packet_change};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
+    use crate::errorlib::Tp3ErrorKind;
     use std::io::prelude::*;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use crate::clusterlib::cluster::ClusterCorrection;
@@ -1224,15 +1225,6 @@ pub mod ntime_resolved {
     use std::fs;
     use indicatif::{ProgressBar, ProgressStyle};
     use crate::auxiliar::{value_types::*, ConfigAcquisition};
-
-    #[derive(Debug)]
-    pub enum ErrorType {
-        OutOfBounds,
-        FolderDoesNotExist,
-        FolderNotCreated,
-        ScanOutofBounds,
-        MinGreaterThanMax,
-    }
 
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial<T> {
@@ -1302,7 +1294,7 @@ pub mod ntime_resolved {
             //spimlib::get_spimindex(, dt: TIME, spim_tdc: &PeriodicTdcRef, self.spimx, self.spimy;
         }
 
-        fn process(&mut self) -> Result<(), ErrorType> {
+        fn process(&mut self) -> Result<(), Tp3ErrorKind> {
             if self.fourd_data {
                 Ok(self.process_fourd()?)
             } else {
@@ -1310,7 +1302,7 @@ pub mod ntime_resolved {
             }
         }
         
-        fn process_hyperspec(&mut self) -> Result<(), ErrorType> {
+        fn process_hyperspec(&mut self) -> Result<(), Tp3ErrorKind> {
             if self.ensemble.try_clean(0, &self.remove_clusters) {
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
@@ -1338,7 +1330,7 @@ pub mod ntime_resolved {
             Ok(())
         }
         
-        fn process_fourd(&mut self) -> Result<(), ErrorType> {
+        fn process_fourd(&mut self) -> Result<(), Tp3ErrorKind> {
             if self.ensemble.try_clean(0, &self.remove_clusters) {
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_4d_index(self.tdc_periodic, self.spimx, self.spimy) {
@@ -1366,7 +1358,7 @@ pub mod ntime_resolved {
             Ok(())
         }
         
-        pub fn new(my_config: ConfigAcquisition<T>, fourd_data: bool) -> Result<Self, ErrorType> {
+        pub fn new(my_config: ConfigAcquisition<T>, fourd_data: bool) -> Result<Self, Tp3ErrorKind> {
 
             Ok(Self {
                 hyperspec_index: Vec::new(),
