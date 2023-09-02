@@ -3,7 +3,7 @@
 pub mod cluster {
     use crate::packetlib::Packet;
     use crate::spimlib;
-    use crate::tdclib::PeriodicTdcRef;
+    use crate::tdclib::{PeriodicTdcRef, TdcControl};
     use std::fs::OpenOptions;
     use std::io::Write;
     use std::ops::Deref;
@@ -240,7 +240,8 @@ pub mod cluster {
                 Some(spim_tdc) => {
                     let ele_time = spimlib::correct_or_not_etime_using_line(pack.electron_time(), &spim_tdc);
                     SingleElectron {
-                        data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.begin_frame-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1, pack.create_header(), pack.data(), raw_index, spim_tdc.current_line().unwrap())
+                        data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.time()-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1, pack.create_header(), pack.data(), raw_index, spim_tdc.current_line().unwrap())
+                        //data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.time()-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1, pack.create_header(), pack.data(), raw_index, spim_tdc.current_line().unwrap())
                     }
                 },
                 None => {
