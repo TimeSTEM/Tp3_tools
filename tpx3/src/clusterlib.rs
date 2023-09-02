@@ -238,9 +238,9 @@ pub mod cluster {
         pub fn new<T: Packet + ?Sized>(pack: &T, begin_frame: Option<PeriodicTdcRef>, raw_index: usize) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
-                    let ele_time = spimlib::correct_or_not_etime_using_line(pack.electron_time(), &spim_tdc);
+                    let ele_time = spimlib::correct_or_not_etime(pack.electron_time(), &spim_tdc);
                     SingleElectron {
-                        data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.time()-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1, pack.create_header(), pack.data(), raw_index, spim_tdc.current_line().unwrap())
+                        data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.begin_frame-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1, pack.create_header(), pack.data(), raw_index, spim_tdc.current_line().unwrap())
                         //data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.time()-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1, pack.create_header(), pack.data(), raw_index, spim_tdc.current_line().unwrap())
                     }
                 },
