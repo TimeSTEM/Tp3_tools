@@ -93,7 +93,7 @@ pub struct ShutterControl {
     counter: COUNTER,
     hyperspectral: bool,
     hyperspectral_complete: bool,
-    hyperspec_pixels_to_send: (u32, u32), //Start and end pixel that will be sent
+    hyperspec_pixels_to_send: (POSITION, POSITION), //Start and end pixel that will be sent
     shutter_closed_status: [bool; 4],
 }
 
@@ -127,17 +127,17 @@ impl ShutterControl {
     fn is_hyperspectral_complete(&self) -> bool {
         self.hyperspectral_complete
     }
-    fn set_pixel_to_send(&mut self, start_pixel: u32, end_pixel: u32) {
+    fn set_pixel_to_send(&mut self, start_pixel: POSITION, end_pixel: POSITION) {
         self.hyperspec_pixels_to_send = (start_pixel, end_pixel);
     }
-    fn get_start_pixel(&self) -> u32 {
+    fn get_start_pixel(&self) -> POSITION {
         self.hyperspec_pixels_to_send.0
     }
     fn get_index_range_to_send(&self) -> std::ops::Range<usize> {
         let (start_pixel, end_pixel) = self.hyperspec_pixels_to_send;
         (start_pixel * CAM_DESIGN.0) as usize..(end_pixel * CAM_DESIGN.0) as usize
     }
-    fn get_pixel_to_send_size(&self) -> u32 {
+    fn get_pixel_to_send_size(&self) -> POSITION {
         let (start_pixel, end_pixel) = self.hyperspec_pixels_to_send;
         end_pixel - start_pixel
     }
@@ -398,7 +398,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Coincidence2D, L> {
         let etime = pack.electron_time();
         for phtime in self.aux_data.iter() {
             if (*phtime < etime + settings.time_delay + settings.time_width) && (etime + settings.time_delay < *phtime + settings.time_width) {
-                let delay = (phtime - settings.time_delay + settings.time_width - etime) as u32;
+                let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
                 let index = pack.x() + delay * CAM_DESIGN.0;
                 add_index!(self, index);
             }
@@ -446,7 +446,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
-        let line = frame_tdc.counter()/2;
+        let line = (frame_tdc.counter()/2) as POSITION;
         let index = pack.x() + line * CAM_DESIGN.0;
         if line < settings.xspim_size {
             add_index!(self, index);
@@ -458,7 +458,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        self.is_ready = (frame_tdc.counter()/2) > settings.xspim_size;
+        self.is_ready = (frame_tdc.counter()/2) as POSITION > settings.xspim_size;
     }
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) {
         self.global_stop = true;
@@ -481,13 +481,13 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
-        let line = (frame_tdc.counter()/2) % settings.xspim_size;
+        let line = (frame_tdc.counter()/2) as POSITION % settings.xspim_size;
         let index = pack.x() + line * CAM_DESIGN.0;
         add_index!(self, index);
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        let line = frame_tdc.counter() / 2;
+        let line = (frame_tdc.counter() / 2) as POSITION;
         self.is_ready = line % 20 == 0; //Every 20 lines send chrono;
         if line % settings.xspim_size == 0 {
             self.aux_data.push(0); //This indicates the frame must be refreshed;
@@ -732,7 +732,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
             fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
                 let shut = self.shutter.as_ref().unwrap();
                 if shut.is_hyperspectral_complete() { return }
-                let frame_number = shut.get_counter();
+                let frame_number = shut.get_counter() as POSITION;
                 //We cannot depass frame_number otherwise the indexation will be bad
                 let index = frame_number * CAM_DESIGN.0 + pack.x();
                 self.data[index as usize] += pack.tot() as $x;
@@ -744,7 +744,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
             fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
                 if pack.id() == 5 {
                     let _temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
-                    let shutter_counter = self.shutter.as_ref().unwrap().get_counter();
+                    let shutter_counter = self.shutter.as_ref().unwrap().get_counter() as POSITION;
                     if shutter_counter >= settings.xscan_size * settings.yscan_size {
                         self.shutter.as_mut().unwrap().set_hyperspectral_as_complete();
                     }

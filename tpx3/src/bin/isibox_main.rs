@@ -6,6 +6,7 @@ use timepix3::isi_box_new;
 use std::{thread, time};
 use std::convert::TryInto;
 use timepix3::constlib::*;
+use timepix3::auxiliar::value_types::*;
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
@@ -31,7 +32,7 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             handler.configure_measurement_type(false)?;
             handler.start_threads();
             
-            let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size))?;
+            let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size as COUNTER))?;
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
             let measurement = spimlib::Live::new(&my_settings);
             spimlib::build_spim_isi(pack, ns, my_settings, spim_tdc, np_tdc, measurement, handler)?;

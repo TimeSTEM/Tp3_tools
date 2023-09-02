@@ -174,7 +174,7 @@ pub fn correct_or_not_etime_using_line(mut ele_time: TIME, line_tdc: &PeriodicTd
 ///must be incremented. This is Hyperspectral Imaging
 pub struct Live {
     data: Vec<(POSITION, TIME)>,
-    data_out: Vec<u32>,
+    data_out: Vec<POSITION>,
     _timer: Instant,
 }
 
@@ -184,7 +184,7 @@ pub struct Live {
 pub struct LiveCoincidence {
     data: Vec<(POSITION, TIME)>,
     aux_data: [TIME; LIST_SIZE_AUX_EVENTS],
-    data_out: Vec<u32>,
+    data_out: Vec<POSITION>,
     _timer: Instant,
 }
 
@@ -290,7 +290,7 @@ impl SpimKind for Live {
         self.data_out = self.data.iter()
             .filter_map(|&(x, dt)| {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
-            }).collect::<Vec<u32>>();
+            }).collect::<Vec<POSITION>>();
 
         /*
         let temp = &mut self.data_out;
@@ -361,7 +361,7 @@ impl SpimKind for LiveCoincidence {
         self.data_out = self.data.iter()
             .filter_map(|&(x, dt)| {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
-            }).collect::<Vec<u32>>();
+            }).collect::<Vec<POSITION>>();
         
         /*
         let temp = &mut self.data_out;
@@ -478,16 +478,16 @@ impl SpimKind for LiveFrame4D<MaskValues> {
     #[inline]
     fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8] {
 
-        let channel_array_index = |x: u32, y: u32| -> usize
+        let channel_array_index = |x: POSITION, y: POSITION| -> usize
         {
             (y * DETECTOR_SIZE.0 + (x - DETECTOR_LIMITS.0.0)) as usize
         };
-        let is_inside = |x: u32, y: u32| -> bool {
+        let is_inside = |x: POSITION, y: POSITION| -> bool {
             (x > DETECTOR_LIMITS.0.0) && (x < DETECTOR_LIMITS.0.1) && (y > DETECTOR_LIMITS.1.0) && (y < DETECTOR_LIMITS.1.1)
         };
 
         let mut frequency = vec![0i16; (set.xspim_size * set.yspim_size) as usize];
-        let number_of_masks = self.number_of_masks() as u32;
+        let number_of_masks = self.number_of_masks() as POSITION;
         let com = self.com;
         let temp = &mut self.data_out;
         let temp2 = &self.channels;
