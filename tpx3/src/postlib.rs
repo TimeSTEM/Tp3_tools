@@ -1264,7 +1264,8 @@ pub mod ntime_resolved {
         tfile.write_all(as_bytes(data)).unwrap();
         //println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
     }
-    
+
+
     /*
     fn output_data<T>(data: &[T], name: &str) {
         let mut tfile = OpenOptions::new()
@@ -1285,6 +1286,14 @@ pub mod ntime_resolved {
                 Some(val) => Some(val),
                 _ => None,
             };
+        }
+    
+        fn try_create_folder(&self) -> Result<(), Tp3ErrorKind> {
+            let path_length = &self.file.len();
+            match fs::create_dir(&self.file[..path_length - 5]) {
+                Ok(_) => {Ok(())},
+                Err(_) => { Err(Tp3ErrorKind::CoincidenceFolderAlreadyCreated) }
+            }
         }
 
         fn add_electron<P: Packet + ?Sized>(&mut self, packet: &P, packet_index: usize) {
@@ -1395,7 +1404,10 @@ pub mod ntime_resolved {
         }
     }
 
-    pub fn analyze_data<T: ClusterCorrection>(data: &mut TimeSpectralSpatial<T>) {
+    pub fn analyze_data<T: ClusterCorrection>(data: &mut TimeSpectralSpatial<T>) -> Result<(), Tp3ErrorKind> {
+        
+        data.try_create_folder()?;
+        
         let mut prepare_file = fs::File::open(&data.file).expect("Could not open desired file.");
         let progress_size = prepare_file.metadata().unwrap().len() as u64;
         data.prepare(&mut prepare_file);
@@ -1445,6 +1457,7 @@ pub mod ntime_resolved {
             //println!("Time elapsed: {:?}", start.elapsed());
         };
         println!("File has been succesfully read.");
+        Ok(())
     }
 }
 

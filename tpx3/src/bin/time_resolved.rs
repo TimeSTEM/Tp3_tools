@@ -42,7 +42,9 @@ fn main() -> Result<(), Tp3ErrorKind> {
                 let config_set = ConfigAcquisition{file: dir.to_owned(), is_spim: settings.mode != 0, xspim: settings.xscan_size, yspim: settings.yscan_size, correction_type: cluster::grab_cluster_correction("0")};
                 println!("***Time resolved***: File {} has the following settings from json: {:?}.", dir, settings);
                 let mut meas = TimeSpectralSpatial::new(config_set, true).unwrap();
-                analyze_data(&mut meas);
+                if let Err(_) = analyze_data(&mut meas) {
+                    println!("***Time resolved***: Skipping file {}. Possibly already done it.", dir);
+                }
             } else {
                 println!("***Time resolved***: Skipping file {}. No JSON file is present.", dir);
             }
