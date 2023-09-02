@@ -1328,7 +1328,7 @@ pub mod ntime_resolved {
         fn process_hyperspec(&mut self) -> Result<(), Tp3ErrorKind> {
             if self.ensemble.try_clean(0, &self.remove_clusters) {
                 for val in self.ensemble.values() {
-                    if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
+                    if let Some(index) = val.get_or_not_spim_index_using_line(self.tdc_periodic, self.spimx, self.spimy, val.spim_line()) {
                         self.hyperspec_index.push(index);
                         self.frame_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
                     }

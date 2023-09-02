@@ -365,6 +365,10 @@ impl PeriodicTdcRef {
         }
     }
 
+    pub fn current_line(&self) -> Option<POSITION> {
+        Some((self.counter / 2) % self.ticks_to_frame?)
+    }
+
     pub fn pixel_time(&self, xspim: POSITION) -> TIME {
         self.low_time / xspim as TIME
     }
