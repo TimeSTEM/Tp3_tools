@@ -1370,8 +1370,8 @@ pub mod ntime_resolved {
 
             output_data(&self.fourd_index, self.file.clone(), "fourd_complete.txt");
             output_data(&self.fourd_return_index, self.file.clone(), "fourd_return_complete.txt");
-            output_data(&self.frame_indices, self.file.clone(), "si_complete_indices.txt");
-            output_data(&self.frame_return_indices, self.file.clone(), "si_complete_return_indices.txt");
+            output_data(&self.frame_indices, self.file.clone(), "fourd_complete_indices.txt");
+            output_data(&self.frame_return_indices, self.file.clone(), "fourd_complete_return_indices.txt");
 
             self.fourd_index.clear();
             self.fourd_return_index.clear();

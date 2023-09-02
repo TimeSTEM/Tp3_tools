@@ -22,8 +22,9 @@ fn main() -> Result<(), Tp3ErrorKind> {
 
     For this particular script:
         🤜 (mod == 0) => No hyperspectral image;
-        🤜 (mod != 0) => Hyperspectral image;
-            👀 xscan_size & yscan_size => Hyperspectral image sampling;
+        🤜 mode == 2) => Hyperspectral image;
+        🤜(mode != 2) => 4D image;
+            👀 xscan_size & yscan_size = Spatial sampling;
         🔧 Cluster correction is deactivated. Please request if you wish to do o;
         🕯️ The other fields of the json are currently not considered, but they give you the parameters you have used during data
         acquisition. sup0 & sup1, for example, are the EELS dispersion and offset, respectively;
@@ -41,7 +42,7 @@ fn main() -> Result<(), Tp3ErrorKind> {
             if let Ok(settings) = Settings::get_settings_from_json(&dir[0..path_length - 5]) {
                 let config_set = ConfigAcquisition{file: dir.to_owned(), is_spim: settings.mode != 0, xspim: settings.xscan_size, yspim: settings.yscan_size, correction_type: cluster::grab_cluster_correction("0")};
                 println!("***Time resolved***: File {} has the following settings from json: {:?}.", dir, settings);
-                let mut meas = TimeSpectralSpatial::new(config_set, true).unwrap();
+                let mut meas = TimeSpectralSpatial::new(config_set, settings.mode != 2).unwrap();
                 if let Err(_) = analyze_data(&mut meas) {
                     println!("***Time resolved***: Skipping file {}. Possibly already done it.", dir);
                 }
