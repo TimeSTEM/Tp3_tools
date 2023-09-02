@@ -164,8 +164,8 @@ pub fn correct_or_not_etime(mut ele_time: TIME, line_tdc: &PeriodicTdcRef) -> TI
 #[inline]
 pub fn correct_or_not_etime_using_line(mut ele_time: TIME, line_tdc: &PeriodicTdcRef) -> TIME {
     if ele_time < line_tdc.time() + VIDEO_TIME {
-        let factor = (line_tdc.time() + VIDEO_TIME - ele_time) / (line_tdc.period*line_tdc.ticks_to_frame.unwrap() as TIME) + 1;
-        ele_time += line_tdc.period*line_tdc.ticks_to_frame.unwrap() as TIME * factor;
+        let factor = (line_tdc.time() + VIDEO_TIME - ele_time) / (line_tdc.period) + 1;
+        ele_time += line_tdc.period * factor;
     }
     ele_time
 }
