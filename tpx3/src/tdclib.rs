@@ -5,8 +5,8 @@
 mod tdcvec {
     use crate::errorlib::Tp3ErrorKind;
     use crate::tdclib::TdcType;
-    use crate::packetlib::{Packet, PacketStd, packet_change};
-    use crate::auxiliar::value_types::*;
+    use crate::packetlib::{Packet, PacketStd};
+    use crate::auxiliar::{misc::packet_change, value_types::*};
 
     pub struct TdcSearch<'a> {
         data: Vec<(TIME, TdcType)>,

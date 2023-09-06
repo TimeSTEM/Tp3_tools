@@ -534,7 +534,8 @@ pub mod simple_log {
 
 ///`misc` are miscellaneous functions.
 pub mod misc {
-    use std::io::Read;
+    use std::fs::OpenOptions;
+    use std::io::{Read, Write};
     use crate::errorlib::Tp3ErrorKind;
     use std::net::TcpStream;
     use std::fs::File;
@@ -588,6 +589,50 @@ pub mod misc {
     impl<R: Read + ?Sized> TimepixRead for Box<R> {}
     impl TimepixRead for TcpStream {}
     impl TimepixRead for File {}
+
+
+    //General function to convert any type slice to bytes
+    pub fn as_bytes<T>(v: &[T]) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u8,
+                v.len() * std::mem::size_of::<T>())
+        }
+    }
+
+    //Convert u8 slice to u32 slice
+    pub fn as_int(v: &[u8]) -> &[u32] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u32,
+                //v.len() )
+                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
+        }
+    }
+
+    //Convert u8 to u64. Used to get the packet_values
+    pub fn packet_change(v: &[u8]) -> &[u64] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u64,
+                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u64>())
+        }
+    }
+    
+    //Creates a file and appends over. Filename must be a .tpx3 file. Data is appended in a folder
+    //of the same name, that must be previously created
+    pub fn output_data<T>(data: &[T], filename: String, name: &str) {
+        let len = filename.len();
+        let complete_filename = filename[..len-5].to_string() + "/" + name;
+        let mut tfile = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(complete_filename).unwrap();
+        tfile.write_all(as_bytes(data)).unwrap();
+        //println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
+    }
+
 }
 
 pub mod value_types {

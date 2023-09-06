@@ -1,15 +1,7 @@
 //!`packetlib` is a collection of tools to facilitate manipulation of individual TP3 packets. Module is built
 //!in around `Packet` struct.
 
-use crate::auxiliar::value_types::*;
-
-pub fn packet_change(v: &[u8]) -> &[u64] {
-    unsafe {
-        std::slice::from_raw_parts(
-            v.as_ptr() as *const u64,
-            v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u64>())
-    }
-}
+use crate::auxiliar::{misc::packet_change, value_types::*};
 
 pub trait Packet {
     fn ci(&self) -> u8;

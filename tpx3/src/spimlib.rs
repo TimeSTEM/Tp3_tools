@@ -1,7 +1,7 @@
 //!`spimlib` is a collection of tools to set hyperspectral EELS acquisition.
 
-use crate::packetlib::{Packet, PacketEELSInverted as Pack, packet_change};
-use crate::auxiliar::{Settings, misc::TimepixRead};
+use crate::packetlib::{Packet, PacketEELSInverted as Pack};
+use crate::auxiliar::{Settings, misc::{TimepixRead, packet_change}};
 use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box::{IsiBoxHand, IsiBoxType}};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;

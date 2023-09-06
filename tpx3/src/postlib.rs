@@ -1,7 +1,5 @@
 pub mod coincidence {
-
-    use std::fs::OpenOptions;
-    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack, packet_change};
+    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
     use crate::postlib::isi_box;
     use crate::errorlib::Tp3ErrorKind;
@@ -13,31 +11,10 @@ pub mod coincidence {
     use std::collections::HashMap;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use crate::auxiliar::ConfigAcquisition;
-    use crate::auxiliar::value_types::*;
+    use crate::auxiliar::{value_types::*, misc::{output_data, packet_change}};
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
     //use rayon::prelude::*;
-
-    fn as_bytes<T>(v: &[T]) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u8,
-                v.len() * std::mem::size_of::<T>())
-        }
-    }
-
-    fn output_data<T>(data: &[T], filename: String, name: &str) {
-        let len = filename.len();
-        let complete_filename = filename[..len-5].to_string() + "/" + name;
-        let mut tfile = OpenOptions::new()
-            .write(true)
-            .append(true)
-            .create(true)
-            .open(complete_filename).unwrap();
-        tfile.write_all(as_bytes(data)).unwrap();
-        //println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
-    }
-
 
     //When we would like to have large E-PH timeoffsets, such as skipping entire line periods, the
     //difference between E-PH could not fit in i16. We fold these big numbers to fit in a i16
@@ -848,28 +825,11 @@ pub mod coincidence {
 pub mod isi_box {
     use std::fs::OpenOptions;
     use std::io::{Read, Write};
-    use crate::auxiliar::value_types::*;
+    use crate::auxiliar::{misc::{as_int, as_bytes}, value_types::*};
     use indicatif::{ProgressBar, ProgressStyle};
     use crate::constlib::*;
     
     const ISI_CHANNEL_SHIFT: [u32; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-
-    fn as_bytes<T>(v: &[T]) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u8,
-                v.len() * std::mem::size_of::<T>())
-        }
-    }
-    
-    fn as_int(v: &[u8]) -> &[u32] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u32,
-                //v.len() )
-                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
-        }
-    }
 
     /*
     fn add_overflow(data: u64, value: u64) -> u64
@@ -1212,8 +1172,7 @@ pub mod isi_box {
 }
 
 pub mod ntime_resolved {
-    use std::fs::OpenOptions;
-    use crate::packetlib::{Packet, PacketEELS, PacketDiffraction, packet_change};
+    use crate::packetlib::{Packet, PacketEELS, PacketDiffraction};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use crate::errorlib::Tp3ErrorKind;
     use std::io::prelude::*;
@@ -1222,7 +1181,7 @@ pub mod ntime_resolved {
     use std::convert::TryInto;
     use std::fs;
     use indicatif::{ProgressBar, ProgressStyle};
-    use crate::auxiliar::{value_types::*, ConfigAcquisition};
+    use crate::auxiliar::{misc::{packet_change, output_data}, value_types::*, ConfigAcquisition};
 
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial<T> {
@@ -1243,38 +1202,6 @@ pub mod ntime_resolved {
         fourd_data: bool,
     }
 
-    fn as_bytes<T>(v: &[T]) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u8,
-                v.len() * std::mem::size_of::<T>())
-        }
-    }
-    
-    fn output_data<T>(data: &[T], filename: String, name: &str) {
-        let len = filename.len();
-        let complete_filename = filename[..len-5].to_string() + "/" + name;
-        let mut tfile = OpenOptions::new()
-            .write(true)
-            .append(true)
-            .create(true)
-            .open(complete_filename).unwrap();
-        tfile.write_all(as_bytes(data)).unwrap();
-        //println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
-    }
-
-
-    /*
-    fn output_data<T>(data: &[T], name: &str) {
-        let mut tfile = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(name).unwrap();
-        tfile.write_all(as_bytes(data)).unwrap();
-        println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
-    }
-    */
-    
     impl<T: ClusterCorrection> TimeSpectralSpatial<T> {
         fn prepare(&mut self, file: &mut fs::File) -> Result<(), Tp3ErrorKind> {
             self.tdc_periodic = match self.tdc_periodic {
@@ -1465,7 +1392,8 @@ pub mod ntime_resolved {
 pub mod calibration {
 
     use std::fs::OpenOptions;
-    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack, packet_change};
+    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
+    use crate::auxiliar::misc::packet_change;
     use std::io;
     use std::io::prelude::*;
     use std::fs;
