@@ -591,7 +591,9 @@ pub mod misc {
 }
 
 pub mod value_types {
-    pub type POSITION = u64;
+    pub type POSITION = u32;
+    pub type INDEX_HYPERSPEC = u32;
+    pub type INDEX_4D = u64;
     pub type COUNTER = u32;
     pub type TIME = u64;
 }

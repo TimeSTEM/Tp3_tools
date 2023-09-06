@@ -1009,7 +1009,7 @@ pub mod isi_box {
             let mut counter = 0;
             let mut last_time = 0;
             let mut overflow = 0;
-            let low = (self.x * self.pixel_time) as u64;
+            let low = self.x as u64 * self.pixel_time;
             let y = self.y as u32;
             let x = self.x as u32;
 
@@ -1228,10 +1228,10 @@ pub mod ntime_resolved {
 
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial<T> {
-        hyperspec_index: Vec<POSITION>, //Main data,
-        hyperspec_return_index: Vec<POSITION>, //Main data from flyback,
-        fourd_index: Vec<u64>,
-        fourd_return_index: Vec<u64>,
+        hyperspec_index: Vec<INDEX_HYPERSPEC>, //Main data,
+        hyperspec_return_index: Vec<INDEX_HYPERSPEC>, //Main data from flyback,
+        fourd_index: Vec<INDEX_4D>,
+        fourd_return_index: Vec<INDEX_4D>,
         frame_indices: Vec<u16>, //indexes from main scan
         frame_return_indices: Vec<u16>, //indexes from flyback
         ensemble: CollectionElectron, //A collection of single electrons,

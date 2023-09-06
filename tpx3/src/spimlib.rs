@@ -50,27 +50,27 @@ pub trait SpimKind {
 }
 
 #[inline]
-pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_HYPERSPEC> {
     Some(get_return_positional_index(dt, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
 }
 
 #[inline]
-pub fn get_spimindex_using_line(x: POSITION, dt: TIME, line: POSITION, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+pub fn get_spimindex_using_line(x: POSITION, dt: TIME, line: POSITION, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_HYPERSPEC> {
     Some(get_positional_index_using_line(dt, line, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
 }
 
 #[inline]
-pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_HYPERSPEC> {
     Some(get_positional_index(dt, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
 }
 
 #[inline]
-pub fn get_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u64> {
+pub fn get_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_4D> {
     Some(get_positional_index(dt, spim_tdc, xspim, yspim)? as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 + (y * RAW4D_PIXELS_X + x)as u64)
 }
 
 #[inline]
-pub fn get_return_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u64> {
+pub fn get_return_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_4D> {
     Some(get_return_positional_index(dt, spim_tdc, xspim, yspim)? as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 + (y * RAW4D_PIXELS_X + x)as u64)
 }
 
@@ -174,7 +174,7 @@ pub fn correct_or_not_etime_using_line(mut ele_time: TIME, line_tdc: &PeriodicTd
 ///must be incremented. This is Hyperspectral Imaging
 pub struct Live {
     data: Vec<(POSITION, TIME)>,
-    data_out: Vec<POSITION>,
+    data_out: Vec<INDEX_HYPERSPEC>,
     _timer: Instant,
 }
 
@@ -184,7 +184,7 @@ pub struct Live {
 pub struct LiveCoincidence {
     data: Vec<(POSITION, TIME)>,
     aux_data: [TIME; LIST_SIZE_AUX_EVENTS],
-    data_out: Vec<POSITION>,
+    data_out: Vec<INDEX_HYPERSPEC>,
     _timer: Instant,
 }
 
@@ -193,7 +193,7 @@ pub struct LiveCoincidence {
 ///coincident photons around
 pub struct Live4D {
     data: Vec<(POSITION, TIME)>,
-    data_out: Vec<u64>,
+    data_out: Vec<INDEX_4D>,
     _timer: Instant,
 }
 
