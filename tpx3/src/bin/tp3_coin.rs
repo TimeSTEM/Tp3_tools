@@ -31,6 +31,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     "
     );
+    
+    let cluster_correction = if args.get(2).is_none() {
+        "0"
+    } else {
+        &args[2]
+    };
 
     let entries = fs::read_dir(&args[1]).unwrap();
     entries.into_iter().par_bridge().for_each(|x| {
@@ -40,7 +46,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if &dir[path_length - 4 ..path_length] == "tpx3" {
             //println!("***Coincidence***: Looping over file {:?}", dir);
             if let Ok(settings) = Settings::get_settings_from_json(&dir[0..path_length - 5]) {
-                let config_set = ConfigAcquisition{file: dir.to_owned(), is_spim: settings.mode != 0, xspim: settings.xscan_size, yspim: settings.yscan_size, correction_type: cluster::grab_cluster_correction("0")};
+                let config_set = ConfigAcquisition{file: dir.to_owned(), is_spim: settings.mode != 0, xspim: settings.xscan_size, yspim: settings.yscan_size, correction_type: cluster::grab_cluster_correction(cluster_correction)};
                 println!("***Coincidence***: File {} has the following settings from json: {:?}.", dir, settings);
                 let mut coinc_data = ElectronData::new(config_set);
                 if let Err(_) = search_coincidence(&mut coinc_data) {

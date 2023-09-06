@@ -11,27 +11,38 @@ fn main() -> Result<(), Tp3ErrorKind> {
     println!("
     ***Instructions***:
 
-    Turn the script using the --release tag. A single argument must be parsed, which is the folder containing your .tpx3 data. Data must be accompanied with a json file, with matching names. Parsing other arguments will be ignored🙅‍♂️.
+    Turn the script using the --release tag. At least a single argument must be parsed, which is the folder containing your .tpx3 data. Data must be accompanied with a json file, with matching names.
     Example:
 
     >>  cargo run --bin time-resolved --release 'C:\\Users\\SpongeBob\\Data'
+    
+    >>  cargo run --bin time-resolved --release 'C:\\Users\\SpongeBob\\Data' 1
 
     Example of the json file and the required fields:
 
     {{bin: false, bytedepth: 2, cumul: false, mode: 0, xspim_size: 10, yspim_size: 10, xscan_size: 512, yscan_size: 512, pixel_time: 320, time_delay: 0, time_width: 0, spimoverscanx: 1, spimoverscany: 1, save_locally: true, sup0: 0.0155, sup1: 0.0}}
 
     For this particular script:
-        🤜 (mod == 0) => No hyperspectral image;
-        🤜 mode == 2) => Hyperspectral image;
-        🤜(mode != 2) => 4D image;
-            👀 xscan_size & yscan_size = Spatial sampling;
-        🔧 Cluster correction is deactivated. Please request if you wish to do o;
-        🕯️ The other fields of the json are currently not considered, but they give you the parameters you have used during data
+        -> (mode == 2) => Hyperspectral image;
+        -> (mode != 2) => 4D image;
+            o xscan_size & yscan_size = Spatial sampling;
+        -> Cluster correction can be activated by parsing a second argument, varying from 0 to 5. There are three automatic cluster correction:
+            o '0' => No correction;
+            o '1' => Average;
+            o '2' => Maximum ToT;
+        -> The other fields of the json are currently not considered, but they give you the parameters you have used during data
         acquisition. sup0 & sup1, for example, are the EELS dispersion and offset, respectively;
-        💡 The time delay and time width are defined at compile-time, so you should change them at constlib.rs insted;
+        -> The time delay and time width are defined at compile-time, so you should change them at constlib.rs instead;
 
     "
     );
+
+    let cluster_correction = if args.get(2).is_none() {
+        "0"
+    } else {
+        &args[2]
+    };
+
     
     let entries = fs::read_dir(&args[1]).unwrap();
     entries.into_iter().par_bridge().for_each(|x| {
@@ -40,7 +51,7 @@ fn main() -> Result<(), Tp3ErrorKind> {
         let path_length = dir.len();
         if &dir[path_length - 4 ..path_length] == "tpx3" {
             if let Ok(settings) = Settings::get_settings_from_json(&dir[0..path_length - 5]) {
-                let config_set = ConfigAcquisition{file: dir.to_owned(), is_spim: settings.mode != 0, xspim: settings.xscan_size, yspim: settings.yscan_size, correction_type: cluster::grab_cluster_correction("0")};
+                let config_set = ConfigAcquisition{file: dir.to_owned(), is_spim: settings.mode != 0, xspim: settings.xscan_size, yspim: settings.yscan_size, correction_type: cluster::grab_cluster_correction(cluster_correction)};
                 println!("***Time resolved***: File {} has the following settings from json: {:?}.", dir, settings);
                 let mut meas = TimeSpectralSpatial::new(config_set, settings.mode != 2).unwrap();
                 if let Err(_) = analyze_data(&mut meas) {

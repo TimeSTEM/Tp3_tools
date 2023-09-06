@@ -11,8 +11,8 @@ pub mod cluster {
     use rayon::prelude::*;
     use crate::auxiliar::value_types::*;
     
-    const CLUSTER_DET: TIME = 128; //Cluster time window (in 640 Mhz or 1.5625).
-    const CLUSTER_SPATIAL: isize = 256; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
+    const CLUSTER_DET: TIME = 32; //Cluster time window (in 640 Mhz or 1.5625).
+    const CLUSTER_SPATIAL: isize = 4; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
     
     static ATOT: &[u8; 1024 * 256 * 4] = include_bytes!("atot_v2.dat");
     static BTOT: &[u8; 1024 * 256 * 4] = include_bytes!("btot_v2.dat");
@@ -178,10 +178,10 @@ pub mod cluster {
 
         pub fn try_clean<T: ClusterCorrection>(&mut self, min_size: usize, correction_type: &T) -> bool {
             if self.data.len() > min_size && correction_type.must_correct() {
-                let _nelectrons = self.data.len();
+                let nelectrons = self.data.len();
                 self.clean(correction_type);
-                let _new_nelectrons = self.data.len();
-                //println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
+                let new_nelectrons = self.data.len();
+                println!("Number of electrons: {}. Number of clusters: {}. Electrons per cluster: {}", nelectrons, new_nelectrons, nelectrons as f32/new_nelectrons as f32); 
                 return true
             }
             !correction_type.must_correct()
