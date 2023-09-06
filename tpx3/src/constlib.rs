@@ -3,12 +3,11 @@ use crate::auxiliar::value_types::*;
 //***General Values***//
 pub const SAVE_LOCALLY_FILE: &str = "/media/asi/Data21/TP3_Data/";
 pub const TIME_INTERVAL_FRAMES: u128 = 100; //in milliseconds
-//pub const TIME_INTERVAL_HYPERSPECTRAL_FRAME: u128 = 5000; //in milliseconds
 pub const HYPERSPECTRAL_PIXEL_CHUNK: POSITION = 500; //In number of pixels
 pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 1000; //in milliseconds
 pub const VIDEO_TIME: TIME = 3200;
 pub const SPIM_PIXELS: POSITION = 1025 + 200;
-pub const RAW4D_PIXELS_X: POSITION = 1024;
+pub const RAW4D_PIXELS_X: POSITION = 256;
 pub const RAW4D_PIXELS_Y: POSITION = 256;
 pub const BUFFER_SIZE: usize = 16384 * 2;
 pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
