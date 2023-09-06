@@ -54,7 +54,6 @@ pub mod coincidence {
 
     //Non-standard data types 
     pub struct ElectronData<T> {
-        last_raw_header: u64,
         reduced_raw_data: Vec<u64>,
         index_to_add_in_raw: Vec<usize>,
         time: Vec<TIME>,
@@ -249,7 +248,6 @@ pub mod coincidence {
 
         pub fn new(my_config: ConfigAcquisition<T>) -> Self {
             Self {
-                last_raw_header: 0,
                 reduced_raw_data: Vec::new(),
                 index_to_add_in_raw: Vec::new(),
                 time: Vec::new(),
@@ -1413,7 +1411,7 @@ pub mod ntime_resolved {
         
         let mut prepare_file = fs::File::open(&data.file).expect("Could not open desired file.");
         let progress_size = prepare_file.metadata().unwrap().len() as u64;
-        data.prepare(&mut prepare_file);
+        data.prepare(&mut prepare_file)?;
         
         let mut my_file = fs::File::open(&data.file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = vec![0; 512_000_000];
