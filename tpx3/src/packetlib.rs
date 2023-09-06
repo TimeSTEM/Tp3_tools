@@ -1,7 +1,7 @@
 //!`packetlib` is a collection of tools to facilitate manipulation of individual TP3 packets. Module is built
 //!in around `Packet` struct.
 
-use crate::auxiliar::{misc::packet_change, value_types::*};
+use crate::auxiliar::value_types::*;
 
 pub trait Packet {
     fn ci(&self) -> u8;
@@ -15,6 +15,7 @@ pub trait Packet {
     #[inline]
     fn y(&self) -> POSITION {
         (((self.data() & 0x00_1F_80_00_00_00_00_00) >> 45) | ((self.data() & 0x00_00_30_00_00_00_00_00) >> 44)) as POSITION
+        //(((self.data() >> 45) & 0xFC) | ((self.data() >> 44) & 0x03)) as POSITION
     }
 
     /*
@@ -39,6 +40,7 @@ pub trait Packet {
     #[inline]
     fn id(&self) -> u8 {
         ((self.data() & 0xF0_00_00_00_00_00_00_00) >> 60) as u8
+        //((self.data() >> 60)) as u8
     }
 
     #[inline]
@@ -49,6 +51,7 @@ pub trait Packet {
     #[inline]
     fn ftoa(&self) -> TIME {
         ((self.data() & 0x00_00_00_00_00_0F_00_00) >> 16) as TIME
+        //((self.data() >> 16) & 0xF) as TIME
     }
 
     #[inline]
@@ -59,6 +62,7 @@ pub trait Packet {
     #[inline]
     fn toa(&self) -> TIME {
         ((self.data() & 0x00_00_0F_FF_C0_00_00_00) >> 30) as TIME
+        //((self.data() >> 30) & 0x3F_FF) as TIME
     }
 
     #[inline]
@@ -211,6 +215,7 @@ impl Packet for PacketEELSInverted {
     #[inline]
     fn x(&self) -> POSITION {
         let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
+        //let temp2 = (((self.data() >> 52) & 0xFE) | ((self.data() >> 46) & 0x01)) as POSITION;
         
         match self.ci() {
             0 => temp2 + 256 * 3,

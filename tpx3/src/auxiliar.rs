@@ -605,7 +605,6 @@ pub mod misc {
         unsafe {
             std::slice::from_raw_parts(
                 v.as_ptr() as *const u32,
-                //v.len() )
                 v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
         }
     }
