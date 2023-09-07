@@ -334,6 +334,17 @@ impl Packet for PacketDiffraction {
     }
     fn x(&self) -> POSITION {
         let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
+        
+        match self.ci() {
+            0 => 255 - temp2,
+            1 => 256 * 4 - 1 - temp2,
+            2 => 256 * 3 - 1 - temp2,
+            3 => 256 * 2 - 1 - temp2,
+            _ => panic!("More than four CIs."),
+        }
+        //This is for 2x2 Timepix3
+        /*
+        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
         match self.chip_index {
             0 => 255 - temp2,
             1 => temp2,
@@ -341,8 +352,11 @@ impl Packet for PacketDiffraction {
             3 => 256 * 2 - 1 - temp2,
             _ => panic!("More than four CI."),
         }
+        */
     }
 
+    /*
+    //This is for the 2x2 Timepix3
     fn y(&self) -> POSITION {
         let temp = (((self.data() & 0x00_1F_80_00_00_00_00_00) >> 45) | ((self.data() & 0x00_00_30_00_00_00_00_00) >> 44)) as POSITION;
         match self.chip_index {
@@ -353,31 +367,12 @@ impl Packet for PacketDiffraction {
             _ => panic!("More than four CI."),
         }
     }
+    */
 }
 
 impl PacketDiffraction {
     pub const fn chip_array() -> (POSITION, POSITION) {
         (512, 512)
-    }
-}
-
-pub struct PacketDiffractionSingleChip {
-    pub chip_index: u8,
-    pub data: u64,
-}
-
-impl Packet for PacketDiffractionSingleChip {
-    fn ci(&self) -> u8 {
-        self.chip_index
-    }
-    fn data(&self) -> u64 {
-        self.data
-    }
-}
-
-impl PacketDiffractionSingleChip {
-    pub const fn chip_array() -> (POSITION, POSITION) {
-        (256, 256)
     }
 }
 
