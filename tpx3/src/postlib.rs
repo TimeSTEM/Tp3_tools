@@ -1175,13 +1175,12 @@ pub mod ntime_resolved {
     use crate::packetlib::{Packet, PacketEELS, PacketDiffraction};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use crate::errorlib::Tp3ErrorKind;
+    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
+    use crate::auxiliar::{misc::{packet_change, output_data}, value_types::*, ConfigAcquisition};
     use std::io::prelude::*;
-    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
-    use crate::clusterlib::cluster::ClusterCorrection;
     use std::convert::TryInto;
     use std::fs;
     use indicatif::{ProgressBar, ProgressStyle};
-    use crate::auxiliar::{misc::{packet_change, output_data}, value_types::*, ConfigAcquisition};
 
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial<T> {
@@ -1206,8 +1205,6 @@ pub mod ntime_resolved {
         fn prepare(&mut self, file: &mut fs::File) -> Result<(), Tp3ErrorKind> {
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
-                    //let test = PeriodicTdcRef::new(self.spim_tdc_type.clone(), file, self.spimy?)?;
-                    //Some(PeriodicTdcRef::new(self.spim_tdc_type.clone(), file, self.spimy?))
                     Some(PeriodicTdcRef::new(self.spim_tdc_type.clone(), file, Some(self.spimy as COUNTER)).expect("Problem in creating periodic tdc ref."))
                 },
                 Some(val) => Some(val),
@@ -1343,7 +1340,6 @@ pub mod ntime_resolved {
         let mut my_file = fs::File::open(&data.file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = vec![0; 512_000_000];
         
-        //let mut total_size = 0;
         let mut ci = 0;
             
         let bar = ProgressBar::new(progress_size);
@@ -1353,13 +1349,11 @@ pub mod ntime_resolved {
 
         while let Ok(size) = my_file.read(&mut buffer) {
             if size==0 {break;}
-            //total_size += size;
             bar.inc(512_000_000_u64);
             buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
                 match pack_oct {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci = nci},
                     _ => {
-                        //let packet = Pack{chip_index: ci, data: packet_change(pack_oct)[0]};
                         let packet: Box<dyn Packet> = if !data.fourd_data {
                             Box::new(PacketEELS{chip_index: ci, data: packet_change(pack_oct)[0]})
                         } else {
@@ -1380,9 +1374,7 @@ pub mod ntime_resolved {
                     },
                 }
             });
-            data.process().expect("Error in processing");
-            //println!("File: {:?}. Total number of bytes read (MB): ~ {}", &data.file, total_size/1_000_000);
-            //println!("Time elapsed: {:?}", start.elapsed());
+            data.process()?
         };
         println!("File has been succesfully read.");
         Ok(())
