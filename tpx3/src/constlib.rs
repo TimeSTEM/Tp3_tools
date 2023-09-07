@@ -9,6 +9,7 @@ pub const VIDEO_TIME: TIME = 3200;
 pub const SPIM_PIXELS: POSITION = 1025 + 200;
 pub const RAW4D_PIXELS_X: POSITION = 256;
 pub const RAW4D_PIXELS_Y: POSITION = 256;
+pub const CHIP_FOR_4D: u8 = 0;
 pub const BUFFER_SIZE: usize = 16384 * 2;
 pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
 pub const NIONSWIFT_PORT: u16 = 8088;

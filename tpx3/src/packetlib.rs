@@ -361,6 +361,26 @@ impl PacketDiffraction {
     }
 }
 
+pub struct PacketDiffractionSingleChip {
+    pub chip_index: u8,
+    pub data: u64,
+}
+
+impl Packet for PacketDiffractionSingleChip {
+    fn ci(&self) -> u8 {
+        self.chip_index
+    }
+    fn data(&self) -> u64 {
+        self.data
+    }
+}
+
+impl PacketDiffractionSingleChip {
+    pub const fn chip_array() -> (POSITION, POSITION) {
+        (256, 256)
+    }
+}
+
 pub struct InversePacket {
     pub x: usize,
     pub y: usize,

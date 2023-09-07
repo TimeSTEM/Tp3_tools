@@ -1172,11 +1172,12 @@ pub mod isi_box {
 }
 
 pub mod ntime_resolved {
-    use crate::packetlib::{Packet, PacketEELS, PacketDiffraction};
+    use crate::packetlib::{Packet, PacketEELS, PacketDiffraction, PacketDiffractionSingleChip};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
     use crate::errorlib::Tp3ErrorKind;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
     use crate::auxiliar::{misc::{packet_change, output_data}, value_types::*, ConfigAcquisition};
+    use crate::constlib::*;
     use std::io::prelude::*;
     use std::convert::TryInto;
     use std::fs;
@@ -1222,6 +1223,9 @@ pub mod ntime_resolved {
         }
 
         fn add_electron<P: Packet + ?Sized>(&mut self, packet: &P, packet_index: usize) {
+            if self.fourd_data {
+                if packet.ci() != CHIP_FOR_4D { return }
+            }
             let se = SingleElectron::new(packet, self.tdc_periodic, packet_index);
             self.ensemble.add_electron(se);
         }
@@ -1357,7 +1361,7 @@ pub mod ntime_resolved {
                         let packet: Box<dyn Packet> = if !data.fourd_data {
                             Box::new(PacketEELS{chip_index: ci, data: packet_change(pack_oct)[0]})
                         } else {
-                            Box::new(PacketDiffraction{chip_index: ci, data: packet_change(pack_oct)[0]})
+                            Box::new(PacketDiffractionSingleChip{chip_index: ci, data: packet_change(pack_oct)[0]})
                         };
                         match packet.id() {
                             6 if packet.tdc_type() == data.spim_tdc_type.associate_value() => {

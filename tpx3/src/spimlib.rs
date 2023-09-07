@@ -66,7 +66,7 @@ pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: PO
 
 #[inline]
 pub fn get_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_4D> {
-    Some(get_positional_index(dt, spim_tdc, xspim, yspim)? as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 + (y * RAW4D_PIXELS_X + x)as u64)
+    Some(get_positional_index(dt, spim_tdc, xspim, yspim)? as INDEX_4D * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as INDEX_4D + (y * RAW4D_PIXELS_X + x)as INDEX_4D)
 }
 
 #[inline]
