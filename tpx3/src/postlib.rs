@@ -4,6 +4,7 @@ pub mod coincidence {
     use crate::postlib::isi_box;
     use crate::errorlib::Tp3ErrorKind;
     use crate::clusterlib::cluster::ClusterCorrection;
+    use crate::spimlib::get_spimindex;
     use std::io;
     use std::io::prelude::*;
     use std::fs;
@@ -48,7 +49,7 @@ pub mod coincidence {
         frequency_list: HashMap<i16, u32>,
         is_spim: bool,
         spim_size: (POSITION, POSITION),
-        spim_index: Vec<POSITION>,
+        spim_index: Vec<INDEX_HYPERSPEC>,
         spim_tdc: Option<PeriodicTdcRef>,
         remove_clusters: T,
         overflow_electrons: COUNTER,
@@ -116,7 +117,7 @@ pub mod coincidence {
         }
         */
 
-        fn add_coincident_electron(&mut self, val: SingleElectron, photon: (TIME, COUNTER, Option<i16>)) {
+        fn add_coincident_electron(&mut self, val: SingleElectron, photon: TdcStructureData) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
             self.time.push(val.time());
@@ -142,7 +143,7 @@ pub mod coincidence {
         fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME, line_offset: i64) {
             let _ntotal = temp_tdc.tdc.len();
             let nphotons = temp_tdc.tdc.iter().
-                filter(|(_time, channel, _dt)| *channel != 16 && *channel != 24).
+                filter(|(_time, channel, _dt, _hyp_index)| *channel != 16 && *channel != 24).
                 count();
             let mut min_index = temp_tdc.min_index;
             //println!("Total supplementary events: {}. Photons: {}. Minimum size of the array: {}.", ntotal, nphotons, min_index);
@@ -161,6 +162,9 @@ pub mod coincidence {
             temp_edata.electron.try_clean(0, &self.remove_clusters);
 
             self.spectrum[SPIM_PIXELS as usize-1]+=nphotons as u32; //Adding photons to the last pixel
+            for ph in temp_tdc.clean_tdc.iter().filter(|ph| ph.3.is_some()) {
+                self.spim_frame[ph.3.unwrap() as usize] += 1;
+            }
 
             let line_period_offset = match self.spim_tdc {
                 Some(spim_tdc) => line_offset * spim_tdc.period().unwrap() as i64,
@@ -354,9 +358,11 @@ pub mod coincidence {
         FromIsiBox,
     }
 
+    //the absolute time, the channel, the g2_dT, and the spim index;
+    pub type TdcStructureData = (TIME, COUNTER, Option<i16>, Option<INDEX_HYPERSPEC>);
     pub struct TempTdcData {
-        tdc: Vec<(TIME, COUNTER, Option<i16>)>, //The absolute time, the channel and the g2_dT
-        clean_tdc: Vec<(TIME, COUNTER, Option<i16>)>,
+        tdc: Vec<TdcStructureData>,
+        clean_tdc: Vec<TdcStructureData>,
         min_index: usize,
         tdc_type: TempTdcDataType,
     }
@@ -387,8 +393,8 @@ pub mod coincidence {
 
         fn correct_tdc(&mut self, val: &mut IsiBoxCorrectVector) {
             self.tdc.iter_mut().zip(val.0.iter_mut()).
-                filter(|((_time, _channel, _dt), corr)| corr.is_some()).
-                for_each(|((time, _channel, _dt), corr)| {
+                filter(|((_time, _channel, _dt, _hyp_index), corr)| corr.is_some()).
+                for_each(|((time, _channel, _dt, _hyp_index), corr)| {
                 *time += corr.unwrap();
                 //*time = *time - (*time / (Pack::electron_overflow() * 6)) * (Pack::electron_overflow() * 6);
                 *corr = Some(0);
@@ -407,13 +413,18 @@ pub mod coincidence {
         pub fn get_sync(&self) -> Vec<(usize, TIME)> {
             self.tdc.iter().
                 enumerate().
-                filter(|(_index, (_time, channel, _dt))| *channel == 16).
-                map(|(index, (time, _channel, _dt))| (index, *time)).
+                filter(|(_index, (_time, channel, _dt, _hyp_index))| *channel == 16).
+                map(|(index, (time, _channel, _dt, _hyp_index))| (index, *time)).
                 collect::<Vec<_>>()
         }
 
-        fn add_tdc(&mut self, my_pack: &Pack, channel: COUNTER) {
-            self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None));
+        fn add_tdc(&mut self, my_pack: &Pack, channel: COUNTER, line_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) {
+            if let Some(spim_tdc) = line_tdc {
+                let time = my_pack.tdc_time_norm() - spim_tdc.begin_frame - VIDEO_TIME;
+                self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None, get_spimindex(SPIM_PIXELS, time, &spim_tdc, xspim, yspim)));
+            } else {
+                self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None, None));
+            }
         }
 
         fn sort(&mut self) {
@@ -557,7 +568,7 @@ pub mod coincidence {
                     _ => {
                         match packet.id() {
                             6 if packet.tdc_type() == np_tdc.id() => {
-                                temp_tdc.add_tdc(&packet, 0);
+                                temp_tdc.add_tdc(&packet, 0, coinc_data.spim_tdc, coinc_data.spim_size.0, coinc_data.spim_size.1);
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
                                 //coinc_data.add_packet_to_reduced_data(&packet);
                             },
@@ -578,9 +589,9 @@ pub mod coincidence {
                     },
                 };
             });
-        coinc_data.add_events(temp_edata, &mut temp_tdc, TP3_TIME_DELAY, TP3_TIME_WIDTH, 0);
-        coinc_data.add_packets_to_reduced_data(&buffer);
-        coinc_data.early_output_data();
+            coinc_data.add_events(temp_edata, &mut temp_tdc, TP3_TIME_DELAY, TP3_TIME_WIDTH, 0);
+            coinc_data.add_packets_to_reduced_data(&buffer);
+            coinc_data.early_output_data();
         }
         println!("Total number of bytes read {}", total_size);
         coinc_data.output_data();
@@ -828,6 +839,7 @@ pub mod isi_box {
     use crate::auxiliar::{misc::{as_int, as_bytes}, value_types::*};
     use indicatif::{ProgressBar, ProgressStyle};
     use crate::constlib::*;
+    use crate::postlib::coincidence::TdcStructureData;
     
     const ISI_CHANNEL_SHIFT: [u32; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
@@ -1031,7 +1043,7 @@ pub mod isi_box {
             iter1.zip(iter2)
         }
         
-        pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER, Option<i16>)> {
+        pub fn get_timelist_with_tp3_tick(&self) -> Vec<TdcStructureData> {
             let first = self.data_raw.0.iter().
                 filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == 16).
                 map(|(time, _channel, _spim_index, _spim_frame, _dt)| (*time * 1200 * 6) / 15625).
@@ -1039,8 +1051,7 @@ pub mod isi_box {
                 unwrap();
             
             self.data_raw.0.iter().
-                map(|(time, channel, _spim_index, _spim_frame, dt)| (((*time * 1200 * 6) / 15625) - first, *channel, *dt)).
-                //map(|(time, channel)| (time - (time / 103_079_215_104) * 103_079_215_104, channel)).
+                map(|(time, channel, _spim_index, _spim_frame, dt)| (((*time * 1200 * 6) / 15625) - first, *channel, *dt, None)).
                 collect::<Vec<_>>()
             
         }
