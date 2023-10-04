@@ -205,8 +205,7 @@ pub mod cluster {
         }
     }
 
-    ///ToA, X, Y, Spim dT, Spim Slice, ToT, Cluster Size, Copied raw header, Copied raw packet, raw
-    ///packet index, Spim Line
+    ///ToA, X, Y, Spim dT, Spim Slice, ToT, Cluster Size, raw packet, packet index, Spim Line
     #[derive(Copy, Clone, Debug)]
     pub struct SingleElectron {
         data: (TIME, POSITION, POSITION, TIME, COUNTER, u16, COUNTER, u64, usize, POSITION),
@@ -330,6 +329,30 @@ pub mod cluster {
         }
         pub fn get_or_not_return_4d_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX_4D> {
             spimlib::get_return_4dindex(self.x(), self.y(), self.frame_dt(), &spim_tdc?, xspim, yspim)
+        }
+    }
+    
+    ///The absolute time (units of 260 ps), the channel, the g2_dT, Spim dT, raw packet, packet_index
+    #[derive(Copy, Clone, Debug)]
+    pub struct SinglePhoton {
+        data: (TIME, COUNTER, Option<i16>, TIME, u64, usize),
+    }
+
+    impl SinglePhoton {
+        pub fn new<T: Packet + ?Sized>(pack: &T, channel: COUNTER, begin_frame: Option<PeriodicTdcRef>, raw_index: usize) -> Self {
+            match begin_frame {
+                Some(spim_tdc) => {
+                    let tdc_time = spimlib::correct_or_not_etime(pack.tdc_time_norm(), &spim_tdc);
+                    SinglePhoton{
+                        data: (pack.tdc_time_abs_norm(), channel, None, tdc_time - spim_tdc.begin_frame - VIDEO_TIME, pack.data(), raw_index)
+                    }
+                }
+                None => {
+                    SinglePhoton{
+                        data: (pack.tdc_time_abs_norm(), channel, None, 0, pack.data(), raw_index)
+                    }
+                }
+            }
         }
     }
 
