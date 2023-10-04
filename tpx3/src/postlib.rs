@@ -421,7 +421,7 @@ pub mod coincidence {
         fn add_tdc(&mut self, my_pack: &Pack, channel: COUNTER, line_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) {
             if let Some(spim_tdc) = line_tdc {
                 let time = my_pack.tdc_time_norm() - spim_tdc.begin_frame - VIDEO_TIME;
-                self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None, get_spimindex(SPIM_PIXELS, time, &spim_tdc, xspim, yspim)));
+                self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None, get_spimindex(SPIM_PIXELS-1, time, &spim_tdc, xspim, yspim)));
             } else {
                 self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None, None));
             }
