@@ -1,7 +1,7 @@
 //!`spimlib` is a collection of tools to set hyperspectral EELS acquisition.
 
-use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
-use crate::auxiliar::{Settings, misc::TimepixRead};
+use crate::packetlib::{Packet, PacketEELSInverted as Pack};
+use crate::auxiliar::{Settings, misc::{TimepixRead, packet_change}};
 use crate::tdclib::{TdcControl, PeriodicTdcRef, isi_box::{IsiBoxHand, IsiBoxType}};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
@@ -40,7 +40,7 @@ pub trait SpimKind {
     //type Output;
 
     fn data(&self) -> &Vec<Self::InputData>;
-    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef);
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, set: &Settings);
     fn add_tdc_hit<T: TdcControl>(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T);
     fn upt_line(&self, packet: &Pack, settings: &Settings, line_tdc: &mut PeriodicTdcRef);
     fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8];
@@ -50,90 +50,34 @@ pub trait SpimKind {
 }
 
 #[inline]
-pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
-    let val = dt % spim_tdc.period;
-    let xspim = xspim;
-    let yspim = yspim;
-    if val >= spim_tdc.low_time {
-        let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-        let rin = ((xspim as TIME * (val-spim_tdc.low_time)) / spim_tdc.high_time) as POSITION; //Column correction. Maybe not even needed.
-            
-            if r > (yspim-1) {
-                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
-                r %= yspim;
-            }
-            
-            let index = (r * xspim + rin) * SPIM_PIXELS + x;
-        
-            Some(index)
-        } else {
-            None
-        }
+pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_HYPERSPEC> {
+    Some(get_return_positional_index(dt, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
 }
 
 #[inline]
-pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
-    let val = dt % spim_tdc.period;
-    if val < spim_tdc.low_time {
-        let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-        let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
-            
-            if r > (yspim-1) {
-                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
-                r %= yspim;
-            }
-            
-            let index = (r * xspim + rin) * SPIM_PIXELS + x;
-        
-            Some(index)
-        } else {
-            None
-        }
+pub fn get_spimindex_using_line(x: POSITION, dt: TIME, line: POSITION, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_HYPERSPEC> {
+    Some(get_positional_index_using_line(dt, line, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
 }
 
 #[inline]
-pub fn get_complete_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> POSITION {
-    let val = dt % spim_tdc.period;
-    let xspim = xspim;
-    let yspim = yspim;
-        
-    let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-    let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
-            
-        if r > (yspim-1) {
-            r %= yspim;
-        }
-            
-        let index = (r * xspim + rin) * SPIM_PIXELS + x;
-        
-        index
+pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_HYPERSPEC> {
+    Some(get_positional_index(dt, spim_tdc, xspim, yspim)? * SPIM_PIXELS + x)
 }
 
-//This recovers the position of the probe given the TDC and the electron ToA
 #[inline]
-pub fn get_positional_index(channel: u8, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<(POSITION, u8)> {
-    let val = dt % spim_tdc.period;
-    if val < spim_tdc.low_time {
-        let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
-        let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
-            
-            if r > (yspim-1) {
-                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
-                r %= yspim;
-            }
-            
-            let index = r * xspim + rin;
-        
-            Some((index, channel))
-        } else {
-            None
-        }
+pub fn get_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_4D> {
+    Some(get_positional_index(dt, spim_tdc, xspim, yspim)? as INDEX_4D * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as INDEX_4D + (y * RAW4D_PIXELS_X + x)as INDEX_4D)
 }
 
-//This recovers the position of the probe given the TDC and the electron ToA
 #[inline]
-pub fn get_4d_complete_positional_index(dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<u32> {
-    
+pub fn get_return_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_4D> {
+    Some(get_return_positional_index(dt, spim_tdc, xspim, yspim)? as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 + (y * RAW4D_PIXELS_X + x)as u64)
+}
+
+//This recovers the position of the probe given the TDC and the electron ToA. dT is the time from
+//the last frame begin
+#[inline]
+pub fn get_positional_index(dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
     let val = dt % spim_tdc.period;
     if val < spim_tdc.low_time {
         let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
@@ -152,6 +96,50 @@ pub fn get_4d_complete_positional_index(dt: TIME, spim_tdc: &PeriodicTdcRef, xsp
         }
 }
 
+//This recovers the position of the probe during the return given the TDC and the electron ToA
+#[inline]
+pub fn get_return_positional_index(dt: TIME, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+    let val = dt % spim_tdc.period;
+    if val >= spim_tdc.low_time {
+        let mut r = (dt / spim_tdc.period) as POSITION; //how many periods -> which line to put.
+        let rin = ((xspim as TIME * (val - spim_tdc.low_time)) / spim_tdc.high_time) as POSITION; //Column correction. Maybe not even needed.
+            
+            if r > (yspim-1) {
+                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
+                r %= yspim;
+            }
+            
+            let index = r * xspim + rin;
+        
+            Some( index )
+        } else {
+            None
+        }
+}
+
+//This recovers the position of the probe given the TDC and the electron ToA. dT is the time from
+//the last line reference
+#[inline]
+pub fn get_positional_index_using_line(dt: TIME, line: POSITION, spim_tdc: &PeriodicTdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+    let val = dt % spim_tdc.period;
+    if val < spim_tdc.low_time {
+        let mut r = line; //how many periods -> which line to put.
+        let rin = ((xspim as TIME * val) / spim_tdc.low_time) as POSITION; //Column correction. Maybe not even needed.
+            
+            if r > (yspim-1) {
+                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
+                r %= yspim;
+            }
+            
+            let index = r * xspim + rin;
+        
+            Some( index )
+        } else {
+            None
+        }
+}
+
+
 
 //fn grab_test<R: std::io::Read>(mut array: R) -> Result<Vec<Live4DChannelMask<MaskValues>>, Tp3ErrorKind> {
 fn grab_mask<R: std::io::Read>(mut array: R) -> Result<Vec<Live4DChannelMask<MaskValues>>, Tp3ErrorKind> {
@@ -164,23 +152,6 @@ fn grab_mask<R: std::io::Read>(mut array: R) -> Result<Vec<Live4DChannelMask<Mas
     Ok(vec_of_channels)
 }
 
-/*
-fn grab_mask<R: std::io::Read>(mut array: R) -> Result<Live4DChannelMask<MaskValues>, Tp3ErrorKind> {
-    let mut mask = [0_i16; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
-    let mut total_size = 0;
-    //while let Ok(size) = array.read(&mut mask) {
-    while let Ok(size) = array.read(as_bytes_mut(&mut mask)) {
-        total_size += size;
-    }
-    if total_size != (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize {
-        return Err(Tp3ErrorKind::STEM4DCouldNotSetMask);
-    }
-    println!("***4D STEM***: Mask received. Number of bytes read is {}.", total_size);
-    Ok(Live4DChannelMask::new(mask))
-}
-*/
-
-
 #[inline]
 pub fn correct_or_not_etime(mut ele_time: TIME, line_tdc: &PeriodicTdcRef) -> TIME {
     if ele_time < line_tdc.begin_frame + VIDEO_TIME {
@@ -190,11 +161,40 @@ pub fn correct_or_not_etime(mut ele_time: TIME, line_tdc: &PeriodicTdcRef) -> TI
     ele_time
 }
 
+#[inline]
+pub fn correct_or_not_etime_using_line(mut ele_time: TIME, line_tdc: &PeriodicTdcRef) -> TIME {
+    if ele_time < line_tdc.time() + VIDEO_TIME {
+        let factor = (line_tdc.time() + VIDEO_TIME - ele_time) / (line_tdc.period) + 1;
+        ele_time += line_tdc.period * factor;
+    }
+    ele_time
+}
+
 ///It outputs list of indices (max `u32`) that
 ///must be incremented. This is Hyperspectral Imaging
 pub struct Live {
     data: Vec<(POSITION, TIME)>,
-    data_out: Vec<u32>,
+    data_out: Vec<INDEX_HYPERSPEC>,
+    _timer: Instant,
+}
+
+///It outputs a list of indices that must
+///be increment. This is Hyperspectral imaging with
+///coincident photons around
+pub struct LiveCoincidence {
+    data: Vec<(POSITION, TIME)>,
+    aux_data: [TIME; LIST_SIZE_AUX_EVENTS],
+    data_out: Vec<INDEX_HYPERSPEC>,
+    _timer: Instant,
+}
+
+///It outputs a list of indices that must
+///be increment. This is Hyperspectral imaging with
+///coincident photons around
+pub struct Live4D {
+    data: Vec<(POSITION, TIME)>,
+    data_out: Vec<INDEX_4D>,
+    _timer: Instant,
 }
 
 ///It outputs a frame-based to be used to reconstruct a channel in 4D STEM.
@@ -205,6 +205,7 @@ pub struct LiveFrame4D<T> {
     scan_size: (POSITION, POSITION),
     channels: Vec<Live4DChannelMask<T>>,
     debouncer: bool,
+    timer: Instant,
 }
 
 
@@ -252,7 +253,7 @@ impl SpimKind for Live {
         &self.data
     }
     #[inline]
-    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef) {
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, _set: &Settings) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
         self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
     }
@@ -289,7 +290,78 @@ impl SpimKind for Live {
         self.data_out = self.data.iter()
             .filter_map(|&(x, dt)| {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
-            }).collect::<Vec<u32>>();
+            }).collect::<Vec<POSITION>>();
+
+        /*
+        let temp = &mut self.data_out;
+        let my_vec = self.data.iter()
+            .filter_map(|&(x, dt)| {
+                get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
+            }).for_each(|x| temp.push(x));
+        */
+        
+        as_bytes(&self.data_out)
+    }
+    fn is_ready(&mut self, _line_tdc: &PeriodicTdcRef) -> bool {
+        true
+    }
+    fn copy_empty(&mut self) -> Self {
+        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) , data_out: Vec::new(), _timer: Instant::now()}
+    }
+    fn new(_settings: &Settings) -> Self {
+        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), _timer: Instant::now()}
+    }
+}
+
+impl SpimKind for LiveCoincidence {
+    type InputData = (POSITION, TIME);
+
+    fn data(&self) -> &Vec<Self::InputData> {
+        &self.data
+    }
+    #[inline]
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, set: &Settings) {
+        let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
+        for phtime in self.aux_data.iter() {
+            if (*phtime < ele_time + set.time_delay + set.time_width) && (ele_time + set.time_delay < *phtime + set.time_width) {
+                self.data.push((packet.x(), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
+            }
+        }
+    }
+    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &Pack, _line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
+        let tdc_time = packet.tdc_time_norm();
+        ref_tdc.upt(tdc_time, packet.tdc_counter());
+        for index in 0..LIST_SIZE_AUX_EVENTS-1 {
+            self.aux_data[index+1] = self.aux_data[index];
+        }
+        self.aux_data[0] = packet.tdc_time_norm();
+    }
+    fn upt_line(&self, packet: &Pack, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
+        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+    }
+    #[inline]
+    fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8] {
+
+        //First step is to find the index of the (X, Y) of the spectral image in a flattened way
+        //(last index is X*Y). The line value is thus multiplied by the spim size in the X
+        //direction. The column must be between [0, X]. So we have, for the position:
+        //
+        //index = line * xspim + column
+        //
+        //To find the actuall index value, one multiply this value by the number of signal pixels
+        //(the spectra) because every spatial point has SPIM_PIXELS channels.
+        //
+        //index = index * SPIM_PIXELS
+        //
+        //With this, we place every electron in the first channel of the signal dimension. We must
+        //thus add the pixel address to correct reconstruct the spectral image
+        //
+        //index = index + x
+        
+        self.data_out = self.data.iter()
+            .filter_map(|&(x, dt)| {
+                get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
+            }).collect::<Vec<POSITION>>();
         
         /*
         let temp = &mut self.data_out;
@@ -305,10 +377,77 @@ impl SpimKind for Live {
         true
     }
     fn copy_empty(&mut self) -> Self {
-        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8) , data_out: Vec::new()}
+        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8) , aux_data: [0; LIST_SIZE_AUX_EVENTS], data_out: Vec::new(), _timer: Instant::now()}
     }
     fn new(_settings: &Settings) -> Self {
-        Live{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new()}
+        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8), aux_data: [0; LIST_SIZE_AUX_EVENTS], data_out: Vec::new(), _timer: Instant::now()}
+    }
+}
+
+impl SpimKind for Live4D {
+    type InputData = (POSITION, TIME);
+
+    fn data(&self) -> &Vec<Self::InputData> {
+        &self.data
+    }
+    #[inline]
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, _set: &Settings) {
+        let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
+        self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
+    }
+    fn add_tdc_hit<T: TdcControl>(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, ref_tdc: &mut T) {
+        let tdc_time = packet.tdc_time_norm();
+        ref_tdc.upt(tdc_time, packet.tdc_counter());
+        if tdc_time > line_tdc.begin_frame + VIDEO_TIME {
+            self.data.push((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame - VIDEO_TIME))
+        }
+    }
+    fn upt_line(&self, packet: &Pack, _settings: &Settings, line_tdc: &mut PeriodicTdcRef) {
+        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+    }
+    #[inline]
+    fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8] {
+
+        //First step is to find the index of the (X, Y) of the spectral image in a flattened way
+        //(last index is X*Y). The line value is thus multiplied by the spim size in the X
+        //direction. The column must be between [0, X]. So we have, for the position:
+        //
+        //index = line * xspim + column
+        //
+        //To find the actuall index value, one multiply this value by the number of signal pixels
+        //(the spectra) because every spatial point has SPIM_PIXELS channels.
+        //
+        //index = index * SPIM_PIXELS
+        //
+        //With this, we place every electron in the first channel of the signal dimension. We must
+        //thus add the pixel address to correct reconstruct the spectral image
+        //
+        //index = index + x
+        
+        self.data_out = self.data.iter()
+            .filter_map(|&(x_y, dt)| {
+                //get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
+                get_4dindex(x_y >> 16, x_y & 65535, dt, spim_tdc, set.xspim_size, set.yspim_size)
+            }).collect::<Vec<u64>>();
+        
+        /*
+        let temp = &mut self.data_out;
+        let my_vec = self.data.iter()
+            .filter_map(|&(x, dt)| {
+                get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size)
+            }).for_each(|x| temp.push(x));
+        */
+        
+        as_bytes(&self.data_out)
+    }
+    fn is_ready(&mut self, _line_tdc: &PeriodicTdcRef) -> bool {
+        true
+    }
+    fn copy_empty(&mut self) -> Self {
+        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8) , data_out: Vec::new(), _timer: Instant::now()}
+    }
+    fn new(_settings: &Settings) -> Self {
+        Live4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), _timer: Instant::now()}
     }
 }
 
@@ -319,7 +458,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
         &self.data
     }
     #[inline]
-    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef) {
+    fn add_electron_hit(&mut self, packet: &Pack, line_tdc: &PeriodicTdcRef, _set: &Settings) {
         let ele_time = correct_or_not_etime(packet.electron_time(), line_tdc);
         self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time - line_tdc.begin_frame - VIDEO_TIME)); //This added the overflow.
 
@@ -339,16 +478,16 @@ impl SpimKind for LiveFrame4D<MaskValues> {
     #[inline]
     fn build_output(&mut self, set: &Settings, spim_tdc: &PeriodicTdcRef) -> &[u8] {
 
-        let channel_array_index = |x: u32, y: u32| -> usize
+        let channel_array_index = |x: POSITION, y: POSITION| -> usize
         {
             (y * DETECTOR_SIZE.0 + (x - DETECTOR_LIMITS.0.0)) as usize
         };
-        let is_inside = |x: u32, y: u32| -> bool {
+        let is_inside = |x: POSITION, y: POSITION| -> bool {
             (x > DETECTOR_LIMITS.0.0) && (x < DETECTOR_LIMITS.0.1) && (y > DETECTOR_LIMITS.1.0) && (y < DETECTOR_LIMITS.1.1)
         };
 
         let mut frequency = vec![0i16; (set.xspim_size * set.yspim_size) as usize];
-        let number_of_masks = self.number_of_masks() as u32;
+        let number_of_masks = self.number_of_masks() as POSITION;
         let com = self.com;
         let temp = &mut self.data_out;
         let temp2 = &self.channels;
@@ -357,7 +496,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
         self.data
             .iter()
             .filter_map(|&(x_y, dt)| {
-                match get_4d_complete_positional_index(dt, spim_tdc, set.xspim_size, set.yspim_size) {
+                match get_positional_index(dt, spim_tdc, set.xspim_size, set.yspim_size) {
                     Some(index) => Some((x_y >> 16, x_y & 65535, index)),
                     None => None,
                 }
@@ -392,6 +531,10 @@ impl SpimKind for LiveFrame4D<MaskValues> {
         if is_new_frame {
             if self.debouncer { 
                 self.debouncer = false;
+                if self.timer.elapsed().as_millis() < TIME_INTERVAL_4DFRAMES {
+                    self.data.clear();
+                    return false
+                }
                 return true
             }
         } else {
@@ -400,14 +543,14 @@ impl SpimKind for LiveFrame4D<MaskValues> {
         false
     }
     fn copy_empty(&mut self) -> Self {
-        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: vec![0; (self.scan_size.0 * self.scan_size.1) as usize * self.number_of_masks() as usize], com: self.com, scan_size: self.scan_size, channels: Vec::new(), debouncer: false};
+        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: vec![0; (self.scan_size.0 * self.scan_size.1) as usize * self.number_of_masks() as usize], com: self.com, scan_size: self.scan_size, channels: Vec::new(), debouncer: false, timer: Instant::now()};
         let file = std::fs::File::open(MASK_FILE).unwrap();
         frame.create_mask(file).unwrap();
         frame.create_data_channels();
         frame
     }
     fn new(settings: &Settings) -> Self {
-        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), com: (647, 106), scan_size: (settings.xspim_size, settings.yspim_size), channels: Vec::new(), debouncer: false};
+        let mut frame = LiveFrame4D{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), com: (0, 0), scan_size: (settings.xspim_size, settings.yspim_size), channels: Vec::new(), debouncer: false, timer: Instant::now()};
         let file = std::fs::File::open(MASK_FILE).unwrap();
         frame.create_mask(file).unwrap();
         frame.create_data_channels();
@@ -425,15 +568,18 @@ pub fn build_spim<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Set
     let (tx, rx) = mpsc::channel();
     let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
-    //let mut list = meas_type.copy_empty();
-    
+
+    let mut file_to_write = my_settings.create_file();
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
+            if let Some(file) = &mut file_to_write {
+                file.write(&buffer_pack_data[0..size]).unwrap();
+            }
             build_spim_data(&mut meas_type, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut line_tdc, &mut ref_tdc);
             if meas_type.is_ready(&line_tdc) {
                let list2 = meas_type.copy_empty();
-                if tx.send(meas_type).is_err() {println!("Cannot send data over the thread channel."); break;}
-                meas_type = list2;
+               if tx.send(meas_type).is_err() {println!("Cannot send data over the thread channel."); break;}
+               meas_type = list2;
             }
         }
     });
@@ -487,7 +633,6 @@ pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings:
 }
 
 fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut PeriodicTdcRef, ref_tdc: &mut T) {
-
     data.chunks_exact(8).for_each(|x| {
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
@@ -496,7 +641,7 @@ fn build_spim_data<T: TdcControl, W: SpimKind>(list: &mut W, data: &[u8], last_c
                 let id = packet.id();
                 match id {
                     11 => {
-                        list.add_electron_hit(&packet, line_tdc);
+                        list.add_electron_hit(&packet, line_tdc, settings);
                     },
                     6 if packet.tdc_type() == line_tdc.id() => {
                         list.upt_line(&packet, settings, line_tdc);

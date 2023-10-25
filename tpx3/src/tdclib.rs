@@ -5,8 +5,8 @@
 mod tdcvec {
     use crate::errorlib::Tp3ErrorKind;
     use crate::tdclib::TdcType;
-    use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
-    use crate::auxiliar::value_types::*;
+    use crate::packetlib::{Packet, PacketStd};
+    use crate::auxiliar::{misc::packet_change, value_types::*};
 
     pub struct TdcSearch<'a> {
         data: Vec<(TIME, TdcType)>,
@@ -27,7 +27,7 @@ mod tdcvec {
             }
         }
 
-        fn add_tdc(&mut self, packet: &Pack) {
+        fn add_tdc<T: Packet>(&mut self, packet: &T) {
             if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
                 let time = packet.tdc_time_norm();
                 self.data.push( (time, tdc) );
@@ -157,7 +157,7 @@ mod tdcvec {
                 match *x {
                     [84, 80, 88, 51, _, _, _, _] => {},
                     _ => {
-                        let packet = Pack {chip_index: 0, data: packet_change(x)[0]};
+                        let packet = PacketStd {chip_index: 0, data: packet_change(x)[0]};
                         if packet.id() == 6 && self.tdc_choosen.is_same_inputline(packet.tdc_type()) {
                             self.add_tdc(&packet);
                         }
@@ -239,6 +239,7 @@ use std::time::{Duration, Instant};
 use crate::errorlib::Tp3ErrorKind;
 use crate::auxiliar::misc::TimepixRead;
 use crate::auxiliar::value_types::*;
+use crate::constlib::*;
 
 pub trait TdcControl {
     fn id(&self) -> u8;
@@ -276,13 +277,27 @@ impl TdcControl for PeriodicTdcRef {
             self.counter_overflow += 1;
         }
         self.last_hard_counter = hard_counter;
-        self.time = time;
         self.counter = self.last_hard_counter as COUNTER + self.counter_overflow * 4096 - self.counter_offset;
+        let time_overflow = self.time > time;
+        self.time = time;
         if let Some(spimy) = self.ticks_to_frame {
             if (self.counter / 2) % spimy == 0 {
                 self.begin_frame = time;
                 self.new_frame = true
-            } else { self.new_frame = false }
+            } else if time_overflow {
+                //I slightly correct the frame time by supossing what is the next frame time. This
+                //will be correctly updated in the next cycle.
+                let frame_time = self.period * spimy as TIME;
+                self.begin_frame = if frame_time > ELECTRON_OVERFLOW {
+                    (self.begin_frame + self.period * spimy as TIME) - ELECTRON_OVERFLOW
+                } else {
+                    (self.begin_frame + self.period * spimy as TIME) % ELECTRON_OVERFLOW
+                };
+                self.new_frame = false 
+            } else {
+                //Does nothing. No new frame
+                self.new_frame = false
+            }
         }
     }
 
@@ -350,12 +365,43 @@ impl PeriodicTdcRef {
         }
     }
 
+    pub fn current_line(&self) -> Option<POSITION> {
+        Some(((self.counter / 2) % self.ticks_to_frame?) as POSITION)
+    }
+
     pub fn pixel_time(&self, xspim: POSITION) -> TIME {
         self.low_time / xspim as TIME
     }
 
     pub fn estimate_time(&self) -> TIME {
         (self.counter as TIME / 2) * self.period + self.begin_time
+    }
+    pub fn new_no_read(tdc_type: TdcType, ticks_to_frame: Option<COUNTER>) -> Result<Self, Tp3ErrorKind> {
+        println!("***Tdc Lib***: {} has been created (no read).", tdc_type.associate_str());
+        let counter_offset = 0;
+        let begin_time = 0;
+        let last_time = 0;
+        let high_time = 0;
+        let period = 0;
+        let low_time = 0;
+
+        let per_ref = Self {
+            tdctype: tdc_type.associate_value(),
+            counter: 0,
+            counter_offset,
+            last_hard_counter: 0,
+            counter_overflow: 0,
+            begin_time,
+            begin_frame: begin_time,
+            ticks_to_frame,
+            period,
+            high_time,
+            low_time,
+            new_frame: false,
+            time: last_time,
+        };
+        println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
+        Ok(per_ref)
     }
 }
 

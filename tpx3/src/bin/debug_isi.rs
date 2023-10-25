@@ -17,8 +17,10 @@ fn main() {
     let mut coinc_data = ElectronData::new(config_set);
     search_coincidence_isi(&args[6], &mut coinc_data).unwrap();
     
-    coinc_data.output_spectrum(true);
-    coinc_data.output_corr_spectrum(false);
+    //TODO: Must fix this otherwise no data will be output.
+    /*
+    coinc_data.output_spectrum();
+    coinc_data.output_corr_spectrum();
     coinc_data.output_relative_time();
     coinc_data.output_time();
     coinc_data.output_g2_time();
@@ -28,4 +30,5 @@ fn main() {
     coinc_data.output_spim_index();
     coinc_data.output_tot();
     coinc_data.output_cluster_size();
+    */
 }

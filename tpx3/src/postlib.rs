@@ -1,11 +1,10 @@
 pub mod coincidence {
-
-    use std::fs::OpenOptions;
-    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack, packet_change};
+    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
     use crate::postlib::isi_box;
     use crate::errorlib::Tp3ErrorKind;
     use crate::clusterlib::cluster::ClusterCorrection;
+    use crate::spimlib::get_spimindex;
     use std::io;
     use std::io::prelude::*;
     use std::fs;
@@ -13,30 +12,10 @@ pub mod coincidence {
     use std::collections::HashMap;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
     use crate::auxiliar::ConfigAcquisition;
-    use crate::auxiliar::value_types::*;
+    use crate::auxiliar::{value_types::*, misc::{output_data, packet_change}};
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
-
-    const PHOTON_LIST_STEP: usize = 10;
-    
-    fn as_bytes<T>(v: &[T]) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u8,
-                v.len() * std::mem::size_of::<T>())
-        }
-    }
-
-    fn output_data<T>(data: &[T], name: &str) {
-        let mut tfile = OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .open(name).unwrap();
-        tfile.write_all(as_bytes(data)).unwrap();
-        println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
-    }
-
+    //use rayon::prelude::*;
 
     //When we would like to have large E-PH timeoffsets, such as skipping entire line periods, the
     //difference between E-PH could not fit in i16. We fold these big numbers to fit in a i16
@@ -53,6 +32,8 @@ pub mod coincidence {
 
     //Non-standard data types 
     pub struct ElectronData<T> {
+        reduced_raw_data: Vec<u64>,
+        index_to_add_in_raw: Vec<usize>,
         time: Vec<TIME>,
         channel: Vec<u8>,
         rel_time: Vec<i16>,
@@ -62,12 +43,13 @@ pub mod coincidence {
         y: Vec<u16>,
         tot: Vec<u16>,
         cluster_size: Vec<u16>,
-        spectrum: Vec<usize>,
-        corr_spectrum: Vec<usize>,
+        spectrum: Vec<u32>,
+        corr_spectrum: Vec<u32>,
+        spim_frame: Vec<u32>,
         frequency_list: HashMap<i16, u32>,
         is_spim: bool,
         spim_size: (POSITION, POSITION),
-        spim_index: Vec<POSITION>,
+        spim_index: Vec<INDEX_HYPERSPEC>,
         spim_tdc: Option<PeriodicTdcRef>,
         remove_clusters: T,
         overflow_electrons: COUNTER,
@@ -77,6 +59,32 @@ pub mod coincidence {
     impl<T: ClusterCorrection> ElectronData<T> {
         fn add_electron(&mut self, val: SingleElectron) {
             self.spectrum[val.x() as usize] += 1;
+            if self.is_spim {
+                if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
+                    self.spim_frame[index as usize] += 1;
+                }
+            }
+        }
+
+        //This adds the index of the 64-bit packet that will be afterwards added to the reduced
+        //raw. We should not do on the fly as the order of the packets will not be preserved for
+        //photons and electrons, for example. So we should run once and then run again for the
+        //recorded indexes.
+        fn add_packet_to_raw_index(&mut self, index: usize) {
+            self.index_to_add_in_raw.push(index);
+        }
+        
+        //This adds the packet to the reduced raw value and clear the index list afterwards
+        fn add_packets_to_reduced_data(&mut self, buffer: &[u8]) {
+            //Now we must add the concerned data to the reduced raw. We should first sort the indexes
+            //that we have saved
+            self.index_to_add_in_raw.sort();
+            //Then we should iterate and see matching indexes to add.
+            for index in self.index_to_add_in_raw.iter() {
+                let value = packet_change(&buffer[index * 8..(index + 1) * 8])[0];
+                self.reduced_raw_data.push(value);
+            }
+            self.index_to_add_in_raw.clear();
         }
 
         fn add_spim_line(&mut self, pack: &Pack) {
@@ -88,16 +96,28 @@ pub mod coincidence {
         fn estimate_overflow(&self, pack: &Pack) -> Option<TIME> {
             if let Some(spim_tdc) = self.spim_tdc {
                 let val = spim_tdc.estimate_time();
-                if val > pack.tdc_time() + Pack::electron_overflow() {
-                    return Some(val / Pack::tdc_overflow());
+                if val > pack.tdc_time() + ELECTRON_OVERFLOW {
+                    return Some(val / TDC_OVERFLOW);
                 }
                 else {return Some(0)}
             }
             None
         }
 
+        /*
+        fn add_coincident_electron_to_raw(&mut self, val: SingleElectron) {
+            let new_header = val.raw_packet_header();
+            //This raw_packet_header() method depends only on the chip_index so we can simply check
+            //if it changed or not.
+            if new_header != self.last_raw_header {
+                self.reduced_raw_data.push(new_header);
+                self.last_raw_header = new_header;
+            }
+            self.reduced_raw_data.push(val.raw_packet_data());
+        }
+        */
 
-        fn add_coincident_electron(&mut self, val: SingleElectron, photon: (TIME, COUNTER, Option<i16>)) {
+        fn add_coincident_electron(&mut self, val: SingleElectron, photon: TdcStructureData) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
             self.time.push(val.time());
@@ -107,12 +127,12 @@ pub mod coincidence {
             self.y.push(val.y().try_into().unwrap());
             self.channel.push(photon.1.try_into().unwrap());
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).fold());
-            //self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).try_into().unwrap());
             self.cluster_size.push(val.cluster_size().try_into().unwrap());
             
-            //This is a frequency list. Helps to preview data.
-            let mut count = self.frequency_list.entry(val.relative_time_from_abs_tdc(photon.0).fold()).or_insert(0);
-            *count += 1;
+            
+            //This is a frequency list. Helps to preview data. Currently unsused
+            //let mut count = self.frequency_list.entry(val.relative_time_from_abs_tdc(photon.0).fold()).or_insert(0);
+            //*count += 1;
             
             match val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 Some(index) => self.spim_index.push(index),
@@ -123,7 +143,7 @@ pub mod coincidence {
         fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME, line_offset: i64) {
             let _ntotal = temp_tdc.tdc.len();
             let nphotons = temp_tdc.tdc.iter().
-                filter(|(_time, channel, _dt)| *channel != 16 && *channel != 24).
+                filter(|(_time, channel, _dt, _hyp_index)| *channel != 16 && *channel != 24).
                 count();
             let mut min_index = temp_tdc.min_index;
             //println!("Total supplementary events: {}. Photons: {}. Minimum size of the array: {}.", ntotal, nphotons, min_index);
@@ -141,9 +161,15 @@ pub mod coincidence {
             temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, &self.remove_clusters);
 
-            self.spectrum[SPIM_PIXELS as usize-1]=nphotons; //Adding photons to the last pixel
+            self.spectrum[SPIM_PIXELS as usize-1]+=nphotons as u32; //Adding photons to the last pixel
+            for ph in temp_tdc.clean_tdc.iter().filter(|ph| ph.3.is_some()) {
+                self.spim_frame[ph.3.unwrap() as usize] += 1;
+            }
 
-            let line_period_offset = line_offset * self.spim_tdc.unwrap().period().unwrap() as i64;
+            let line_period_offset = match self.spim_tdc {
+                Some(spim_tdc) => line_offset * spim_tdc.period().unwrap() as i64,
+                None => 0,
+            };
             
             let mut first_corr_photon = 0;
             for val in temp_edata.electron.values() {
@@ -153,25 +179,23 @@ pub mod coincidence {
                 let mut index_to_increase = None;
                 for ph in &temp_tdc.clean_tdc[min_index..] {
                     let new_photon_time = ((ph.0 / 6) as i64 + line_period_offset) as TIME;
-                    //if ((ph.0/6) < val.time() + time_delay + time_width) && (val.time() + time_delay < (ph.0/6) + time_width) {
                     if (new_photon_time < val.time() + time_delay + time_width) && (val.time() + time_delay < new_photon_time + time_width) {
-                    //let difference = (ph.0/6) as i64 - val.time() as i64 - time_delay as i64 + line_offset * line_period;
-                    //if difference.abs() < time_width as i64 {
                         self.add_coincident_electron(*val, *ph);
+                        if photons_per_electron == 0 { //The electrons is only added once. There could be multiple photons for the same electron
+                            //self.add_coincident_electron_to_raw(*val);
+                            self.add_packet_to_raw_index((*val).raw_packet_index());
+                        }
                         if index_to_increase.is_none() {
                             index_to_increase = Some(index)
                         }
                         photons_per_electron += 1;
                         if photons_per_electron == 2 {
-                            //self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon).try_into().unwrap());
-                            //self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.0).try_into().unwrap());
                             self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon).fold());
                             self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.0).fold());
                         }
                         first_corr_photon = ph.0;
 
                     }
-                    //if (ph.0/6) - line_period > val.time() + time_delay + 10_000 {break;}
                     if new_photon_time > val.time() + time_delay + 10_000 {break;}
                     index += 1;
                 }
@@ -189,6 +213,7 @@ pub mod coincidence {
             self.spim_tdc = Some(spim_tdc);
         }
 
+        /*
         fn estimate_histogram_from_hash(&self) -> f32 {
             let number_index_values: usize = self.frequency_list.iter().map(|(index, _count)| *index).count();
             let count_values = self.frequency_list.iter().map(|(_index, count)| *count).collect::<Vec<u32>>();
@@ -200,9 +225,12 @@ pub mod coincidence {
             
             (std_sum / size).sqrt()
         }
+        */
 
         pub fn new(my_config: ConfigAcquisition<T>) -> Self {
             Self {
+                reduced_raw_data: Vec::new(),
+                index_to_add_in_raw: Vec::new(),
                 time: Vec::new(),
                 channel: Vec::new(),
                 rel_time: Vec::new(),
@@ -211,6 +239,7 @@ pub mod coincidence {
                 x: Vec::new(),
                 y: Vec::new(),
                 tot: Vec::new(),
+                spim_frame: vec![0; (SPIM_PIXELS * my_config.xspim * my_config.yspim) as usize],
                 cluster_size: Vec::new(),
                 spectrum: vec![0; SPIM_PIXELS as usize],
                 corr_spectrum: vec![0; SPIM_PIXELS as usize],
@@ -224,89 +253,102 @@ pub mod coincidence {
                 file: my_config.file,
             }
         }
-        
-        pub fn output_corr_spectrum(&self, bin: bool) {
-            let out: String = match bin {
-                true => {
-                    let mut spec: Vec<usize> = vec![0; SPIM_PIXELS as usize];
-                    for val in self.corr_spectrum.chunks_exact(SPIM_PIXELS as usize) {
-                        spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
-                    }
-                    spec.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
-                },
-                false => {
-                    self.corr_spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
-                },
-            };
-            fs::write("cspec.txt", out).unwrap();
+
+        fn try_create_folder(&self) -> Result<(), Tp3ErrorKind> {
+            let path_length = &self.file.len();
+            match fs::create_dir(&self.file[..path_length - 5]) {
+                Ok(_) => {Ok(())},
+                Err(_) => { Err(Tp3ErrorKind::CoincidenceFolderAlreadyCreated) }
+            }
         }
         
-        pub fn output_spectrum(&self, bin: bool) {
-            let out: String = match bin {
-                true => {
-                    let mut spec: Vec<usize> = vec![0; SPIM_PIXELS as usize];
-                    for val in self.spectrum.chunks_exact(SPIM_PIXELS as usize) {
-                        spec.iter_mut().zip(val.iter()).map(|(a, b)| *a += b).count();
-                    }
-                    spec.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
-                },
-                false => {
-                    self.spectrum.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ")
-                },
-            };
-            fs::write("spec.txt", out).unwrap();
+        fn early_output_data(&mut self) {
+            self.output_reduced_raw();
+            self.output_relative_time();
+            self.output_time();
+            self.output_g2_time();
+            self.output_channel();
+            self.output_dispersive();
+            self.output_non_dispersive();
+            self.output_spim_index();
+            self.output_tot();
+            self.output_cluster_size();
         }
 
-        pub fn output_relative_time(&self) {
-            output_data(&self.rel_time, "tH.txt");
-            output_data(&self.double_photon_rel_time, "double_tH.txt");
+        fn output_data(&self) {
+            self.output_spectrum();
+            self.output_hyperspec();
+            self.output_corr_spectrum();
         }
         
-        pub fn output_time(&self) {
-            output_data(&self.time, "tabsH.txt");
+        fn output_corr_spectrum(&self) {
+            output_data(&self.corr_spectrum, self.file.clone(), "cspec.txt");
         }
         
-        pub fn output_g2_time(&self) {
+        fn output_spectrum(&self) {
+            output_data(&self.spectrum, self.file.clone(), "spec.txt");
+        }
+
+        fn output_hyperspec(&self) {
+            output_data(&self.spim_frame, self.file.clone(), "spim_frame.txt");
+        }
+
+        fn output_relative_time(&mut self) {
+            output_data(&self.rel_time, self.file.clone(), "tH.txt");
+            output_data(&self.double_photon_rel_time, self.file.clone(), "double_tH.txt");
+            self.rel_time.clear();
+            self.double_photon_rel_time.clear();
+        }
+        
+        fn output_reduced_raw(&mut self) {
+            output_data(&self.reduced_raw_data, self.file.clone(), "reduced_raw.tpx3");
+            self.reduced_raw_data.clear();
+        }
+        
+        fn output_time(&mut self) {
+            output_data(&self.time, self.file.clone(), "tabsH.txt");
+            self.time.clear();
+        }
+        
+        fn output_g2_time(&mut self) {
             let vec = self.g2_time.iter().map(|x| {
                 match x {
                     None => -5_000,
                     Some(x) => *x,
                 }
             }).collect::<Vec<i16>>();
-            output_data(&vec, "g2tH.txt");
+            output_data(&vec, self.file.clone(), "g2tH.txt");
+            self.g2_time.clear();
         }
         
-        pub fn output_channel(&self) {
-            output_data(&self.channel, "channel.txt");
+        fn output_channel(&mut self) {
+            output_data(&self.channel, self.file.clone(), "channel.txt");
+            self.channel.clear();
         }
         
-        pub fn output_dispersive(&self) {
-            output_data(&self.x, "xH.txt");
+        fn output_dispersive(&mut self) {
+            output_data(&self.x, self.file.clone(), "xH.txt");
+            self.x.clear();
         }
         
-        pub fn output_non_dispersive(&self) {
-            output_data(&self.y, "yH.txt");
+        fn output_non_dispersive(&mut self) {
+            output_data(&self.y, self.file.clone(), "yH.txt");
+            self.y.clear();
         }
         
-        pub fn output_spim_index(&self) {
-            output_data(&self.spim_index, "si.txt");
-            /*
-            println!("Outputting each spim index value under si name. Vector len is {}", self.spim_index.len());
-            let out: String = self.spim_index.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-            fs::write("si.txt", out).unwrap();
-            */
+        fn output_spim_index(&mut self) {
+            output_data(&self.spim_index, self.file.clone(), "si.txt");
+            self.spim_index.clear();
         }
 
-        pub fn output_cluster_size(&self) {
-            output_data(&self.cluster_size, "cs.txt");
-            /*
-            let out: String = self.cluster_size.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(", ");
-            fs::write("cs.txt", out).unwrap();
-            */
+        fn output_cluster_size(&mut self) {
+            output_data(&self.cluster_size, self.file.clone(), "cs.txt");
+            self.cluster_size.clear();
         }
 
-        pub fn output_tot(&self) {
-            output_data(&self.tot, "tot.txt");
+        fn output_tot(&mut self) {
+            output_data(&self.tot, self.file.clone(), "tot.txt");
+            self.tot.clear();
         }
             
     }
@@ -316,9 +358,11 @@ pub mod coincidence {
         FromIsiBox,
     }
 
+    //the absolute time, the channel, the g2_dT, and the spim index;
+    pub type TdcStructureData = (TIME, COUNTER, Option<i16>, Option<INDEX_HYPERSPEC>);
     pub struct TempTdcData {
-        tdc: Vec<(TIME, COUNTER, Option<i16>)>, //The absolute time, the channel and the g2_dT
-        clean_tdc: Vec<(TIME, COUNTER, Option<i16>)>,
+        tdc: Vec<TdcStructureData>,
+        clean_tdc: Vec<TdcStructureData>,
         min_index: usize,
         tdc_type: TempTdcDataType,
     }
@@ -349,8 +393,8 @@ pub mod coincidence {
 
         fn correct_tdc(&mut self, val: &mut IsiBoxCorrectVector) {
             self.tdc.iter_mut().zip(val.0.iter_mut()).
-                filter(|((_time, _channel, _dt), corr)| corr.is_some()).
-                for_each(|((time, _channel, _dt), corr)| {
+                filter(|((_time, _channel, _dt, _hyp_index), corr)| corr.is_some()).
+                for_each(|((time, _channel, _dt, _hyp_index), corr)| {
                 *time += corr.unwrap();
                 //*time = *time - (*time / (Pack::electron_overflow() * 6)) * (Pack::electron_overflow() * 6);
                 *corr = Some(0);
@@ -369,13 +413,18 @@ pub mod coincidence {
         pub fn get_sync(&self) -> Vec<(usize, TIME)> {
             self.tdc.iter().
                 enumerate().
-                filter(|(_index, (_time, channel, _dt))| *channel == 16).
-                map(|(index, (time, _channel, _dt))| (index, *time)).
+                filter(|(_index, (_time, channel, _dt, _hyp_index))| *channel == 16).
+                map(|(index, (time, _channel, _dt, _hyp_index))| (index, *time)).
                 collect::<Vec<_>>()
         }
 
-        fn add_tdc(&mut self, my_pack: &Pack, channel: COUNTER) {
-            self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None));
+        fn add_tdc(&mut self, my_pack: &Pack, channel: COUNTER, line_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) {
+            if let Some(spim_tdc) = line_tdc {
+                let time = my_pack.tdc_time_norm() - spim_tdc.begin_frame - VIDEO_TIME;
+                self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None, get_spimindex(SPIM_PIXELS-1, time, &spim_tdc, xspim, yspim)));
+            } else {
+                self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None, None));
+            }
         }
 
         fn sort(&mut self) {
@@ -408,12 +457,15 @@ pub mod coincidence {
                 min_index: 0,
             }
         }
+        fn add_electron(&mut self, se: SingleElectron) {
+            self.electron.add_electron(se);
+        }
     }
 
 
     pub fn check_for_error_in_tpx3_data<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<u32, Tp3ErrorKind> {
         let mut file0 = fs::File::open(&coinc_data.file).unwrap();
-        let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
+        let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         
         let bar = ProgressBar::new(ISI_BUFFER_SIZE as u64);
@@ -459,15 +511,23 @@ pub mod coincidence {
     }
             
 
-    pub fn search_coincidence<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> io::Result<()> {
+    pub fn search_coincidence<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<(), Tp3ErrorKind> {
 
-        let mut file0 = fs::File::open(&coinc_data.file)?;
+        //If folder exists, the procedure does not continue.
+        coinc_data.try_create_folder()?;
+        
+        //Opening the raw data file.
+        let mut file0 = match fs::File::open(&coinc_data.file) {
+            Ok(val) => val,
+            Err(_) => return Err(Tp3ErrorKind::CoincidenceCantReadFile),
+        };
+
         let progress_size = file0.metadata().unwrap().len() as u64;
         let spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
             if coinc_data.spim_size.0 == 0 || coinc_data.spim_size.1 == 0 {
-                panic!("Spim mode is on. X and Y pixels must be greater than 0.");
+                panic!("***Coincidence***: Spim mode is on. X and Y pixels must be greater than 0.");
             }
-            let temp = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
+            let temp = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
             coinc_data.prepare_spim(temp);
             Box::new(temp)
         } else {
@@ -475,8 +535,13 @@ pub mod coincidence {
         };
         let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0, None).expect("Could not create non periodic (photon) TDC reference.");
 
+ 
         let mut ci = 0;
-        let mut file = fs::File::open(&coinc_data.file)?;
+        let mut file = match fs::File::open(&coinc_data.file) {
+            Ok(val) => val,
+            Err(_) => return Err(Tp3ErrorKind::CoincidenceCantReadFile),
+        };
+
         let mut buffer: Vec<u8> = vec![0; TP3_BUFFER_SIZE];
         let mut total_size = 0;
         
@@ -488,37 +553,48 @@ pub mod coincidence {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
+            if LIMIT_READ && total_size >= LIMIT_READ_SIZE {break;}
             bar.inc(TP3_BUFFER_SIZE as u64);
-            //println!("MB Read: {}", total_size / 1_000_000 );
             let mut temp_edata = TempElectronData::new();
             let mut temp_tdc = TempTdcData::new();
-            //let mut packet_chunks = buffer[0..size].chunks_exact(8);
-            buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+            buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
+                let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                 match *pack_oct {
-                    [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
+                    [84, 80, 88, 51, nci, _, _, _] => {
+                        ci=nci;
+                        coinc_data.add_packet_to_raw_index(current_raw_index);
+                        //coinc_data.add_packet_to_reduced_data(&packet);
+                    },
                     _ => {
-                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                         match packet.id() {
                             6 if packet.tdc_type() == np_tdc.id() => {
-                                temp_tdc.add_tdc(&packet, 0);
+                                temp_tdc.add_tdc(&packet, 0, coinc_data.spim_tdc, coinc_data.spim_size.0, coinc_data.spim_size.1);
+                                coinc_data.add_packet_to_raw_index(current_raw_index);
+                                //coinc_data.add_packet_to_reduced_data(&packet);
                             },
                             6 if packet.tdc_type() == spim_tdc.id() => {
                                 coinc_data.add_spim_line(&packet);
+                                coinc_data.add_packet_to_raw_index(current_raw_index);
+                                //coinc_data.add_packet_to_reduced_data(&packet);
                             },
                             11 => {
-                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc);
-                                temp_edata.electron.add_electron(se);
+                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
+                                temp_edata.add_electron(se);
                             },
-                            _ => {}, //println!("{}", packet.tdc_type());},
+                            _ => {
+                                coinc_data.add_packet_to_raw_index(current_raw_index);
+                                //coinc_data.add_packet_to_reduced_data(&packet);
+                            },
                         };
                     },
                 };
             });
-        coinc_data.add_events(temp_edata, &mut temp_tdc, TP3_TIME_DELAY, TP3_TIME_WIDTH, 0);
-        //println!("Time elapsed: {:?}", start.elapsed());
-
+            coinc_data.add_events(temp_edata, &mut temp_tdc, TP3_TIME_DELAY, TP3_TIME_WIDTH, 0);
+            coinc_data.add_packets_to_reduced_data(&buffer);
+            coinc_data.early_output_data();
         }
         println!("Total number of bytes read {}", total_size);
+        coinc_data.output_data();
         Ok(())
     }
     
@@ -527,7 +603,7 @@ pub mod coincidence {
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file).unwrap();
         let progress_size = file0.metadata().unwrap().len();
-        let mut spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
+        let mut spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         let _begin_tp3_time = spim_tdc.begin_frame;
         let mut tp3_tdc_counter = 0;
@@ -603,21 +679,21 @@ pub mod coincidence {
                                 coinc_data.add_spim_line(&packet);
                                 let of = coinc_data.estimate_overflow(&packet).unwrap();
                                 let isi_val = tdc_iter.next().unwrap();
-                                let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
+                                let tdc_val = packet.tdc_time_abs() + of * TDC_OVERFLOW * 6;
                                 let mut t_dif = tdc_val - isi_val.1;
                                 
                                 //Sometimes the estimative time does not work, underestimating it.
                                 //This tries to recover it out by adding a single offset;
                                 if isi_val.1 > tdc_val {
                                     let of = of + 1;
-                                    let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
+                                    let tdc_val = packet.tdc_time_abs() + of * TDC_OVERFLOW * 6;
                                     t_dif = tdc_val - isi_val.1;
                                 } else {
                                     //Sometimes the estimative time does not work, overestimating it.
                                     //This tries to recover it out by removing a single offset
                                     if (offset != 0) && ((t_dif > offset + ISI_TP3_MAX_DIF) || (offset > t_dif + ISI_TP3_MAX_DIF)) {
                                         let of = of - 1;
-                                        let tdc_val = packet.tdc_time_abs() + of * Pack::tdc_overflow() * 6;
+                                        let tdc_val = packet.tdc_time_abs() + of * TDC_OVERFLOW * 6;
                                         t_dif = tdc_val - isi_val.1;
                                     }
                                 };
@@ -693,7 +769,7 @@ pub mod coincidence {
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file)?;
         let progress_size = file0.metadata().unwrap().len() as u64;
-        let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1)).expect("Could not create period TDC reference.");
+        let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
         //coinc_data.prepare_spim(spim_tdc);
     
         let (mut temp_tdc, max_total_size) = match correct_coincidence_isi(file2, coinc_data, 0) {
@@ -721,7 +797,7 @@ pub mod coincidence {
             //println!("MB Read: {}", total_size / 1_000_000 );
             //if (total_size / 1_000_000) > 2_000 {break;}
             let mut temp_edata = TempElectronData::new();
-            buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+            buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
@@ -731,7 +807,7 @@ pub mod coincidence {
                                 coinc_data.add_spim_line(&packet);
                             },
                             11 => {
-                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc);
+                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
                                 temp_edata.electron.add_electron(se);
                             },
                             _ => {}, //println!("{}", packet.tdc_type());},
@@ -760,33 +836,19 @@ pub mod coincidence {
 pub mod isi_box {
     use std::fs::OpenOptions;
     use std::io::{Read, Write};
-    use crate::auxiliar::value_types::*;
+    use crate::auxiliar::{misc::{as_int, as_bytes}, value_types::*};
     use indicatif::{ProgressBar, ProgressStyle};
     use crate::constlib::*;
+    use crate::postlib::coincidence::TdcStructureData;
     
     const ISI_CHANNEL_SHIFT: [u32; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-    fn as_bytes<T>(v: &[T]) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u8,
-                v.len() * std::mem::size_of::<T>())
-        }
-    }
-    
-    fn as_int(v: &[u8]) -> &[u32] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u32,
-                //v.len() )
-                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
-        }
-    }
-
+    /*
     fn add_overflow(data: u64, value: u64) -> u64
     {
         (data + value) % 67108864
     }
+    */
     
     fn subtract_overflow(data: u64, value: u64) -> u64
     {
@@ -803,9 +865,9 @@ pub mod isi_box {
 
     pub struct IsiList {
         data_raw: IsiListVec, //Time, channel, spim index, spim frame, dT
-        x: u32,
-        y: u32,
-        pixel_time: u32,
+        x: POSITION,
+        y: POSITION,
+        pixel_time: TIME,
         pub counter: u32,
         pub overflow: u32,
         last_time: u32,
@@ -917,9 +979,9 @@ pub mod isi_box {
             let mut counter = 0;
             let mut last_time = 0;
             let mut overflow = 0;
-            let low = (self.x * self.pixel_time) as u64;
-            let y = self.y;
-            let x = self.x;
+            let low = self.x as u64 * self.pixel_time;
+            let y = self.y as u32;
+            let x = self.x as u32;
 
             
             let spim_index = |data: u64, ct: u32, lt: u64| -> Option<u32> {
@@ -981,7 +1043,7 @@ pub mod isi_box {
             iter1.zip(iter2)
         }
         
-        pub fn get_timelist_with_tp3_tick(&self) -> Vec<(TIME, COUNTER, Option<i16>)> {
+        pub fn get_timelist_with_tp3_tick(&self) -> Vec<TdcStructureData> {
             let first = self.data_raw.0.iter().
                 filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == 16).
                 map(|(time, _channel, _spim_index, _spim_frame, _dt)| (*time * 1200 * 6) / 15625).
@@ -989,8 +1051,7 @@ pub mod isi_box {
                 unwrap();
             
             self.data_raw.0.iter().
-                map(|(time, channel, _spim_index, _spim_frame, dt)| (((*time * 1200 * 6) / 15625) - first, *channel, *dt)).
-                //map(|(time, channel)| (time - (time / 103_079_215_104) * 103_079_215_104, channel)).
+                map(|(time, channel, _spim_index, _spim_frame, dt)| (((*time * 1200 * 6) / 15625) - first, *channel, *dt, None)).
                 collect::<Vec<_>>()
             
         }
@@ -1098,7 +1159,7 @@ pub mod isi_box {
     pub fn get_channel_timelist<V>(mut data: V, spim_size: (POSITION, POSITION), pixel_time: TIME, line_offset: u32, isi_overflow_correction: u32) -> IsiList 
         where V: Read
         {
-            let mut list = IsiList{data_raw: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000) as u32, counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None, line_offset: line_offset};
+            let mut list = IsiList{data_raw: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000), counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None, line_offset};
             let mut buffer = [0; 256_000];
             while let Ok(size) = data.read(&mut buffer) {
                 if size == 0 {println!("***IsiBox***: Finished reading file."); break;}
@@ -1122,33 +1183,25 @@ pub mod isi_box {
 }
 
 pub mod ntime_resolved {
-    use std::fs::OpenOptions;
-    use crate::packetlib::{Packet, PacketEELS as Pack, packet_change};
+    use crate::packetlib::{Packet, PacketEELS, PacketDiffraction};
     use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
+    use crate::errorlib::Tp3ErrorKind;
+    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
+    use crate::auxiliar::{misc::{packet_change, output_data}, value_types::*, ConfigAcquisition};
+    use crate::constlib::*;
     use std::io::prelude::*;
-    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
-    use crate::clusterlib::cluster::ClusterCorrection;
     use std::convert::TryInto;
-    use std::time::Instant;
     use std::fs;
     use indicatif::{ProgressBar, ProgressStyle};
-    use crate::auxiliar::{value_types::*, ConfigAcquisition};
-
-    #[derive(Debug)]
-    pub enum ErrorType {
-        OutOfBounds,
-        FolderDoesNotExist,
-        FolderNotCreated,
-        ScanOutofBounds,
-        MinGreaterThanMax,
-    }
 
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial<T> {
-        spectra: Vec<POSITION>, //Main data,
-        return_spectra: Vec<POSITION>, //Main data from flyback,
-        indices: Vec<u16>, //indexes from main scan
-        return_indices: Vec<u16>, //indexes from flyback
+        hyperspec_index: Vec<INDEX_HYPERSPEC>, //Main data,
+        hyperspec_return_index: Vec<INDEX_HYPERSPEC>, //Main data from flyback,
+        fourd_index: Vec<INDEX_4D>,
+        fourd_return_index: Vec<INDEX_4D>,
+        frame_indices: Vec<u16>, //indexes from main scan
+        frame_return_indices: Vec<u16>, //indexes from flyback
         ensemble: CollectionElectron, //A collection of single electrons,
         spimx: POSITION, //The horinzontal axis of the spim,
         spimy: POSITION, //The vertical axis of the spim,
@@ -1157,33 +1210,35 @@ pub mod ntime_resolved {
         extra_tdc_type: TdcType, //The tdc type for the external,
         remove_clusters: T,
         file: String,
+        fourd_data: bool,
     }
 
-    fn as_bytes<T>(v: &[T]) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u8,
-                v.len() * std::mem::size_of::<T>())
-        }
-    }
-    
     impl<T: ClusterCorrection> TimeSpectralSpatial<T> {
-        fn prepare(&mut self, file: &mut fs::File) {
+        fn prepare(&mut self, file: &mut fs::File) -> Result<(), Tp3ErrorKind> {
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
-                    Some(PeriodicTdcRef::new(self.spim_tdc_type.clone(), file, Some(self.spimy)).expect("Problem in creating periodic tdc ref."))
+                    Some(PeriodicTdcRef::new(self.spim_tdc_type.clone(), file, Some(self.spimy as COUNTER)).expect("Problem in creating periodic tdc ref."))
                 },
                 Some(val) => Some(val),
                 _ => None,
             };
+            Ok(())
+        }
+    
+        fn try_create_folder(&self) -> Result<(), Tp3ErrorKind> {
+            let path_length = &self.file.len();
+            match fs::create_dir(&self.file[..path_length - 5]) {
+                Ok(_) => {Ok(())},
+                Err(_) => { Err(Tp3ErrorKind::CoincidenceFolderAlreadyCreated) }
+            }
         }
 
-        fn add_electron(&mut self, packet: &Pack) {
-            let se = SingleElectron::new(packet, self.tdc_periodic);
+        fn add_electron<P: Packet + ?Sized>(&mut self, packet: &P, packet_index: usize) {
+            let se = SingleElectron::new(packet, self.tdc_periodic, packet_index);
             self.ensemble.add_electron(se);
         }
 
-        fn add_spim_tdc(&mut self, packet: &Pack) {
+        fn add_spim_tdc<P: Packet + ?Sized>(&mut self, packet: &P) {
             //Synchronizing clocks using two different approaches. It is always better to use a multiple of 2 and use the FPGA counter.
             match &mut self.tdc_periodic {
                 //Some(my_tdc_periodic) if packet.tdc_type() == self.tdc_type.associate_value() => {
@@ -1194,65 +1249,84 @@ pub mod ntime_resolved {
             };
         }
         
-        fn add_extra_tdc(&mut self, _packet: &Pack) {
+        fn add_extra_tdc<P: Packet + ?Sized>(&mut self, _packet: &P) {
             //self.spectra.push(SPIM_PIXELS);
             //spimlib::get_spimindex(, dt: TIME, spim_tdc: &PeriodicTdcRef, self.spimx, self.spimy;
         }
 
-        fn process(&mut self) -> Result<(), ErrorType> {
+        fn process(&mut self) -> Result<(), Tp3ErrorKind> {
+            if self.fourd_data {
+                Ok(self.process_fourd()?)
+            } else {
+                Ok(self.process_hyperspec()?)
+            }
+        }
+        
+        fn process_hyperspec(&mut self) -> Result<(), Tp3ErrorKind> {
             if self.ensemble.try_clean(0, &self.remove_clusters) {
                 for val in self.ensemble.values() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
-                        self.spectra.push(index);
-                        self.indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
+                        self.hyperspec_index.push(index);
+                        self.frame_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
                     }
                     
                     if let Some(index) = val.get_or_not_return_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
-                        self.return_spectra.push(index);
-                        self.return_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
+                        self.hyperspec_return_index.push(index);
+                        self.frame_return_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
                     }
             }
             self.ensemble.clear();
 
-            let mut tfile = OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open("si_complete.txt").expect("Could not output time histogram.");
-            tfile.write_all(as_bytes(&self.spectra)).expect("Could not write time to file.");
-            
-            let mut return_tfile = OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open("si_return_complete.txt").expect("Could not output time histogram.");
-            return_tfile.write_all(as_bytes(&self.return_spectra)).expect("Could not write time to file.");
-            
-            let mut tfile2 = OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open("si_complete_indices.txt").expect("Could not output time histogram.");
-            tfile2.write_all(as_bytes(&self.indices)).expect("Could not write time to indices file.");
-            
-            let mut return_tfile2 = OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open("si_complete_return_indices.txt").expect("Could not output time histogram.");
-            return_tfile2.write_all(as_bytes(&self.return_indices)).expect("Could not write time to indices file.");
+            output_data(&self.hyperspec_index, self.file.clone(), "si_complete.txt");
+            output_data(&self.hyperspec_return_index, self.file.clone(), "si_return_complete.txt");
+            output_data(&self.frame_indices, self.file.clone(), "si_complete_indices.txt");
+            output_data(&self.frame_return_indices, self.file.clone(), "si_complete_return_indices.txt");
 
-            self.spectra.clear();
-            self.return_spectra.clear();
-            self.indices.clear();
-            self.return_indices.clear();
+            self.hyperspec_index.clear();
+            self.hyperspec_return_index.clear();
+            self.frame_indices.clear();
+            self.frame_return_indices.clear();
             }
             Ok(())
         }
-            
-        pub fn new(my_config: ConfigAcquisition<T>) -> Result<Self, ErrorType> {
+        
+        fn process_fourd(&mut self) -> Result<(), Tp3ErrorKind> {
+            if self.ensemble.try_clean(0, &self.remove_clusters) {
+                for val in self.ensemble.values() {
+                    if let Some(index) = val.get_or_not_4d_index(self.tdc_periodic, self.spimx, self.spimy) {
+                        self.fourd_index.push(index);
+                        self.frame_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
+                    }
+                    
+                    if let Some(index) = val.get_or_not_return_4d_index(self.tdc_periodic, self.spimx, self.spimy) {
+                        self.fourd_return_index.push(index);
+                        self.frame_return_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
+                    }
+            }
+            self.ensemble.clear();
+
+            output_data(&self.fourd_index, self.file.clone(), "fourd_complete.txt");
+            output_data(&self.fourd_return_index, self.file.clone(), "fourd_return_complete.txt");
+            output_data(&self.frame_indices, self.file.clone(), "fourd_complete_indices.txt");
+            output_data(&self.frame_return_indices, self.file.clone(), "fourd_complete_return_indices.txt");
+
+            self.fourd_index.clear();
+            self.fourd_return_index.clear();
+            self.frame_indices.clear();
+            self.frame_return_indices.clear();
+            }
+            Ok(())
+        }
+        
+        pub fn new(my_config: ConfigAcquisition<T>, fourd_data: bool) -> Result<Self, Tp3ErrorKind> {
 
             Ok(Self {
-                spectra: Vec::new(),
-                return_spectra: Vec::new(),
-                indices: Vec::new(),
-                return_indices: Vec::new(),
+                hyperspec_index: Vec::new(),
+                hyperspec_return_index: Vec::new(),
+                fourd_index: Vec::new(),
+                fourd_return_index: Vec::new(),
+                frame_indices: Vec::new(),
+                frame_return_indices: Vec::new(),
                 ensemble: CollectionElectron::new(),
                 spimx: my_config.xspim,
                 spimy: my_config.yspim,
@@ -1261,21 +1335,23 @@ pub mod ntime_resolved {
                 extra_tdc_type: TdcType::TdcTwoRisingEdge,
                 remove_clusters: my_config.correction_type,
                 file: my_config.file,
+                fourd_data,
                 
             })
         }
     }
 
-    pub fn analyze_data<T: ClusterCorrection>(data: &mut TimeSpectralSpatial<T>) {
+    pub fn analyze_data<T: ClusterCorrection>(data: &mut TimeSpectralSpatial<T>) -> Result<(), Tp3ErrorKind> {
+        
+        data.try_create_folder()?;
+        
         let mut prepare_file = fs::File::open(&data.file).expect("Could not open desired file.");
         let progress_size = prepare_file.metadata().unwrap().len() as u64;
-        data.prepare(&mut prepare_file);
+        data.prepare(&mut prepare_file)?;
         
-        let start = Instant::now();
         let mut my_file = fs::File::open(&data.file).expect("Could not open desired file.");
         let mut buffer: Vec<u8> = vec![0; 512_000_000];
         
-        let mut total_size = 0;
         let mut ci = 0;
             
         let bar = ProgressBar::new(progress_size);
@@ -1285,40 +1361,43 @@ pub mod ntime_resolved {
 
         while let Ok(size) = my_file.read(&mut buffer) {
             if size==0 {break;}
-            total_size += size;
             bar.inc(512_000_000_u64);
-            buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+            buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
                 match pack_oct {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci = nci},
                     _ => {
-                        let packet = Pack{chip_index: ci, data: packet_change(pack_oct)[0]};
+                        let packet: Box<dyn Packet> = if !data.fourd_data {
+                            Box::new(PacketEELS{chip_index: ci, data: packet_change(pack_oct)[0]})
+                        } else {
+                            Box::new(PacketDiffraction{chip_index: ci, data: packet_change(pack_oct)[0]})
+                        };
                         match packet.id() {
                             6 if packet.tdc_type() == data.spim_tdc_type.associate_value() => {
-                                data.add_spim_tdc(&packet);
+                                data.add_spim_tdc(&*packet);
                             },
                             6 if packet.tdc_type() == data.extra_tdc_type.associate_value() => {
-                                data.add_extra_tdc(&packet);
+                                data.add_extra_tdc(&*packet);
                             },
                             11 => {
-                                data.add_electron(&packet);
+                                data.add_electron(&*packet, current_raw_index);
                             },
                             _ => {},
                         };
                     },
-                };
+                }
             });
-            data.process().expect("Error in processing");
-            //println!("File: {:?}. Total number of bytes read (MB): ~ {}", &data.file, total_size/1_000_000);
-            //println!("Time elapsed: {:?}", start.elapsed());
+            data.process()?
         };
         println!("File has been succesfully read.");
+        Ok(())
     }
 }
 
 pub mod calibration {
 
     use std::fs::OpenOptions;
-    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack, packet_change};
+    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
+    use crate::auxiliar::misc::packet_change;
     use std::io;
     use std::io::prelude::*;
     use std::fs;
@@ -1405,13 +1484,13 @@ pub mod calibration {
             total_size += size;
             //if total_size / 1_000_000_000 > 2 {break;}
             bar.inc(512_000_000_u64);
-            buffer[0..size].chunks_exact(8).for_each(|pack_oct| {
+            buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
                         let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
                         if packet.id() == 11 {
-                            let se = SingleElectron::new(&packet, None);
+                            let se = SingleElectron::new(&packet, None, current_raw_index);
                             temp_electrons.add_electron(se);
                             //temp_edata.electron.add_electron(se);
                         }

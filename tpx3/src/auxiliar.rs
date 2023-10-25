@@ -3,12 +3,26 @@ use crate::errorlib::Tp3ErrorKind;
 use std::net::{TcpListener, TcpStream, SocketAddr};
 use crate::auxiliar::misc::TimepixRead;
 use crate::clusterlib::cluster::ClusterCorrection;
-use std::io::{Read, Write};
+use std::io::{Read, Write, BufWriter};
 use std::fs::File;
+use crate::constlib::*;
 use crate::auxiliar::value_types::*;
+use std::fs::OpenOptions;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json;
+
 //use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
 
-const CONFIG_SIZE: usize = 18;
+const CONFIG_SIZE: usize = 512;
+
+pub fn from_bytes<T>(v: &[u8]) -> &[T] {
+    unsafe {
+        std::slice::from_raw_parts(
+            v.as_ptr() as *const T,
+            v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<T>())
+    }
+}
 
 ///Configures the detector for acquisition. Each new measurement must send 20 bytes
 ///containing instructions.
@@ -47,6 +61,10 @@ impl BytesConfig {
                 println!("Bitdepth is 32.");
                 Ok(4)
             },
+            4 => {
+                println!("Bitdepth is 64.");
+                Ok(8)
+            },
             _ => Err(Tp3ErrorKind::SetByteDepth),
         }
     }
@@ -70,88 +88,77 @@ impl BytesConfig {
     fn mode(&self) -> Result<u8, Tp3ErrorKind> {
         println!("Mode is: {}", self.data[3]);
         Ok(self.data[3])
-        
-        /*match self.data[3] {
-            0 => {
-                println!("Mode is Focus/Cumul.");
-                Ok(self.data[3])
-            },
-            1 => {
-                println!("Entering in time resolved mode (Focus/Cumul).");
-                Ok(self.data[3])
-            },
-            2 => {
-                println!("Entering in Spectral Image (SpimTP).");
-                Ok(self.data[3])
-            },
-            3 => {
-                println!("Entering in time resolved mode (SpimTP).");
-                Ok(self.data[3])
-            },
-            4 => {
-                println!("Entering in Spectral Image [TDC Mode] (SpimTP).");
-                Ok(self.data[3])
-            },
-            5 => {
-                println!("Entering in Spectral Image [Save Locally] (SpimTP).");
-                Ok(self.data[3])
-            },
-            6 => {
-                println!("Entering in Chrono Mode.");
-                Ok(self.data[3])
-            },
-            _ => Err(Tp3ErrorKind::SetMode),
-        }*/
     }
-
 
     ///X spim size. Must be sent with 2 bytes in big-endian mode. Byte[4..6]
     fn xspim_size(&self) -> POSITION {
-        let x = (self.data[4] as POSITION)<<8 | (self.data[5] as POSITION);
+        let x: u16 = from_bytes(&self.data[4..6])[0];
         println!("X Spim size is: {}.", x);
-        x
+        x as POSITION
     }
     
     ///Y spim size. Must be sent with 2 bytes in big-endian mode. Byte[6..8]
     fn yspim_size(&self) -> POSITION {
-        let y = (self.data[6] as POSITION)<<8 | (self.data[7] as POSITION);
+        let y: u16 = from_bytes(&self.data[6..8])[0];
         println!("Y Spim size is: {}.", y);
-        y
+        y as POSITION
     }
     
     ///X scan size. Must be sent with 2 bytes in big-endian mode. Byte[8..10]
     fn xscan_size(&self) -> POSITION {
-        let x = (self.data[8] as POSITION)<<8 | (self.data[9] as POSITION);
+        let x: u16 = from_bytes(&self.data[8..10])[0];
         println!("X Scan size is: {}.", x);
-        x
+        x as POSITION
     }
     
     ///Y scan size. Must be sent with 2 bytes in big-endian mode. Byte[10..12]
     fn yscan_size(&self) -> POSITION {
-        let y = (self.data[10] as POSITION)<<8 | (self.data[11] as POSITION);
+        let y: u16 = from_bytes(&self.data[10..12])[0];
         println!("Y Scan size is: {}.", y);
-        y
+        y as POSITION
     }
     
-    ///Pixel time. Must be sent with 2 bytes in big-endian mode. Byte[12..14]
+    ///Pixel time. Must be sent with 2 bytes in big-endian mode. Byte[12..15]
     fn pixel_time(&self) -> POSITION {
-        let pt = (self.data[12] as POSITION)<<8 | (self.data[13] as POSITION);
+        //let pt = (self.data[12] as POSITION)<<8 | (self.data[13] as POSITION);
+        let pt: u32 = from_bytes(&self.data[12..16])[0];
         println!("Pixel time is (units of 1.5625 ns): {}.", pt);
-        pt
+        pt as POSITION
     }
     
-    ///Time delay. Must be sent with 2 bytes in big-endian mode. Byte[14..15]
+    ///Time delay. Must be sent with 2 bytes in big-endian mode. Byte[16..17]
     fn time_delay(&self) -> TIME {
-        let td = (self.data[14] as TIME)<<8 | (self.data[15] as TIME);
-        println!("Time delay is (ns): {}.", td);
-        td
+        let td: u16 = from_bytes(&self.data[16..18])[0];
+        println!("Time delay is (units of 1.5625 ns): {}.", td);
+        td as TIME
     }
     
-    ///Time width. Must be sent with 2 bytes in big-endian mode. Byte[16..17].
+    ///Time width. Must be sent with 2 bytes in big-endian mode. Byte[18..19].
     fn time_width(&self) -> TIME {
-        let tw = (self.data[16] as TIME)<<8 | (self.data[17] as TIME);
-        println!("Time delay is (ns): {}.", tw);
-        tw
+        let tw: u16 = from_bytes(&self.data[18..20])[0];
+        println!("Time width is (units of 1.5625 ns): {}.", tw);
+        tw as TIME
+    }
+
+    ///Should we also save-locally the data. Byte[20]
+    fn save_locally(&self) -> Result<bool, Tp3ErrorKind> {
+        let save_locally = self.data[20] == 1;
+        println!("Save locally is activated: {}.", save_locally);
+        Ok(save_locally)
+    }
+    
+    ///Should we also save-locally the data. Byte[21..24]
+    fn sup_val0(&self) -> f32 {
+        let sup = from_bytes(&self.data[21..25])[0];
+        println!("Supplementary value 0: {}.", sup);
+        sup
+    }
+    
+    ///Should we also save-locally the data. Byte[25..28]
+    fn sup_val1(&self) -> f32 {
+        let sup = from_bytes(&self.data[25..29])[0];
+        println!("Supplementary value 0: {}.", sup);
+        sup
     }
     
     ///Convenience method. Returns the ratio between scan and spim size in X.
@@ -207,10 +214,12 @@ impl BytesConfig {
             time_width: self.time_width(),
             spimoverscanx: self.spimoverscanx()?,
             spimoverscany: self.spimoverscany()?,
+            save_locally: self.save_locally()?,
+            sup0: self.sup_val0(),
+            sup1: self.sup_val1(),
         };
         Ok(my_set)
     }
-
 }
 
 
@@ -230,9 +239,8 @@ impl Read for DebugIO {
     }
 }
 
-
 ///`Settings` contains all relevant parameters for a given acquistion
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
     pub bin: bool,
     pub bytedepth: POSITION,
@@ -247,9 +255,80 @@ pub struct Settings {
     pub time_width: TIME,
     pub spimoverscanx: POSITION,
     pub spimoverscany: POSITION,
+    pub save_locally: bool,
+    sup0: f32,
+    sup1: f32,
 }
 
 impl Settings {
+
+    fn create_savefile_header(&self) -> String {
+        let now: DateTime<Utc> = Utc::now();
+        let mut val = String::new();
+        let custom_datetime_format = now.format("%Y_%m_%y_%H_%M_%S").to_string();
+        val.push_str(SAVE_LOCALLY_FILE);
+        val.push_str(&custom_datetime_format);
+        /*
+        val.push_str("_bin");
+        val.push_str(&self.bin.to_string());
+        val.push_str("_byteDepth");
+        val.push_str(&self.bytedepth.to_string());
+        val.push_str("_cumul");
+        val.push_str(&self.cumul.to_string());
+        val.push_str("_mode");
+        val.push_str(&self.mode.to_string());
+        val.push_str("_xspim");
+        val.push_str(&self.xspim_size.to_string());
+        val.push_str("_yspim");
+        val.push_str(&self.yspim_size.to_string());
+        val.push_str("_xscan");
+        val.push_str(&self.xscan_size.to_string());
+        val.push_str("_yscan");
+        val.push_str(&self.yscan_size.to_string());
+        val.push_str("_pixeltime");
+        val.push_str(&self.pixel_time.to_string());
+        val.push_str("_timedelay");
+        val.push_str(&self.time_delay.to_string());
+        val.push_str("_timewidth");
+        val.push_str(&self.time_width.to_string());
+        val.push_str("_savelocally");
+        val.push_str(&self.save_locally.to_string());
+        val.push_str("_mode");
+        */
+        val
+    }
+
+    pub fn get_settings_from_json(file: &str) -> Result<Self, Tp3ErrorKind> {
+
+        let mut json_file = File::open(file.to_owned() + ".json")?;
+        let mut json_buffer: Vec<u8> = Vec::new();
+        json_file.read_to_end(&mut json_buffer)?;
+        let my_settings: Settings = serde_json::from_slice(&json_buffer)?;
+        Ok(my_settings)
+    }
+
+    pub fn create_file(&self) -> Option<BufWriter<File>> {
+        match self.save_locally {
+            false => {None},
+            true => {
+            let mut jsonfile = 
+                OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(self.create_savefile_header() + ".json").
+                unwrap();
+            let jsondata = serde_json::to_vec(&self).expect("Could not serialize data to JSON.");
+            jsonfile.write(&jsondata).expect("Could not write to JSON data file.");
+            let file =
+                OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(self.create_savefile_header() + ".tpx3").
+                unwrap();
+            Some(BufWriter::new(file))
+            }
+        }
+    }
 
     ///Create Settings structure reading from a TCP.
     pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
@@ -285,7 +364,7 @@ impl Settings {
             }
         };
         let my_settings = my_config.create_settings()?;
-        println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
+        //println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
 
         //This is a special case. This mode saves locally so we do not need to ready
         //anything special. We do not write anything special as well, so we do not need
@@ -302,7 +381,7 @@ impl Settings {
                 Ok((my_settings, Box::new(pack_sock), Box::new(ns_sock)))
             },
             true => {
-                let file = match File::open("bin/Data/raw000000.tpx3") {
+                let file = match File::open(READ_DEBUG_FILE) {
                     Ok(file) => file,
                     Err(_) => return Err(Tp3ErrorKind::SetNoReadFile),
                 };
@@ -324,10 +403,13 @@ impl Settings {
             xscan_size: 512,
             yscan_size: 512,
             pixel_time: 2560,
-            time_delay: 0,
-            time_width: 1000,
+            time_delay: 104,
+            time_width: 100,
             spimoverscanx: 1,
             spimoverscany: 1,
+            save_locally: false,
+            sup0: 0.0,
+            sup1: 0.0,
         }
     }
     
@@ -346,6 +428,9 @@ impl Settings {
             time_width: 1000,
             spimoverscanx: 1,
             spimoverscany: 1,
+            save_locally: false,
+            sup0: 0.0,
+            sup1: 0.0,
         }
     }
 
@@ -449,7 +534,8 @@ pub mod simple_log {
 
 ///`misc` are miscellaneous functions.
 pub mod misc {
-    use std::io::Read;
+    use std::fs::OpenOptions;
+    use std::io::{Read, Write};
     use crate::errorlib::Tp3ErrorKind;
     use std::net::TcpStream;
     use std::fs::File;
@@ -503,10 +589,55 @@ pub mod misc {
     impl<R: Read + ?Sized> TimepixRead for Box<R> {}
     impl TimepixRead for TcpStream {}
     impl TimepixRead for File {}
+
+
+    //General function to convert any type slice to bytes
+    pub fn as_bytes<T>(v: &[T]) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u8,
+                v.len() * std::mem::size_of::<T>())
+        }
+    }
+
+    //Convert u8 slice to u32 slice
+    pub fn as_int(v: &[u8]) -> &[u32] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u32,
+                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
+        }
+    }
+
+    //Convert u8 to u64. Used to get the packet_values
+    pub fn packet_change(v: &[u8]) -> &[u64] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u64,
+                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u64>())
+        }
+    }
+    
+    //Creates a file and appends over. Filename must be a .tpx3 file. Data is appended in a folder
+    //of the same name, that must be previously created
+    pub fn output_data<T>(data: &[T], filename: String, name: &str) {
+        let len = filename.len();
+        let complete_filename = filename[..len-5].to_string() + "/" + name;
+        let mut tfile = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(complete_filename).unwrap();
+        tfile.write_all(as_bytes(data)).unwrap();
+        //println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
+    }
+
 }
 
 pub mod value_types {
     pub type POSITION = u32;
+    pub type INDEX_HYPERSPEC = u32;
+    pub type INDEX_4D = u64;
     pub type COUNTER = u32;
     pub type TIME = u64;
 }
