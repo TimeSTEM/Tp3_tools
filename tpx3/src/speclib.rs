@@ -88,9 +88,8 @@ pub struct SpecMeasurement<T, K: BitDepth> {
 }
 
 pub struct ShutterControl {
-    time: TIME,
-    ci_counter: COUNTER,
-    counter: COUNTER,
+    time: [TIME; 4],
+    counter: [COUNTER; 4],
     hyperspectral: bool,
     hyperspectral_complete: bool,
     hyperspec_pixels_to_send: (POSITION, POSITION), //Start and end pixel that will be sent
@@ -99,22 +98,19 @@ pub struct ShutterControl {
 
 impl ShutterControl {
     fn try_set_time(&mut self, timestamp: TIME, ci: u8, shutter_closed: bool) -> bool {
-        //When shutter is closed, data transfer initiates. Shutter false means a new one just
+        //When shutter is closed, data transfer initiates. Shutter_closed false means a new frame just
         //started, but we must wait <ACQUISITION_TIME> in order to close it and receive our data
-        self.shutter_closed_status[ci as usize] = shutter_closed;
-        if self.time == 0 {
-            self.time = timestamp;
-        }
-        //println!("{:?} and {} and {} and {}", self.shutter_closed_status, timestamp, shutter_closed, ci);
-        if !shutter_closed && self.time != timestamp {
-            self.ci_counter += 1;
-            if self.ci_counter == 4 {
-                //println!("ready");
-                self.time = timestamp;
-                self.counter += 1;
-                self.ci_counter = 0;
-                return true;
-            }
+        let ci = ci as usize;
+        self.shutter_closed_status[ci] = shutter_closed;
+        //if self.time[ci] == 0 {
+        //    self.time[ci] = timestamp;
+        //}
+        println!("{:?} and {} and {} and {}", self.shutter_closed_status, timestamp, shutter_closed, ci);
+        if shutter_closed && self.time[ci] != timestamp {
+            println!("ready");
+            self.time[ci] = timestamp;
+            self.counter[ci] += 1;
+            return self.time.iter().all(|val| *val == timestamp);
         }
         false
     }
@@ -141,7 +137,7 @@ impl ShutterControl {
         let (start_pixel, end_pixel) = self.hyperspec_pixels_to_send;
         end_pixel - start_pixel
     }
-    fn get_counter(&self) -> COUNTER {
+    fn get_counter(&self) -> [COUNTER; 4] {
         self.counter
     }
 }
@@ -149,9 +145,8 @@ impl ShutterControl {
 impl Default for ShutterControl {
     fn default() -> Self {
         Self {
-            time: 0,
-            ci_counter: 0,
-            counter: 0,
+            time: [0, 0, 0, 0],
+            counter: [0, 0, 0, 0],
             hyperspectral: false,
             hyperspectral_complete: false,
             hyperspec_pixels_to_send: (0, 0),
@@ -608,7 +603,7 @@ macro_rules! Live2DFrameImplementation {
                 //when the next one is over, so you are sure the pair one is complete.
                 
                 let index = pack.x() + CAM_DESIGN.0 * pack.y();
-                if settings.cumul || self.shutter.as_ref().unwrap().counter % 2 == 0 {
+                if settings.cumul {
                     self.data[index as usize] += pack.tot() as $x;
                 }
             }
@@ -621,7 +616,7 @@ macro_rules! Live2DFrameImplementation {
                 if pack.id() == 5 {
                     let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
                     if !self.is_ready {
-                        self.is_ready = temp_ready && self.shutter.as_ref().unwrap().counter % 2 == 1;
+                        self.is_ready = temp_ready;
                         if self.is_ready {
                             if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
                                 self.is_ready = false;
@@ -674,7 +669,7 @@ macro_rules! Live1DFrameImplementation {
             #[inline]
             fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
                 let index = pack.x();
-                if settings.cumul || self.shutter.as_ref().unwrap().counter % 2 == 0 {
+                if settings.cumul {
                     self.data[index as usize] += pack.tot() as $x;
                 }
             }
@@ -686,7 +681,7 @@ macro_rules! Live1DFrameImplementation {
                 if pack.id() == 5 {
                     let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
                     if !self.is_ready {
-                        self.is_ready = temp_ready && self.shutter.as_ref().unwrap().counter % 2 == 1;
+                        self.is_ready = temp_ready;
                     }
                 }
                 else if pack.id() == 6 {
@@ -732,7 +727,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
             fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
                 let shut = self.shutter.as_ref().unwrap();
                 if shut.is_hyperspectral_complete() { return }
-                let frame_number = shut.get_counter() as POSITION;
+                let frame_number = shut.get_counter()[pack.ci() as usize] as POSITION;
                 //We cannot depass frame_number otherwise the indexation will be bad
                 let index = frame_number * CAM_DESIGN.0 + pack.x();
                 self.data[index as usize] += pack.tot() as $x;
@@ -744,7 +739,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
             fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
                 if pack.id() == 5 {
                     let _temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
-                    let shutter_counter = self.shutter.as_ref().unwrap().get_counter() as POSITION;
+                    let shutter_counter = self.shutter.as_ref().unwrap().get_counter()[pack.ci() as usize] as POSITION;
                     if shutter_counter >= settings.xscan_size * settings.yscan_size {
                         self.shutter.as_mut().unwrap().set_hyperspectral_as_complete();
                     }
