@@ -7,7 +7,7 @@ pub const HYPERSPECTRAL_PIXEL_CHUNK: POSITION = 500; //In number of pixels
 pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 1000; //in milliseconds
 pub const VIDEO_TIME: TIME = 3200;
 pub const SPIM_PIXELS: POSITION = 1025 + 200;
-pub const RAW4D_PIXELS_X: POSITION = 1024; //#TODO: this value must be taken from diffraction packet (packetlib)
+pub const RAW4D_PIXELS_X: POSITION = 256; //#TODO: this value must be taken from diffraction packet (packetlib)
 pub const RAW4D_PIXELS_Y: POSITION = 256; //#TODO: this value must be taken from the diffraction packet (packetlib)
 pub const BUFFER_SIZE: usize = 16384 * 2;
 pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
@@ -46,6 +46,7 @@ pub const THREAD_POOL_PERIOD: u64 = 10; //Pooling time from socket thread for th
 
 //***4D STEM***//
 pub const MASK_FILE: &str = "C:\\ProgramData\\Microscope\\masks.dat";
+//pub const MASK_FILE: &str = "/home/asi/CHROMATEM/masks.dat";
 pub const DETECTOR_SIZE: (POSITION, POSITION) = (256, 256);
 pub const DETECTOR_LIMITS: ((POSITION, POSITION), (POSITION, POSITION)) = ((512, 768), (0, 256));
 pub const MAX_CHANNELS: usize = 8;
