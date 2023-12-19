@@ -2,7 +2,7 @@ use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::{value_types::*, *};
 use timepix3::tdclib::*;
 use timepix3::constlib::*;
-use timepix3::{speclib, speclib::SpecKind, spimlib, spimlib::SpimKind};
+use timepix3::{speclib, spimlib, spimlib::SpimKind};
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
@@ -11,19 +11,19 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
 
     match my_settings.mode {
         0 if my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1D::new(&my_settings))?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1D)?;
             Ok(my_settings.mode)
         },
         0 if !my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2D::new(&my_settings))?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2D)?;
             Ok(my_settings.mode)
         },
         1 if my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::LiveTR1D::new(&my_settings))?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::LiveTR1D)?;
             Ok(my_settings.mode)
         },
         1 if !my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::LiveTR2D::new(&my_settings))?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::LiveTR2D)?;
             Ok(my_settings.mode)
         },
         2 => {
@@ -41,24 +41,24 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             Ok(my_settings.mode)
         },
         6 => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::FastChrono::new(&my_settings))?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::FastChrono)?;
             Ok(my_settings.mode)
         },
         7 => {
             //speclib::run_spectrum(pack, ns, my_settings, speclib::Chrono)?;
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Coincidence2D::new(&my_settings))?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Coincidence2D)?;
             Ok(my_settings.mode)
         },
         10 if my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1DFrame::new(&my_settings))?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1DFrame)?;
             Ok(my_settings.mode)
         },
         10 if !my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2DFrame::new(&my_settings))?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2DFrame)?;
             Ok(my_settings.mode)
         },
         11 => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1DFrameHyperspec::new(&my_settings))?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1DFrameHyperspec)?;
             Ok(my_settings.mode)
         },
         12 => {
