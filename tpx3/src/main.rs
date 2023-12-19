@@ -2,9 +2,7 @@ use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::{value_types::*, *};
 use timepix3::tdclib::*;
 use timepix3::constlib::*;
-use timepix3::measurement_creator;
 use timepix3::{speclib, speclib::SpecKind, spimlib, spimlib::SpimKind};
-use timepix3::{speclib::Live1D};
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
@@ -13,12 +11,9 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
 
     match my_settings.mode {
         0 if my_settings.bin => {
-            //speclib::run_spectrum(pack, ns, my_settings, speclib::Live1D::<u8>::new(&my_settings))?;
-            //speclib::run_spectrum(pack, ns, my_settings, measurement_creator!(Live1D, &my_settings))?;
-            speclib::run_spectrum(pack, ns, my_settings, speclib::meas_creator(&my_settings))?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1D::new(&my_settings))?;
             Ok(my_settings.mode)
         },
-        /*
         0 if !my_settings.bin => {
             speclib::run_spectrum(pack, ns, my_settings, speclib::Live2D::new(&my_settings))?;
             Ok(my_settings.mode)
@@ -46,24 +41,24 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             Ok(my_settings.mode)
         },
         6 => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::FastChrono)?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::FastChrono::new(&my_settings))?;
             Ok(my_settings.mode)
         },
         7 => {
             //speclib::run_spectrum(pack, ns, my_settings, speclib::Chrono)?;
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Coincidence2D)?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Coincidence2D::new(&my_settings))?;
             Ok(my_settings.mode)
         },
         10 if my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1DFrame)?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1DFrame::new(&my_settings))?;
             Ok(my_settings.mode)
         },
         10 if !my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2DFrame)?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2DFrame::new(&my_settings))?;
             Ok(my_settings.mode)
         },
         11 => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1DFrameHyperspec)?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1DFrameHyperspec::new(&my_settings))?;
             Ok(my_settings.mode)
         },
         12 => {
@@ -80,7 +75,6 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement)?;
             Ok(my_settings.mode)
         },
-        */
         _ => Err(Tp3ErrorKind::MiscModeNotImplemented(my_settings.mode)),
     }
 }
