@@ -20,6 +20,7 @@ fn as_bytes<T>(v: &[T]) -> &[u8] {
     }
 }
 
+/*
 //Creates the unit-like acquisition modes structs and impl GenerateDepth
 macro_rules! genall {
     ($($x:ident),*) => {
@@ -51,15 +52,47 @@ pub trait GenerateDepth {
 
 genall!(Live2D, Live1D, LiveTR2D, LiveTR1D, LiveTilted2D, FastChrono, Chrono, Live1DFrame, Live2DFrame, Live1DFrameHyperspec, Coincidence2D); //create struct and implement GenerateDepth. GenDepth gets this struct and transforms into a SpecMeasurement struct, which is ready for acquisition;
 
-pub struct SpecMeasurement<T, K> {
-    data: Vec<K>,
-    aux_data: Vec<TIME>,
-    is_ready: bool,
-    global_stop: bool,
-    timer: Instant,
-    shutter: Option<ShutterControl>,
-    _kind: T,
+*/
+
+#[macro_export]
+macro_rules! measurement_creator {
+    ($x: ident, $y: expr) => {
+        match $y.bytedepth {
+            1 => Box::new($x::<u8>::new($y)) as Box<SpecKind>,
+            2 => Box::new($x::<u16>::new($y)) as Box<SpecKind>,
+            4 => Box::new($x::<u32>::new($y)) as Box<SpecKind>,
+            _ => panic!("bye"),
+        }
+    }
 }
+
+pub fn meas_creator(settings: &Settings) -> Box<SpecKind>{
+    let return_value: Box<SpecKind> = match (settings.mode, settings.bytedepth) {
+        (0, 1) => Box::new(Live1D::<u8>::new(settings)) as Box<dyn SpecKind>,
+        (0, 2) => Box::new(Live1D::<u16>::new(settings)) as Box<dyn SpecKind>,
+        (0, 4) => Box::new(Live1D::<u8>::new(settings)) as Box<dyn SpecKind>,
+        _ => panic!("bye"),
+    };
+    return_value
+
+}
+
+macro_rules! struct_creator {
+    ($($x: ident),*) => {
+        $(
+            pub struct $x<K> {
+                data: Vec<K>,
+                aux_data: Vec<TIME>,
+                is_ready: bool,
+                global_stop: bool,
+                timer: Instant,
+                shutter: Option<ShutterControl>,
+            }
+        )*
+    }
+}
+
+struct_creator!(Live2D, Live1D, LiveTR2D, LiveTR1D, FastChrono, Chrono, Coincidence2D, Live1DFrame, Live2DFrame, Live1DFrameHyperspec);
 
 pub struct ShutterControl {
     time: [TIME; 4],
@@ -130,18 +163,17 @@ impl Default for ShutterControl {
 }
 
 pub trait SpecKind {
-    type SupplementaryTdc: TdcControl;
     fn is_ready(&self) -> bool;
     fn build_output(&self) -> &[u8];
-    fn new(settings: &Settings) -> Self;
-    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
+    fn new(settings: &Settings) -> Self where Self: Sized;
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> where Self: Sized {
         PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, pack, None)
     }
-    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V) -> Result<Self::SupplementaryTdc, Tp3ErrorKind> {
-        Self::SupplementaryTdc::new(TdcType::TdcTwoRisingEdge, pack, None)
+    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V) -> Result<NonPeriodicTdcRef, Tp3ErrorKind> where Self: Sized {
+        NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, pack, None)
     }
-    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, ref_tdc: &Self::SupplementaryTdc);
-    fn add_tdc_hit(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut Self::SupplementaryTdc);
+    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, ref_tdc: &NonPeriodicTdcRef);
+    fn add_tdc_hit(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut NonPeriodicTdcRef);
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings);
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings);
     fn shutter_control(&self) -> Option<&ShutterControl> {None}
@@ -152,11 +184,39 @@ pub trait IsiBoxKind: SpecKind {
     fn append_from_isi(&mut self, ext_data: &[u32]);
 }
 
+/*
+impl<K: SpecKind + ?Sized> SpecKind for Box<K> {
+    fn is_ready(&self) -> bool {
+        (**self).is_ready()
+    }
+    fn build_output(&self) -> &[u8] {
+        (**self).build_output()
+    }
+    fn new(settings: &Settings) -> Self {
+        Box::new(K::new(settings))
+    }
+    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, ref_tdc: &NonPeriodicTdcRef) {
+        (**self).add_electron_hit(pack, settings, frame_tdc, ref_tdc)
+    }
+    fn add_tdc_hit(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut NonPeriodicTdcRef) {
+        (**self).add_tdc_hit(pack, settings, ref_tdc)
+    }
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
+        (**self).upt_frame(pack, frame_tdc, _settings)
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
+        (**self).reset_or_else(_frame_tdc, settings)
+    }
+    fn shutter_control(&self) -> Option<&ShutterControl> {
+        (**self).shutter_control()
+    }
+}
+*/
+
 macro_rules! Live2DImplementation {
     ($($x:ty),+) => {
         $(
-        impl SpecKind for SpecMeasurement<Live2D, $x> {
-            type SupplementaryTdc = NonPeriodicTdcRef;
+        impl SpecKind for Live2D<$x> {
             fn is_ready(&self) -> bool {
                 self.is_ready
             }
@@ -165,14 +225,14 @@ macro_rules! Live2DImplementation {
             }
             fn new(_settings: &Settings) -> Self {
                 let data = vec![0; (CAM_DESIGN.0 * CAM_DESIGN.1) as usize];
-                SpecMeasurement{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live2D }
+                Self{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
             }
             #[inline]
-            fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+            fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &NonPeriodicTdcRef) {
                 let index = pack.x() + CAM_DESIGN.0 * pack.y();
                 self.data[index as usize] += 1;
             }
-            fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut Self::SupplementaryTdc) {
+            fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut NonPeriodicTdcRef) {
                 ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
                 self.data[(CAM_DESIGN.0 - 1) as usize] += 1;
             }
@@ -201,8 +261,7 @@ Live2DImplementation!(u8, u16, u32);
 macro_rules! Live1DImplementation {
     ($($x:ty),+) => {
         $(
-            impl SpecKind for SpecMeasurement<Live1D, $x> {
-                type SupplementaryTdc = NonPeriodicTdcRef;
+            impl SpecKind for Live1D<$x> {
                 fn is_ready(&self) -> bool {
                     self.is_ready
                 }
@@ -211,14 +270,14 @@ macro_rules! Live1DImplementation {
                 }
                 fn new(_settings: &Settings) -> Self {
                     let data = vec![0; CAM_DESIGN.0 as usize];
-                    SpecMeasurement{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live1D}
+                    Self{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
                 }
                 #[inline]
-                fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+                fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &NonPeriodicTdcRef) {
                     let index = pack.x();
                     self.data[index as usize] += 1;
                 }
-                fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut Self::SupplementaryTdc) {
+                fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut NonPeriodicTdcRef) {
                     ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
                     self.data[(CAM_DESIGN.0 - 1) as usize] += 1;
                 }
@@ -241,8 +300,7 @@ Live1DImplementation!(u8, u16, u32);
 macro_rules! LiveTR2DImplementation {
     ($($x:ty),+) => {
         $(
-        impl SpecKind for SpecMeasurement<LiveTR2D, $x> {
-            type SupplementaryTdc = SingleTriggerPeriodicTdcRef;
+        impl SpecKind for LiveTR2D<$x> {
             fn is_ready(&self) -> bool {
                 self.is_ready
             }
@@ -251,16 +309,16 @@ macro_rules! LiveTR2DImplementation {
             }
             fn new(_settings: &Settings) -> Self {
                 let data = vec![0; (CAM_DESIGN.0 * CAM_DESIGN.1) as usize];
-                SpecMeasurement{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTR2D}
+                Self{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
             }
             #[inline]
-            fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &Self::SupplementaryTdc) {
-                if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
-                    let index = pack.x() + CAM_DESIGN.0 * pack.y();
-                    self.data[index as usize] += 1;
-                }
+            fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &NonPeriodicTdcRef) {
+                //if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
+                //    let index = pack.x() + CAM_DESIGN.0 * pack.y();
+                //    self.data[index as usize] += 1;
+                //}
             }
-            fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut Self::SupplementaryTdc) {
+            fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut NonPeriodicTdcRef) {
                 ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
             }
             fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
@@ -282,8 +340,7 @@ LiveTR2DImplementation!(u8, u16, u32);
 macro_rules! LiveTR1DImplementation {
     ($($x:ty),+) => {
         $(
-            impl SpecKind for SpecMeasurement<LiveTR1D, $x> {
-                type SupplementaryTdc = SingleTriggerPeriodicTdcRef;
+            impl SpecKind for LiveTR1D<$x> {
                 fn is_ready(&self) -> bool {
                     self.is_ready
                 }
@@ -292,16 +349,16 @@ macro_rules! LiveTR1DImplementation {
                 }
                 fn new(_settings: &Settings) -> Self {
                     let data = vec![0; CAM_DESIGN.0 as usize];
-                    SpecMeasurement{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTR1D}
+                    Self{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
                 }
                 #[inline]
-                fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &Self::SupplementaryTdc) {
-                    if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
-                        let index = pack.x();
-                        self.data[index as usize] += 1;
-                    }
+                fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, ref_tdc: &NonPeriodicTdcRef) {
+                    //if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
+                    //    let index = pack.x();
+                    //    self.data[index as usize] += 1;
+                    //}
                 }
-                fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut Self::SupplementaryTdc) {
+                fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut NonPeriodicTdcRef) {
                     ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
                 }
                 fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
@@ -324,8 +381,7 @@ LiveTR1DImplementation!(u8, u16, u32);
 macro_rules! Coincidence2DImplementation {
     ($($x:ty),+) => {
         $(
-            impl SpecKind for SpecMeasurement<Coincidence2D, $x> {
-                type SupplementaryTdc = NonPeriodicTdcRef;
+            impl SpecKind for Coincidence2D<$x> {
                 fn is_ready(&self) -> bool {
                     self.is_ready && !self.global_stop
                 }
@@ -335,10 +391,10 @@ macro_rules! Coincidence2DImplementation {
                 fn new(settings: &Settings) -> Self {
                     let len = 2*settings.time_width as usize * CAM_DESIGN.0 as usize;
                     let data = vec![0; len];
-                    SpecMeasurement{ data, aux_data: vec![0; LIST_SIZE_AUX_EVENTS], is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Coincidence2D}
+                    Self{ data, aux_data: vec![0; LIST_SIZE_AUX_EVENTS], is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
                 }
                 #[inline]
-                fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+                fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &NonPeriodicTdcRef) {
                     let etime = pack.electron_time();
                     for phtime in self.aux_data.iter() {
                         if (*phtime < etime + settings.time_delay + settings.time_width) && (etime + settings.time_delay < *phtime + settings.time_width) {
@@ -348,7 +404,7 @@ macro_rules! Coincidence2DImplementation {
                         }
                     }
                 }
-                fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut Self::SupplementaryTdc) {
+                fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut NonPeriodicTdcRef) {
                     ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
                     for index in 0..LIST_SIZE_AUX_EVENTS-1 {
                         self.aux_data[index+1] = self.aux_data[index];
@@ -380,8 +436,7 @@ Coincidence2DImplementation!(u8, u16, u32);
 macro_rules! FastChronoImplementation {
     ($($x:ty),+) => {
         $(
-            impl SpecKind for SpecMeasurement<FastChrono, $x> {
-                type SupplementaryTdc = NonPeriodicTdcRef;
+            impl SpecKind for FastChrono<$x> {
                 fn is_ready(&self) -> bool {
                     self.is_ready && !self.global_stop
                 }
@@ -391,17 +446,17 @@ macro_rules! FastChronoImplementation {
                 fn new(settings: &Settings) -> Self {
                     let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
                     let data = vec![0; len];
-                    SpecMeasurement{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: FastChrono}
+                    Self{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
                 }
                 #[inline]
-                fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+                fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &NonPeriodicTdcRef) {
                     let line = (frame_tdc.counter()/2) as POSITION;
                     let index = pack.x() + line * CAM_DESIGN.0;
                     if line < settings.xspim_size {
                         self.data[index as usize] += 1;
                     }
                 }
-                fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut Self::SupplementaryTdc) {
+                fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut NonPeriodicTdcRef) {
                     ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
                     self.data[(CAM_DESIGN.0 - 1) as usize] += 1;
                 }
@@ -421,8 +476,7 @@ FastChronoImplementation!(u8, u16, u32);
 macro_rules! ChronoImplementation {
     ($($x:ty),+) => {
         $(
-            impl SpecKind for SpecMeasurement<Chrono, $x> {
-                type SupplementaryTdc = NonPeriodicTdcRef;
+            impl SpecKind for Chrono<$x> {
                 fn is_ready(&self) -> bool {
                     self.is_ready
                 }
@@ -432,10 +486,10 @@ macro_rules! ChronoImplementation {
                 fn new(settings: &Settings) -> Self {
                     let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
                     let data = vec![0; len];
-                    SpecMeasurement{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Chrono}
+                    Self{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
                 }
                 #[inline]
-                fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+                fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &PeriodicTdcRef, _ref_tdc: &NonPeriodicTdcRef) {
                     let line = (frame_tdc.counter()/2) as POSITION % settings.xspim_size;
                     let index = pack.x() + line * CAM_DESIGN.0;
                     self.data[index as usize] += 1;
@@ -448,7 +502,7 @@ macro_rules! ChronoImplementation {
                         self.aux_data.push(0); //This indicates the frame must be refreshed;
                     }
                 }
-                fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut Self::SupplementaryTdc) {
+                fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut NonPeriodicTdcRef) {
                     ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
                     self.data[(CAM_DESIGN.0 - 1) as usize] += 1;
                 }
@@ -468,8 +522,7 @@ ChronoImplementation!(u8, u16, u32);
 macro_rules! Live2DFrameImplementation {
     ($($x:ty),+) => {
         $(
-            impl SpecKind for SpecMeasurement<Live2DFrame, $x> {
-                type SupplementaryTdc = NonPeriodicTdcRef;
+            impl SpecKind for Live2DFrame<$x> {
                 fn is_ready(&self) -> bool {
                     self.is_ready
                 }
@@ -478,11 +531,11 @@ macro_rules! Live2DFrameImplementation {
                 }
                 fn new(_settings: &Settings) -> Self {
                     let len = (CAM_DESIGN.0 * CAM_DESIGN.1) as usize;
-                    SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live2DFrame }
+                    Self{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
                 }
 
                 #[inline]
-                fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+                fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &NonPeriodicTdcRef) {
                     //You only add electrons to the pair frame number. You are going to send this one
                     //when the next one is over, so you are sure the pair one is complete.
                     
@@ -491,7 +544,7 @@ macro_rules! Live2DFrameImplementation {
                         self.data[index as usize] += pack.tot() as $x;
                     }
                 }
-                fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
+                fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut NonPeriodicTdcRef) {}
                 fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
                     PeriodicTdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
                 }
@@ -537,8 +590,7 @@ Live2DFrameImplementation!(u8, u16, u32);
 macro_rules! Live1DFrameImplementation {
     ($($x:ty),+) => {
         $(
-            impl SpecKind for SpecMeasurement<Live1DFrame, $x> {
-                type SupplementaryTdc = NonPeriodicTdcRef;
+            impl SpecKind for Live1DFrame<$x> {
                 fn is_ready(&self) -> bool {
                     self.is_ready
                 }
@@ -547,17 +599,17 @@ macro_rules! Live1DFrameImplementation {
                 }
                 fn new(_settings: &Settings) -> Self {
                     let len = CAM_DESIGN.0 as usize;
-                    SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live1DFrame }
+                    Self{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
                 }
 
                 #[inline]
-                fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+                fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &NonPeriodicTdcRef) {
                     let index = pack.x();
                     if settings.cumul {
                         self.data[index as usize] += pack.tot() as $x;
                     }
                 }
-                fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
+                fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut NonPeriodicTdcRef) {}
                 fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
                     PeriodicTdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
                 }
@@ -590,8 +642,7 @@ Live1DFrameImplementation!(u8, u16, u32);
 macro_rules! Live1DFrameHyperspecImplementation {
     ($($x:ty),+) => {
         $(
-            impl SpecKind for SpecMeasurement<Live1DFrameHyperspec, $x> {
-                type SupplementaryTdc = NonPeriodicTdcRef;
+            impl SpecKind for Live1DFrameHyperspec<$x> {
                 fn is_ready(&self) -> bool {
                     self.is_ready
                 }
@@ -604,11 +655,11 @@ macro_rules! Live1DFrameHyperspecImplementation {
                     let len = (CAM_DESIGN.0 * settings.xscan_size * settings.yscan_size) as usize;
                     let mut shutter = ShutterControl::default();
                     shutter.set_as_hyperspectral();
-                    SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(shutter), _kind: Live1DFrameHyperspec }
+                    Self{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(shutter)}
                 }
 
                 #[inline]
-                fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+                fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &NonPeriodicTdcRef) {
                     let shut = self.shutter.as_ref().unwrap();
                     if shut.is_hyperspectral_complete() { return }
                     let frame_number = shut.get_counter()[pack.ci() as usize] as POSITION;
@@ -619,7 +670,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
                 fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
                     PeriodicTdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
                 }
-                fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
+                fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut NonPeriodicTdcRef) {}
                 fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
                     if pack.id() == 5 {
                         let _temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
@@ -664,6 +715,7 @@ macro_rules! Live1DFrameHyperspecImplementation {
 }
 Live1DFrameHyperspecImplementation!(u8, u16, u32);
 
+/*
 impl LiveTR1D {
     fn tr_check_if_in<T: TdcControl>(ele_time: TIME, ref_tdc: &T, settings: &Settings) -> bool {
         let period = ref_tdc.period().expect("Period must exist in LiveTR1D.");
@@ -681,12 +733,13 @@ impl LiveTR1D {
 
     }
 }
+*/
 
 
-impl IsiBoxKind for SpecMeasurement<Live1D, u32> {
+impl IsiBoxKind for Live1D<u32> {
     fn isi_new(_settings: &Settings) -> Self {
         let len = (CAM_DESIGN.0 + CHANNELS as POSITION) as usize;
-        SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live1D }
+        Self{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
     }
     fn append_from_isi(&mut self, ext_data: &[u32]) {
         self.data[CAM_DESIGN.0 as usize..].iter_mut().zip(ext_data.iter()).for_each(|(a, b)| *a+=b);
@@ -696,42 +749,39 @@ impl IsiBoxKind for SpecMeasurement<Live1D, u32> {
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
 ///
 ///# Examples
-pub fn run_spectrum<V, U, Y>(mut pack: V, ns: U, my_settings: Settings, kind: Y) -> Result<u8, Tp3ErrorKind>
+pub fn run_spectrum<V, U, Y>(mut pack: V, ns: U, my_settings: Settings, mut kind: Box<Y>) -> Result<u8, Tp3ErrorKind>
     where V: TimepixRead,
           U: Write,
-          Y: GenerateDepth,
-          SpecMeasurement<Y, u8>: SpecKind,
-          SpecMeasurement<Y, u16>: SpecKind,
-          SpecMeasurement<Y, u32>: SpecKind
+          Y: SpecKind + ?Sized,
+          //Y: GenerateDepth,
+          //SpecMeasurement<Y, u8>: SpecKind,
+          //SpecMeasurement<Y, u16>: SpecKind,
+          //SpecMeasurement<Y, u32>: SpecKind
 {
 
     
-    match my_settings.bytedepth {
-        1 => {
-            let mut measurement = kind.gen8(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack)?;
-            let aux_tdc = measurement.build_aux_tdc(&mut pack)?;
-            build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
-        },
-        2 => {
-            let mut measurement = kind.gen16(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack)?;
-            let aux_tdc = measurement.build_aux_tdc(&mut pack)?;
-            build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
-        },
-        4 => {
-            let mut measurement = kind.gen32(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack)?;
-            let aux_tdc = measurement.build_aux_tdc(&mut pack)?;
-            build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
-        },
-        _ => {return Err(Tp3ErrorKind::SetByteDepth)},
-    }
+            //let mut measurement = kind.new(&my_settings);
+            //let mut measurement = kind.gen8(&my_settings);
+        //let frame_tdc = kind.build_main_tdc(&mut pack)?;
+        //let aux_tdc = kind.build_aux_tdc(&mut pack)?;
+        //build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, kind)?;
+        //2 => {
+        //    let mut measurement = kind.gen16(&my_settings);
+        //    let frame_tdc = measurement.build_main_tdc(&mut pack)?;
+        //    let aux_tdc = measurement.build_aux_tdc(&mut pack)?;
+        //    build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
+        //},
+        //4 => {
+        //    let mut measurement = kind.gen32(&my_settings);
+        //    let frame_tdc = measurement.build_main_tdc(&mut pack)?;
+        //    let aux_tdc = measurement.build_aux_tdc(&mut pack)?;
+        //    build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
+        //},
     
     Ok(my_settings.mode)
 }
 
-fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: W::SupplementaryTdc, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
+fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: NonPeriodicTdcRef, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
     where V: TimepixRead,
           U: Write,
           W: SpecKind
@@ -759,7 +809,7 @@ fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
 
 }
 
-pub fn build_spectrum_isi<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: W::SupplementaryTdc, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
+pub fn build_spectrum_isi<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: PeriodicTdcRef, mut ref_tdc: NonPeriodicTdcRef, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
     where V: TimepixRead,
           U: Write,
           W: IsiBoxKind
@@ -793,7 +843,7 @@ pub fn build_spectrum_isi<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings
 }
 
 
-fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut W::SupplementaryTdc) -> bool {
+fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut NonPeriodicTdcRef) -> bool {
 
     data.chunks_exact(8).for_each( |x| {
         match *x {

@@ -2,7 +2,9 @@ use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::{value_types::*, *};
 use timepix3::tdclib::*;
 use timepix3::constlib::*;
-use timepix3::{speclib, spimlib, spimlib::SpimKind};
+use timepix3::measurement_creator;
+use timepix3::{speclib, speclib::SpecKind, spimlib, spimlib::SpimKind};
+use timepix3::{speclib::Live1D};
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
@@ -11,19 +13,22 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
 
     match my_settings.mode {
         0 if my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1D)?;
+            //speclib::run_spectrum(pack, ns, my_settings, speclib::Live1D::<u8>::new(&my_settings))?;
+            //speclib::run_spectrum(pack, ns, my_settings, measurement_creator!(Live1D, &my_settings))?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::meas_creator(&my_settings))?;
             Ok(my_settings.mode)
         },
+        /*
         0 if !my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2D)?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2D::new(&my_settings))?;
             Ok(my_settings.mode)
         },
         1 if my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::LiveTR1D)?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::LiveTR1D::new(&my_settings))?;
             Ok(my_settings.mode)
         },
         1 if !my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::LiveTR2D)?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::LiveTR2D::new(&my_settings))?;
             Ok(my_settings.mode)
         },
         2 => {
@@ -75,6 +80,7 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement)?;
             Ok(my_settings.mode)
         },
+        */
         _ => Err(Tp3ErrorKind::MiscModeNotImplemented(my_settings.mode)),
     }
 }
