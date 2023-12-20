@@ -19,6 +19,8 @@ pub const ELECTRON_OVERFLOW: TIME = 17_179_869_184;
 pub const TDC_OVERFLOW: TIME = 68_719_476_736;
 pub const LIMIT_READ: bool = false; //early break of the file processing
 pub const LIMIT_READ_SIZE: usize = 5_000_000_000; //5GB limitations
+pub const SYNC_MODE: u8 = 0; //0 synchronizes on the frame, 1 synchronizes on the line and 2 is list scan
+pub const PIXELS_ONLIST: usize = 500; //Periodicity of the TDC on the list scan. You need a vector to have the correct list;
 
 
 //***POSTLIB***//

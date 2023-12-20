@@ -317,10 +317,6 @@ pub mod cluster {
             spimlib::get_spimindex(self.x(), self.frame_dt(), &spim_tdc?, xspim, yspim)
         }
         
-        pub fn get_or_not_spim_index_using_line(&self, spim_tdc: Option<PeriodicTdcRef>, line: POSITION, xspim: POSITION, yspim: POSITION) -> Option<INDEX_HYPERSPEC> {
-            spimlib::get_spimindex_using_line(self.x(), self.frame_dt(), line, &spim_tdc?, xspim, yspim)
-        }
-        
         pub fn get_or_not_return_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX_HYPERSPEC> {
             spimlib::get_return_spimindex(self.x(), self.frame_dt(), &spim_tdc?, xspim, yspim)
         }
