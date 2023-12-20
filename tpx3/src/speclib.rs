@@ -35,6 +35,9 @@ macro_rules! genbitdepth {
             fn ten() -> $x {
                 10 as $x
             }
+            fn from_u16(value: u16) -> $x {
+                value as $x
+            }
         }
         )*
     }
@@ -67,6 +70,7 @@ pub trait BitDepth: Clone + Add<Output = Self> + Copy + AddAssign {
     fn zero() -> Self;
     fn one() -> Self;
     fn ten() -> Self;
+    fn from_u16(value: u16) -> Self;
 }
 
 pub trait GenerateDepth {
@@ -435,7 +439,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
     }
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
-        let mut temp_vec = vec![L::zero(); len + 1];
+        let mut temp_vec = vec![L::zero(); len];
         temp_vec[len] = L::ten();
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: FastChrono}
     }
@@ -470,7 +474,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
     }
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
-        let mut temp_vec = vec![L::zero(); len + 1];
+        let mut temp_vec = vec![L::zero(); len];
         temp_vec[len] = L::ten();
         SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Chrono}
     }
@@ -582,204 +586,180 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<SuperResolution, L> {
 }
 */
 
-macro_rules! Live2DFrameImplementation {
-    ($x: ty) => {
-        impl SpecKind for SpecMeasurement<Live2DFrame, $x> {
-            type SupplementaryTdc = NonPeriodicTdcRef;
-            fn is_ready(&self) -> bool {
-                self.is_ready
-            }
-            fn build_output(&self) -> &[u8] {
-                as_bytes(&self.data)
-            }
-            fn new(_settings: &Settings) -> Self {
-                let len = (CAM_DESIGN.0 * CAM_DESIGN.1) as usize;
-                SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live2DFrame }
-            }
+impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
+    type SupplementaryTdc = NonPeriodicTdcRef;
+    fn is_ready(&self) -> bool {
+        self.is_ready
+    }
+    fn build_output(&self) -> &[u8] {
+        as_bytes(&self.data)
+    }
+    fn new(_settings: &Settings) -> Self {
+        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live2DFrame }
+    }
 
-            #[inline]
-            fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
-                //You only add electrons to the pair frame number. You are going to send this one
-                //when the next one is over, so you are sure the pair one is complete.
-                
-                let index = pack.x() + CAM_DESIGN.0 * pack.y();
-                if settings.cumul {
-                    self.data[index as usize] += pack.tot() as $x;
-                }
-            }
-            fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
-            fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
-                PeriodicTdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
-            }
-
-            fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
-                if pack.id() == 5 {
-                    let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
-                    if !self.is_ready {
-                        self.is_ready = temp_ready;
-                        if self.is_ready {
-                            if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
-                                self.is_ready = false;
-                                self.reset_or_else(frame_tdc, settings);
-                            } else {
-                                self.is_ready = true;
-                                self.timer = Instant::now();
-                            }
-                        }
-                    }
-                    //if self.is_ready {
-                    //    println!(" OK {} and {}", self.data.iter().map(|val| *val as u32).sum::<u32>(), self.timer.elapsed().as_millis());
-                    //}
-                }
-                else if pack.id() == 6 {
-                    frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-                }
-            }
-            fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
-                self.is_ready = false;
-                if !settings.cumul { //No cumulation
-                    self.data.iter_mut().for_each(|x| *x = 0);
-                }
-            }
-            fn shutter_control(&self) -> Option<&ShutterControl> {
-                self.shutter.as_ref()
-            }
+    #[inline]
+    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+        //You only add electrons to the pair frame number. You are going to send this one
+        //when the next one is over, so you are sure the pair one is complete.
+        
+        let index = pack.x() + CAM_DESIGN.0 * pack.y();
+        if settings.cumul {
+            self.data[index as usize] += L::from_u16(pack.tot());
         }
     }
-}
-Live2DFrameImplementation!(u8);
-Live2DFrameImplementation!(u16);
-Live2DFrameImplementation!(u32);
-
-macro_rules! Live1DFrameImplementation {
-    ($x: ty) => {
-        impl SpecKind for SpecMeasurement<Live1DFrame, $x> {
-            type SupplementaryTdc = NonPeriodicTdcRef;
-            fn is_ready(&self) -> bool {
-                self.is_ready
-            }
-            fn build_output(&self) -> &[u8] {
-                as_bytes(&self.data)
-            }
-            fn new(_settings: &Settings) -> Self {
-                let len = CAM_DESIGN.0 as usize;
-                SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live1DFrame }
-            }
-
-            #[inline]
-            fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
-                let index = pack.x();
-                if settings.cumul {
-                    self.data[index as usize] += pack.tot() as $x;
-                }
-            }
-            fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
-            fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
-                PeriodicTdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
-            }
-            fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
-                if pack.id() == 5 {
-                    let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
-                    if !self.is_ready {
-                        self.is_ready = temp_ready;
-                    }
-                }
-                else if pack.id() == 6 {
-                    frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-                }
-            }
-            fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
-                self.is_ready = false;
-                if !settings.cumul {
-                    self.data.iter_mut().for_each(|x| *x = 0);
-                }
-            }
-            fn shutter_control(&self) -> Option<&ShutterControl> {
-                self.shutter.as_ref()
-            }
-        }
+    fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
+    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
+        PeriodicTdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
     }
-}
-Live1DFrameImplementation!(u8);
-Live1DFrameImplementation!(u16);
-Live1DFrameImplementation!(u32);
-
-macro_rules! Live1DFrameHyperspecImplementation {
-    ($x: ty) => {
-        impl SpecKind for SpecMeasurement<Live1DFrameHyperspec, $x> {
-            type SupplementaryTdc = NonPeriodicTdcRef;
-            fn is_ready(&self) -> bool {
-                self.is_ready
-            }
-            fn build_output(&self) -> &[u8] {
-                //The number of pixels sent is updated on the reset or else function
-                let range = self.shutter.as_ref().expect("This mode must have the Shutter Control").get_index_range_to_send();
-                as_bytes(&self.data[range])
-            }
-            fn new(settings: &Settings) -> Self {
-                let len = (CAM_DESIGN.0 * settings.xscan_size * settings.yscan_size) as usize;
-                let mut shutter = ShutterControl::default();
-                shutter.set_as_hyperspectral();
-                SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(shutter), _kind: Live1DFrameHyperspec }
-            }
-
-            #[inline]
-            fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
-                let shut = self.shutter.as_ref().unwrap();
-                if shut.is_hyperspectral_complete() { return }
-                let frame_number = shut.get_counter()[pack.ci() as usize] as POSITION;
-                //We cannot depass frame_number otherwise the indexation will be bad
-                let index = frame_number * CAM_DESIGN.0 + pack.x();
-                self.data[index as usize] += pack.tot() as $x;
-            }
-            fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
-                PeriodicTdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
-            }
-            fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
-            fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
-                if pack.id() == 5 {
-                    let _temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
-                    let shutter_counter = self.shutter.as_ref().unwrap().get_counter()[pack.ci() as usize] as POSITION;
-                    if shutter_counter >= settings.xscan_size * settings.yscan_size {
-                        self.shutter.as_mut().unwrap().set_hyperspectral_as_complete();
-                    }
-                    let pixels_sent = self.shutter.as_ref().expect("Shutter must be present in Frame-based mode.").hyperspec_pixels_to_send.1;
-                    if shutter_counter > pixels_sent + HYPERSPECTRAL_PIXEL_CHUNK {
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
+        if pack.id() == 5 {
+            let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
+            if !self.is_ready {
+                self.is_ready = temp_ready;
+                if self.is_ready {
+                    if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
+                        self.is_ready = false;
+                        self.reset_or_else(frame_tdc, settings);
+                    } else {
                         self.is_ready = true;
-                        let begin_pixel = pixels_sent;
-                        let end_pixel = std::cmp::min((pixels_sent + HYPERSPECTRAL_PIXEL_CHUNK), settings.xscan_size * settings.yscan_size);
-                        self.shutter.as_mut().unwrap().set_pixel_to_send(begin_pixel, end_pixel);
-                        println!("***FB Hyperspec***: Sending_data with counter {}. Begin and end pixels are {} and {}", shutter_counter, begin_pixel, end_pixel);
-
+                        self.timer = Instant::now();
                     }
-                    /*
-                    if !self.is_ready {
-                        if self.timer.elapsed().as_millis() < TIME_INTERVAL_HYPERSPECTRAL_FRAME {
-                            self.is_ready = false;
-                        } else {
-                            println!("sending_data with counter {}", shutter_counter);
-                            self.is_ready = true;
-                        }
-                    }
-                    */
-                }
-                else if pack.id() == 6 {
-                    frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
                 }
             }
-            fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) {
-                self.is_ready = false;
-                self.timer = Instant::now();
-            }
-            fn shutter_control(&self) -> Option<&ShutterControl> {
-                self.shutter.as_ref()
-            }
+            //if self.is_ready {
+            //    println!(" OK {} and {}", self.data.iter().map(|val| *val as u32).sum::<u32>(), self.timer.elapsed().as_millis());
+            //}
+        }
+        else if pack.id() == 6 {
+            frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         }
     }
+    fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
+        self.is_ready = false;
+        if !settings.cumul { //No cumulation
+            self.data.iter_mut().for_each(|x| *x = L::zero());
+        }
+    }
+    fn shutter_control(&self) -> Option<&ShutterControl> {
+        self.shutter.as_ref()
+    }
 }
-Live1DFrameHyperspecImplementation!(u8);
-Live1DFrameHyperspecImplementation!(u16);
-Live1DFrameHyperspecImplementation!(u32);
+
+impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
+    type SupplementaryTdc = NonPeriodicTdcRef;
+    fn is_ready(&self) -> bool {
+        self.is_ready
+    }
+    fn build_output(&self) -> &[u8] {
+        as_bytes(&self.data)
+    }
+    fn new(_settings: &Settings) -> Self {
+        SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live1DFrame }
+    }
+
+    #[inline]
+    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+        let index = pack.x();
+        if settings.cumul {
+            self.data[index as usize] += L::from_u16(pack.tot());
+        }
+    }
+    fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
+    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
+        PeriodicTdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
+    }
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
+        if pack.id() == 5 {
+            let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
+            if !self.is_ready {
+                self.is_ready = temp_ready;
+            }
+        }
+        else if pack.id() == 6 {
+            frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        }
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
+        self.is_ready = false;
+        if !settings.cumul {
+            self.data.iter_mut().for_each(|x| *x = L::zero());
+        }
+    }
+    fn shutter_control(&self) -> Option<&ShutterControl> {
+        self.shutter.as_ref()
+    }
+}
+
+impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrameHyperspec, L> {
+    type SupplementaryTdc = NonPeriodicTdcRef;
+    fn is_ready(&self) -> bool {
+        self.is_ready
+    }
+    fn build_output(&self) -> &[u8] {
+        //The number of pixels sent is updated on the reset or else function
+        let range = self.shutter.as_ref().expect("This mode must have the Shutter Control").get_index_range_to_send();
+        as_bytes(&self.data[range])
+    }
+    fn new(settings: &Settings) -> Self {
+        let len = (CAM_DESIGN.0 * settings.xscan_size * settings.yscan_size) as usize;
+        let mut shutter = ShutterControl::default();
+        shutter.set_as_hyperspectral();
+        SpecMeasurement{ data: vec![L::zero(); len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(shutter), _kind: Live1DFrameHyperspec }
+    }
+
+    #[inline]
+    fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+        let shut = self.shutter.as_ref().unwrap();
+        if shut.is_hyperspectral_complete() { return }
+        let frame_number = shut.get_counter()[pack.ci() as usize] as POSITION;
+        //We cannot depass frame_number otherwise the indexation will be bad
+        let index = frame_number * CAM_DESIGN.0 + pack.x();
+        self.data[index as usize] += L::from_u16(pack.tot());
+    }
+    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
+        PeriodicTdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
+    }
+    fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
+        if pack.id() == 5 {
+            let _temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
+            let shutter_counter = self.shutter.as_ref().unwrap().get_counter()[pack.ci() as usize] as POSITION;
+            if shutter_counter >= settings.xscan_size * settings.yscan_size {
+                self.shutter.as_mut().unwrap().set_hyperspectral_as_complete();
+            }
+            let pixels_sent = self.shutter.as_ref().expect("Shutter must be present in Frame-based mode.").hyperspec_pixels_to_send.1;
+            if shutter_counter > pixels_sent + HYPERSPECTRAL_PIXEL_CHUNK {
+                self.is_ready = true;
+                let begin_pixel = pixels_sent;
+                let end_pixel = std::cmp::min(pixels_sent + HYPERSPECTRAL_PIXEL_CHUNK, settings.xscan_size * settings.yscan_size);
+                self.shutter.as_mut().unwrap().set_pixel_to_send(begin_pixel, end_pixel);
+                println!("***FB Hyperspec***: Sending_data with counter {}. Begin and end pixels are {} and {}", shutter_counter, begin_pixel, end_pixel);
+
+            }
+            /*
+            if !self.is_ready {
+                if self.timer.elapsed().as_millis() < TIME_INTERVAL_HYPERSPECTRAL_FRAME {
+                    self.is_ready = false;
+                } else {
+                    println!("sending_data with counter {}", shutter_counter);
+                    self.is_ready = true;
+                }
+            }
+            */
+        }
+        else if pack.id() == 6 {
+            frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        }
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, _settings: &Settings) {
+        self.is_ready = false;
+        self.timer = Instant::now();
+    }
+    fn shutter_control(&self) -> Option<&ShutterControl> {
+        self.shutter.as_ref()
+    }
+}
 
 impl LiveTR1D {
     fn tr_check_if_in<T: TdcControl>(ele_time: TIME, ref_tdc: &T, settings: &Settings) -> bool {
