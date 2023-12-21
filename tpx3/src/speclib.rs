@@ -102,19 +102,25 @@ pub struct ShutterControl {
 
 impl ShutterControl {
     fn try_set_time(&mut self, timestamp: TIME, ci: u8, shutter_closed: bool) -> bool {
-        //When shutter is closed, data transfer initiates. Shutter_closed false means a new frame just
+        //When shutter_closed is true, we receive electrons. Shutter_closed false means a new frame just
         //started, but we must wait <ACQUISITION_TIME> in order to close it and receive our data
         let ci = ci as usize;
         self.shutter_closed_status[ci] = shutter_closed;
         //if self.time[ci] == 0 {
         //    self.time[ci] = timestamp;
         //}
-        println!("{:?} and {} and {} and {}", self.shutter_closed_status, timestamp, shutter_closed, ci);
-        if shutter_closed && self.time[ci] != timestamp {
-            println!("ready");
+        //println!("{:?} and {} and {} and {}", self.shutter_closed_status, timestamp, shutter_closed, ci);
+        if !shutter_closed && self.time[ci] != timestamp {
+            //println!("ready");
+            //first false in which all timestemps differ
+            let temp2 = self.time.iter().all(|val| *val != timestamp);
+            
             self.time[ci] = timestamp;
             self.counter[ci] += 1;
-            return self.time.iter().all(|val| *val == timestamp);
+            let temp = self.time.iter().all(|val| *val == timestamp);
+            //println!("{} and {} and {:?}", temp, temp2, self.counter);
+
+            return temp2;
         }
         false
     }
@@ -486,8 +492,10 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
         //You only add electrons to the pair frame number. You are going to send this one
         //when the next one is over, so you are sure the pair one is complete.
+        //if !self.is_ready {
         let index = pack.x() + CAM_DESIGN.0 * pack.y();
         self.data[index as usize] += L::from_u16(pack.tot());
+        //}
     }
     fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
@@ -496,7 +504,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         if pack.id() == 5 {
             let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
-            if !self.is_ready {
+            //if !self.is_ready {
                 self.is_ready = temp_ready;
                 if self.is_ready {
                     if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
@@ -507,7 +515,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
                         self.timer = Instant::now();
                     }
                 }
-            }
+            //}
             //if self.is_ready {
             //    println!(" OK {} and {}", self.data.iter().map(|val| *val as u32).sum::<u32>(), self.timer.elapsed().as_millis());
             //}
@@ -541,8 +549,10 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
 
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
+        //if !self.is_ready {
         let index = pack.x();
         self.data[index as usize] += L::from_u16(pack.tot());
+        //}
     }
     fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
@@ -551,9 +561,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
         if pack.id() == 5 {
             let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
-            if !self.is_ready {
-                self.is_ready = temp_ready;
-            }
+            //if !self.is_ready {
+            self.is_ready = temp_ready;
+            //}
         }
         else if pack.id() == 6 {
             frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
