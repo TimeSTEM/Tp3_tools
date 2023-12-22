@@ -195,7 +195,7 @@ pub mod cluster {
             let mut tfile = OpenOptions::new()
                 .append(true)
                 .create(true)
-                .open(&filename).expect("Could not output time histogram.");
+                .open(filename).expect("Could not output time histogram.");
             let out: Vec<String> = self.data.iter().filter(|se| se.spim_slice()==slice && se.tot() > 60 && se.tot() < 220).map(|x| x.to_string()).collect::<Vec<String>>();
             if !out.is_empty() {
                 println!("Outputting data for slice {}. Number of electrons: {}", slice, out.len());
@@ -284,7 +284,7 @@ pub mod cluster {
             let index = self.x() as usize + 1024 * self.y() as usize;
             let temp = (self.tot() as f32 - transform_energy_calibration(BTOT)[index]) / transform_energy_calibration(ATOT)[index];
             if temp < 0.0 {
-                0 as u16
+                0_u16
             } else {
                 temp.round() as u16
             }

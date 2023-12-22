@@ -91,6 +91,7 @@ pub struct SpecMeasurement<T, K: BitDepth> {
     _kind: T,
 }
 
+#[derive(Default)]
 pub struct ShutterControl {
     time: [TIME; 4],
     counter: [COUNTER; 4],
@@ -151,6 +152,7 @@ impl ShutterControl {
     }
 }
 
+/*
 impl Default for ShutterControl {
     fn default() -> Self {
         Self {
@@ -163,6 +165,7 @@ impl Default for ShutterControl {
         }
     }
 }
+*/
 
 pub trait SpecKind {
     type SupplementaryTdc: TdcControl;
@@ -791,9 +794,9 @@ pub fn build_spectrum_isi<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings
 
 fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut W::SupplementaryTdc) -> bool {
 
-    let mut iterator = data.chunks_exact(8);
+    let iterator = data.chunks_exact(8);
     
-    while let Some(x) = iterator.next() {
+    for x in iterator {
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {

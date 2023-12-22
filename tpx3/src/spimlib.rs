@@ -212,11 +212,12 @@ impl LiveFrame4D<MaskValues> {
     }
     fn number_of_masks(&self) -> u8 {
         //self.channels.len() as u8
-        4 as u8
+        4_u8
     }
     fn create_mask<R: std::io::Read>(&mut self, array: R) -> Result<(), Tp3ErrorKind> {
         //Ok(self.channels.push(grab_mask(array)?))
-        Ok(self.channels = Live4DChannelMask::grab_mask(array)?)
+        self.channels = Live4DChannelMask::grab_mask(array)?;
+        Ok(())
     }
 }
 
@@ -232,7 +233,7 @@ impl Live4DChannelMask<MaskValues> {
     fn grab_mask<R: std::io::Read>(mut array: R) -> Result<Vec<Self>, Tp3ErrorKind> {
         let mut vec_of_channels: Vec<Self> = Vec::new();
         let mut mask = [0; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
-        while let Ok(_) = array.read_exact(as_bytes_mut(&mut mask)) {
+        while array.read_exact(as_bytes_mut(&mut mask)).is_ok() {
             vec_of_channels.push(Live4DChannelMask::new(mask));
         }
         Ok(vec_of_channels)
@@ -605,7 +606,7 @@ pub fn build_spim_isi<V, T, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings:
     for mut tl in rx {
         let result = tl.build_output(&my_settings, &line_tdc, None);
         let x = handler.get_data();
-        if ns_sock.write(as_bytes(&result)).is_err() {println!("Client disconnected on data."); break;}
+        if ns_sock.write(as_bytes(result)).is_err() {println!("Client disconnected on data."); break;}
         if x.len() > 0 {
             if ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
         }
