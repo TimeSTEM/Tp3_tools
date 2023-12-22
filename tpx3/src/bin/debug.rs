@@ -29,7 +29,7 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size as COUNTER))?;
             let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack, None)?;
             let measurement = spimlib::Live::new(&my_settings);
-            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement)?;
+            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None)?;
             Ok(my_settings.mode)
         },
         6 => {

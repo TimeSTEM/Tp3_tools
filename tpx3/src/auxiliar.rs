@@ -268,33 +268,6 @@ impl Settings {
         let custom_datetime_format = now.format("%Y_%m_%y_%H_%M_%S").to_string();
         val.push_str(SAVE_LOCALLY_FILE);
         val.push_str(&custom_datetime_format);
-        /*
-        val.push_str("_bin");
-        val.push_str(&self.bin.to_string());
-        val.push_str("_byteDepth");
-        val.push_str(&self.bytedepth.to_string());
-        val.push_str("_cumul");
-        val.push_str(&self.cumul.to_string());
-        val.push_str("_mode");
-        val.push_str(&self.mode.to_string());
-        val.push_str("_xspim");
-        val.push_str(&self.xspim_size.to_string());
-        val.push_str("_yspim");
-        val.push_str(&self.yspim_size.to_string());
-        val.push_str("_xscan");
-        val.push_str(&self.xscan_size.to_string());
-        val.push_str("_yscan");
-        val.push_str(&self.yscan_size.to_string());
-        val.push_str("_pixeltime");
-        val.push_str(&self.pixel_time.to_string());
-        val.push_str("_timedelay");
-        val.push_str(&self.time_delay.to_string());
-        val.push_str("_timewidth");
-        val.push_str(&self.time_width.to_string());
-        val.push_str("_savelocally");
-        val.push_str(&self.save_locally.to_string());
-        val.push_str("_mode");
-        */
         val
     }
 
@@ -331,7 +304,7 @@ impl Settings {
     }
 
     ///Create Settings structure reading from a TCP.
-    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
+    pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, TcpStream), Tp3ErrorKind> {
     
         let mut _sock_vec: Vec<TcpStream> = Vec::new();
         
@@ -364,21 +337,12 @@ impl Settings {
             }
         };
         let my_settings = my_config.create_settings()?;
-        //println!("Received settings is {:?}. Mode is {}.", cam_settings, my_settings.mode);
-
-        //This is a special case. This mode saves locally so we do not need to ready
-        //anything special. We do not write anything special as well, so we do not need
-        //to return the ns_sock.
-        if my_settings.mode == 8 {
-            println!("Special mode 8. Save locally but using the IsiBox system.");
-            return Ok((my_settings, Box::new(DebugIO{}), Box::new(DebugIO{})));
-        }
 
         match debug {
             false => {
                 let (pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
                 println!("Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
-                Ok((my_settings, Box::new(pack_sock), Box::new(ns_sock)))
+                Ok((my_settings, Box::new(pack_sock), ns_sock))
             },
             true => {
                 let file = match File::open(READ_DEBUG_FILE) {
@@ -386,7 +350,7 @@ impl Settings {
                     Err(_) => return Err(Tp3ErrorKind::SetNoReadFile),
                 };
                 println!("Debug mode. Will one file a single time.");
-                Ok((my_settings, Box::new(file), Box::new(ns_sock)))
+                Ok((my_settings, Box::new(file), ns_sock))
             },
         }
 
