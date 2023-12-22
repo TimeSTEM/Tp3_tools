@@ -111,13 +111,12 @@ impl ShutterControl {
         //}
         //println!("{:?} and {} and {} and {}", self.shutter_closed_status, timestamp, shutter_closed, ci);
         if !shutter_closed && self.time[ci] != timestamp {
-            //println!("ready");
             //first false in which all timestemps differ
             let temp2 = self.time.iter().all(|val| *val != timestamp);
             
             self.time[ci] = timestamp;
             self.counter[ci] += 1;
-            let temp = self.time.iter().all(|val| *val == timestamp);
+            //let _temp = self.time.iter().all(|val| *val == timestamp);
             //println!("{} and {} and {:?}", temp, temp2, self.counter);
 
             return temp2;
@@ -490,12 +489,10 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
 
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
-        //You only add electrons to the pair frame number. You are going to send this one
-        //when the next one is over, so you are sure the pair one is complete.
-        //if !self.is_ready {
-        let index = pack.x() + CAM_DESIGN.0 * pack.y();
-        self.data[index as usize] += L::from_u16(pack.tot());
-        //}
+        if !self.is_ready || settings.cumul {
+            let index = pack.x() + CAM_DESIGN.0 * pack.y();
+            self.data[index as usize] += L::from_u16(pack.tot());
+        }
     }
     fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
@@ -504,7 +501,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         if pack.id() == 5 {
             let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
-            //if !self.is_ready {
+            if !self.is_ready {
                 self.is_ready = temp_ready;
                 if self.is_ready {
                     if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
@@ -515,17 +512,19 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
                         self.timer = Instant::now();
                     }
                 }
-            //}
-            //if self.is_ready {
-            //    println!(" OK {} and {}", self.data.iter().map(|val| *val as u32).sum::<u32>(), self.timer.elapsed().as_millis());
-            //}
+            } else {
+                if temp_ready {
+                    self.reset_or_else(frame_tdc, settings);
+                    self.is_ready = false;
+                }
+            }
         }
         else if pack.id() == 6 {
             frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         }
     }
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
-        self.is_ready = false;
+        //self.is_ready = false;
         if !settings.cumul { //No cumulation
             self.data.iter_mut().for_each(|x| *x = L::zero());
         }
@@ -549,28 +548,39 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
 
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &PeriodicTdcRef, _ref_tdc: &Self::SupplementaryTdc) {
-        //if !self.is_ready {
-        let index = pack.x();
-        self.data[index as usize] += L::from_u16(pack.tot());
-        //}
+        //If you are in cumulation mode, save all the electrons. If not, only save those that the
+        //frame has not yet been sent
+        if !self.is_ready || settings.cumul{
+            let index = pack.x();
+            self.data[index as usize] += L::from_u16(pack.tot());
+        }
     }
     fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut Self::SupplementaryTdc) {}
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<PeriodicTdcRef, Tp3ErrorKind> {
         PeriodicTdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
     }
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, _settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut PeriodicTdcRef, settings: &Settings) {
         if pack.id() == 5 {
             let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
-            //if !self.is_ready {
-            self.is_ready = temp_ready;
-            //}
+            
+            //If is_ready is false, set with temp_ready. If is_ready is true and another temp_ready
+            //arrives, then we reset the array and do not send the frame. In this mode,
+            //reset_or_else does not set is_ready to false.
+            if !self.is_ready {
+                self.is_ready = temp_ready;
+            } else {
+                if temp_ready {
+                    self.reset_or_else(frame_tdc, settings);
+                    self.is_ready = false;
+                }
+            }
         }
         else if pack.id() == 6 {
             frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         }
     }
     fn reset_or_else(&mut self, _frame_tdc: &PeriodicTdcRef, settings: &Settings) {
-        self.is_ready = false;
+        //self.is_ready = false;
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = L::zero());
         }
@@ -724,7 +734,7 @@ fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
 {
 
     let mut last_ci = 0;
-    let mut buffer_pack_data = [0; BUFFER_SIZE];
+    let mut buffer_pack_data: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
     let start = Instant::now();
     
     let mut file_to_write = my_settings.create_file();
@@ -781,7 +791,9 @@ pub fn build_spectrum_isi<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings
 
 fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, settings: &Settings, frame_tdc: &mut PeriodicTdcRef, ref_tdc: &mut W::SupplementaryTdc) -> bool {
 
-    data.chunks_exact(8).for_each( |x| {
+    let mut iterator = data.chunks_exact(8);
+    
+    while let Some(x) = iterator.next() {
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
@@ -804,7 +816,7 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
                 };
             },
         };
-    });
+    };
     final_data.is_ready()
 }
 

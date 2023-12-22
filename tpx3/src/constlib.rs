@@ -9,7 +9,7 @@ pub const VIDEO_TIME: TIME = 3200;
 pub const SPIM_PIXELS: POSITION = 1025 + 200;
 pub const RAW4D_PIXELS_X: POSITION = 256; //#TODO: this value must be taken from diffraction packet (packetlib)
 pub const RAW4D_PIXELS_Y: POSITION = 256; //#TODO: this value must be taken from the diffraction packet (packetlib)
-pub const BUFFER_SIZE: usize = 16;
+pub const BUFFER_SIZE: usize = 16384 * 2;
 pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
 pub const NIONSWIFT_PORT: u16 = 8088;
 pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coicncidence searching
@@ -19,8 +19,10 @@ pub const ELECTRON_OVERFLOW: TIME = 17_179_869_184;
 pub const TDC_OVERFLOW: TIME = 68_719_476_736;
 pub const LIMIT_READ: bool = false; //early break of the file processing
 pub const LIMIT_READ_SIZE: usize = 5_000_000_000; //5GB limitations
-pub const SYNC_MODE: u8 = 0; //0 synchronizes on the frame, 1 synchronizes on the line and 2 is list scan
-pub const PIXELS_ONLIST: usize = 500; //Periodicity of the TDC on the list scan. You need a vector to have the correct list;
+pub const SYNC_MODE: u8 = 0; //0 synchronizes on the frame, 1 synchronizes on the line.
+pub const UNIFORM_PIXEL: bool = false; //Assumption that the time per pixel is uniform.
+pub const LIST_SCAN: bool = false; //If UNIFORM_PIXEL is true, LIST_SCAN true means that we need a decode list to reconstruct hyperspec.
+pub const REMOVE_RETURN: bool = true; //This removes the electrons in the flyback mode. UNIFORM_PIXEL must be false to this in order to take place.
 
 
 //***POSTLIB***//

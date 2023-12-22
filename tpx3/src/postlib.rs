@@ -46,7 +46,7 @@ pub mod coincidence {
         spectrum: Vec<u32>,
         corr_spectrum: Vec<u32>,
         spim_frame: Vec<u32>,
-        frequency_list: HashMap<i16, u32>,
+        _frequency_list: HashMap<i16, u32>,
         is_spim: bool,
         spim_size: (POSITION, POSITION),
         spim_index: Vec<INDEX_HYPERSPEC>,
@@ -243,7 +243,7 @@ pub mod coincidence {
                 cluster_size: Vec::new(),
                 spectrum: vec![0; SPIM_PIXELS as usize],
                 corr_spectrum: vec![0; SPIM_PIXELS as usize],
-                frequency_list: HashMap::new(),
+                _frequency_list: HashMap::new(),
                 is_spim: my_config.is_spim,
                 spim_size: (my_config.xspim, my_config.yspim),
                 spim_index: Vec::new(),
@@ -1188,7 +1188,7 @@ pub mod ntime_resolved {
     use crate::errorlib::Tp3ErrorKind;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
     use crate::auxiliar::{misc::{packet_change, output_data}, value_types::*, ConfigAcquisition};
-    use crate::constlib::*;
+    //use crate::constlib::*;
     use std::io::prelude::*;
     use std::convert::TryInto;
     use std::fs;
