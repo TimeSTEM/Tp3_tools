@@ -21,7 +21,6 @@ pub const LIMIT_READ: bool = false; //early break of the file processing
 pub const LIMIT_READ_SIZE: usize = 5_000_000_000; //5GB limitations
 pub const SYNC_MODE: u8 = 0; //0 synchronizes on the frame, 1 synchronizes on the line.
 pub const UNIFORM_PIXEL: bool = false; //Assumption that the time per pixel is uniform.
-pub const LIST_SCAN: bool = false; //If UNIFORM_PIXEL is true, LIST_SCAN true means that we need a decode list to reconstruct hyperspec.
 pub const REMOVE_RETURN: bool = true; //This removes the electrons in the flyback mode. UNIFORM_PIXEL must be false to this in order to take place.
 
 
