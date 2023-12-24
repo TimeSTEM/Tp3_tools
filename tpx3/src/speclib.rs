@@ -1,7 +1,7 @@
 //!`speclib` is a collection of tools to set EELS/4D acquisition.
 
 use crate::packetlib::{Packet, PacketEELS as Pack};
-use crate::auxiliar::{Settings, misc::{TimepixRead, packet_change}};
+use crate::auxiliar::{aux_func, Settings, misc::{TimepixRead, packet_change}};
 use crate::tdclib::{TdcType, TdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
 use crate::isi_box_new;
 use crate::errorlib::Tp3ErrorKind;
@@ -12,14 +12,6 @@ use crate::auxiliar::value_types::*;
 use crate::constlib::*;
 
 const CAM_DESIGN: (POSITION, POSITION) = Pack::chip_array();
-
-fn as_bytes<T>(v: &[T]) -> &[u8] {
-    unsafe {
-        std::slice::from_raw_parts(
-            v.as_ptr() as *const u8,
-            v.len() * std::mem::size_of::<T>())
-    }
-}
 
 //Generating BitDepth for the standard types
 macro_rules! genbitdepth {
@@ -219,7 +211,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        as_bytes(&self.data)
+        aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live2D }
@@ -256,7 +248,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        as_bytes(&self.data)
+        aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live1D}
@@ -287,7 +279,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR2D, L> {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        as_bytes(&self.data)
+        aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTR2D}
@@ -319,7 +311,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR1D, L> {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        as_bytes(&self.data)
+        aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTR1D}
@@ -351,7 +343,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Coincidence2D, L> {
         self.is_ready && !self.global_stop
     }
     fn build_output(&self) -> &[u8] {
-        as_bytes(&self.data)
+        aux_func::as_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
         let len = 2*settings.time_width as usize * CAM_DESIGN.0 as usize;
@@ -400,7 +392,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
         self.is_ready && !self.global_stop
     }
     fn build_output(&self) -> &[u8] {
-        as_bytes(&self.data)
+        aux_func::as_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
@@ -434,7 +426,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        as_bytes(&self.data)
+        aux_func::as_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
@@ -474,7 +466,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        as_bytes(&self.data)
+        aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live2DFrame }
@@ -532,7 +524,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
         self.is_ready
     }
     fn build_output(&self) -> &[u8] {
-        as_bytes(&self.data)
+        aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live1DFrame }
@@ -589,7 +581,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrameHyperspec, L> {
     fn build_output(&self) -> &[u8] {
         //The number of pixels sent is updated on the reset or else function
         let range = self.shutter.as_ref().expect("This mode must have the Shutter Control").get_index_range_to_send();
-        as_bytes(&self.data[range])
+        aux_func::as_bytes(&self.data[range])
     }
     fn new(settings: &Settings) -> Self {
         let len = (CAM_DESIGN.0 * settings.xscan_size * settings.yscan_size) as usize;

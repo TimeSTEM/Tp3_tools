@@ -49,7 +49,7 @@ pub mod coincidence {
         _frequency_list: HashMap<i16, u32>,
         is_spim: bool,
         spim_size: (POSITION, POSITION),
-        spim_index: Vec<INDEX_HYPERSPEC>,
+        spim_index: Vec<INDEXHYPERSPEC>,
         spim_tdc: Option<TdcRef>,
         remove_clusters: T,
         overflow_electrons: COUNTER,
@@ -359,7 +359,7 @@ pub mod coincidence {
     }
 
     //the absolute time, the channel, the g2_dT, and the spim index;
-    pub type TdcStructureData = (TIME, COUNTER, Option<i16>, Option<INDEX_HYPERSPEC>);
+    pub type TdcStructureData = (TIME, COUNTER, Option<i16>, Option<INDEXHYPERSPEC>);
     pub struct TempTdcData {
         tdc: Vec<TdcStructureData>,
         clean_tdc: Vec<TdcStructureData>,
@@ -1195,10 +1195,10 @@ pub mod ntime_resolved {
 
     /// This enables spatial+spectral analysis in a certain spectral window.
     pub struct TimeSpectralSpatial<T> {
-        hyperspec_index: Vec<INDEX_HYPERSPEC>, //Main data,
-        hyperspec_return_index: Vec<INDEX_HYPERSPEC>, //Main data from flyback,
-        fourd_index: Vec<INDEX_4D>,
-        fourd_return_index: Vec<INDEX_4D>,
+        hyperspec_index: Vec<INDEXHYPERSPEC>, //Main data,
+        hyperspec_return_index: Vec<INDEXHYPERSPEC>, //Main data from flyback,
+        fourd_index: Vec<INDEX4D>,
+        fourd_return_index: Vec<INDEX4D>,
         frame_indices: Vec<u16>, //indexes from main scan
         frame_return_indices: Vec<u16>, //indexes from flyback
         ensemble: CollectionElectron, //A collection of single electrons,
@@ -1396,7 +1396,7 @@ pub mod calibration {
 
     use std::fs::OpenOptions;
     use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
-    use crate::auxiliar::misc::packet_change;
+    use crate::auxiliar::{aux_func, misc::packet_change};
     use std::io;
     use std::io::prelude::*;
     use std::fs;
@@ -1404,21 +1404,13 @@ pub mod calibration {
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
     use indicatif::{ProgressBar, ProgressStyle};
     
-    fn as_bytes<T>(v: &[T]) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u8,
-                v.len() * std::mem::size_of::<T>())
-        }
-    }
-    
     fn output_data<T>(data: &[T], name: &str) {
         let mut tfile = OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
             .open(name).unwrap();
-        tfile.write_all(as_bytes(data)).unwrap();
+        tfile.write_all(aux_func::as_bytes(data)).unwrap();
         println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
     }
     

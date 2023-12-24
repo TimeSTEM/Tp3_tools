@@ -477,311 +477,15 @@ impl TdcRef {
     }
 }
 
-/*
-pub trait TdcControl {
-    fn id(&self) -> u8;
-    fn upt(&mut self, time: TIME, hard_counter: u16);
-    fn counter(&self) -> COUNTER;
-    fn time(&self) -> TIME;
-    fn period(&self) -> Option<TIME>;
-    fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, sp: Option<COUNTER>) -> Result<Self, Tp3ErrorKind> where Self: Sized;
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct PeriodicTdcRef {
-    tdctype: u8,
-    counter: COUNTER,
-    counter_offset: COUNTER,
-    last_hard_counter: u16,
-    counter_overflow: COUNTER,
-    begin_time: TIME,
-    pub ticks_to_frame: Option<COUNTER>,
-    pub begin_frame: TIME,
-    pub period: TIME,
-    pub high_time: TIME,
-    pub low_time: TIME,
-    pub new_frame: bool,
-    time: TIME,
-}
-
-impl TdcControl for PeriodicTdcRef {
-    fn id(&self) -> u8 {
-        self.tdctype
-    }
-
-    fn upt(&mut self, time: TIME, hard_counter: u16) {
-        if hard_counter < self.last_hard_counter {
-            self.counter_overflow += 1;
-        }
-        self.last_hard_counter = hard_counter;
-        self.counter = self.last_hard_counter as COUNTER + self.counter_overflow * 4096 - self.counter_offset;
-        let time_overflow = self.time > time;
-        self.time = time;
-        if let Some(spimy) = self.ticks_to_frame {
-            if (self.counter / 2) % spimy == 0 {
-                self.begin_frame = time;
-                self.new_frame = true
-            } else if time_overflow {
-                //I slightly correct the frame time by supossing what is the next frame time. This
-                //will be correctly updated in the next cycle.
-                let frame_time = self.period * spimy as TIME;
-                self.begin_frame = if frame_time > ELECTRON_OVERFLOW {
-                    (self.begin_frame + self.period * spimy as TIME) - ELECTRON_OVERFLOW
-                } else {
-                    (self.begin_frame + self.period * spimy as TIME) % ELECTRON_OVERFLOW
-                };
-                self.new_frame = false 
-            } else {
-                //Does nothing. No new frame
-                self.new_frame = false
-            }
-        }
-    }
-
-    fn counter(&self) -> COUNTER {
-        self.counter
-    }
-
-    fn time(&self) -> TIME {
-        self.time
-    }
-
-    fn period(&self) -> Option<TIME> {
-        Some(self.period)
-    }
-
-    fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, ticks_to_frame: Option<COUNTER>) -> Result<Self, Tp3ErrorKind> {
-        let mut buffer_pack_data = vec![0; 16384];
-        let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
-        let start = Instant::now();
-
-        println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
-        loop {
-            if start.elapsed() > Duration::from_secs(10) {return Err(Tp3ErrorKind::TdcNoReceived)}
-            if let Ok(size) = sock.read_timepix(&mut buffer_pack_data) {
-                tdc_search.search_specific_tdc(&buffer_pack_data[0..size]);
-                if tdc_search.check_tdc()? {break;}
-            }
-        }
-        println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
-        let _counter = tdc_search.get_counter()?;
-        let counter_offset = tdc_search.get_counter_offset();
-        let _last_hard_counter = tdc_search.get_last_hardware_counter();
-        let begin_time = tdc_search.get_begintime();
-        let last_time = tdc_search.get_lasttime();
-        let high_time = tdc_search.find_high_time()?;
-        let period = tdc_search.find_period()?;
-        let low_time = period - high_time;
-
-        let per_ref = Self {
-            tdctype: tdc_type.associate_value(),
-            counter: 0,
-            counter_offset,
-            last_hard_counter: 0,
-            counter_overflow: 0,
-            begin_time,
-            begin_frame: begin_time,
-            ticks_to_frame,
-            period,
-            high_time,
-            low_time,
-            new_frame: false,
-            time: last_time,
-        };
-        println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
-        Ok(per_ref)
-    }
-}
-
-impl PeriodicTdcRef {
-    pub fn frame(&self) -> COUNTER {
-        if let Some(spimy) = self.ticks_to_frame {
-            (self.counter / 2) / spimy
-        } else {
-            0
-        }
-    }
-
-    pub fn current_line(&self) -> Option<POSITION> {
-        Some(((self.counter / 2) % self.ticks_to_frame?) as POSITION)
-    }
-
-    pub fn pixel_time(&self, xspim: POSITION) -> TIME {
-        self.low_time / xspim as TIME
-    }
-
-    pub fn estimate_time(&self) -> TIME {
-        (self.counter as TIME / 2) * self.period + self.begin_time
-    }
-    pub fn new_no_read(tdc_type: TdcType, ticks_to_frame: Option<COUNTER>) -> Result<Self, Tp3ErrorKind> {
-        println!("***Tdc Lib***: {} has been created (no read).", tdc_type.associate_str());
-        let counter_offset = 0;
-        let begin_time = 0;
-        let last_time = 0;
-        let high_time = 0;
-        let period = 0;
-        let low_time = 0;
-
-        let per_ref = Self {
-            tdctype: tdc_type.associate_value(),
-            counter: 0,
-            counter_offset,
-            last_hard_counter: 0,
-            counter_overflow: 0,
-            begin_time,
-            begin_frame: begin_time,
-            ticks_to_frame,
-            period,
-            high_time,
-            low_time,
-            new_frame: false,
-            time: last_time,
-        };
-        println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
-        Ok(per_ref)
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct SingleTriggerPeriodicTdcRef {
-    tdctype: u8,
-    counter: COUNTER,
-    counter_offset: COUNTER,
-    last_hard_counter: u16,
-    counter_overflow: COUNTER,
-    pub begin_frame: TIME,
-    pub period: TIME,
-    pub time: TIME,
-}
-
-impl TdcControl for SingleTriggerPeriodicTdcRef {
-    fn id(&self) -> u8 {
-        self.tdctype
-    }
-
-    fn upt(&mut self, time: TIME, hard_counter: u16) {
-        if hard_counter < self.last_hard_counter {
-            self.counter_overflow += 1;
-        }
-        self.last_hard_counter = hard_counter;
-        self.time = time;
-        self.counter = self.last_hard_counter as COUNTER + self.counter_overflow * 4096 - self.counter_offset;
-    }
-    
-    fn counter(&self) -> COUNTER {
-        self.counter
-    }
-
-    fn time(&self) -> TIME {
-        self.time
-    }
-
-    fn period(&self) -> Option<TIME> {
-        Some(self.period)
-    }
-
-    fn new<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, _: Option<COUNTER>) -> Result<Self, Tp3ErrorKind> {
-        let mut buffer_pack_data = vec![0; 16384];
-        let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
-        let start = Instant::now();
-
-        println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
-        loop {
-            if start.elapsed() > Duration::from_secs(10) {return Err(Tp3ErrorKind::TdcNoReceived)}
-            if let Ok(size) = sock.read_timepix(&mut buffer_pack_data) {
-                tdc_search.search_specific_tdc(&buffer_pack_data[0..size]);
-                if tdc_search.check_tdc()? {break;}
-            }
-        }
-        println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
-        let counter = tdc_search.get_counter()?;
-        let counter_offset = tdc_search.get_counter_offset();
-        let last_hard_counter = tdc_search.get_last_hardware_counter();
-        let begin_time = tdc_search.get_begintime();
-        let last_time = tdc_search.get_lasttime();
-        let period = tdc_search.find_period()?;
-        
-        println!("***Tdc Lib***: Creating a new Tdc reference from {}. Number of detected triggers is {}. Last trigger time (ns) is {}. Period (ns) is {}.", tdc_type.associate_str(), counter, last_time, period);
-        Ok(Self {
-            tdctype: tdc_type.associate_value(),
-            counter,
-            counter_offset,
-            last_hard_counter,
-            counter_overflow: 0,
-            begin_frame: begin_time,
-            period,
-            time: last_time,
-        })
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct NonPeriodicTdcRef {
-    pub tdctype: u8,
-    pub counter: COUNTER,
-    pub time: TIME,
-}
-
-impl TdcControl for NonPeriodicTdcRef {
-    fn id(&self) -> u8 {
-        self.tdctype
-    }
-
-    fn upt(&mut self, time: TIME, _: u16) {
-        self.time = time;
-        self.counter+=1;
-    }
-    
-    fn counter(&self) -> COUNTER {
-        self.counter
-    }
-
-    fn time(&self) -> TIME {
-        self.time
-    }
-
-    fn period(&self) -> Option<TIME> {
-        None
-    }
-    
-    fn new<T: TimepixRead>(tdc_type: TdcType, _sock: &mut T, _: Option<COUNTER>) -> Result<Self, Tp3ErrorKind> {
-        Ok(Self {
-            tdctype: tdc_type.associate_value(),
-            counter: 0,
-            time: 0,
-        })
-    }
-    
-}
-*/
-
 pub mod isi_box {
     use crate::errorlib::Tp3ErrorKind;
+    use crate::auxiliar::aux_func;
     use std::net::TcpStream;
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
     use std::thread;
     use std::time::Duration;
     use crate::constlib::*;
-
-    //pub const CHANNELS: usize = 200;
-    
-    fn as_bytes<T>(v: &[T]) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u8,
-                v.len() * std::mem::size_of::<T>())
-        }
-    }
-    
-    fn as_int(v: &[u8]) -> &[u32] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u32,
-                //v.len() )
-                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
-        }
-    }
 
     pub trait IsiBoxTools {
         fn bind_and_connect(&mut self) -> Result<(), Tp3ErrorKind>;
@@ -847,7 +551,7 @@ pub mod isi_box {
                     config_array[1] = yscan;
                     config_array[2] = pixel_time;
                     let mut sock = &self.sockets[0];
-                    match sock.write(as_bytes(&config_array)) {
+                    match sock.write(aux_func::as_bytes(&config_array)) {
                         Ok(size) => {println!("data sent to configure scan parameters: {}", size);},
                         Err(_) => {return Err(Tp3ErrorKind::IsiBoxCouldNotSetParameters);},
                     };
@@ -858,7 +562,7 @@ pub mod isi_box {
                     config_array[0] = measurement_type!($z);
                     if save_locally {config_array[0] = 2;}
                     let mut sock = &self.sockets[0];
-                    match sock.write(as_bytes(&config_array)) {
+                    match sock.write(aux_func::as_bytes(&config_array)) {
                         Ok(size) => {println!("data sent to configure the measurement type: {}", size);},
                         Err(_) => {return Err(Tp3ErrorKind::IsiBoxCouldNotConfigure);},
                     };
@@ -913,7 +617,7 @@ pub mod isi_box {
                     loop {
                         let mut num = nvec_arclist.lock().unwrap();
                         while let Ok(size) = val.read(&mut buffer) {
-                            as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x * SPIM_PIXELS as u32) + 1025 + channel_index));
+                            aux_func::as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x * SPIM_PIXELS as u32) + 1025 + channel_index));
                         }
                         drop(num);
                         let stop_val = stop_arc.lock().unwrap();
@@ -952,7 +656,7 @@ pub mod isi_box {
             let counter_arclist = Arc::clone(&self.data);
             let mut num = counter_arclist.lock().unwrap();
             println!("data sent size is: {:?}", (*num));
-            if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(as_bytes(&*num)).is_err() {println!("Could not send data through the external socket.")}
+            if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(aux_func::as_bytes(&*num)).is_err() {println!("Could not send data through the external socket.")}
             (*num).iter_mut().for_each(|x| *x = 0);
         }
         fn start_threads(&mut self) {
@@ -970,7 +674,7 @@ pub mod isi_box {
                         //    println!("leaving sinde");
                         //    break;
                         //}
-                        (*num).iter_mut().zip(as_int(&buffer[0..size]).iter()).for_each(|(a, b)| *a+=*b as u32);
+                        (*num).iter_mut().zip(aux_func::as_int(&buffer[0..size]).iter()).for_each(|(a, b)| *a+=*b as u32);
                     }
                     drop(num);
                     let stop_val = stop_arc.lock().unwrap();

@@ -1,7 +1,7 @@
 //!`spimlib` is a collection of tools to set hyperspectral EELS acquisition.
 
 use crate::packetlib::{Packet, PacketEELSInverted as Pack};
-use crate::auxiliar::{Settings, misc::{TimepixRead, packet_change}};
+use crate::auxiliar::{aux_func, Settings, misc::{TimepixRead, packet_change}};
 use crate::tdclib::{TdcRef, isi_box::{IsiBoxHand, IsiBoxType}};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
@@ -10,28 +10,9 @@ use std::sync::mpsc;
 use std::thread;
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
-//use rayon::prelude::*;
-
-type MaskValues = i16;
 
 
-///This is little endian
-fn as_bytes<T>(v: &[T]) -> &[u8] {
-    unsafe {
-        std::slice::from_raw_parts(
-            v.as_ptr() as *const u8,
-            v.len() * std::mem::size_of::<T>())
-    }
-}
 
-///This is little endian
-fn as_bytes_mut<T>(v: &mut [T]) -> &mut [u8] {
-    unsafe {
-        std::slice::from_raw_parts_mut(
-            v.as_ptr() as *mut u8,
-            v.len() * std::mem::size_of::<T>())
-    }
-}
 
 ///`SpimKind` is the main trait that measurement types must obey. Custom measurements must all
 ///implement these methods.
@@ -49,116 +30,30 @@ pub trait SpimKind {
 }
 
 #[inline]
-pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_HYPERSPEC> {
+pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEXHYPERSPEC> {
     Some(spim_tdc.get_return_positional_index(dt, xspim, yspim)? * SPIM_PIXELS + x)
 }
 
 #[inline]
-pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION, list_scan: SlType) -> Option<INDEX_HYPERSPEC> {
+pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION, list_scan: SlType) -> Option<INDEXHYPERSPEC> {
     Some(spim_tdc.get_positional_index(dt, xspim, yspim, list_scan)? * SPIM_PIXELS + x)
 }
 
 #[inline]
-pub fn get_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_4D> {
-    Some(spim_tdc.get_positional_index(dt, xspim, yspim, None)? as INDEX_4D * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as INDEX_4D + (y * RAW4D_PIXELS_X + x)as INDEX_4D)
+pub fn get_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX4D> {
+    Some(spim_tdc.get_positional_index(dt, xspim, yspim, None)? as INDEX4D * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as INDEX4D + (y * RAW4D_PIXELS_X + x)as INDEX4D)
 }
 
 #[inline]
-pub fn get_return_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX_4D> {
+pub fn get_return_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX4D> {
     Some(spim_tdc.get_return_positional_index(dt, xspim, yspim)? as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 + (y * RAW4D_PIXELS_X + x)as u64)
 }
-
-
-/*
-//This recovers the position of the probe given the TDC and the electron ToA. dT is the time from
-//the last frame begin
-#[inline]
-fn get_positional_index(dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION, list_scan: SlType) -> Option<POSITION> {
-    if UNIFORM_PIXEL {
-        let mut index = (dt * xspim as TIME / spim_tdc.period()?) as POSITION;
-        if index > xspim * yspim {
-            index %= xspim * yspim
-        }
-        if let Some(custom_list) = list_scan {
-            custom_list.get(index as usize).copied()
-        } else {
-            Some( index )
-        }
-    } else {
-        let determ = |dt: TIME, dt_partial: TIME, period: TIME, xspim: POSITION, low_time: TIME, yspim: POSITION| {
-            let mut r = (dt / period) as POSITION; //how many periods -> which line to put.
-            let rin = ((xspim as TIME * dt_partial) / low_time) as POSITION; //Column correction. Maybe not even needed.
-                
-            if r > (yspim-1) {
-                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
-                r %= yspim;
-            }
-                
-            let index = r * xspim + rin;
-            Some(index)
-        };
-
-        if REMOVE_RETURN {
-            let val = dt % spim_tdc.period()?;
-            if val < spim_tdc.low_time()? {
-                determ(dt, val, spim_tdc.period()?, xspim, spim_tdc.low_time()?, yspim)
-            } else {
-                None
-            }
-        } else {
-            let val = dt % spim_tdc.period()?;
-            determ(dt, val, spim_tdc.period()?, xspim, spim_tdc.low_time()?, yspim)
-        }
-    }
-}
-
-//This recovers the position of the probe during the return given the TDC and the electron ToA
-#[inline]
-fn get_return_positional_index(dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
-    let val = dt % spim_tdc.period()?;
-    if val >= spim_tdc.low_time()? {
-        let mut r = (dt / spim_tdc.period()?) as POSITION; //how many periods -> which line to put.
-        let rin = ((xspim as TIME * (val - spim_tdc.low_time()?)) / spim_tdc.high_time()?) as POSITION; //Column correction. Maybe not even needed.
-            
-        if r > (yspim-1) {
-            if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
-            r %= yspim;
-        }
-        
-        let index = r * xspim + rin;
-    
-        Some( index )
-    } else {
-        None
-    }
-}
-*/
-
-
-/*
-#[inline]
-pub fn correct_or_not_etime(mut ele_time: TIME, line_tdc: &TdcRef) -> TIME {
-    if SYNC_MODE == 0 {
-        if ele_time < line_tdc.begin_frame() + VIDEO_TIME {
-            let factor = (line_tdc.begin_frame() + VIDEO_TIME - ele_time) / (line_tdc.period()*line_tdc.ticks_to_frame().unwrap() as TIME) + 1;
-            ele_time += line_tdc.period()*line_tdc.ticks_to_frame().unwrap() as TIME * factor;
-        }
-        ele_time - line_tdc.begin_frame() - VIDEO_TIME
-    } else {
-        if ele_time < line_tdc.time() + VIDEO_TIME {
-            let factor = (line_tdc.time() + VIDEO_TIME - ele_time) / (line_tdc.period()) + 1;
-            ele_time += line_tdc.period() * factor * line_tdc.current_line().unwrap() as u64;
-        }
-        ele_time - line_tdc.begin_frame() - VIDEO_TIME
-    }
-}
-*/
 
 ///It outputs list of indices (max `u32`) that
 ///must be incremented. This is Hyperspectral Imaging
 pub struct Live {
     data: Vec<(POSITION, TIME)>,
-    data_out: Vec<INDEX_HYPERSPEC>,
+    data_out: Vec<INDEXHYPERSPEC>,
     _timer: Instant,
 }
 
@@ -166,14 +61,14 @@ pub struct Live {
 ///must be incremented. This is Hyperspectral Imaging
 pub struct LiveScanList {
     data: Vec<(POSITION, TIME)>,
-    data_out: Vec<INDEX_HYPERSPEC>,
+    data_out: Vec<INDEXHYPERSPEC>,
     _timer: Instant,
 }
 
 impl LiveScanList {
     pub fn create_list<R: std::io::Read>(mut array: R, settings: &Settings) -> Result<Vec<POSITION>, Tp3ErrorKind> {
         let mut list_scan: Vec<POSITION> = vec![0; (settings.xspim_size * settings.yspim_size) as usize];
-        array.read_exact(as_bytes_mut(&mut list_scan))?;
+        array.read_exact(aux_func::as_bytes_mut(&mut list_scan))?;
         Ok(list_scan)
     }
 }
@@ -184,7 +79,7 @@ impl LiveScanList {
 pub struct LiveCoincidence {
     data: Vec<(POSITION, TIME)>,
     aux_data: [TIME; LIST_SIZE_AUX_EVENTS],
-    data_out: Vec<INDEX_HYPERSPEC>,
+    data_out: Vec<INDEXHYPERSPEC>,
     _timer: Instant,
 }
 
@@ -193,7 +88,7 @@ pub struct LiveCoincidence {
 ///coincident photons around
 pub struct Live4D {
     data: Vec<(POSITION, TIME)>,
-    data_out: Vec<INDEX_4D>,
+    data_out: Vec<INDEX4D>,
     _timer: Instant,
 }
 
@@ -237,7 +132,7 @@ impl Live4DChannelMask<MaskValues> {
     fn grab_mask<R: std::io::Read>(mut array: R) -> Result<Vec<Self>, Tp3ErrorKind> {
         let mut vec_of_channels: Vec<Self> = Vec::new();
         let mut mask = [0; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
-        while array.read_exact(as_bytes_mut(&mut mask)).is_ok() {
+        while array.read_exact(aux_func::as_bytes_mut(&mut mask)).is_ok() {
             vec_of_channels.push(Live4DChannelMask::new(mask));
         }
         Ok(vec_of_channels)
@@ -296,7 +191,7 @@ impl SpimKind for Live {
             }).for_each(|x| temp.push(x));
         */
         
-        as_bytes(&self.data_out)
+        aux_func::as_bytes(&self.data_out)
     }
     fn is_ready(&mut self, _line_tdc: &TdcRef) -> bool {
         true
@@ -336,7 +231,7 @@ impl SpimKind for LiveScanList {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size, list_scan)
             }).collect::<Vec<POSITION>>();
 
-        as_bytes(&self.data_out)
+        aux_func::as_bytes(&self.data_out)
     }
     fn is_ready(&mut self, _line_tdc: &TdcRef) -> bool {
         true
@@ -383,7 +278,7 @@ impl SpimKind for LiveCoincidence {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size, None)
             }).collect::<Vec<POSITION>>();
         
-        as_bytes(&self.data_out)
+        aux_func::as_bytes(&self.data_out)
     }
     fn is_ready(&mut self, _line_tdc: &TdcRef) -> bool {
         true
@@ -423,7 +318,7 @@ impl SpimKind for Live4D {
                 get_4dindex(x_y >> 16, x_y & 65535, dt, spim_tdc, set.xspim_size, set.yspim_size)
             }).collect::<Vec<u64>>();
         
-        as_bytes(&self.data_out)
+        aux_func::as_bytes(&self.data_out)
     }
     fn is_ready(&mut self, _line_tdc: &TdcRef) -> bool {
         true
@@ -501,7 +396,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
                 }
             });
 
-        as_bytes(&self.data_out)
+        aux_func::as_bytes(&self.data_out)
     }
     #[inline]
     fn is_ready(&mut self, line_tdc: &TdcRef) -> bool {
@@ -595,9 +490,9 @@ pub fn build_spim_isi<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
     for mut tl in rx {
         let result = tl.build_output(&my_settings, &line_tdc, None);
         let x = handler.get_data();
-        if ns_sock.write(as_bytes(result)).is_err() {println!("Client disconnected on data."); break;}
+        if ns_sock.write(aux_func::as_bytes(result)).is_err() {println!("Client disconnected on data."); break;}
         if x.len() > 0 {
-            if ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
+            if ns_sock.write(aux_func::as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
         }
     }
 

@@ -12,16 +12,43 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json;
 
-//use std::{fs::{File, OpenOptions, create_dir_all}, path::Path};
 
-const CONFIG_SIZE: usize = 512;
 
-pub fn from_bytes<T>(v: &[u8]) -> &[T] {
-    unsafe {
-        std::slice::from_raw_parts(
-            v.as_ptr() as *const T,
-            v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<T>())
+pub mod aux_func {
+    pub fn from_bytes<T>(v: &[u8]) -> &[T] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const T,
+                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<T>())
+        }
     }
+
+    ///This is little endian
+    pub fn as_bytes<T>(v: &[T]) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u8,
+                v.len() * std::mem::size_of::<T>())
+        }
+    }
+
+    ///This is little endian
+    pub fn as_bytes_mut<T>(v: &mut [T]) -> &mut [u8] {
+        unsafe {
+            std::slice::from_raw_parts_mut(
+                v.as_ptr() as *mut u8,
+                v.len() * std::mem::size_of::<T>())
+        }
+    }
+    
+    pub fn as_int(v: &[u8]) -> &[u32] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const u32,
+                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
+        }
+    }
+
 }
 
 ///Configures the detector for acquisition. Each new measurement must send 20 bytes
@@ -92,28 +119,28 @@ impl BytesConfig {
 
     ///X spim size. Must be sent with 2 bytes in big-endian mode. Byte[4..6]
     fn xspim_size(&self) -> POSITION {
-        let x: u16 = from_bytes(&self.data[4..6])[0];
+        let x: u16 = aux_func::from_bytes(&self.data[4..6])[0];
         println!("X Spim size is: {}.", x);
         x as POSITION
     }
     
     ///Y spim size. Must be sent with 2 bytes in big-endian mode. Byte[6..8]
     fn yspim_size(&self) -> POSITION {
-        let y: u16 = from_bytes(&self.data[6..8])[0];
+        let y: u16 = aux_func::from_bytes(&self.data[6..8])[0];
         println!("Y Spim size is: {}.", y);
         y as POSITION
     }
     
     ///X scan size. Must be sent with 2 bytes in big-endian mode. Byte[8..10]
     fn xscan_size(&self) -> POSITION {
-        let x: u16 = from_bytes(&self.data[8..10])[0];
+        let x: u16 = aux_func::from_bytes(&self.data[8..10])[0];
         println!("X Scan size is: {}.", x);
         x as POSITION
     }
     
     ///Y scan size. Must be sent with 2 bytes in big-endian mode. Byte[10..12]
     fn yscan_size(&self) -> POSITION {
-        let y: u16 = from_bytes(&self.data[10..12])[0];
+        let y: u16 = aux_func::from_bytes(&self.data[10..12])[0];
         println!("Y Scan size is: {}.", y);
         y as POSITION
     }
@@ -121,21 +148,21 @@ impl BytesConfig {
     ///Pixel time. Must be sent with 2 bytes in big-endian mode. Byte[12..15]
     fn pixel_time(&self) -> POSITION {
         //let pt = (self.data[12] as POSITION)<<8 | (self.data[13] as POSITION);
-        let pt: u32 = from_bytes(&self.data[12..16])[0];
+        let pt: u32 = aux_func::from_bytes(&self.data[12..16])[0];
         println!("Pixel time is (units of 1.5625 ns): {}.", pt);
         pt as POSITION
     }
     
     ///Time delay. Must be sent with 2 bytes in big-endian mode. Byte[16..17]
     fn time_delay(&self) -> TIME {
-        let td: u16 = from_bytes(&self.data[16..18])[0];
+        let td: u16 = aux_func::from_bytes(&self.data[16..18])[0];
         println!("Time delay is (units of 1.5625 ns): {}.", td);
         td as TIME
     }
     
     ///Time width. Must be sent with 2 bytes in big-endian mode. Byte[18..19].
     fn time_width(&self) -> TIME {
-        let tw: u16 = from_bytes(&self.data[18..20])[0];
+        let tw: u16 = aux_func::from_bytes(&self.data[18..20])[0];
         println!("Time width is (units of 1.5625 ns): {}.", tw);
         tw as TIME
     }
@@ -149,14 +176,14 @@ impl BytesConfig {
     
     ///Should we also save-locally the data. Byte[21..24]
     fn sup_val0(&self) -> f32 {
-        let sup = from_bytes(&self.data[21..25])[0];
+        let sup = aux_func::from_bytes(&self.data[21..25])[0];
         println!("Supplementary value 0: {}.", sup);
         sup
     }
     
     ///Should we also save-locally the data. Byte[25..28]
     fn sup_val1(&self) -> f32 {
-        let sup = from_bytes(&self.data[25..29])[0];
+        let sup = aux_func::from_bytes(&self.data[25..29])[0];
         println!("Supplementary value 0: {}.", sup);
         sup
     }
@@ -600,8 +627,8 @@ pub mod misc {
 
 pub mod value_types {
     pub type POSITION = u32;
-    pub type INDEX_HYPERSPEC = u32;
-    pub type INDEX_4D = u64;
+    pub type INDEXHYPERSPEC = u32;
+    pub type INDEX4D = u64;
     pub type COUNTER = u32;
     pub type TIME = u64;
     pub type SlType<'a> = Option<&'a [POSITION]>; //ScanList type

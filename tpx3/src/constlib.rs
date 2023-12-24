@@ -1,6 +1,7 @@
 use crate::auxiliar::value_types::*;
 
 //***General Values***//
+pub const CONFIG_SIZE: usize = 512;
 pub const SAVE_LOCALLY_FILE: &str = "/media/asi/Data21/TP3_Data/";
 pub const TIME_INTERVAL_FRAMES: u128 = 100; //in milliseconds
 pub const HYPERSPECTRAL_PIXEL_CHUNK: POSITION = 500; //In number of pixels
@@ -49,6 +50,7 @@ pub const ISI_IP_PORT: &str = "192.168.199.10:9592";
 pub const THREAD_POOL_PERIOD: u64 = 10; //Pooling time from socket thread for the IsiBox;
 
 //***4D STEM***//
+pub type MaskValues = i16;
 pub const MASK_FILE: &str = "C:\\ProgramData\\Microscope\\masks.dat";
 //pub const MASK_FILE: &str = "/home/asi/CHROMATEM/masks.dat";
 pub const DETECTOR_SIZE: (POSITION, POSITION) = (256, 256);
