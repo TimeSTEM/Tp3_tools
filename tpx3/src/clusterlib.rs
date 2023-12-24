@@ -240,7 +240,7 @@ pub mod cluster {
                     let ele_time = spim_tdc.correct_or_not_etime(pack.electron_time()).unwrap();
                     let frame = spim_tdc.frame().unwrap_or(0);
                     SingleElectron {
-                        data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.begin_frame()-VIDEO_TIME, frame, pack.tot(), 1, pack.data(), raw_index, spim_tdc.current_line().unwrap())
+                        data: (pack.electron_time(), pack.x(), pack.y(), ele_time, frame, pack.tot(), 1, pack.data(), raw_index, spim_tdc.current_line().unwrap())
                         //data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.time()-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1, pack.create_header(), pack.data(), raw_index, spim_tdc.current_line().unwrap())
                     }
                 },
@@ -341,7 +341,7 @@ pub mod cluster {
                 Some(spim_tdc) => {
                     let tdc_time = spim_tdc.correct_or_not_etime(pack.tdc_time_norm()).unwrap();
                     SinglePhoton{
-                        data: (pack.tdc_time_abs_norm(), channel, None, tdc_time - spim_tdc.begin_frame() - VIDEO_TIME, pack.data(), raw_index)
+                        data: (pack.tdc_time_abs_norm(), channel, None, tdc_time, pack.data(), raw_index)
                     }
                 }
                 None => {

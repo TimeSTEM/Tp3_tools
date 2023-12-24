@@ -420,7 +420,7 @@ pub mod coincidence {
 
         fn add_tdc(&mut self, my_pack: &Pack, channel: COUNTER, line_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) {
             if let Some(spim_tdc) = line_tdc {
-                let time = my_pack.tdc_time_norm() - spim_tdc.begin_frame() - VIDEO_TIME;
+                let time = spim_tdc.correct_or_not_etime(my_pack.tdc_time_norm()).unwrap();
                 self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None, get_spimindex(SPIM_PIXELS-1, time, &spim_tdc, xspim, yspim, None)));
             } else {
                 self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None, None));
@@ -605,7 +605,6 @@ pub mod coincidence {
         let progress_size = file0.metadata().unwrap().len();
         let mut spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
-        let _begin_tp3_time = spim_tdc.begin_frame();
         let mut tp3_tdc_counter = 0;
 		
 		//Checking if the line period is compatible with IsiBox (roughly 8 ms)

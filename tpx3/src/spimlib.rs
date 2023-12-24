@@ -256,11 +256,9 @@ impl SpimKind for Live {
         self.data.push((packet.x(), ele_time)); //This added the overflow.
     }
     fn add_tdc_hit(&mut self, packet: &Pack, line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
-        let tdc_time = packet.tdc_time_norm();
-        ref_tdc.upt(tdc_time, packet.tdc_counter());
-        if tdc_time > line_tdc.begin_frame() + VIDEO_TIME {
-            self.data.push((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame() - VIDEO_TIME))
-        }
+        ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+        let tdc_time = line_tdc.correct_or_not_etime(packet.tdc_time_norm()).unwrap();
+        self.data.push((SPIM_PIXELS-1, tdc_time));
     }
     fn upt_line(&self, packet: &Pack, _settings: &Settings, line_tdc: &mut TdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
@@ -323,11 +321,9 @@ impl SpimKind for LiveScanList {
         self.data.push((packet.x(), ele_time)); //This added the overflow.
     }
     fn add_tdc_hit(&mut self, packet: &Pack, line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
-        let tdc_time = packet.tdc_time_norm();
-        ref_tdc.upt(tdc_time, packet.tdc_counter());
-        if tdc_time > line_tdc.begin_frame() + VIDEO_TIME {
-            self.data.push((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame() - VIDEO_TIME))
-        }
+        ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+        let tdc_time = line_tdc.correct_or_not_etime(packet.tdc_time_norm()).unwrap();
+        self.data.push((SPIM_PIXELS-1, tdc_time));
     }
     fn upt_line(&self, packet: &Pack, _settings: &Settings, line_tdc: &mut TdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
@@ -412,11 +408,9 @@ impl SpimKind for Live4D {
         self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time.unwrap())); //This added the overflow.
     }
     fn add_tdc_hit(&mut self, packet: &Pack, line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
-        let tdc_time = packet.tdc_time_norm();
-        ref_tdc.upt(tdc_time, packet.tdc_counter());
-        if tdc_time > line_tdc.begin_frame() + VIDEO_TIME {
-            self.data.push((SPIM_PIXELS-1, tdc_time - line_tdc.begin_frame() - VIDEO_TIME))
-        }
+        ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+        let tdc_time = line_tdc.correct_or_not_etime(packet.tdc_time_norm()).unwrap();
+        self.data.push((SPIM_PIXELS-1, tdc_time));
     }
     fn upt_line(&self, packet: &Pack, _settings: &Settings, line_tdc: &mut TdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());

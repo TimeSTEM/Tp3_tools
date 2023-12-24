@@ -310,22 +310,6 @@ impl TdcRef {
         self.new_frame
     }
     
-    pub fn low_time(&self) -> Option<TIME> {
-        self.low_time
-    }
-    
-    pub fn high_time(&self) -> Option<TIME> {
-        self.high_time
-    }
-    
-    pub fn begin_frame(&self) -> TIME {
-        self.begin_frame
-    }
-    
-    pub fn ticks_to_frame(&self) -> Option<COUNTER> {
-        self.ticks_to_frame
-    }
-    
     pub fn frame(&self) -> Option<COUNTER> {
         Some(self.counter / 2 / self.ticks_to_frame?)
     }
@@ -340,6 +324,10 @@ impl TdcRef {
 
     pub fn estimate_time(&self) -> Option<TIME> {
         Some((self.counter as TIME / 2) * self.period? + self.begin_time)
+    }
+
+    pub fn electron_relative_time(&self, ele_time: TIME) -> TIME {
+        ele_time - self.begin_frame - VIDEO_TIME
     }
     
     //This recovers the position of the probe given the TDC and the electron ToA. dT is the time from
@@ -468,9 +456,6 @@ impl TdcRef {
         let counter_offset = 0;
         let begin_time = 0;
         let last_time = 0;
-        let high_time = 0;
-        let period = 0;
-        let low_time = 0;
 
         let per_ref = Self {
             tdctype: tdc_type.associate_value(),
@@ -492,6 +477,7 @@ impl TdcRef {
     }
 }
 
+/*
 pub trait TdcControl {
     fn id(&self) -> u8;
     fn upt(&mut self, time: TIME, hard_counter: u16);
@@ -767,6 +753,7 @@ impl TdcControl for NonPeriodicTdcRef {
     }
     
 }
+*/
 
 pub mod isi_box {
     use crate::errorlib::Tp3ErrorKind;
