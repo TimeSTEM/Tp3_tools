@@ -241,6 +241,157 @@ use crate::auxiliar::misc::TimepixRead;
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
 
+#[derive(Debug)]
+pub struct TdcRef {
+    tdctype: u8,
+    counter: COUNTER,
+    counter_offset: COUNTER,
+    last_hard_counter: u16,
+    counter_overflow: COUNTER,
+    begin_time: TIME,
+    time: TIME,
+    period: Option<TIME>,
+    high_time: Option<TIME>,
+    low_time: Option<TIME>,
+    ticks_to_frame: Option<COUNTER>,
+    begin_frame: TIME,
+    new_frame: bool,
+}
+
+impl TdcRef {
+    fn id(&self) -> u8 {
+        self.tdctype
+    }
+
+    fn upt(&mut self, time: TIME, hard_counter: u16) {
+        if hard_counter < self.last_hard_counter {
+            self.counter_overflow += 1;
+        }
+        self.last_hard_counter = hard_counter;
+        self.counter = self.last_hard_counter as COUNTER + self.counter_overflow * 4096 - self.counter_offset;
+        let time_overflow = self.time > time;
+        self.time = time;
+        if let (Some(spimy), Some(period)) = (self.ticks_to_frame, self.period) {
+            //New frame
+            if (self.counter / 2) % spimy == 0 {
+                self.begin_frame = time;
+                self.new_frame = true
+            //Not new frame but a time overflow
+            } else if time_overflow {
+                //I temporally correct the begin_frame time by supossing what is the next frame time. This
+                //will be correctly updated in the next cycle.
+                let frame_time = period * spimy as TIME;
+                self.begin_frame = if frame_time > ELECTRON_OVERFLOW {
+                    (self.begin_frame + frame_time) - ELECTRON_OVERFLOW
+                } else {
+                    (self.begin_frame + frame_time) % ELECTRON_OVERFLOW
+                };
+                self.new_frame = false 
+            //Does nothing. No new frame and no time overflow
+            } else {
+                self.new_frame = false
+            }
+        }
+    }
+
+    fn counter(&self) -> COUNTER {
+        self.counter
+    }
+
+    fn time(&self) -> TIME {
+        self.time
+    }
+
+    fn period(&self) -> Option<TIME> {
+        self.period
+    }
+    
+    fn frame(&self) -> Option<COUNTER> {
+        Some(self.counter / 2 / self.ticks_to_frame?)
+    }
+    
+    fn current_line(&self) -> Option<POSITION> {
+        Some(((self.counter / 2) % self.ticks_to_frame?) as POSITION)
+    }
+    
+    fn pixel_time(&self, xspim: POSITION) -> Option<TIME> {
+        Some(self.low_time? / xspim as TIME)
+    }
+
+    fn estimate_time(&self) -> Option<TIME> {
+        Some((self.counter as TIME / 2) * self.period? + self.begin_time)
+    }
+
+    pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, ticks_to_frame: Option<COUNTER>) -> Result<Self, Tp3ErrorKind> {
+        let mut buffer_pack_data = vec![0; 16384];
+        let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
+        let start = Instant::now();
+
+        println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
+        loop {
+            if start.elapsed() > Duration::from_secs(TDC_TIMEOUT) {return Err(Tp3ErrorKind::TdcNoReceived)}
+            if let Ok(size) = sock.read_timepix(&mut buffer_pack_data) {
+                tdc_search.search_specific_tdc(&buffer_pack_data[0..size]);
+                if tdc_search.check_tdc()? {break;}
+            }
+        }
+        println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
+        let _counter = tdc_search.get_counter()?;
+        let counter_offset = tdc_search.get_counter_offset();
+        let _last_hard_counter = tdc_search.get_last_hardware_counter();
+        let begin_time = tdc_search.get_begintime();
+        let last_time = tdc_search.get_lasttime();
+        let high_time = tdc_search.find_high_time()?;
+        let period = tdc_search.find_period()?;
+        let low_time = period - high_time;
+
+        let per_ref = Self {
+            tdctype: tdc_type.associate_value(),
+            counter: 0,
+            counter_offset,
+            last_hard_counter: 0,
+            counter_overflow: 0,
+            begin_time,
+            begin_frame: begin_time,
+            ticks_to_frame,
+            period: Some(period),
+            high_time: Some(high_time),
+            low_time: Some(low_time),
+            new_frame: false,
+            time: last_time,
+        };
+        println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
+        Ok(per_ref)
+    }
+    pub fn new_no_read(tdc_type: TdcType, ticks_to_frame: Option<COUNTER>) -> Result<Self, Tp3ErrorKind> {
+        println!("***Tdc Lib***: {} has been created (no read).", tdc_type.associate_str());
+        let counter_offset = 0;
+        let begin_time = 0;
+        let last_time = 0;
+        let high_time = 0;
+        let period = 0;
+        let low_time = 0;
+
+        let per_ref = Self {
+            tdctype: tdc_type.associate_value(),
+            counter: 0,
+            counter_offset,
+            last_hard_counter: 0,
+            counter_overflow: 0,
+            begin_time,
+            begin_frame: begin_time,
+            ticks_to_frame,
+            period: None,
+            high_time: None,
+            low_time: None,
+            new_frame: false,
+            time: last_time,
+        };
+        println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
+        Ok(per_ref)
+    }
+}
+
 pub trait TdcControl {
     fn id(&self) -> u8;
     fn upt(&mut self, time: TIME, hard_counter: u16);
