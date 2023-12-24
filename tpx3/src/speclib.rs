@@ -723,7 +723,7 @@ fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
     let mut file_to_write = my_settings.create_file();
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         if let Some(file) = &mut file_to_write {
-            file.write(&buffer_pack_data[0..size]).unwrap();
+            file.write_all(&buffer_pack_data[0..size]).unwrap();
         }
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc, 0, meas_type.shutter_control());

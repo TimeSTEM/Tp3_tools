@@ -23,6 +23,7 @@ pub const LIMIT_READ_SIZE: usize = 5_000_000_000; //5GB limitations
 pub const SYNC_MODE: u8 = 0; //0 synchronizes on the frame, 1 synchronizes on the line.
 pub const UNIFORM_PIXEL: bool = false; //Assumption that the time per pixel is uniform.
 pub const REMOVE_RETURN: bool = true; //This removes the electrons in the flyback mode. UNIFORM_PIXEL must be false to this in order to take place.
+pub const INVERSE_DETECTOR: bool = false;
 
 
 //***POSTLIB***//

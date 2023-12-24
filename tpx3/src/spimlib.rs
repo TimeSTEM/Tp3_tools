@@ -1,6 +1,6 @@
 //!`spimlib` is a collection of tools to set hyperspectral EELS acquisition.
 
-use crate::packetlib::{Packet, PacketEELSInverted as Pack};
+use crate::packetlib::{Packet, PacketEELS as Pack};
 use crate::auxiliar::{aux_func, Settings, misc::{TimepixRead, packet_change}};
 use crate::tdclib::{TdcRef, isi_box::{IsiBoxHand, IsiBoxType}};
 use crate::errorlib::Tp3ErrorKind;
@@ -10,9 +10,6 @@ use std::sync::mpsc;
 use std::thread;
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
-
-
-
 
 ///`SpimKind` is the main trait that measurement types must obey. Custom measurements must all
 ///implement these methods.
@@ -369,10 +366,8 @@ impl SpimKind for LiveFrame4D<MaskValues> {
         self.data
             .iter()
             .filter_map(|&(x_y, dt)| {
-                match spim_tdc.get_positional_index(dt, set.xspim_size, set.yspim_size, None) {
-                    Some(index) => Some((x_y >> 16, x_y & 65535, index)),
-                    None => None,
-                }
+                spim_tdc.get_positional_index(dt, set.xspim_size, set.yspim_size, None)
+                    .map(|index| (x_y >> 16, x_y & 65535, index))
             })
             .filter(|&(x, y, _index)| is_inside(x, y))
             .for_each(|(x, y, index)| {
@@ -445,7 +440,7 @@ pub fn build_spim<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
             if let Some(file) = &mut file_to_write {
-                file.write(&buffer_pack_data[0..size]).unwrap();
+                file.write_all(&buffer_pack_data[0..size]).unwrap();
             }
             build_spim_data(&mut meas_type, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut line_tdc, &mut ref_tdc);
             if meas_type.is_ready(&line_tdc) {

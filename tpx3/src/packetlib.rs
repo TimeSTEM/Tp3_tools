@@ -2,6 +2,7 @@
 //!in around `Packet` struct.
 
 use crate::auxiliar::value_types::*;
+use crate::constlib::*;
 
 pub trait Packet {
     fn ci(&self) -> u8;
@@ -183,12 +184,22 @@ impl Packet for PacketEELS {
     fn x(&self) -> POSITION {
         let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
         
-        match self.ci() {
-            0 => 255 - temp2,
-            1 => 256 * 4 - 1 - temp2,
-            2 => 256 * 3 - 1 - temp2,
-            3 => 256 * 2 - 1 - temp2,
-            _ => panic!("More than four CIs."),
+        if !INVERSE_DETECTOR {
+            match self.ci() {
+                0 => 255 - temp2,
+                1 => 256 * 4 - 1 - temp2,
+                2 => 256 * 3 - 1 - temp2,
+                3 => 256 * 2 - 1 - temp2,
+                _ => panic!("More than four CIs."),
+            }
+        } else {
+            match self.ci() {
+                0 => temp2 + 256 * 3,
+                1 => temp2,
+                2 => temp2 + 256,
+                3 => temp2 + 256 * 2,
+                _ => panic!("More than four CIs."),
+            }
         }
     }
 }
@@ -198,41 +209,6 @@ impl PacketEELS {
         (1025, 256)
     }
 }
-
-pub struct PacketEELSInverted {
-    pub chip_index: u8,
-    pub data: u64,
-}
-
-impl Packet for PacketEELSInverted {
-    fn ci(&self) -> u8 {
-        self.chip_index
-    }
-    fn data(&self) -> u64 {
-        self.data
-    }
-    
-    #[inline]
-    fn x(&self) -> POSITION {
-        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
-        //let temp2 = (((self.data() >> 52) & 0xFE) | ((self.data() >> 46) & 0x01)) as POSITION;
-        
-        match self.ci() {
-            0 => temp2 + 256 * 3,
-            1 => temp2 + 256 * 0,
-            2 => temp2 + 256 * 1,
-            3 => temp2 + 256 * 2,
-            _ => panic!("More than four CIs."),
-        }
-    }
-}
-
-impl PacketEELSInverted {
-    pub const fn chip_array() -> (POSITION, POSITION) {
-        (1025, 256)
-    }
-}
-
 
 pub struct PacketSheerEELS {
     pub chip_index: u8,
@@ -450,33 +426,6 @@ impl InversePacket {
         let data7: u8 = ((self.id & 15) << 4) as u8 | (tdc_type & 15);
         [84, 80, 88, 51, 0, 0, 8, 0, data0, data1, data2, data3, data4, data5, data6, data7]
     }
-
-
-    /*
-    pub fn test_func(&self) {
-        let my_inv_packet = InversePacket::new_inverse_electron(128, 100, 3_111_005);
-
-        let my_data = my_inv_packet.create_electron_array();
-        let my_packet = PacketEELS {
-            chip_index: my_data[4],
-            data: &my_data[8..16].try_into().unwrap()
-        };
-
-        println!("{} and {} and {} and {} and {} and {}", my_packet.x(), my_packet.y(), my_packet.x_raw(), my_packet.electron_time(), !my_packet.ftoa() & 15, my_packet.tot());
-    }
-
-    pub fn tdc_test_func(&self) {
-        let my_inv_packet = InversePacket::new_inverse_tdc(26_844_000_000);
-
-        let my_data = my_inv_packet.create_tdc_array(1024, TdcType::TdcTwoFallingEdge);
-        let my_packet = PacketEELS {
-            chip_index: my_data[4],
-            data: &my_data[8..16].try_into().unwrap()
-        };
-
-        println!("{} and {} and {} and {}", my_packet.id(), my_packet.tdc_time_norm(), my_packet.tdc_time(), my_packet.tdc_type());
-    }
-    */
 
     pub fn time_to_ticks(&self) -> (usize, usize, usize) {
         let spidr_ticks = self.time / 409_600;

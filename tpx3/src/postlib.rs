@@ -498,7 +498,7 @@ pub mod coincidence {
                                     last_index = counter;
                                 }
                                 current_value = packet.tdc_time_abs();
-                                counter = counter + 1;
+                                counter += 1;
                             }
                             _ => {},
                         }
@@ -522,7 +522,7 @@ pub mod coincidence {
             Err(_) => return Err(Tp3ErrorKind::CoincidenceCantReadFile),
         };
 
-        let progress_size = file0.metadata().unwrap().len() as u64;
+        let progress_size = file0.metadata().unwrap().len();
         let spim_tdc: TdcRef = if coinc_data.is_spim {
             if coinc_data.spim_size.0 == 0 || coinc_data.spim_size.1 == 0 {
                 panic!("***Coincidence***: Spim mode is on. X and Y pixels must be greater than 0.");
@@ -767,7 +767,7 @@ pub mod coincidence {
         
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file)?;
-        let progress_size = file0.metadata().unwrap().len() as u64;
+        let progress_size = file0.metadata().unwrap().len();
         let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
         //coinc_data.prepare_spim(spim_tdc);
     
@@ -979,8 +979,8 @@ pub mod isi_box {
             let mut last_time = 0;
             let mut overflow = 0;
             let low = self.x as u64 * self.pixel_time;
-            let y = self.y as u32;
-            let x = self.x as u32;
+            let y = self.y;
+            let x = self.x;
 
             
             let spim_index = |data: u64, ct: u32, lt: u64| -> Option<u32> {
@@ -992,7 +992,7 @@ pub mod isi_box {
                 };
 
                 if time > low {return None;}
-                let column = ((time as u64 * x as u64) / low) as u32;
+                let column = ((time * x as u64) / low) as u32;
                 let index = line * x + column;
                 
                 Some(index)
@@ -1099,8 +1099,7 @@ pub mod isi_box {
             for val1 in iter1 {
                 bar.inc(1);
                 if val1.1 != ch1 {continue;}
-                let mut index = 0;
-                for val2 in &mut vec2[min_index..] {
+                for (index, val2) in vec2[min_index..].iter_mut().enumerate() {
                     let dt = val2.0 as i64 - val1.0 as i64;
                     if dt.abs() < 5_000 {
 
@@ -1112,7 +1111,6 @@ pub mod isi_box {
                         min_index += index / 10;
                     }
                     if dt > 100_000 {break;}
-                    index += 1;
                 }
             }
 
@@ -1239,13 +1237,9 @@ pub mod ntime_resolved {
 
         fn add_spim_tdc<P: Packet + ?Sized>(&mut self, packet: &P) {
             //Synchronizing clocks using two different approaches. It is always better to use a multiple of 2 and use the FPGA counter.
-            match &mut self.tdc_periodic {
-                //Some(my_tdc_periodic) if packet.tdc_type() == self.tdc_type.associate_value() => {
-                Some(my_tdc_periodic) => {
-                    my_tdc_periodic.upt(packet.tdc_time_norm(), packet.tdc_counter());
-                },
-                _ => {},
-            };
+            if let Some(my_tdc_periodic) = &mut self.tdc_periodic {
+                my_tdc_periodic.upt(packet.tdc_time_norm(), packet.tdc_counter());
+            }
         }
         
         fn add_extra_tdc<P: Packet + ?Sized>(&mut self, _packet: &P) {
@@ -1345,7 +1339,7 @@ pub mod ntime_resolved {
         data.try_create_folder()?;
         
         let mut prepare_file = fs::File::open(&data.file).expect("Could not open desired file.");
-        let progress_size = prepare_file.metadata().unwrap().len() as u64;
+        let progress_size = prepare_file.metadata().unwrap().len();
         data.prepare(&mut prepare_file)?;
         
         let mut my_file = fs::File::open(&data.file).expect("Could not open desired file.");
@@ -1430,7 +1424,7 @@ pub mod calibration {
             for electron in val.iter() {
                 self.x.push(electron.x().try_into().unwrap());
                 self.y.push(electron.y().try_into().unwrap());
-                self.tot.push(electron.tot().try_into().unwrap());
+                self.tot.push(electron.tot());
                 let electron_time = electron.time() as i64;
                 let electron_tot_reference = electron.frame_dt() as i64;
                 let time_diference = (electron_time - electron_tot_reference) as i8;
@@ -1459,7 +1453,7 @@ pub mod calibration {
 
         let mut ci = 0;
         let mut file = fs::File::open(file)?;
-        let progress_size = file.metadata().unwrap().len() as u64;
+        let progress_size = file.metadata().unwrap().len();
         let mut buffer: Vec<u8> = vec![0; 512_000_000];
         let mut total_size = 0;
         
