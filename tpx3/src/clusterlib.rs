@@ -3,7 +3,7 @@
 pub mod cluster {
     use crate::packetlib::Packet;
     use crate::spimlib;
-    use crate::tdclib::PeriodicTdcRef;
+    use crate::tdclib::TdcRef;
     use std::fs::OpenOptions;
     use std::io::Write;
     use std::ops::Deref;
@@ -234,12 +234,13 @@ pub mod cluster {
     }
 
     impl SingleElectron {
-        pub fn new<T: Packet + ?Sized>(pack: &T, begin_frame: Option<PeriodicTdcRef>, raw_index: usize) -> Self {
+        pub fn new<T: Packet + ?Sized>(pack: &T, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
-                    let ele_time = spimlib::correct_or_not_etime(pack.electron_time(), &spim_tdc);
+                    let ele_time = spim_tdc.correct_or_not_etime(pack.electron_time()).unwrap();
+                    let frame = spim_tdc.frame().unwrap_or(0);
                     SingleElectron {
-                        data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.begin_frame-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1, pack.data(), raw_index, spim_tdc.current_line().unwrap())
+                        data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.begin_frame()-VIDEO_TIME, frame, pack.tot(), 1, pack.data(), raw_index, spim_tdc.current_line().unwrap())
                         //data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.time()-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1, pack.create_header(), pack.data(), raw_index, spim_tdc.current_line().unwrap())
                     }
                 },
@@ -313,17 +314,17 @@ pub mod cluster {
             self.time() > s.time() + CLUSTER_DET || (self.x() as isize - s.x() as isize).abs() > CLUSTER_SPATIAL || (self.y() as isize - s.y() as isize).abs() > CLUSTER_SPATIAL
         }
         
-        pub fn get_or_not_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX_HYPERSPEC> {
+        pub fn get_or_not_spim_index(&self, spim_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX_HYPERSPEC> {
             spimlib::get_spimindex(self.x(), self.frame_dt(), &spim_tdc?, xspim, yspim, None)
         }
         
-        pub fn get_or_not_return_spim_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX_HYPERSPEC> {
+        pub fn get_or_not_return_spim_index(&self, spim_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX_HYPERSPEC> {
             spimlib::get_return_spimindex(self.x(), self.frame_dt(), &spim_tdc?, xspim, yspim)
         }
-        pub fn get_or_not_4d_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX_4D> {
+        pub fn get_or_not_4d_index(&self, spim_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX_4D> {
             spimlib::get_4dindex(self.x(), self.y(), self.frame_dt(), &spim_tdc?, xspim, yspim)
         }
-        pub fn get_or_not_return_4d_index(&self, spim_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX_4D> {
+        pub fn get_or_not_return_4d_index(&self, spim_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX_4D> {
             spimlib::get_return_4dindex(self.x(), self.y(), self.frame_dt(), &spim_tdc?, xspim, yspim)
         }
     }
@@ -335,12 +336,12 @@ pub mod cluster {
     }
 
     impl SinglePhoton {
-        pub fn new<T: Packet + ?Sized>(pack: &T, channel: COUNTER, begin_frame: Option<PeriodicTdcRef>, raw_index: usize) -> Self {
+        pub fn new<T: Packet + ?Sized>(pack: &T, channel: COUNTER, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
-                    let tdc_time = spimlib::correct_or_not_etime(pack.tdc_time_norm(), &spim_tdc);
+                    let tdc_time = spim_tdc.correct_or_not_etime(pack.tdc_time_norm()).unwrap();
                     SinglePhoton{
-                        data: (pack.tdc_time_abs_norm(), channel, None, tdc_time - spim_tdc.begin_frame - VIDEO_TIME, pack.data(), raw_index)
+                        data: (pack.tdc_time_abs_norm(), channel, None, tdc_time - spim_tdc.begin_frame() - VIDEO_TIME, pack.data(), raw_index)
                     }
                 }
                 None => {

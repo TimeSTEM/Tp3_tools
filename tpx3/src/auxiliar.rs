@@ -604,6 +604,7 @@ pub mod value_types {
     pub type INDEX_4D = u64;
     pub type COUNTER = u32;
     pub type TIME = u64;
+    pub type SlType<'a> = Option<&'a [POSITION]>; //ScanList type
 }
 
 pub mod compressing {

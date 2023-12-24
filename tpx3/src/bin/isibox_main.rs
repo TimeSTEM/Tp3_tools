@@ -16,8 +16,8 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
     match my_settings.mode {
         0 if my_settings.bin => {
             let meas = speclib::SpecMeasurement::<speclib::Live1D, u32>::isi_new(&my_settings);
-            let frame_tdc = PeriodicTdcRef::new(TdcType::TdcOneRisingEdge, &mut pack, None)?;
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
+            let frame_tdc = TdcRef::new_periodic(TdcType::TdcOneRisingEdge, &mut pack, None)?;
+            let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge, None)?;
             speclib::build_spectrum_isi(pack, ns, my_settings, frame_tdc, np_tdc, meas)?;
             Ok(my_settings.mode)
         },
@@ -32,8 +32,8 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             handler.configure_measurement_type(false)?;
             handler.start_threads();
             
-            let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size as COUNTER))?;
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut pack, None)?;
+            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size as COUNTER))?;
+            let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge, None)?;
             let measurement = spimlib::Live::new(&my_settings);
             spimlib::build_spim_isi(pack, ns, my_settings, spim_tdc, np_tdc, measurement, handler)?;
             Ok(my_settings.mode)

@@ -1,6 +1,6 @@
 pub mod coincidence {
     use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
-    use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
+    use crate::tdclib::{TdcType, TdcRef};
     use crate::postlib::isi_box;
     use crate::errorlib::Tp3ErrorKind;
     use crate::clusterlib::cluster::ClusterCorrection;
@@ -50,7 +50,7 @@ pub mod coincidence {
         is_spim: bool,
         spim_size: (POSITION, POSITION),
         spim_index: Vec<INDEX_HYPERSPEC>,
-        spim_tdc: Option<PeriodicTdcRef>,
+        spim_tdc: Option<TdcRef>,
         remove_clusters: T,
         overflow_electrons: COUNTER,
         file: String,
@@ -95,7 +95,7 @@ pub mod coincidence {
 
         fn estimate_overflow(&self, pack: &Pack) -> Option<TIME> {
             if let Some(spim_tdc) = self.spim_tdc {
-                let val = spim_tdc.estimate_time();
+                let val = spim_tdc.estimate_time().unwrap();
                 if val > pack.tdc_time() + ELECTRON_OVERFLOW {
                     return Some(val / TDC_OVERFLOW);
                 }
@@ -208,7 +208,7 @@ pub mod coincidence {
             //println!("Number of coincident electrons: {:?}. Last photon real time is {:?}. Last relative time is {:?}.", self.x.len(), self.time.iter().last(), self.rel_time.iter().last());
         }
 
-        fn prepare_spim(&mut self, spim_tdc: PeriodicTdcRef) {
+        fn prepare_spim(&mut self, spim_tdc: TdcRef) {
             assert!(self.is_spim);
             self.spim_tdc = Some(spim_tdc);
         }
@@ -418,9 +418,9 @@ pub mod coincidence {
                 collect::<Vec<_>>()
         }
 
-        fn add_tdc(&mut self, my_pack: &Pack, channel: COUNTER, line_tdc: Option<PeriodicTdcRef>, xspim: POSITION, yspim: POSITION) {
+        fn add_tdc(&mut self, my_pack: &Pack, channel: COUNTER, line_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) {
             if let Some(spim_tdc) = line_tdc {
-                let time = my_pack.tdc_time_norm() - spim_tdc.begin_frame - VIDEO_TIME;
+                let time = my_pack.tdc_time_norm() - spim_tdc.begin_frame() - VIDEO_TIME;
                 self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None, get_spimindex(SPIM_PIXELS-1, time, &spim_tdc, xspim, yspim, None)));
             } else {
                 self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None, None));
@@ -465,7 +465,7 @@ pub mod coincidence {
 
     pub fn check_for_error_in_tpx3_data<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<u32, Tp3ErrorKind> {
         let mut file0 = fs::File::open(&coinc_data.file).unwrap();
-        let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
+        let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         
         let bar = ProgressBar::new(ISI_BUFFER_SIZE as u64);
@@ -523,17 +523,17 @@ pub mod coincidence {
         };
 
         let progress_size = file0.metadata().unwrap().len() as u64;
-        let spim_tdc: Box<dyn TdcControl> = if coinc_data.is_spim {
+        let spim_tdc: TdcRef = if coinc_data.is_spim {
             if coinc_data.spim_size.0 == 0 || coinc_data.spim_size.1 == 0 {
                 panic!("***Coincidence***: Spim mode is on. X and Y pixels must be greater than 0.");
             }
-            let temp = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
+            let temp = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
             coinc_data.prepare_spim(temp);
-            Box::new(temp)
+            temp
         } else {
-            Box::new(NonPeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, None).expect("Could not create non periodic TDC reference."))
+            TdcRef::new_no_read(TdcType::TdcOneFallingEdge, None).expect("Could not create non periodic TDC reference.")
         };
-        let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoRisingEdge, &mut file0, None).expect("Could not create non periodic (photon) TDC reference.");
+        let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge, None).expect("Could not create non periodic (photon) TDC reference.");
 
  
         let mut ci = 0;
@@ -603,9 +603,9 @@ pub mod coincidence {
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file).unwrap();
         let progress_size = file0.metadata().unwrap().len();
-        let mut spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
+        let mut spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
-        let _begin_tp3_time = spim_tdc.begin_frame;
+        let _begin_tp3_time = spim_tdc.begin_frame();
         let mut tp3_tdc_counter = 0;
 		
 		//Checking if the line period is compatible with IsiBox (roughly 8 ms)
@@ -622,8 +622,8 @@ pub mod coincidence {
     
         //IsiBox loading file & setting up synchronization
         let f = fs::File::open(file2).unwrap();
-        let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, spim_tdc.pixel_time(coinc_data.spim_size.0) * 15_625 / 10_000, lines_to_correct_both, isi_overflow_correction);
-        println!("***IsiBox***: Selected pixel time is (ns): {}.", spim_tdc.pixel_time(coinc_data.spim_size.0) * 15_625 / 10_000);
+        let temp_list = isi_box::get_channel_timelist(f, coinc_data.spim_size, spim_tdc.pixel_time(coinc_data.spim_size.0).unwrap() * 15_625 / 10_000, lines_to_correct_both, isi_overflow_correction);
+        println!("***IsiBox***: Selected pixel time is (ns): {}.", spim_tdc.pixel_time(coinc_data.spim_size.0).unwrap() * 15_625 / 10_000);
         let mut temp_tdc = TempTdcData::new_from_isilist(temp_list);
         let tdc_vec = temp_tdc.get_sync();
         let mut tdc_iter = tdc_vec.iter();
@@ -769,7 +769,7 @@ pub mod coincidence {
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file)?;
         let progress_size = file0.metadata().unwrap().len() as u64;
-        let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
+        let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER)).expect("Could not create period TDC reference.");
         //coinc_data.prepare_spim(spim_tdc);
     
         let (mut temp_tdc, max_total_size) = match correct_coincidence_isi(file2, coinc_data, 0) {
@@ -1184,7 +1184,7 @@ pub mod isi_box {
 
 pub mod ntime_resolved {
     use crate::packetlib::{Packet, PacketEELS, PacketDiffraction};
-    use crate::tdclib::{TdcControl, TdcType, PeriodicTdcRef};
+    use crate::tdclib::{TdcType, TdcRef};
     use crate::errorlib::Tp3ErrorKind;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
     use crate::auxiliar::{misc::{packet_change, output_data}, value_types::*, ConfigAcquisition};
@@ -1205,7 +1205,7 @@ pub mod ntime_resolved {
         ensemble: CollectionElectron, //A collection of single electrons,
         spimx: POSITION, //The horinzontal axis of the spim,
         spimy: POSITION, //The vertical axis of the spim,
-        tdc_periodic: Option<PeriodicTdcRef>, //The periodic tdc. Can be none if xspim and yspim <= 1,
+        tdc_periodic: Option<TdcRef>, //The periodic tdc. Can be none if xspim and yspim <= 1,
         spim_tdc_type: TdcType, //The tdc type for the spim,
         extra_tdc_type: TdcType, //The tdc type for the external,
         remove_clusters: T,
@@ -1217,7 +1217,7 @@ pub mod ntime_resolved {
         fn prepare(&mut self, file: &mut fs::File) -> Result<(), Tp3ErrorKind> {
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
-                    Some(PeriodicTdcRef::new(self.spim_tdc_type.clone(), file, Some(self.spimy as COUNTER)).expect("Problem in creating periodic tdc ref."))
+                    Some(TdcRef::new_periodic(self.spim_tdc_type.clone(), file, Some(self.spimy as COUNTER)).expect("Problem in creating periodic tdc ref."))
                 },
                 Some(val) => Some(val),
                 _ => None,

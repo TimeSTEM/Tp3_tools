@@ -241,7 +241,7 @@ use crate::auxiliar::misc::TimepixRead;
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct TdcRef {
     tdctype: u8,
     counter: COUNTER,
@@ -259,11 +259,11 @@ pub struct TdcRef {
 }
 
 impl TdcRef {
-    fn id(&self) -> u8 {
+    pub fn id(&self) -> u8 {
         self.tdctype
     }
 
-    fn upt(&mut self, time: TIME, hard_counter: u16) {
+    pub fn upt(&mut self, time: TIME, hard_counter: u16) {
         if hard_counter < self.last_hard_counter {
             self.counter_overflow += 1;
         }
@@ -294,32 +294,132 @@ impl TdcRef {
         }
     }
 
-    fn counter(&self) -> COUNTER {
+    pub fn counter(&self) -> COUNTER {
         self.counter
     }
 
-    fn time(&self) -> TIME {
+    pub fn time(&self) -> TIME {
         self.time
     }
 
-    fn period(&self) -> Option<TIME> {
+    pub fn period(&self) -> Option<TIME> {
         self.period
     }
+
+    pub fn new_frame(&self) -> bool {
+        self.new_frame
+    }
     
-    fn frame(&self) -> Option<COUNTER> {
+    pub fn low_time(&self) -> Option<TIME> {
+        self.low_time
+    }
+    
+    pub fn high_time(&self) -> Option<TIME> {
+        self.high_time
+    }
+    
+    pub fn begin_frame(&self) -> TIME {
+        self.begin_frame
+    }
+    
+    pub fn ticks_to_frame(&self) -> Option<COUNTER> {
+        self.ticks_to_frame
+    }
+    
+    pub fn frame(&self) -> Option<COUNTER> {
         Some(self.counter / 2 / self.ticks_to_frame?)
     }
     
-    fn current_line(&self) -> Option<POSITION> {
+    pub fn current_line(&self) -> Option<POSITION> {
         Some(((self.counter / 2) % self.ticks_to_frame?) as POSITION)
     }
     
-    fn pixel_time(&self, xspim: POSITION) -> Option<TIME> {
+    pub fn pixel_time(&self, xspim: POSITION) -> Option<TIME> {
         Some(self.low_time? / xspim as TIME)
     }
 
-    fn estimate_time(&self) -> Option<TIME> {
+    pub fn estimate_time(&self) -> Option<TIME> {
         Some((self.counter as TIME / 2) * self.period? + self.begin_time)
+    }
+    
+    //This recovers the position of the probe given the TDC and the electron ToA. dT is the time from
+    //the last frame begin
+    #[inline]
+    pub fn get_positional_index(&self, dt: TIME, xspim: POSITION, yspim: POSITION, list_scan: SlType) -> Option<POSITION> {
+        if UNIFORM_PIXEL {
+            let mut index = (dt * xspim as TIME / self.period?) as POSITION;
+            if index > xspim * yspim {
+                index %= xspim * yspim
+            }
+            if let Some(custom_list) = list_scan {
+                custom_list.get(index as usize).copied()
+            } else {
+                Some( index )
+            }
+        } else {
+            let determ = |dt: TIME, dt_partial: TIME, period: TIME, xspim: POSITION, low_time: TIME, yspim: POSITION| {
+                let mut r = (dt / period) as POSITION; //how many periods -> which line to put.
+                let rin = ((xspim as TIME * dt_partial) / low_time) as POSITION; //Column correction. Maybe not even needed.
+                    
+                if r > (yspim-1) {
+                    if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
+                    r %= yspim;
+                }
+                    
+                let index = r * xspim + rin;
+                Some(index)
+            };
+
+            if REMOVE_RETURN {
+                let val = dt % self.period?;
+                if val < self.low_time? {
+                    determ(dt, val, self.period?, xspim, self.low_time?, yspim)
+                } else {
+                    None
+                }
+            } else {
+                let val = dt % self.period?;
+                determ(dt, val, self.period?, xspim, self.low_time?, yspim)
+            }
+        }
+    }
+    
+    //This recovers the position of the probe during the return given the TDC and the electron ToA
+    #[inline]
+    pub fn get_return_positional_index(&self, dt: TIME, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+        let val = dt % self.period?;
+        if val >= self.low_time? {
+            let mut r = (dt / self.period?) as POSITION; //how many periods -> which line to put.
+            let rin = ((xspim as TIME * (val - self.low_time?)) / self.high_time?) as POSITION; //Column correction. Maybe not even needed.
+                
+            if r > (yspim-1) {
+                if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
+                r %= yspim;
+            }
+            
+            let index = r * xspim + rin;
+        
+            Some( index )
+        } else {
+            None
+        }
+    }
+    
+    #[inline]
+    pub fn correct_or_not_etime(&self, mut ele_time: TIME) -> Option<TIME> {
+        if SYNC_MODE == 0 {
+            if ele_time < self.begin_frame + VIDEO_TIME {
+                let factor = (self.begin_frame + VIDEO_TIME - ele_time) / (self.period?*self.ticks_to_frame? as TIME) + 1;
+                ele_time += self.period?*self.ticks_to_frame? as TIME * factor;
+            }
+            Some(ele_time - self.begin_frame - VIDEO_TIME)
+        } else {
+            if ele_time < self.time + VIDEO_TIME {
+                let factor = (self.time + VIDEO_TIME - ele_time) / (self.period?) + 1;
+                ele_time += self.period? * factor * self.current_line()? as u64;
+            }
+            Some(ele_time - self.begin_frame - VIDEO_TIME)
+        }
     }
 
     pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, ticks_to_frame: Option<COUNTER>) -> Result<Self, Tp3ErrorKind> {

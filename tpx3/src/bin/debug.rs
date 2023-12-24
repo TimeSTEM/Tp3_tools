@@ -1,6 +1,6 @@
 use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::{Settings, ConfigAcquisition, value_types::*};
-use timepix3::tdclib::{TdcControl, TdcType, PeriodicTdcRef, NonPeriodicTdcRef};
+use timepix3::tdclib::{TdcType, TdcRef};
 use timepix3::{speclib, spimlib, spimlib::SpimKind};
 use timepix3::clusterlib::cluster::NoCorrection;
 use std::env;
@@ -26,8 +26,8 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             Ok(my_settings.mode)
         },
         2 => {
-            let spim_tdc = PeriodicTdcRef::new(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size as COUNTER))?;
-            let np_tdc = NonPeriodicTdcRef::new(TdcType::TdcTwoFallingEdge, &mut pack, None)?;
+            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size as COUNTER))?;
+            let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoFallingEdge, None)?;
             let measurement = spimlib::Live::new(&my_settings);
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None)?;
             Ok(my_settings.mode)
