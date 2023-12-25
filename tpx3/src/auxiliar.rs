@@ -13,8 +13,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json;
 
-
-
 pub mod aux_func {
     pub fn from_bytes<T>(v: &[u8]) -> &[T] {
         unsafe {
@@ -51,207 +49,6 @@ pub mod aux_func {
     }
 
 }
-
-/*
-///Configures the detector for acquisition. Each new measurement must send 20 bytes
-///containing instructions.
-struct BytesConfig {
-    pub data: [u8; CONFIG_SIZE],
-}
-
-impl BytesConfig {
-    ///Set binning mode for 1x4 detector. `\x00` for unbinned and `\x01` for binned. Panics otherwise. Byte[0].
-    fn bin(&self) -> Result<bool, Tp3ErrorKind> {
-        match self.data[0] {
-            0 => {
-                println!("Bin is False.");
-                Ok(false)
-            },
-            1 => {
-                println!("Bin is True.");
-                Ok(true)
-            },
-            _ => Err(Tp3ErrorKind::SetBin),
-        }
-    }
-
-    ///Set bytedepth. `\x00` for 1, `\x01` for 2 and `\x02` for 4. Panics otherwise. Byte[1].
-    fn bytedepth(&self) -> Result<POSITION, Tp3ErrorKind> {
-        match self.data[1] {
-            0 => {
-                println!("Bitdepth is 8.");
-                Ok(1)
-            },
-            1 => {
-                println!("Bitdepth is 16.");
-                Ok(2)
-            },
-            2 => {
-                println!("Bitdepth is 32.");
-                Ok(4)
-            },
-            4 => {
-                println!("Bitdepth is 64.");
-                Ok(8)
-            },
-            _ => Err(Tp3ErrorKind::SetByteDepth),
-        }
-    }
-
-    ///Sums all arriving data. `\x00` for False, `\x01` for True. Panics otherwise. Byte[2].
-    fn cumul(&self) -> Result<bool, Tp3ErrorKind> {
-        match self.data[2] {
-            0 => {
-                println!("Cumulation mode is OFF.");
-                Ok(false)
-            },
-            1 => {
-                println!("Cumulation mode is ON.");
-                Ok(true)
-            },
-            _ => Err(Tp3ErrorKind::SetCumul),
-        }
-    }
-
-    ///Acquisition Mode. `\x00` for normal, `\x01` for spectral image and `\x02` for time-resolved. Panics otherwise. Byte[2..4].
-    fn mode(&self) -> Result<u8, Tp3ErrorKind> {
-        println!("Mode is: {}", self.data[3]);
-        Ok(self.data[3])
-    }
-
-    ///X spim size. Must be sent with 2 bytes in big-endian mode. Byte[4..6]
-    fn xspim_size(&self) -> POSITION {
-        let x: u16 = aux_func::from_bytes(&self.data[4..6])[0];
-        println!("X Spim size is: {}.", x);
-        x as POSITION
-    }
-    
-    ///Y spim size. Must be sent with 2 bytes in big-endian mode. Byte[6..8]
-    fn yspim_size(&self) -> POSITION {
-        let y: u16 = aux_func::from_bytes(&self.data[6..8])[0];
-        println!("Y Spim size is: {}.", y);
-        y as POSITION
-    }
-    
-    ///X scan size. Must be sent with 2 bytes in big-endian mode. Byte[8..10]
-    fn xscan_size(&self) -> POSITION {
-        let x: u16 = aux_func::from_bytes(&self.data[8..10])[0];
-        println!("X Scan size is: {}.", x);
-        x as POSITION
-    }
-    
-    ///Y scan size. Must be sent with 2 bytes in big-endian mode. Byte[10..12]
-    fn yscan_size(&self) -> POSITION {
-        let y: u16 = aux_func::from_bytes(&self.data[10..12])[0];
-        println!("Y Scan size is: {}.", y);
-        y as POSITION
-    }
-    
-    ///Pixel time. Must be sent with 2 bytes in big-endian mode. Byte[12..15]
-    fn pixel_time(&self) -> POSITION {
-        //let pt = (self.data[12] as POSITION)<<8 | (self.data[13] as POSITION);
-        let pt: u32 = aux_func::from_bytes(&self.data[12..16])[0];
-        println!("Pixel time is (units of 1.5625 ns): {}.", pt);
-        pt as POSITION
-    }
-    
-    ///Time delay. Must be sent with 2 bytes in big-endian mode. Byte[16..17]
-    fn time_delay(&self) -> TIME {
-        let td: u16 = aux_func::from_bytes(&self.data[16..18])[0];
-        println!("Time delay is (units of 1.5625 ns): {}.", td);
-        td as TIME
-    }
-    
-    ///Time width. Must be sent with 2 bytes in big-endian mode. Byte[18..19].
-    fn time_width(&self) -> TIME {
-        let tw: u16 = aux_func::from_bytes(&self.data[18..20])[0];
-        println!("Time width is (units of 1.5625 ns): {}.", tw);
-        tw as TIME
-    }
-
-    ///Should we also save-locally the data. Byte[20]
-    fn save_locally(&self) -> Result<bool, Tp3ErrorKind> {
-        let save_locally = self.data[20] == 1;
-        println!("Save locally is activated: {}.", save_locally);
-        Ok(save_locally)
-    }
-    
-    ///Should we also save-locally the data. Byte[21..24]
-    fn sup_val0(&self) -> f32 {
-        let sup = aux_func::from_bytes(&self.data[21..25])[0];
-        println!("Supplementary value 0: {}.", sup);
-        sup
-    }
-    
-    ///Should we also save-locally the data. Byte[25..28]
-    fn sup_val1(&self) -> f32 {
-        let sup = aux_func::from_bytes(&self.data[25..29])[0];
-        println!("Supplementary value 0: {}.", sup);
-        sup
-    }
-    
-    ///Convenience method. Returns the ratio between scan and spim size in X.
-    fn spimoverscanx(&self) -> Result<POSITION, Tp3ErrorKind> {
-        let xspim = (self.data[4] as POSITION)<<8 | (self.data[5] as POSITION);
-        let xscan = (self.data[8] as POSITION)<<8 | (self.data[9] as POSITION);
-        if xspim == 0 {return Err(Tp3ErrorKind::SetXSize);}
-        let var = xscan / xspim;
-        match var {
-            0 => {
-                println!("Xratio is: 1.");
-                Ok(1)
-            },
-            _ => {
-                println!("Xratio is: {}.", var);
-                Ok(var)
-            },
-        }
-    }
-    
-    ///Convenience method. Returns the ratio between scan and spim size in Y.
-    fn spimoverscany(&self) -> Result<POSITION, Tp3ErrorKind> {
-        let yspim = (self.data[6] as POSITION)<<8 | (self.data[7] as POSITION);
-        let yscan = (self.data[10] as POSITION)<<8 | (self.data[11] as POSITION);
-        if yspim == 0 {return Err(Tp3ErrorKind::SetYSize);}
-        let var = yscan / yspim;
-        match var {
-            0 => {
-                println!("Yratio is: 1.");
-                Ok(1)
-            },
-            _ => {
-                println!("Yratio is: {}.", var);
-                Ok(var)
-            },
-        }
-    }
-
-
-    ///Create Settings struct from BytesConfig
-    fn create_settings(&self) -> Result<Settings, Tp3ErrorKind> {
-        let my_set = Settings {
-            bin: self.bin()?,
-            bytedepth: self.bytedepth()?,
-            cumul: self.cumul()?,
-            mode: self.mode()?,
-            xspim_size: self.xspim_size(),
-            yspim_size: self.yspim_size(),
-            xscan_size: self.xscan_size(),
-            yscan_size: self.yscan_size(),
-            pixel_time: self.pixel_time(),
-            time_delay: self.time_delay(),
-            time_width: self.time_width(),
-            spimoverscanx: self.spimoverscanx()?,
-            spimoverscany: self.spimoverscany()?,
-            save_locally: self.save_locally()?,
-            sup0: self.sup_val0(),
-            sup1: self.sup_val1(),
-        };
-        Ok(my_set)
-    }
-}
-*/
-
 
 struct DebugIO {}
 impl Write for DebugIO {
@@ -290,13 +87,7 @@ pub struct Settings {
     sup1: f32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Metadata {
-    metadata: String,
-}
-
 impl Settings {
-
     fn create_savefile_header(&self) -> String {
         let now: DateTime<Utc> = Utc::now();
         let mut val = String::new();
@@ -306,6 +97,7 @@ impl Settings {
         val
     }
 
+    //Used a lot for postprocessing to open the correct Settings file
     pub fn get_settings_from_json(file: &str) -> Result<Self, Tp3ErrorKind> {
         let mut json_file = File::open(file.to_owned() + ".json")?;
         let mut json_buffer: Vec<u8> = Vec::new();
@@ -357,20 +149,6 @@ impl Settings {
 
         let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
         println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
-        
-        /*
-        let mut cam_settings = [0_u8; CONFIG_SIZE];
-        let my_config = {
-            match ns_sock.read(&mut cam_settings){
-                Ok(size) => {
-                    println!("Received {} bytes from NS.", size);
-                    BytesConfig{data: cam_settings}
-                },
-                Err(_) => panic!("Could not read cam initial settings."),
-            }
-        };
-        let my_settings = my_config.create_settings()?;
-        */
         
         //Reading from a JSON over TCP
         let mut cam_settings = [0_u8; CONFIG_SIZE];
