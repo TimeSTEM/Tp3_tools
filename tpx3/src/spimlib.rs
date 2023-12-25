@@ -436,7 +436,7 @@ pub fn build_spim<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
     let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
 
-    let mut file_to_write = my_settings.create_file();
+    let mut file_to_write = my_settings.create_file()?;
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
             if let Some(file) = &mut file_to_write {

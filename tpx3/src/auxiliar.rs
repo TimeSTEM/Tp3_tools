@@ -3,6 +3,7 @@ use crate::errorlib::Tp3ErrorKind;
 use std::net::{TcpListener, TcpStream, SocketAddr};
 use crate::auxiliar::misc::TimepixRead;
 use crate::clusterlib::cluster::ClusterCorrection;
+use crate::errorlib;
 use std::io::{Read, Write, BufWriter};
 use std::fs::File;
 use crate::constlib::*;
@@ -51,6 +52,7 @@ pub mod aux_func {
 
 }
 
+/*
 ///Configures the detector for acquisition. Each new measurement must send 20 bytes
 ///containing instructions.
 struct BytesConfig {
@@ -248,6 +250,7 @@ impl BytesConfig {
         Ok(my_set)
     }
 }
+*/
 
 
 struct DebugIO {}
@@ -287,6 +290,11 @@ pub struct Settings {
     sup1: f32,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Metadata {
+    metadata: String,
+}
+
 impl Settings {
 
     fn create_savefile_header(&self) -> String {
@@ -299,7 +307,6 @@ impl Settings {
     }
 
     pub fn get_settings_from_json(file: &str) -> Result<Self, Tp3ErrorKind> {
-
         let mut json_file = File::open(file.to_owned() + ".json")?;
         let mut json_buffer: Vec<u8> = Vec::new();
         json_file.read_to_end(&mut json_buffer)?;
@@ -307,25 +314,23 @@ impl Settings {
         Ok(my_settings)
     }
 
-    pub fn create_file(&self) -> Option<BufWriter<File>> {
+    pub fn create_file(&self) -> Result<Option<BufWriter<File>>, errorlib::Tp3ErrorKind> {
         match self.save_locally {
-            false => {None},
+            false => {Ok(None)},
             true => {
             let mut jsonfile = 
                 OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open(self.create_savefile_header() + ".json").
-                unwrap();
+                .open(self.create_savefile_header() + ".json")?;
             let jsondata = serde_json::to_vec(&self).expect("Could not serialize data to JSON.");
             jsonfile.write(&jsondata).expect("Could not write to JSON data file.");
             let file =
                 OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open(self.create_savefile_header() + ".tpx3").
-                unwrap();
-            Some(BufWriter::new(file))
+                .open(self.create_savefile_header() + ".tpx3")?;
+            Ok(Some(BufWriter::new(file)))
             }
         }
     }
@@ -353,6 +358,7 @@ impl Settings {
         let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
         println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
         
+        /*
         let mut cam_settings = [0_u8; CONFIG_SIZE];
         let my_config = {
             match ns_sock.read(&mut cam_settings){
@@ -364,6 +370,13 @@ impl Settings {
             }
         };
         let my_settings = my_config.create_settings()?;
+        */
+        
+        //Reading from a JSON over TCP
+        let mut cam_settings = [0_u8; CONFIG_SIZE];
+        let size =  ns_sock.read(&mut cam_settings)?;
+        let my_settings: Settings = serde_json::from_str(std::str::from_utf8(&cam_settings[0..size])?)?;
+        println!("***Settings***: value is: {:?}.", my_settings);
 
         match debug {
             false => {

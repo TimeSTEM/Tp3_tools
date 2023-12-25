@@ -23,7 +23,9 @@ pub enum Tp3ErrorKind {
 
     //From IO-based, such as external libraries (like json parser)
     IOGeneralError,
+    IOCouldNotCreateFile,
     SerdeGeneralError,
+    Utf8GeneralError,
 
     //Coincidence-related
     CoincidenceFolderAlreadyCreated,
@@ -55,8 +57,17 @@ pub enum Tp3ErrorKind {
 }
 
 impl From<std::io::Error> for Tp3ErrorKind {
-    fn from(_: std::io::Error) -> Tp3ErrorKind {
-        Tp3ErrorKind::IOGeneralError
+    fn from(e: std::io::Error) -> Tp3ErrorKind {
+        match e.kind() {
+            std::io::ErrorKind::NotFound => Tp3ErrorKind::IOCouldNotCreateFile,
+            _ => Tp3ErrorKind::IOGeneralError,
+        }
+    }
+}
+
+impl From<std::str::Utf8Error> for Tp3ErrorKind {
+    fn from(_: std::str::Utf8Error) -> Tp3ErrorKind {
+        Tp3ErrorKind::Utf8GeneralError
     }
 }
 
