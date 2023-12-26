@@ -336,6 +336,7 @@ impl TdcRef {
     pub fn get_positional_index(&self, dt: TIME, xspim: POSITION, yspim: POSITION, list_scan: SlType) -> Option<POSITION> {
         if UNIFORM_PIXEL {
             let mut index = (dt * xspim as TIME / self.period?) as POSITION;
+            index += 1;
             if index > xspim * yspim {
                 index %= xspim * yspim
             }

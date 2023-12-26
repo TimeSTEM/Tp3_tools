@@ -491,7 +491,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
                 if self.is_ready {
                     if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
                         self.is_ready = false;
-                        self.reset_or_else(frame_tdc, settings);
+                        if !settings.cumul { //No cumulation
+                            self.data.iter_mut().for_each(|x| *x = L::zero());
+                        }
                     } else {
                         self.is_ready = true;
                         self.timer = Instant::now();
@@ -499,7 +501,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
                 }
             } else {
                 if temp_ready {
-                    self.reset_or_else(frame_tdc, settings);
+                    if !settings.cumul { //No cumulation
+                        self.data.iter_mut().for_each(|x| *x = L::zero());
+                    }
                     self.is_ready = false;
                 }
             }
@@ -509,10 +513,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
         }
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
-        //self.is_ready = false;
-        if !settings.cumul { //No cumulation
-            self.data.iter_mut().for_each(|x| *x = L::zero());
-        }
     }
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()
@@ -554,7 +554,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
                 self.is_ready = temp_ready;
             } else {
                 if temp_ready {
-                    self.reset_or_else(frame_tdc, settings);
+                    if !settings.cumul {
+                        self.data.iter_mut().for_each(|x| *x = L::zero());
+                    }
                     self.is_ready = false;
                 }
             }
@@ -564,10 +566,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
         }
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
-        //self.is_ready = false;
-        if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = L::zero());
-        }
+        //Empty. The shutter control defines the behaviour and not the TCP stack
     }
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()
