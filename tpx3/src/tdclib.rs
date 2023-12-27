@@ -254,6 +254,7 @@ pub struct TdcRef {
     high_time: Option<TIME>,
     low_time: Option<TIME>,
     ticks_to_frame: Option<COUNTER>,
+    subsample: POSITION,
     begin_frame: TIME,
     new_frame: bool,
 }
@@ -273,14 +274,14 @@ impl TdcRef {
         self.time = time;
         if let (Some(spimy), Some(period)) = (self.ticks_to_frame, self.period) {
             //New frame
-            if (self.counter / 2) % spimy == 0 {
+            if (self.counter / 2) % (self.subsample * spimy) == 0 {
                 self.begin_frame = time;
                 self.new_frame = true
             //Not new frame but a time overflow
             } else if time_overflow {
                 //I temporally correct the begin_frame time by supossing what is the next frame time. This
                 //will be correctly updated in the next cycle.
-                let frame_time = period * spimy as TIME;
+                let frame_time = period * (2 * spimy) as TIME;
                 self.begin_frame = if frame_time > ELECTRON_OVERFLOW {
                     (self.begin_frame + frame_time) - ELECTRON_OVERFLOW
                 } else {
@@ -335,10 +336,10 @@ impl TdcRef {
     #[inline]
     pub fn get_positional_index(&self, dt: TIME, xspim: POSITION, yspim: POSITION, list_scan: SlType) -> Option<POSITION> {
         if UNIFORM_PIXEL {
-            let mut index = (dt * xspim as TIME / self.period?) as POSITION;
+            let mut index = (dt * (self.subsample * xspim) as TIME / self.period?) as POSITION;
             index += 1;
-            if index >= xspim * yspim {
-                index %= xspim * yspim
+            if index >= self.subsample * self.subsample * xspim * yspim {
+                index %= self.subsample * self.subsample * xspim * yspim
             }
             if let Some(custom_list) = list_scan {
                 custom_list.get(index as usize).map(|value| {
@@ -416,7 +417,7 @@ impl TdcRef {
         }
     }
 
-    pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, ticks_to_frame: Option<COUNTER>) -> Result<Self, Tp3ErrorKind> {
+    pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, ticks_to_frame: Option<COUNTER>, subsample: COUNTER) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
         let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
         let start = Instant::now();
@@ -448,6 +449,7 @@ impl TdcRef {
             begin_time,
             begin_frame: begin_time,
             ticks_to_frame,
+            subsample,
             period: Some(period),
             high_time: Some(high_time),
             low_time: Some(low_time),
@@ -457,7 +459,7 @@ impl TdcRef {
         println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
         Ok(per_ref)
     }
-    pub fn new_no_read(tdc_type: TdcType, ticks_to_frame: Option<COUNTER>) -> Result<Self, Tp3ErrorKind> {
+    pub fn new_no_read(tdc_type: TdcType) -> Result<Self, Tp3ErrorKind> {
         println!("***Tdc Lib***: {} has been created (no read).", tdc_type.associate_str());
         let counter_offset = 0;
         let begin_time = 0;
@@ -471,7 +473,8 @@ impl TdcRef {
             counter_overflow: 0,
             begin_time,
             begin_frame: begin_time,
-            ticks_to_frame,
+            ticks_to_frame: None,
+            subsample: 1,
             period: None,
             high_time: None,
             low_time: None,

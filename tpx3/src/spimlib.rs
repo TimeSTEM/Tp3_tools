@@ -63,8 +63,8 @@ pub struct LiveScanList {
 }
 
 impl LiveScanList {
-    pub fn create_list<R: std::io::Read>(mut array: R, settings: &Settings) -> Result<Vec<POSITION>, Tp3ErrorKind> {
-        let mut list_scan: Vec<POSITION> = vec![0; (settings.xspim_size * settings.yspim_size) as usize];
+    pub fn create_list<R: std::io::Read>(mut array: R, points: POSITION) -> Result<Vec<POSITION>, Tp3ErrorKind> {
+        let mut list_scan: Vec<POSITION> = vec![0; points as usize];
         array.read_exact(aux_func::as_bytes_mut(&mut list_scan))?;
         Ok(list_scan)
     }

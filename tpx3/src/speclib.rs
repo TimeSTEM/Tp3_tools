@@ -164,10 +164,10 @@ pub trait SpecKind {
     fn build_output(&self) -> &[u8];
     fn new(settings: &Settings) -> Self;
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, None)
+        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, None, 1)
     }
     fn build_aux_tdc(&self) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcTwoRisingEdge, None)
+        TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
     }
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &TdcRef, ref_tdc: &TdcRef);
     fn add_tdc_hit(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut TdcRef);
@@ -481,7 +481,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
     }
     fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
+        TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
         if pack.id() == 5 {
@@ -541,7 +541,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
     }
     fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
+        TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
         if pack.id() == 5 {
@@ -599,7 +599,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrameHyperspec, L> {
         self.data[index as usize] += L::from_u16(pack.tot());
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcOneRisingEdge, None)
+        TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
     fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
