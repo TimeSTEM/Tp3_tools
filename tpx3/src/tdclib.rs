@@ -281,7 +281,7 @@ impl TdcRef {
             } else if time_overflow {
                 //I temporally correct the begin_frame time by supossing what is the next frame time. This
                 //will be correctly updated in the next cycle.
-                let frame_time = period * (2 * spimy) as TIME;
+                let frame_time = period * (self.subsample * spimy) as TIME;
                 self.begin_frame = if frame_time > ELECTRON_OVERFLOW {
                     (self.begin_frame + frame_time) - ELECTRON_OVERFLOW
                 } else {
