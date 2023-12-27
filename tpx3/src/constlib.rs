@@ -21,9 +21,11 @@ pub const TDC_OVERFLOW: TIME = 68_719_476_736;
 pub const LIMIT_READ: bool = false; //early break of the file processing
 pub const LIMIT_READ_SIZE: usize = 5_000_000_000; //5GB limitations
 pub const SYNC_MODE: u8 = 0; //0 synchronizes on the frame, 1 synchronizes on the line.
-pub const UNIFORM_PIXEL: bool = false; //Assumption that the time per pixel is uniform.
+pub const UNIFORM_PIXEL: bool = true; //Assumption that the time per pixel is uniform.
 pub const REMOVE_RETURN: bool = true; //This removes the electrons in the flyback mode. UNIFORM_PIXEL must be false to this in order to take place.
 pub const INVERSE_DETECTOR: bool = false;
+pub const DACX_BITDEPTH: usize = 14;
+pub const DACY_BITDEPTH: usize = 14;
 
 
 //***POSTLIB***//

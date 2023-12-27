@@ -337,11 +337,15 @@ impl TdcRef {
         if UNIFORM_PIXEL {
             let mut index = (dt * xspim as TIME / self.period?) as POSITION;
             index += 1;
-            if index > xspim * yspim {
+            if index >= xspim * yspim {
                 index %= xspim * yspim
             }
             if let Some(custom_list) = list_scan {
-                custom_list.get(index as usize).copied()
+                let value = custom_list.get(index as usize).expect("Could not get the index in the list. This is not correct behaviour.");
+                let x = (value & (1<<DACX_BITDEPTH)-1) * xspim / (1<<DACX_BITDEPTH);
+                let y = (value >> DACX_BITDEPTH) * yspim / (1<<DACY_BITDEPTH);
+                Some (y * xspim + x)
+                //custom_list.get(index as usize).copied()
             } else {
                 Some( index )
             }
