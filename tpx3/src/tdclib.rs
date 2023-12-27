@@ -341,10 +341,11 @@ impl TdcRef {
                 index %= xspim * yspim
             }
             if let Some(custom_list) = list_scan {
-                let value = custom_list.get(index as usize).expect("Could not get the index in the list. This is not correct behaviour.");
-                let x = (value & (1<<DACX_BITDEPTH)-1) * xspim / (1<<DACX_BITDEPTH);
-                let y = (value >> DACX_BITDEPTH) * yspim / (1<<DACY_BITDEPTH);
-                Some (y * xspim + x)
+                custom_list.get(index as usize).map(|value| {
+                    let x = (value & (1<<DACX_BITDEPTH)-1) * xspim / (1<<DACX_BITDEPTH);
+                    let y = (value >> DACX_BITDEPTH) * yspim / (1<<DACY_BITDEPTH);
+                    y * xspim + x
+                })
                 //custom_list.get(index as usize).copied()
             } else {
                 Some( index )
