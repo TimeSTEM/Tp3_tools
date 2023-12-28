@@ -29,7 +29,7 @@ mod tdcvec {
 
         fn add_tdc<T: Packet>(&mut self, packet: &T) {
             if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
-                let time = packet.tdc_time_norm();
+                let time = packet.tdc_time_abs_norm();
                 self.data.push( (time, tdc) );
                 if packet.tdc_type() == self.tdc_choosen.associate_value() {
                     self.last_counter = packet.tdc_counter();
@@ -404,8 +404,8 @@ impl TdcRef {
     pub fn correct_or_not_etime(&self, mut ele_time: TIME) -> Option<TIME> {
         if SYNC_MODE == 0 {
             if ele_time < self.begin_frame + VIDEO_TIME {
-                let factor = (self.begin_frame + VIDEO_TIME - ele_time) / (self.period?*self.ticks_to_frame? as TIME) + 1;
-                ele_time += self.period?*self.ticks_to_frame? as TIME * factor;
+                let factor = (self.begin_frame + VIDEO_TIME - ele_time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
+                ele_time += self.period?*(self.subsample*self.ticks_to_frame?) as TIME * factor;
             }
             Some(ele_time - self.begin_frame - VIDEO_TIME)
         } else {
@@ -431,13 +431,13 @@ impl TdcRef {
             }
         }
         println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
-        let _counter = tdc_search.get_counter()?;
+        //TDC abs is used, so we should divide by a factor of 6 here to be back on electron clock
+        //tick.
         let counter_offset = tdc_search.get_counter_offset();
-        let _last_hard_counter = tdc_search.get_last_hardware_counter();
-        let begin_time = tdc_search.get_begintime();
-        let last_time = tdc_search.get_lasttime();
-        let high_time = tdc_search.find_high_time()?;
-        let period = tdc_search.find_period()?;
+        let begin_time = tdc_search.get_begintime() / 6;
+        let last_time = tdc_search.get_lasttime() / 6;
+        let high_time = tdc_search.find_high_time()? / 6;
+        let period = tdc_search.find_period()? / 6;
         let low_time = period - high_time;
 
         let per_ref = Self {
