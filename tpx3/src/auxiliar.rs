@@ -81,6 +81,10 @@ pub struct Settings {
     pub time_delay: TIME,
     pub time_width: TIME,
     pub save_locally: bool,
+    pixel_mask: u8,
+    threshold: u8,
+    bias_voltage: u8,
+    destination_port: u8,
     sup0: f32,
     sup1: f32,
 }
@@ -186,6 +190,10 @@ impl Settings {
             time_delay: 104,
             time_width: 100,
             save_locally: false,
+            pixel_mask: 0,
+            threshold: 0,
+            bias_voltage: 0,
+            destination_port: 0,
             sup0: 0.0,
             sup1: 0.0,
         }
@@ -205,6 +213,10 @@ impl Settings {
             time_delay: 0,
             time_width: 1000,
             save_locally: false,
+            pixel_mask: 0,
+            threshold: 0,
+            bias_voltage: 0,
+            destination_port: 0,
             sup0: 0.0,
             sup1: 0.0,
         }
