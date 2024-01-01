@@ -332,9 +332,9 @@ impl TdcRef {
         Some((self.counter as TIME / 2) * self.period? + self.begin_time)
     }
 
-    pub fn electron_relative_time(&self, ele_time: TIME) -> TIME {
-        ele_time - self.begin_frame - VIDEO_TIME
-    }
+    //pub fn electron_relative_time(&self, ele_time: TIME) -> TIME {
+    //    ele_time - self.begin_frame - VIDEO_TIME
+    //}
     
     //This recovers the position of the probe given the TDC and the electron ToA. dT is the time from
     //the last frame begin
