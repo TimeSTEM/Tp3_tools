@@ -226,7 +226,7 @@ pub mod coincidence {
         }
         */
 
-        pub fn new(my_config: ConfigAcquisition<T>, my_settings: Settings) -> Self {
+        pub fn new(file_path: String, correction_type: T, my_settings: Settings) -> Self {
             Self {
                 reduced_raw_data: Vec::new(),
                 index_to_add_in_raw: Vec::new(),
@@ -238,17 +238,17 @@ pub mod coincidence {
                 x: Vec::new(),
                 y: Vec::new(),
                 tot: Vec::new(),
-                spim_frame: vec![0; (SPIM_PIXELS * my_config.xspim * my_config.yspim) as usize],
+                spim_frame: vec![0; (SPIM_PIXELS * my_settings.xspim_size * my_settings.yspim_size) as usize],
                 cluster_size: Vec::new(),
                 spectrum: vec![0; SPIM_PIXELS as usize],
                 corr_spectrum: vec![0; SPIM_PIXELS as usize],
-                is_spim: my_config.is_spim,
-                spim_size: (my_config.xspim, my_config.yspim),
+                is_spim: my_settings.mode != 0,
+                spim_size: (my_settings.xspim_size, my_settings.yspim_size),
                 spim_index: Vec::new(),
                 spim_tdc: None,
-                remove_clusters: my_config.correction_type,
+                remove_clusters: correction_type,
                 overflow_electrons: 0,
-                file: my_config.file,
+                file: file_path,
                 my_settings,
             }
         }
@@ -464,7 +464,7 @@ pub mod coincidence {
 
     pub fn check_for_error_in_tpx3_data<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<u32, Tp3ErrorKind> {
         let mut file0 = fs::File::open(&coinc_data.file).unwrap();
-        let spim_tdc = TdcRef::new_periodic_detailed(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
+        let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         
         let bar = ProgressBar::new(ISI_BUFFER_SIZE as u64);
@@ -526,7 +526,7 @@ pub mod coincidence {
             if coinc_data.spim_size.0 == 0 || coinc_data.spim_size.1 == 0 {
                 panic!("***Coincidence***: Spim mode is on. X and Y pixels must be greater than 0.");
             }
-            let temp = TdcRef::new_periodic_detailed(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
+            let temp = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
             coinc_data.prepare_spim(temp);
             temp
         } else {
@@ -602,7 +602,7 @@ pub mod coincidence {
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file).unwrap();
         let progress_size = file0.metadata().unwrap().len();
-        let mut spim_tdc = TdcRef::new_periodic_detailed(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
+        let mut spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         let mut tp3_tdc_counter = 0;
 		
@@ -767,7 +767,7 @@ pub mod coincidence {
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file)?;
         let progress_size = file0.metadata().unwrap().len();
-        let spim_tdc = TdcRef::new_periodic_detailed(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
+        let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
         //coinc_data.prepare_spim(spim_tdc);
     
         let (mut temp_tdc, max_total_size) = match correct_coincidence_isi(file2, coinc_data, 0) {
@@ -1214,7 +1214,7 @@ pub mod ntime_resolved {
         fn prepare(&mut self, file: &mut fs::File) -> Result<(), Tp3ErrorKind> {
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
-                    Some(TdcRef::new_periodic_detailed(self.spim_tdc_type.clone(), file, &self.my_settings).expect("Problem in creating periodic tdc ref."))
+                    Some(TdcRef::new_periodic(self.spim_tdc_type.clone(), file, &self.my_settings).expect("Problem in creating periodic tdc ref."))
                 },
                 Some(val) => Some(val),
                 _ => None,

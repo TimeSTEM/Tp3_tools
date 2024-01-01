@@ -1,6 +1,6 @@
 //use timepix3::tdclib::isi_box::{CHANNELS, IsiBoxTools, IsiBoxHand};
 //use timepix3::postlib::isi_box;
-use timepix3::postlib::coincidence::*;
+//use timepix3::postlib::coincidence::*;
 use timepix3::auxiliar::ConfigAcquisition;
 use timepix3::clusterlib::cluster;
 //use timepix3::cluster_correction;
@@ -12,13 +12,12 @@ use std::env;
 fn main() {
     let args: Vec<String> = env::args().collect();
     let cluster_correction_type = cluster::grab_cluster_correction(&args[5]);
-
-    let config_set = ConfigAcquisition::new(&args, cluster_correction_type);
+    let _config_set = ConfigAcquisition::new(&args, cluster_correction_type);
+    /*
+    //TODO: Must fix this otherwise no data will be output.
     let mut coinc_data = ElectronData::new(config_set);
     search_coincidence_isi(&args[6], &mut coinc_data).unwrap();
     
-    //TODO: Must fix this otherwise no data will be output.
-    /*
     coinc_data.output_spectrum();
     coinc_data.output_corr_spectrum();
     coinc_data.output_relative_time();

@@ -164,7 +164,7 @@ pub trait SpecKind {
     fn build_output(&self) -> &[u8];
     fn new(settings: &Settings) -> Self;
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_periodic_detailed(TdcType::TdcOneRisingEdge, pack, &my_settings)
+        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, &my_settings)
     }
     fn build_aux_tdc(&self) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
@@ -512,7 +512,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
             frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         }
     }
-    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
+    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
     }
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()

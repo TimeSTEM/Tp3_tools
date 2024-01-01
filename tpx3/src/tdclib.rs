@@ -462,7 +462,7 @@ impl TdcRef {
         Ok(per_ref)
     }
     */
-    pub fn new_periodic_detailed<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, my_settings: &Settings) -> Result<Self, Tp3ErrorKind> {
+    pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, my_settings: &Settings) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
         let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
         let start = Instant::now();
