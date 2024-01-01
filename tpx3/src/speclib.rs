@@ -163,8 +163,8 @@ pub trait SpecKind {
     fn is_ready(&self) -> bool;
     fn build_output(&self) -> &[u8];
     fn new(settings: &Settings) -> Self;
-    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, None, 1)
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_periodic_detailed(TdcType::TdcOneRisingEdge, pack, &my_settings)
     }
     fn build_aux_tdc(&self) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
@@ -480,7 +480,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
         }
     }
     fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
-    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<TdcRef, Tp3ErrorKind> {
+    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
@@ -540,7 +540,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
         }
     }
     fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
-    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<TdcRef, Tp3ErrorKind> {
+    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
@@ -598,7 +598,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrameHyperspec, L> {
         let index = frame_number * CAM_DESIGN.0 + pack.x();
         self.data[index as usize] += L::from_u16(pack.tot());
     }
-    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V) -> Result<TdcRef, Tp3ErrorKind> {
+    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
     fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
@@ -687,19 +687,19 @@ pub fn run_spectrum<V, U, Y>(mut pack: V, ns: U, my_settings: Settings, kind: Y)
     match my_settings.bytedepth {
         1 => {
             let mut measurement = kind.gen8(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack)?;
+            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings)?;
             let aux_tdc = measurement.build_aux_tdc()?;
             build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
         },
         2 => {
             let mut measurement = kind.gen16(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack)?;
+            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings)?;
             let aux_tdc = measurement.build_aux_tdc()?;
             build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
         },
         4 => {
             let mut measurement = kind.gen32(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack)?;
+            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings)?;
             let aux_tdc = measurement.build_aux_tdc()?;
             build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
         },

@@ -9,9 +9,8 @@ pub mod coincidence {
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
-    use std::collections::HashMap;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
-    use crate::auxiliar::ConfigAcquisition;
+    use crate::auxiliar::{Settings, ConfigAcquisition};
     use crate::auxiliar::{value_types::*, misc::{output_data, packet_change}};
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
@@ -46,7 +45,6 @@ pub mod coincidence {
         spectrum: Vec<u32>,
         corr_spectrum: Vec<u32>,
         spim_frame: Vec<u32>,
-        _frequency_list: HashMap<i16, u32>,
         is_spim: bool,
         spim_size: (POSITION, POSITION),
         spim_index: Vec<INDEXHYPERSPEC>,
@@ -54,6 +52,7 @@ pub mod coincidence {
         remove_clusters: T,
         overflow_electrons: COUNTER,
         file: String,
+        my_settings: Settings,
     }
 
     impl<T: ClusterCorrection> ElectronData<T> {
@@ -227,7 +226,7 @@ pub mod coincidence {
         }
         */
 
-        pub fn new(my_config: ConfigAcquisition<T>) -> Self {
+        pub fn new(my_config: ConfigAcquisition<T>, my_settings: Settings) -> Self {
             Self {
                 reduced_raw_data: Vec::new(),
                 index_to_add_in_raw: Vec::new(),
@@ -243,7 +242,6 @@ pub mod coincidence {
                 cluster_size: Vec::new(),
                 spectrum: vec![0; SPIM_PIXELS as usize],
                 corr_spectrum: vec![0; SPIM_PIXELS as usize],
-                _frequency_list: HashMap::new(),
                 is_spim: my_config.is_spim,
                 spim_size: (my_config.xspim, my_config.yspim),
                 spim_index: Vec::new(),
@@ -251,6 +249,7 @@ pub mod coincidence {
                 remove_clusters: my_config.correction_type,
                 overflow_electrons: 0,
                 file: my_config.file,
+                my_settings,
             }
         }
 
@@ -465,7 +464,7 @@ pub mod coincidence {
 
     pub fn check_for_error_in_tpx3_data<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<u32, Tp3ErrorKind> {
         let mut file0 = fs::File::open(&coinc_data.file).unwrap();
-        let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER), 1).expect("Could not create period TDC reference.");
+        let spim_tdc = TdcRef::new_periodic_detailed(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         
         let bar = ProgressBar::new(ISI_BUFFER_SIZE as u64);
@@ -527,7 +526,7 @@ pub mod coincidence {
             if coinc_data.spim_size.0 == 0 || coinc_data.spim_size.1 == 0 {
                 panic!("***Coincidence***: Spim mode is on. X and Y pixels must be greater than 0.");
             }
-            let temp = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER), 1).expect("Could not create period TDC reference.");
+            let temp = TdcRef::new_periodic_detailed(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
             coinc_data.prepare_spim(temp);
             temp
         } else {
@@ -603,7 +602,7 @@ pub mod coincidence {
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file).unwrap();
         let progress_size = file0.metadata().unwrap().len();
-        let mut spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER), 1).expect("Could not create period TDC reference.");
+        let mut spim_tdc = TdcRef::new_periodic_detailed(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
         coinc_data.prepare_spim(spim_tdc);
         let mut tp3_tdc_counter = 0;
 		
@@ -768,7 +767,7 @@ pub mod coincidence {
         //TP3 configurating TDC Ref
         let mut file0 = fs::File::open(&coinc_data.file)?;
         let progress_size = file0.metadata().unwrap().len();
-        let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, Some(coinc_data.spim_size.1 as COUNTER), 1).expect("Could not create period TDC reference.");
+        let spim_tdc = TdcRef::new_periodic_detailed(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
         //coinc_data.prepare_spim(spim_tdc);
     
         let (mut temp_tdc, max_total_size) = match correct_coincidence_isi(file2, coinc_data, 0) {
@@ -1184,7 +1183,7 @@ pub mod ntime_resolved {
     use crate::tdclib::{TdcType, TdcRef};
     use crate::errorlib::Tp3ErrorKind;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
-    use crate::auxiliar::{misc::{packet_change, output_data}, value_types::*, ConfigAcquisition};
+    use crate::auxiliar::{misc::{packet_change, output_data}, value_types::*, ConfigAcquisition, Settings};
     //use crate::constlib::*;
     use std::io::prelude::*;
     use std::convert::TryInto;
@@ -1208,13 +1207,14 @@ pub mod ntime_resolved {
         remove_clusters: T,
         file: String,
         fourd_data: bool,
+        my_settings: Settings,
     }
 
     impl<T: ClusterCorrection> TimeSpectralSpatial<T> {
         fn prepare(&mut self, file: &mut fs::File) -> Result<(), Tp3ErrorKind> {
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
-                    Some(TdcRef::new_periodic(self.spim_tdc_type.clone(), file, Some(self.spimy as COUNTER), 1).expect("Problem in creating periodic tdc ref."))
+                    Some(TdcRef::new_periodic_detailed(self.spim_tdc_type.clone(), file, &self.my_settings).expect("Problem in creating periodic tdc ref."))
                 },
                 Some(val) => Some(val),
                 _ => None,
@@ -1311,7 +1311,7 @@ pub mod ntime_resolved {
             Ok(())
         }
         
-        pub fn new(my_config: ConfigAcquisition<T>, fourd_data: bool) -> Result<Self, Tp3ErrorKind> {
+        pub fn new(my_config: ConfigAcquisition<T>, my_settings: Settings) -> Result<Self, Tp3ErrorKind> {
 
             Ok(Self {
                 hyperspec_index: Vec::new(),
@@ -1328,7 +1328,8 @@ pub mod ntime_resolved {
                 extra_tdc_type: TdcType::TdcTwoRisingEdge,
                 remove_clusters: my_config.correction_type,
                 file: my_config.file,
-                fourd_data,
+                fourd_data: my_settings.mode != 2,
+                my_settings,
                 
             })
         }

@@ -27,14 +27,14 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             Ok(my_settings.mode)
         },
         2 => {
-            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size as COUNTER), 1)?;
+            let spim_tdc = TdcRef::new_periodic_detailed(TdcType::TdcOneFallingEdge, &mut pack, &my_settings)?;
             let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)?;
             let measurement = spimlib::Live::new(&my_settings);
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None)?;
             Ok(my_settings.mode)
         },
         3 => {
-            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size as COUNTER), 1)?;
+            let spim_tdc = TdcRef::new_periodic_detailed(TdcType::TdcOneFallingEdge, &mut pack, &my_settings)?;
             let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)?;
             let measurement = spimlib::LiveFrame4D::new(&my_settings);
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None)?;
@@ -45,7 +45,6 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             Ok(my_settings.mode)
         },
         7 => {
-            //speclib::run_spectrum(pack, ns, my_settings, speclib::Chrono)?;
             speclib::run_spectrum(pack, ns, my_settings, speclib::Coincidence2D)?;
             Ok(my_settings.mode)
         },
@@ -62,24 +61,23 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             Ok(my_settings.mode)
         },
         12 => {
-            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size as COUNTER), 1)?;
+            let spim_tdc = TdcRef::new_periodic_detailed(TdcType::TdcOneFallingEdge, &mut pack, &my_settings)?;
             let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)?;
             let measurement = spimlib::LiveCoincidence::new(&my_settings);
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None)?;
             Ok(my_settings.mode)
         },
         13 => {
-            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size as COUNTER), 1)?;
+            let spim_tdc = TdcRef::new_periodic_detailed(TdcType::TdcOneFallingEdge, &mut pack, &my_settings)?;
             let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)?;
             let measurement = spimlib::Live4D::new(&my_settings);
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None)?;
             Ok(my_settings.mode)
         },
         14 => {
-            let ratio = my_settings.xscan_size / my_settings.xspim_size;
             let number_of_points = my_settings.xscan_size * my_settings.yscan_size;
             let vec_list = spimlib::LiveScanList::create_list(&ns, number_of_points)?;
-            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, Some(my_settings.yspim_size as COUNTER), ratio)?;
+            let spim_tdc = TdcRef::new_periodic_detailed(TdcType::TdcOneFallingEdge, &mut pack, &my_settings)?;
             let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)?;
             let measurement = spimlib::LiveScanList::new(&my_settings);
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, Some(&vec_list))?;

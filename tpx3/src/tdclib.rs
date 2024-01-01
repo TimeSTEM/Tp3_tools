@@ -237,7 +237,7 @@ impl TdcType {
 
 use std::time::{Duration, Instant};
 use crate::errorlib::Tp3ErrorKind;
-use crate::auxiliar::misc::TimepixRead;
+use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
 
@@ -255,6 +255,7 @@ pub struct TdcRef {
     low_time: Option<TIME>,
     ticks_to_frame: Option<COUNTER>,
     subsample: POSITION,
+    video_delay: TIME,
     begin_frame: TIME,
     new_frame: bool,
 }
@@ -416,7 +417,7 @@ impl TdcRef {
             Some(ele_time - self.begin_frame - VIDEO_TIME)
         }
     }
-
+    /*
     pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, ticks_to_frame: Option<COUNTER>, subsample: COUNTER) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
         let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
@@ -450,6 +451,53 @@ impl TdcRef {
             begin_frame: begin_time,
             ticks_to_frame,
             subsample,
+            video_delay: 0,
+            period: Some(period),
+            high_time: Some(high_time),
+            low_time: Some(low_time),
+            new_frame: false,
+            time: last_time,
+        };
+        println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
+        Ok(per_ref)
+    }
+    */
+    pub fn new_periodic_detailed<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, my_settings: &Settings) -> Result<Self, Tp3ErrorKind> {
+        let mut buffer_pack_data = vec![0; 16384];
+        let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
+        let start = Instant::now();
+
+        println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
+        loop {
+            if start.elapsed() > Duration::from_secs(TDC_TIMEOUT) {return Err(Tp3ErrorKind::TdcNoReceived)}
+            if let Ok(size) = sock.read_timepix(&mut buffer_pack_data) {
+                tdc_search.search_specific_tdc(&buffer_pack_data[0..size]);
+                if tdc_search.check_tdc()? {break;}
+            }
+        }
+        println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
+        //TDC abs is used, so we should divide by a factor of 6 here to be back on electron clock
+        //tick.
+        let ratio = my_settings.xscan_size / my_settings.xspim_size;
+        let ticks_to_frame = Some(my_settings.yspim_size);
+        let counter_offset = tdc_search.get_counter_offset();
+        let begin_time = tdc_search.get_begintime() / 6;
+        let last_time = tdc_search.get_lasttime() / 6;
+        let high_time = tdc_search.find_high_time()? / 6;
+        let period = tdc_search.find_period()? / 6;
+        let low_time = period - high_time;
+
+        let per_ref = Self {
+            tdctype: tdc_type.associate_value(),
+            counter: 0,
+            counter_offset,
+            last_hard_counter: 0,
+            counter_overflow: 0,
+            begin_time,
+            begin_frame: begin_time,
+            ticks_to_frame,
+            subsample: ratio,
+            video_delay: my_settings.video_time,
             period: Some(period),
             high_time: Some(high_time),
             low_time: Some(low_time),
@@ -475,6 +523,7 @@ impl TdcRef {
             begin_frame: begin_time,
             ticks_to_frame: None,
             subsample: 1,
+            video_delay: 0,
             period: None,
             high_time: None,
             low_time: None,

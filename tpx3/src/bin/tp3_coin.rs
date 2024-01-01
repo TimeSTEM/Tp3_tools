@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Ok(settings) = Settings::get_settings_from_json(&dir[0..path_length - 5]) {
                 let config_set = ConfigAcquisition{file: dir.to_owned(), is_spim: settings.mode != 0, xspim: settings.xscan_size, yspim: settings.yscan_size, correction_type: cluster::grab_cluster_correction(cluster_correction)};
                 println!("***Coincidence***: File {} has the following settings from json: {:?}.", dir, settings);
-                let mut coinc_data = ElectronData::new(config_set);
+                let mut coinc_data = ElectronData::new(config_set, settings);
                 if let Err(_) = search_coincidence(&mut coinc_data) {
                     println!("***Coincidence***: Skipping file {}. Possibly already done it.", dir);
                 }
