@@ -10,8 +10,7 @@ pub mod coincidence {
     use std::fs;
     use std::convert::TryInto;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
-    use crate::auxiliar::{Settings, ConfigAcquisition};
-    use crate::auxiliar::{value_types::*, misc::{output_data, packet_change}};
+    use crate::auxiliar::{Settings, value_types::*, misc::{output_data, packet_change}};
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
     //use rayon::prelude::*;

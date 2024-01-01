@@ -396,9 +396,8 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
     }
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
-        let mut temp_vec = vec![L::zero(); len];
-        temp_vec[len] = L::ten();
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: FastChrono}
+        let data = vec![L::zero(); len];
+        SpecMeasurement{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: FastChrono}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
@@ -430,9 +429,8 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
     }
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
-        let mut temp_vec = vec![L::zero(); len];
-        temp_vec[len] = L::ten();
-        SpecMeasurement{ data: temp_vec, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Chrono}
+        let data = vec![L::zero(); len];
+        SpecMeasurement{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Chrono}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
@@ -565,7 +563,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
             frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         }
     }
-    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
+    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
         //Empty. The shutter control defines the behaviour and not the TCP stack
     }
     fn shutter_control(&self) -> Option<&ShutterControl> {

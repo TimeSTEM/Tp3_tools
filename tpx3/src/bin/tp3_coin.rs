@@ -1,5 +1,5 @@
 use timepix3::postlib::coincidence::*;
-use timepix3::auxiliar::{ConfigAcquisition, Settings};
+use timepix3::auxiliar::Settings;
 use timepix3::clusterlib::cluster;
 use std::{fs, env};
 use rayon::prelude::*;

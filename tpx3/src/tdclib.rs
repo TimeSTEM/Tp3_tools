@@ -121,7 +121,7 @@ mod tdcvec {
             }
         }
         
-        pub fn get_counter(&self) -> Result<COUNTER, Tp3ErrorKind> {
+        fn get_counter(&self) -> Result<COUNTER, Tp3ErrorKind> {
             let counter = self.data.iter()
                 .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
                 .count() as COUNTER;
@@ -132,7 +132,7 @@ mod tdcvec {
             self.initial_counter.expect("***Tdc Lib***: Tdc initial counter offset was not found.")
         }
 
-        pub fn get_last_hardware_counter(&self) -> u16 {
+        fn get_last_hardware_counter(&self) -> u16 {
             self.last_counter
         }
 
@@ -321,7 +321,11 @@ impl TdcRef {
     }
     
     pub fn pixel_time(&self, xspim: POSITION) -> Option<TIME> {
-        Some(self.low_time? / xspim as TIME)
+        if UNIFORM_PIXEL {
+            Some(self.period? / xspim as TIME)
+        } else {
+            Some(self.low_time? / xspim as TIME)
+        }
     }
 
     pub fn estimate_time(&self) -> Option<TIME> {
@@ -404,64 +408,19 @@ impl TdcRef {
     #[inline]
     pub fn correct_or_not_etime(&self, mut ele_time: TIME) -> Option<TIME> {
         if SYNC_MODE == 0 {
-            if ele_time < self.begin_frame + VIDEO_TIME {
-                let factor = (self.begin_frame + VIDEO_TIME - ele_time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
+            if ele_time < self.begin_frame + VIDEO_TIME + self.video_delay{
+                let factor = (self.begin_frame + VIDEO_TIME + self.video_delay - ele_time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
                 ele_time += self.period?*(self.subsample*self.ticks_to_frame?) as TIME * factor;
             }
-            Some(ele_time - self.begin_frame - VIDEO_TIME)
+            Some(ele_time - self.begin_frame - VIDEO_TIME - self.video_delay)
         } else {
-            if ele_time < self.time + VIDEO_TIME {
-                let factor = (self.time + VIDEO_TIME - ele_time) / (self.period?) + 1;
+            if ele_time < self.time + VIDEO_TIME + self.video_delay {
+                let factor = (self.time + VIDEO_TIME + self.video_delay - ele_time) / (self.period?) + 1;
                 ele_time += self.period? * factor * self.current_line()? as u64;
             }
-            Some(ele_time - self.begin_frame - VIDEO_TIME)
+            Some(ele_time - self.begin_frame - VIDEO_TIME - self.video_delay)
         }
     }
-    /*
-    pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, ticks_to_frame: Option<COUNTER>, subsample: COUNTER) -> Result<Self, Tp3ErrorKind> {
-        let mut buffer_pack_data = vec![0; 16384];
-        let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
-        let start = Instant::now();
-
-        println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
-        loop {
-            if start.elapsed() > Duration::from_secs(TDC_TIMEOUT) {return Err(Tp3ErrorKind::TdcNoReceived)}
-            if let Ok(size) = sock.read_timepix(&mut buffer_pack_data) {
-                tdc_search.search_specific_tdc(&buffer_pack_data[0..size]);
-                if tdc_search.check_tdc()? {break;}
-            }
-        }
-        println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
-        //TDC abs is used, so we should divide by a factor of 6 here to be back on electron clock
-        //tick.
-        let counter_offset = tdc_search.get_counter_offset();
-        let begin_time = tdc_search.get_begintime() / 6;
-        let last_time = tdc_search.get_lasttime() / 6;
-        let high_time = tdc_search.find_high_time()? / 6;
-        let period = tdc_search.find_period()? / 6;
-        let low_time = period - high_time;
-
-        let per_ref = Self {
-            tdctype: tdc_type.associate_value(),
-            counter: 0,
-            counter_offset,
-            last_hard_counter: 0,
-            counter_overflow: 0,
-            begin_time,
-            begin_frame: begin_time,
-            ticks_to_frame,
-            subsample,
-            video_delay: 0,
-            period: Some(period),
-            high_time: Some(high_time),
-            low_time: Some(low_time),
-            new_frame: false,
-            time: last_time,
-        };
-        println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
-        Ok(per_ref)
-    }
-    */
     pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, my_settings: &Settings) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
         let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
@@ -478,8 +437,16 @@ impl TdcRef {
         println!("***Tdc Lib***: {} has been found.", tdc_type.associate_str());
         //TDC abs is used, so we should divide by a factor of 6 here to be back on electron clock
         //tick.
+        
+        //These are the modes that we use the spatia resolution:
+        let mode = my_settings.mode;
+        let ticks_to_frame = if mode == 2 || mode == 3 || mode == 12 || mode == 13 || mode == 14 {
+            Some(my_settings.yspim_size)
+        } else {
+            None
+        };
+
         let ratio = my_settings.xscan_size / my_settings.xspim_size;
-        let ticks_to_frame = Some(my_settings.yspim_size);
         let counter_offset = tdc_search.get_counter_offset();
         let begin_time = tdc_search.get_begintime() / 6;
         let last_time = tdc_search.get_lasttime() / 6;

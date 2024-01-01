@@ -177,6 +177,7 @@ impl Settings {
 
     }
 
+    /*
     fn create_spec_debug_settings<T: ClusterCorrection>(_config: &ConfigAcquisition<T>) -> Settings  {
         Settings {
             bin: false,
@@ -224,18 +225,16 @@ impl Settings {
             sup1: 0.0,
         }
     }
+    */
 
     
-    pub fn create_debug_settings<T: ClusterCorrection>(config: &ConfigAcquisition<T>) -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
+    pub fn create_debug_settings() -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
     
-        let my_settings = match config.is_spim {
-            true => Settings::create_spim_debug_settings(config),
-            false => Settings::create_spec_debug_settings(config),
-        };
-        
+        println!("{:?}", READ_DEBUG_FILE_JSON);
+        let my_settings = Settings::get_settings_from_json(READ_DEBUG_FILE_JSON)?;
         println!("Received settings is {:?}. Mode is {}.", my_settings, my_settings.mode);
 
-        let in_file = match File::open(&config.file) {
+        let in_file = match File::open(READ_DEBUG_FILE) {
             Ok(file) => file,
             Err(_) => return Err(Tp3ErrorKind::SetNoReadFile),
         };
