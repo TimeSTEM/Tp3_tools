@@ -461,7 +461,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
 
 impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
     fn is_ready(&self) -> bool {
-        self.is_ready
+        self.is_ready && (self.timer.elapsed().as_millis() > TIME_INTERVAL_FRAMES)
     }
     fn build_output(&self) -> &[u8] {
         aux_func::as_bytes(&self.data)
@@ -494,7 +494,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
                         }
                     } else {
                         self.is_ready = true;
-                        self.timer = Instant::now();
                     }
                 }
             } else {
@@ -511,6 +510,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
         }
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
+        self.timer = Instant::now();
     }
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()
@@ -519,7 +519,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
 
 impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
     fn is_ready(&self) -> bool {
-        self.is_ready
+        self.is_ready && (self.timer.elapsed().as_millis() > TIME_INTERVAL_FRAMES)
     }
     fn build_output(&self) -> &[u8] {
         aux_func::as_bytes(&self.data)
@@ -564,7 +564,9 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
         }
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
-        //Empty. The shutter control defines the behaviour and not the TCP stack
+        //Empty. The shutter control defines the behaviour and not the TCP stack, but we reset the
+        //timer
+        self.timer = Instant::now();
     }
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()
