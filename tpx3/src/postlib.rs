@@ -241,7 +241,7 @@ pub mod coincidence {
                 cluster_size: Vec::new(),
                 spectrum: vec![0; SPIM_PIXELS as usize],
                 corr_spectrum: vec![0; SPIM_PIXELS as usize],
-                is_spim: my_settings.mode != 0,
+                is_spim: my_settings.mode == 2,
                 spim_size: (my_settings.xspim_size, my_settings.yspim_size),
                 spim_index: Vec::new(),
                 spim_tdc: None,

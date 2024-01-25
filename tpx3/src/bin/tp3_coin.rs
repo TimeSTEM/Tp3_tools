@@ -19,8 +19,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 
     For this particular script:
-        -> (mode== 0) => No hyperspectral image;
-        -> (mode!= 0) => Hyperspectral image;
+        -> (mode != 0) => No hyperspectral image;
+        -> (mode == 2) => Hyperspectral image;
             o xscan_size & yscan_size => Hyperspectral image sampling;
         -> Cluster correction can be activated by parsing a second argument, varying from 0 to 5. There are three automatic cluster correction settings:
             o '0' => No correction;
@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             } else {
                 println!("***Coincidence***: Skipping file {}. No JSON file is present.", dir);
-            }
+         }
 
             
             /*

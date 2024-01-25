@@ -24,7 +24,7 @@ pub const REMOVE_RETURN: bool = true; //This removes the electrons in the flybac
 pub const INVERSE_DETECTOR: bool = false;
 
 //***List***//
-pub const UNIFORM_PIXEL: bool = true; //Assumption that the time per pixel is uniform.
+pub const UNIFORM_PIXEL: bool = false; //Assumption that the time per pixel is uniform.
 pub const DACX_BITDEPTH: usize = 14;
 pub const DACY_BITDEPTH: usize = 14;
 
