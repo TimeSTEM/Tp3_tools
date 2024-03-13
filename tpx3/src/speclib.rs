@@ -262,9 +262,14 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         add_index!(self, CAM_DESIGN.0-1);
     }
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, _settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        self.is_ready = true;
+        if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
+            self.reset_or_else(frame_tdc, settings);
+        } else {
+            self.is_ready = true;
+            self.timer = Instant::now();
+        }
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
         self.is_ready = false;
