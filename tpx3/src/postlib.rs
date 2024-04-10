@@ -9,7 +9,7 @@ pub mod coincidence {
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
-    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
+    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, SinglePhoton, CollectionPhoton};
     use crate::auxiliar::{Settings, value_types::*, misc::{output_data, packet_change}};
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
@@ -104,22 +104,17 @@ pub mod coincidence {
             None
         }
 
-        fn add_coincident_electron(&mut self, val: SingleElectron, photon: TdcStructureData) {
+        fn add_coincident_electron(&mut self, val: SingleElectron, photon: SinglePhoton) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
             self.time.push(val.time());
-            self.g2_time.push(photon.2);
+            self.g2_time.push(photon.g2_time());
             self.tot.push(val.tot());
             self.x.push(val.x().try_into().unwrap());
             self.y.push(val.y().try_into().unwrap());
-            self.channel.push(photon.1.try_into().unwrap());
-            self.rel_time.push(val.relative_time_from_abs_tdc(photon.0).fold());
+            self.channel.push(photon.channel().try_into().unwrap());
+            self.rel_time.push(val.relative_time_from_abs_tdc(photon.time()).fold());
             self.cluster_size.push(val.cluster_size().try_into().unwrap());
-            
-            
-            //This is a frequency list. Helps to preview data. Currently unsused
-            //let mut count = self.frequency_list.entry(val.relative_time_from_abs_tdc(photon.0).fold()).or_insert(0);
-            //*count += 1;
             
             match val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 Some(index) => self.spim_index.push(index),
@@ -128,9 +123,9 @@ pub mod coincidence {
         }
         
         fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME, line_offset: i64) {
-            let _ntotal = temp_tdc.tdc.len();
-            let nphotons = temp_tdc.tdc.iter().
-                filter(|(_time, channel, _dt, _hyp_index)| *channel != 16 && *channel != 24).
+            let _ntotal = temp_tdc.event_list.len();
+            let nphotons = temp_tdc.event_list.iter().
+                filter(|se| se.channel() != 16 && se.channel() != 24).
                 count();
             let mut min_index = temp_tdc.min_index;
             //println!("Total supplementary events: {}. Photons: {}. Minimum size of the array: {}.", ntotal, nphotons, min_index);
@@ -148,11 +143,20 @@ pub mod coincidence {
             temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, &self.remove_clusters);
 
-            self.spectrum[SPIM_PIXELS as usize-1]+=nphotons as u32; //Adding photons to the last pixel
-            for ph in temp_tdc.clean_tdc.iter().filter(|ph| ph.3.is_some()) {
-                self.spim_frame[ph.3.unwrap() as usize] += 1;
+
+            //Adding photons to the last pixel
+            self.spectrum[SPIM_PIXELS as usize-1]+=nphotons as u32;
+            //for ph_index in temp_tdc.event_list.data.iter().filter_map(|ph| ph.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1)) {
+            //    self.spim_frame[ph_index as usize] += 1;
+            //}
+            for ph_index in temp_tdc.event_list.iter() {
+                let index =  ph_index.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1);
+                if let Some(index) = index {
+                    self.spim_frame[index as usize] += 1;
+                }
             }
 
+            //Correcting for lines
             let line_period_offset = match self.spim_tdc { //Adding lineoffset for data
                 Some(spim_tdc) => line_offset * spim_tdc.period().unwrap() as i64,
                 None => 0,
@@ -164,8 +168,8 @@ pub mod coincidence {
                 let mut photons_per_electron = 0;
                 let mut index = 0;
                 let mut index_to_increase = None;
-                for ph in &temp_tdc.clean_tdc[min_index..] {
-                    let new_photon_time = ((ph.0 / 6) as i64 + line_period_offset) as TIME;
+                for ph in temp_tdc.event_list.iter().skip(min_index) {
+                    let new_photon_time = ((ph.time() / 6) as i64 + line_period_offset) as TIME;
                     if (new_photon_time < val.time() + time_delay + time_width) && (val.time() + time_delay < new_photon_time + time_width) {
                         self.add_coincident_electron(*val, *ph);
                         if photons_per_electron == 0 { //The electrons is only added once. There could be multiple photons for the same electron
@@ -177,9 +181,9 @@ pub mod coincidence {
                         photons_per_electron += 1;
                         if photons_per_electron == 2 {
                             self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon).fold());
-                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.0).fold());
+                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.time()).fold());
                         }
-                        first_corr_photon = ph.0;
+                        first_corr_photon = ph.time();
 
                     }
                     if new_photon_time > val.time() + time_delay + 10_000 {break;}
@@ -333,8 +337,9 @@ pub mod coincidence {
     //the absolute time, the channel, the g2_dT, and the spim index;
     pub type TdcStructureData = (TIME, COUNTER, Option<i16>, Option<INDEXHYPERSPEC>);
     pub struct TempTdcData {
-        tdc: Vec<TdcStructureData>,
-        clean_tdc: Vec<TdcStructureData>,
+        event_list: CollectionPhoton,
+        //tdc: Vec<TdcStructureData>,
+        //clean_tdc: Vec<TdcStructureData>,
         min_index: usize,
         tdc_type: TempTdcDataType,
     }
@@ -342,16 +347,29 @@ pub mod coincidence {
     impl TempTdcData {
         fn new() -> Self {
             Self {
-                tdc: Vec::new(),
-                clean_tdc: Vec::new(),
+                event_list: CollectionPhoton::new(),
+                //tdc: Vec::new(),
+                //clean_tdc: Vec::new(),
                 min_index: 0,
                 tdc_type: TempTdcDataType::FromTP3,
             }
         }
+        
+        fn add_photon(&mut self, photon: SinglePhoton) {
+            self.event_list.add_photon(photon)
+        }
 
+        fn sort(&mut self) {
+            self.event_list.sort();
+            //self.tdc.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
+            //self.clean_tdc = self.tdc.iter().filter(|ph| ph.1 != 16 && ph.1 != 24).cloned().collect::<Vec<_>>();
+        }
+
+        /*
         fn new_from_isilist(list: isi_box::IsiList) -> Self {
             let vec_list = list.get_timelist_with_tp3_tick();
             Self {
+                event_list: CollectionPhoton::new(),
                 tdc: vec_list,
                 clean_tdc: Vec::new(),
                 min_index: 0,
@@ -368,20 +386,10 @@ pub mod coincidence {
                 filter(|((_time, _channel, _dt, _hyp_index), corr)| corr.is_some()).
                 for_each(|((time, _channel, _dt, _hyp_index), corr)| {
                 *time += corr.unwrap();
-                //*time = *time - (*time / (Pack::electron_overflow() * 6)) * (Pack::electron_overflow() * 6);
                 *corr = Some(0);
             });
-            //println!("{:?}", self.tdc.get(0..100));
         }
 
-        /*
-        fn correct_tdc_by_line(&mut self) {
-            self.tdc.iter_mut().for_each(|(time, _channel, _dt)| 
-                                         *time = *time + line_period
-                                         );
-        }
-        */
-        
         pub fn get_sync(&self) -> Vec<(usize, TIME)> {
             self.tdc.iter().
                 enumerate().
@@ -398,15 +406,12 @@ pub mod coincidence {
                 self.tdc.push((my_pack.tdc_time_abs_norm(), channel, None, None));
             }
         }
+        */
 
-        fn sort(&mut self) {
-            self.tdc.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-            self.clean_tdc = self.tdc.iter().filter(|ph| ph.1 != 16 && ph.1 != 24).cloned().collect::<Vec<_>>();
-        }
     }
 
+    /*
     struct IsiBoxCorrectVector(Vec<Option<TIME>>, usize);
-
     impl IsiBoxCorrectVector {
         #[inline]
         fn add_offset(&mut self, max_index: usize, value: TIME) {
@@ -415,6 +420,7 @@ pub mod coincidence {
             self.1 = max_index
         }
     }
+    */
 
 
     pub struct TempElectronData {
@@ -435,6 +441,7 @@ pub mod coincidence {
     }
 
 
+    /*
     pub fn check_for_error_in_tpx3_data<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<u32, Tp3ErrorKind> {
         let mut file0 = fs::File::open(&coinc_data.file).unwrap();
         let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
@@ -481,6 +488,7 @@ pub mod coincidence {
         println!("***IsiBox***: Timepix3-only data showed {} line errors.", last_index);
         Ok(last_index)
     }
+    */
             
 
     pub fn search_coincidence<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<(), Tp3ErrorKind> {
@@ -539,14 +547,17 @@ pub mod coincidence {
                     _ => {
                         match packet.id() {
                             6 if packet.tdc_type() == np_tdc.id() => {
-                                temp_tdc.add_tdc(&packet, 0, coinc_data.spim_tdc, coinc_data.spim_size.0, coinc_data.spim_size.1);
+                                let photon = SinglePhoton::new(&packet, 0, coinc_data.spim_tdc, current_raw_index);
+                                temp_tdc.add_photon(photon);
+                                //temp_tdc.add_tdc(&packet, 0, coinc_data.spim_tdc, coinc_data.spim_size.0, coinc_data.spim_size.1);
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
                             },
                             6 if packet.tdc_type() == main_tdc.id() => {
                                 if coinc_data.is_spim {
                                     coinc_data.add_spim_line(&packet);
-                                } else {
-                                    temp_tdc.add_tdc(&packet, 1, coinc_data.spim_tdc, coinc_data.spim_size.0, coinc_data.spim_size.1);
+                                } else { //if its not synchronized measurement, this tdc is used as a event-channel.
+                                    let photon = SinglePhoton::new(&packet, 1, coinc_data.spim_tdc, current_raw_index);
+                                    temp_tdc.add_photon(photon);
                                 }
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
                             },
@@ -570,6 +581,7 @@ pub mod coincidence {
         Ok(())
     }
     
+    /*
     pub fn correct_coincidence_isi<T: ClusterCorrection>(file2: &str, coinc_data: &mut ElectronData<T>, jump_tp3_tdc: u32) -> Result<(TempTdcData, usize), Tp3ErrorKind> {
     
         //TP3 configurating TDC Ref
@@ -802,6 +814,7 @@ pub mod coincidence {
         println!("***IsiBox***: Coincidence search is over.");
         Ok(())
     }
+        */
 }
 
 pub mod isi_box {

@@ -21,9 +21,9 @@ pub const ELECTRON_OVERFLOW: TIME = 17_179_869_184;
 pub const TDC_OVERFLOW: TIME = 68_719_476_736;
 pub const SYNC_MODE: u8 = 0; //0 synchronizes on the frame, 1 synchronizes on the line.
 pub const REMOVE_RETURN: bool = true; //This removes the electrons in the flyback mode. UNIFORM_PIXEL must be false to this in order to take place.
-pub const INVERSE_DETECTOR: bool = true;
-pub const INTERNAL_TIMER_FRAME: bool = false;
-pub const HIGH_DYNAMIC_FRAME_BASED: bool = false;
+pub const INVERSE_DETECTOR: bool = true; //This mirror the detector in the dispersive direction (EELS);
+pub const INTERNAL_TIMER_FRAME: bool = false; //If true, the TDC is not needed for event-based acquisition in focus mode;
+pub const HIGH_DYNAMIC_FRAME_BASED: bool = false; //This sums up 10 frames when using the frame-based mode;
 
 //***List***//
 pub const UNIFORM_PIXEL: bool = false; //Assumption that the time per pixel is uniform.

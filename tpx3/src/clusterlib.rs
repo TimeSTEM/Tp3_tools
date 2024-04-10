@@ -328,6 +328,51 @@ pub mod cluster {
             spimlib::get_return_4dindex(self.x(), self.y(), self.frame_dt(), &spim_tdc?, xspim, yspim)
         }
     }
+
+    pub struct CollectionPhoton {
+        index: usize,
+        data: Vec<SinglePhoton>
+    }
+    impl CollectionPhoton {
+        pub fn new() -> Self {
+            CollectionPhoton {
+                index: 0,
+                data: Vec::new(),
+            }
+        }
+        pub fn add_photon(&mut self, photon: SinglePhoton) {
+            self.data.push(photon);
+        }
+        pub fn len(&self) -> usize {
+            self.data.len()
+        }
+        pub fn sort(&mut self) {
+            self.data.sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
+        }
+    }
+
+    //Implementing Deref means that when struct<CollectionPhoton>.iter() is called, the struc will
+    //be dereferenced into self.data directly
+    impl Deref for CollectionPhoton {
+        type Target = Vec<SinglePhoton>;
+        fn deref(&self) -> &Self::Target {
+            &self.data
+        }
+    }
+
+    /*
+    impl Iterator for &CollectionPhoton {
+        type Item = &SinglePhoton;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let value = self.data.get(self.index);
+            self.index = self.index + 1;
+            value
+        }
+    }
+    */
+
+
     
     ///The absolute time (units of 260 ps), the channel, the g2_dT, Spim dT, raw packet, packet_index
     #[derive(Copy, Clone, Debug)]
@@ -350,6 +395,21 @@ pub mod cluster {
                     }
                 }
             }
+        }
+        pub fn channel(&self) -> COUNTER {
+            self.data.1
+        }
+        pub fn get_or_not_spim_index(&self, spim_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEXHYPERSPEC> {
+            spimlib::get_spimindex(SPIM_PIXELS-1, self.frame_dt(), &spim_tdc?, xspim, yspim, None)
+        }
+        pub fn frame_dt(&self) -> TIME {
+            self.data.3
+        }
+        pub fn time(&self) -> TIME {
+            self.data.0
+        }
+        pub fn g2_time(&self) -> Option<i16> {
+            self.data.2
         }
     }
 
