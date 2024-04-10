@@ -66,7 +66,8 @@ pub mod coincidence {
 
         //This adds the index of the 64-bit packet that will be afterwards added to the reduced
         //raw. We should not do on the fly as the order of the packets will not be preserved for
-        //photons and electrons, for example. So we should run once and then run again for the
+        //photons and electrons, for example (we would add one photon but then check later if there
+        //is a correspondent electron). So we should run once and then run again for the
         //recorded indexes.
         fn add_packet_to_raw_index(&mut self, index: usize) {
             self.index_to_add_in_raw.push(index);
@@ -86,9 +87,10 @@ pub mod coincidence {
         }
 
         fn add_spim_line(&mut self, pack: &Pack) {
-            if let Some(spim_tdc) = &mut self.spim_tdc {
-                spim_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-            }
+            //This must be called only if "self.spim" is Some(TdcRef). Otherwise this channel is
+            //another photon
+            self.spim_tdc.expect("Inconsistence in TdcRef regarding spectral imaging.")
+                .upt(pack.tdc_time_norm(), pack.tdc_counter());
         }
 
         fn estimate_overflow(&self, pack: &Pack) -> Option<TIME> {
@@ -101,19 +103,6 @@ pub mod coincidence {
             }
             None
         }
-
-        /*
-        fn add_coincident_electron_to_raw(&mut self, val: SingleElectron) {
-            let new_header = val.raw_packet_header();
-            //This raw_packet_header() method depends only on the chip_index so we can simply check
-            //if it changed or not.
-            if new_header != self.last_raw_header {
-                self.reduced_raw_data.push(new_header);
-                self.last_raw_header = new_header;
-            }
-            self.reduced_raw_data.push(val.raw_packet_data());
-        }
-        */
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon: TdcStructureData) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
@@ -164,7 +153,7 @@ pub mod coincidence {
                 self.spim_frame[ph.3.unwrap() as usize] += 1;
             }
 
-            let line_period_offset = match self.spim_tdc {
+            let line_period_offset = match self.spim_tdc { //Adding lineoffset for data
                 Some(spim_tdc) => line_offset * spim_tdc.period().unwrap() as i64,
                 None => 0,
             };
@@ -180,7 +169,6 @@ pub mod coincidence {
                     if (new_photon_time < val.time() + time_delay + time_width) && (val.time() + time_delay < new_photon_time + time_width) {
                         self.add_coincident_electron(*val, *ph);
                         if photons_per_electron == 0 { //The electrons is only added once. There could be multiple photons for the same electron
-                            //self.add_coincident_electron_to_raw(*val);
                             self.add_packet_to_raw_index((*val).raw_packet_index());
                         }
                         if index_to_increase.is_none() {
@@ -210,20 +198,6 @@ pub mod coincidence {
             assert!(self.is_spim);
             self.spim_tdc = Some(spim_tdc);
         }
-
-        /*
-        fn estimate_histogram_from_hash(&self) -> f32 {
-            let number_index_values: usize = self.frequency_list.iter().map(|(index, _count)| *index).count();
-            let count_values = self.frequency_list.iter().map(|(_index, count)| *count).collect::<Vec<u32>>();
-
-            let sum: f32 = (count_values.iter().sum::<u32>()) as f32;
-            let size = number_index_values as f32; 
-            let mean = sum / size;
-            let std_sum: f32 = count_values.iter().map(|x| *x as f32).map(|x| x*x + mean * mean - 2.0 *x * mean).sum::<f32>();
-            
-            (std_sum / size).sqrt()
-        }
-        */
 
         pub fn new(file_path: String, correction_type: T, my_settings: Settings) -> Self {
             Self {
@@ -521,7 +495,7 @@ pub mod coincidence {
         };
 
         let progress_size = file0.metadata().unwrap().len();
-        let spim_tdc: TdcRef = if coinc_data.is_spim {
+        let main_tdc: TdcRef = if coinc_data.is_spim {
             if coinc_data.spim_size.0 == 0 || coinc_data.spim_size.1 == 0 {
                 panic!("***Coincidence***: Spim mode is on. X and Y pixels must be greater than 0.");
             }
@@ -561,19 +535,20 @@ pub mod coincidence {
                     [84, 80, 88, 51, nci, _, _, _] => {
                         ci=nci;
                         coinc_data.add_packet_to_raw_index(current_raw_index);
-                        //coinc_data.add_packet_to_reduced_data(&packet);
                     },
                     _ => {
                         match packet.id() {
                             6 if packet.tdc_type() == np_tdc.id() => {
                                 temp_tdc.add_tdc(&packet, 0, coinc_data.spim_tdc, coinc_data.spim_size.0, coinc_data.spim_size.1);
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
-                                //coinc_data.add_packet_to_reduced_data(&packet);
                             },
-                            6 if packet.tdc_type() == spim_tdc.id() => {
-                                coinc_data.add_spim_line(&packet);
+                            6 if packet.tdc_type() == main_tdc.id() => {
+                                if coinc_data.is_spim {
+                                    coinc_data.add_spim_line(&packet);
+                                } else {
+                                    temp_tdc.add_tdc(&packet, 1, coinc_data.spim_tdc, coinc_data.spim_size.0, coinc_data.spim_size.1);
+                                }
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
-                                //coinc_data.add_packet_to_reduced_data(&packet);
                             },
                             11 => {
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
@@ -581,7 +556,6 @@ pub mod coincidence {
                             },
                             _ => {
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
-                                //coinc_data.add_packet_to_reduced_data(&packet);
                             },
                         };
                     },

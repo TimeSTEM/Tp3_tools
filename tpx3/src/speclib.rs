@@ -95,23 +95,16 @@ pub struct ShutterControl {
 
 impl ShutterControl {
     fn try_set_time(&mut self, timestamp: TIME, ci: u8, shutter_closed: bool) -> bool {
-        //When shutter_closed is true, we receive electrons. Shutter_closed false means a new frame just
+        //When shutter_closed is true, we receive electrons as packets. Shutter_closed false means a new frame just
         //started, but we must wait <ACQUISITION_TIME> in order to close it and receive our data
         let ci = ci as usize;
         self.shutter_closed_status[ci] = shutter_closed;
-        //if self.time[ci] == 0 {
-        //    self.time[ci] = timestamp;
-        //}
-        //println!("{:?} and {} and {} and {}", self.shutter_closed_status, timestamp, shutter_closed, ci);
         if !shutter_closed && self.time[ci] != timestamp {
-            //first false in which all timestemps differ
+            //first false in which all timestemps differ is the frame_condition. The shutter just
+            //opened in one chip so electrons are not arriving as packets anymore.
             let temp2 = self.time.iter().all(|val| *val != timestamp);
-            
             self.time[ci] = timestamp;
             self.counter[ci] += 1;
-            //let _temp = self.time.iter().all(|val| *val == timestamp);
-            //println!("{} and {} and {:?}", temp, temp2, self.counter);
-
             return temp2;
         }
         false
@@ -141,6 +134,9 @@ impl ShutterControl {
     }
     fn get_counter(&self) -> [COUNTER; 4] {
         self.counter
+    }
+    fn set_counter(&mut self, ci: usize, value: COUNTER) {
+        self.counter[ci] = value;
     }
 }
 
@@ -200,15 +196,19 @@ macro_rules! add_index {
     ($x: ident, $y: expr) => {
         {
             $x.data[$y as usize] += L::one();
-            //*$x.data.iter_mut().nth($y as usize).unwrap() += L::one();
         }
     }
 }
 
 
 impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
+    //If INTERNAL_TIMER_FRAME, the ready is given by the internal elapsed time.
     fn is_ready(&self) -> bool {
-        self.is_ready
+        if !INTERNAL_TIMER_FRAME {
+            self.is_ready
+        } else {
+            self.timer.elapsed().as_millis() > TIME_INTERVAL_FRAMES
+        }
     }
     fn build_output(&self) -> &[u8] {
         aux_func::as_bytes(&self.data)
@@ -225,17 +225,26 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         add_index!(self, CAM_DESIGN.0-1);
     }
+    //If INTERNAL_TIMER_FRAME, update frame actually adds one to the before last pixel of the
+    //system
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
-        if pack.id() != 6 {println!("{}", pack.id())};
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
-            self.reset_or_else(frame_tdc, settings);
+        if !INTERNAL_TIMER_FRAME {
+            if pack.id() != 6 {println!("{}", pack.id())};
+            if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
+                self.is_ready = false;
+                if !settings.cumul {
+                    self.data.iter_mut().for_each(|x| *x = L::zero());
+                }
+            } else {
+                self.is_ready = true;
+            }
         } else {
-            self.is_ready = true;
-            self.timer = Instant::now();
+            add_index!(self, CAM_DESIGN.0-2);
         }
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
+        self.timer = Instant::now();
         self.is_ready = false;
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = L::zero());
@@ -245,7 +254,11 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
 
 impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
     fn is_ready(&self) -> bool {
-        self.is_ready
+        if !INTERNAL_TIMER_FRAME {
+            self.is_ready
+        } else {
+            self.timer.elapsed().as_millis() > TIME_INTERVAL_FRAMES
+        }
     }
     fn build_output(&self) -> &[u8] {
         aux_func::as_bytes(&self.data)
@@ -264,14 +277,21 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
-            self.reset_or_else(frame_tdc, settings);
+        if !INTERNAL_TIMER_FRAME {
+            if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
+                self.is_ready = false;
+                if !settings.cumul {
+                    self.data.iter_mut().for_each(|x| *x = L::zero());
+                }
+            } else {
+                self.is_ready = true;
+            }
         } else {
-            self.is_ready = true;
-            self.timer = Instant::now();
+            add_index!(self, CAM_DESIGN.0-2);
         }
     }
-    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
+        fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
+        self.timer = Instant::now();
         self.is_ready = false;
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = L::zero());
@@ -482,7 +502,10 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
             self.data[index as usize] += L::from_u16(pack.tot());
         }
     }
-    fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
+    fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut TdcRef) {
+        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        add_index!(self, CAM_DESIGN.0-1);
+    }
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
@@ -542,19 +565,21 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
             self.data[index as usize] += L::from_u16(pack.tot());
         }
     }
-    fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
+    fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut TdcRef) {
+        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        add_index!(self, CAM_DESIGN.0-1);
+    }
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
         if pack.id() == 5 {
             let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
-            
             //If is_ready is false, set with temp_ready. If is_ready is true and another temp_ready
             //arrives, then we reset the array and do not send the frame. In this mode,
             //reset_or_else does not set is_ready to false.
             if !self.is_ready {
-                self.is_ready = temp_ready;
+                self.is_ready = temp_ready && (HIGH_DYNAMIC_FRAME_BASED && self.shutter.as_ref().unwrap().get_counter()[0] > 10);
             } else {
                 if temp_ready {
                     if !settings.cumul {
@@ -570,8 +595,12 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
         //Empty. The shutter control defines the behaviour and not the TCP stack, but we reset the
-        //timer
+        //timer. We also reset the counter in case we use it for high dynamic measurements
         self.timer = Instant::now();
+        self.shutter.as_mut().unwrap().set_counter(0, 0);
+        self.shutter.as_mut().unwrap().set_counter(1, 0);
+        self.shutter.as_mut().unwrap().set_counter(2, 0);
+        self.shutter.as_mut().unwrap().set_counter(3, 0);
     }
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()
