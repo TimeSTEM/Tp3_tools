@@ -24,6 +24,7 @@ pub const REMOVE_RETURN: bool = true; //This removes the electrons in the flybac
 pub const INVERSE_DETECTOR: bool = true; //This mirror the detector in the dispersive direction (EELS);
 pub const INTERNAL_TIMER_FRAME: bool = false; //If true, the TDC is not needed for event-based acquisition in focus mode;
 pub const HIGH_DYNAMIC_FRAME_BASED: bool = false; //This sums up 10 frames when using the frame-based mode;
+pub const HIGH_DYNAMIC_FRAME_BASED_VALUE: COUNTER = 16; //This sums up *VALUE* frames when using the frame-based mode;
 
 //***List***//
 pub const UNIFORM_PIXEL: bool = false; //Assumption that the time per pixel is uniform.

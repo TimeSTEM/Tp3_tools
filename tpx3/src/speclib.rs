@@ -102,7 +102,11 @@ impl ShutterControl {
         if !shutter_closed && self.time[ci] != timestamp {
             //first false in which all timestemps differ is the frame_condition. The shutter just
             //opened in one chip so electrons are not arriving as packets anymore.
-            let temp2 = self.time.iter().all(|val| *val != timestamp);
+            let temp2 = if HIGH_DYNAMIC_FRAME_BASED {
+                self.time.iter().all(|val| *val != timestamp) && self.counter[ci] % HIGH_DYNAMIC_FRAME_BASED_VALUE  == 0
+            } else {
+                self.time.iter().all(|val| *val != timestamp)
+            };
             self.time[ci] = timestamp;
             self.counter[ci] += 1;
             return temp2;
@@ -134,9 +138,6 @@ impl ShutterControl {
     }
     fn get_counter(&self) -> [COUNTER; 4] {
         self.counter
-    }
-    fn set_counter(&mut self, ci: usize, value: COUNTER) {
-        self.counter[ci] = value;
     }
 }
 
@@ -579,7 +580,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
             //arrives, then we reset the array and do not send the frame. In this mode,
             //reset_or_else does not set is_ready to false.
             if !self.is_ready {
-                self.is_ready = temp_ready && (HIGH_DYNAMIC_FRAME_BASED && self.shutter.as_ref().unwrap().get_counter()[0] > 10);
+                self.is_ready = temp_ready;
             } else {
                 if temp_ready {
                     if !settings.cumul {
@@ -597,10 +598,6 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
         //Empty. The shutter control defines the behaviour and not the TCP stack, but we reset the
         //timer. We also reset the counter in case we use it for high dynamic measurements
         self.timer = Instant::now();
-        self.shutter.as_mut().unwrap().set_counter(0, 0);
-        self.shutter.as_mut().unwrap().set_counter(1, 0);
-        self.shutter.as_mut().unwrap().set_counter(2, 0);
-        self.shutter.as_mut().unwrap().set_counter(3, 0);
     }
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()
