@@ -3,7 +3,7 @@ use crate::auxiliar::value_types::*;
 //***General Values***//
 pub const CONFIG_SIZE: usize = 512;
 pub const SAVE_LOCALLY_FILE: &str = "/media/asi/Data21/TP3_Data/";
-pub const TIME_INTERVAL_FRAMES: u128 = 100; //in milliseconds
+pub const TIME_INTERVAL_FRAMES: u128 = 50; //in milliseconds
 pub const HYPERSPECTRAL_PIXEL_CHUNK: POSITION = 500; //In number of pixels
 pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 5000; //in milliseconds
 pub const VIDEO_TIME: TIME = 0;
