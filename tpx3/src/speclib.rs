@@ -217,8 +217,12 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live2D }
     }
-    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
+        if INTERNAL_TIMER_FRAME {
+            TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
+        } else {
+            TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, &my_settings)
+        }
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
@@ -270,8 +274,12 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live1D}
     }
-    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
+        if INTERNAL_TIMER_FRAME {
+            TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
+        } else {
+            TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, &my_settings)
+        }
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
