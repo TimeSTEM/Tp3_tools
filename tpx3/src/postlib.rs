@@ -572,7 +572,7 @@ pub mod coincidence {
                     },
                 };
             });
-            coinc_data.add_events(temp_edata, &mut temp_tdc, TP3_TIME_DELAY, TP3_TIME_WIDTH, 0);
+            coinc_data.add_events(temp_edata, &mut temp_tdc, coinc_data.my_settings.time_delay, coinc_data.my_settings.time_width, 0);
             coinc_data.add_packets_to_reduced_data(&buffer);
             coinc_data.early_output_data();
         }
