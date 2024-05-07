@@ -72,7 +72,8 @@ impl From<std::str::Utf8Error> for Tp3ErrorKind {
 }
 
 impl From<serde_json::Error> for Tp3ErrorKind {
-    fn from(_: serde_json::Error) -> Tp3ErrorKind {
+    fn from(error: serde_json::Error) -> Tp3ErrorKind {
+        println!("***Errorlib***: Serde general error is {:?}", error); 
         Tp3ErrorKind::SerdeGeneralError
     }
 }
