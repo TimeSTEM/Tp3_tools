@@ -1,11 +1,8 @@
 pub mod coincidence {
     use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
     use crate::tdclib::{TdcType, TdcRef};
-    use crate::postlib::isi_box;
     use crate::errorlib::Tp3ErrorKind;
     use crate::clusterlib::cluster::ClusterCorrection;
-    use crate::spimlib::get_spimindex;
-    use std::io;
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
