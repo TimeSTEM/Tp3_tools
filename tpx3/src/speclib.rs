@@ -8,7 +8,7 @@ use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::Write;
 use core::ops::{Add, AddAssign};
-use crate::auxiliar::value_types::*;
+use crate::auxiliar::{value_types::*, FileManager};
 use crate::constlib::*;
 
 const CAM_DESIGN: (POSITION, POSITION) = Pack::chip_array();
@@ -160,8 +160,8 @@ pub trait SpecKind {
     fn is_ready(&self) -> bool;
     fn build_output(&self) -> &[u8];
     fn new(settings: &Settings) -> Self;
-    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, &my_settings)
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, &my_settings, file_to_write)
     }
     fn build_aux_tdc(&self) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
@@ -217,11 +217,11 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live2D }
     }
-    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         if INTERNAL_TIMER_FRAME {
             TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
         } else {
-            TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, &my_settings)
+            TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, &my_settings, file_to_write)
         }
     }
     #[inline]
@@ -274,11 +274,11 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
     fn new(_settings: &Settings) -> Self {
         SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live1D}
     }
-    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         if INTERNAL_TIMER_FRAME {
             TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
         } else {
-            TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, &my_settings)
+            TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, &my_settings, file_to_write)
         }
     }
     #[inline]
@@ -521,7 +521,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         add_index!(self, CAM_DESIGN.0-1);
     }
-    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
+    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
@@ -584,7 +584,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         add_index!(self, CAM_DESIGN.0-1);
     }
-    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
+    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
@@ -643,7 +643,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrameHyperspec, L> {
         let index = frame_number * CAM_DESIGN.0 + pack.x();
         self.data[index as usize] += L::from_u16(pack.tot());
     }
-    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings) -> Result<TdcRef, Tp3ErrorKind> {
+    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
     fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
@@ -719,7 +719,7 @@ impl IsiBoxKind for SpecMeasurement<Live1D, u32> {
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
 ///
 ///# Examples
-pub fn run_spectrum<V, U, Y>(mut pack: V, ns: U, my_settings: Settings, kind: Y) -> Result<u8, Tp3ErrorKind>
+pub fn run_spectrum<V, U, Y>(mut pack: V, ns: U, my_settings: Settings, kind: Y, mut file_to_write: FileManager) -> Result<u8, Tp3ErrorKind>
     where V: TimepixRead,
           U: Write,
           Y: GenerateDepth,
@@ -732,19 +732,19 @@ pub fn run_spectrum<V, U, Y>(mut pack: V, ns: U, my_settings: Settings, kind: Y)
     match my_settings.bytedepth {
         1 => {
             let mut measurement = kind.gen8(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings)?;
+            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let aux_tdc = measurement.build_aux_tdc()?;
             build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
         },
         2 => {
             let mut measurement = kind.gen16(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings)?;
+            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let aux_tdc = measurement.build_aux_tdc()?;
             build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
         },
         4 => {
             let mut measurement = kind.gen32(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings)?;
+            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let aux_tdc = measurement.build_aux_tdc()?;
             build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
         },
@@ -766,9 +766,7 @@ fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
     
     let mut file_to_write = my_settings.create_file()?;
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
-        if let Some(file) = &mut file_to_write {
-            file.write_all(&buffer_pack_data[0..size]).unwrap();
-        }
+        file_to_write.write_all(&buffer_pack_data[0..size])?;
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let msg = create_header(&my_settings, &frame_tdc, 0, meas_type.shutter_control());
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}

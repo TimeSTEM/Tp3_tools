@@ -1,7 +1,7 @@
 //!`spimlib` is a collection of tools to set hyperspectral EELS acquisition.
 
 use crate::packetlib::{Packet, PacketEELS as Pack};
-use crate::auxiliar::{aux_func, Settings, misc::{TimepixRead, packet_change}};
+use crate::auxiliar::{aux_func, Settings, misc::{TimepixRead, packet_change}, FileManager};
 use crate::tdclib::{TdcRef, isi_box::{IsiBoxHand, IsiBoxType}};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
@@ -427,7 +427,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
 }
 
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
-pub fn build_spim<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut line_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W, scan_list: SlType) -> Result<(), Tp3ErrorKind>
+pub fn build_spim<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut line_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W, scan_list: SlType, mut file_to_write: FileManager) -> Result<(), Tp3ErrorKind>
     where V: 'static + Send + TimepixRead,
           W: 'static + Send + SpimKind,
           U: 'static + Send + Write,
@@ -436,12 +436,9 @@ pub fn build_spim<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
     let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
 
-    let mut file_to_write = my_settings.create_file()?;
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
-            if let Some(file) = &mut file_to_write {
-                file.write_all(&buffer_pack_data[0..size]).unwrap();
-            }
+            file_to_write.write_all(&buffer_pack_data[0..size]).expect("Could not save data into file.");
             build_spim_data(&mut meas_type, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut line_tdc, &mut ref_tdc);
             if meas_type.is_ready(&line_tdc) {
                let list2 = meas_type.copy_empty();

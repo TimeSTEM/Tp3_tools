@@ -330,13 +330,11 @@ pub mod cluster {
     }
 
     pub struct CollectionPhoton {
-        index: usize,
         data: Vec<SinglePhoton>
     }
     impl CollectionPhoton {
         pub fn new() -> Self {
             CollectionPhoton {
-                index: 0,
                 data: Vec::new(),
             }
         }

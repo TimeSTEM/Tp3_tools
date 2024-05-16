@@ -7,7 +7,7 @@ pub mod coincidence {
     use std::fs;
     use std::convert::TryInto;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, SinglePhoton, CollectionPhoton};
-    use crate::auxiliar::{Settings, value_types::*, misc::{output_data, packet_change}};
+    use crate::auxiliar::{Settings, value_types::*, misc::{output_data, packet_change}, FileManager};
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
     //use rayon::prelude::*;
@@ -90,6 +90,7 @@ pub mod coincidence {
                 .upt(pack.tdc_time_norm(), pack.tdc_counter());
         }
 
+        /*
         fn estimate_overflow(&self, pack: &Pack) -> Option<TIME> {
             if let Some(spim_tdc) = self.spim_tdc {
                 let val = spim_tdc.estimate_time().unwrap();
@@ -100,6 +101,7 @@ pub mod coincidence {
             }
             None
         }
+        */
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon: SinglePhoton) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
@@ -504,7 +506,8 @@ pub mod coincidence {
             if coinc_data.spim_size.0 == 0 || coinc_data.spim_size.1 == 0 {
                 panic!("***Coincidence***: Spim mode is on. X and Y pixels must be greater than 0.");
             }
-            let temp = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings).expect("Could not create period TDC reference.");
+            let mut empty_filemanager = FileManager::new_empty();
+            let temp = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings, &mut empty_filemanager).expect("Could not create period TDC reference.");
             coinc_data.prepare_spim(temp);
             temp
         } else {
@@ -1166,7 +1169,7 @@ pub mod ntime_resolved {
     use crate::tdclib::{TdcType, TdcRef};
     use crate::errorlib::Tp3ErrorKind;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
-    use crate::auxiliar::{misc::{packet_change, output_data}, value_types::*, ConfigAcquisition, Settings};
+    use crate::auxiliar::{misc::{packet_change, output_data}, value_types::*, ConfigAcquisition, Settings, FileManager};
     //use crate::constlib::*;
     use std::io::prelude::*;
     use std::convert::TryInto;
@@ -1195,9 +1198,10 @@ pub mod ntime_resolved {
 
     impl<T: ClusterCorrection> TimeSpectralSpatial<T> {
         fn prepare(&mut self, file: &mut fs::File) -> Result<(), Tp3ErrorKind> {
+            let mut empty_filemanager = FileManager::new_empty();
             self.tdc_periodic = match self.tdc_periodic {
                 None if self.spimx>1 && self.spimy>1 => {
-                    Some(TdcRef::new_periodic(self.spim_tdc_type.clone(), file, &self.my_settings).expect("Problem in creating periodic tdc ref."))
+                    Some(TdcRef::new_periodic(self.spim_tdc_type.clone(), file, &self.my_settings, &mut empty_filemanager).expect("Problem in creating periodic tdc ref."))
                 },
                 Some(val) => Some(val),
                 _ => None,

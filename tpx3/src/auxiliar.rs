@@ -66,6 +66,32 @@ impl Read for DebugIO {
     }
 }
 
+
+pub struct FileManager (Option<BufWriter<File>>);
+
+impl Write for FileManager {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        if let Some(buffer) = &mut self.0 {
+            buffer.write(buf) //Write to buffer.
+        } else {
+            Ok(buf.len()) //this is the behaviour as if the buffer is completely written, altough no written operation has been performed.
+        }
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        if let Some(buffer) = &mut self.0 {
+            buffer.flush()
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl FileManager {
+    pub fn new_empty() -> Self {
+        FileManager(None)
+    }
+}
+
 ///`Settings` contains all relevant parameters for a given acquistion
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
@@ -81,7 +107,7 @@ pub struct Settings {
     pub time_delay: TIME,
     pub time_width: TIME,
     pub video_time: TIME,
-    pub save_locally: bool,
+    save_locally: bool,
     pixel_mask: u8,
     threshold: u8,
     bias_voltage: u8,
@@ -109,9 +135,9 @@ impl Settings {
         Ok(my_settings)
     }
 
-    pub fn create_file(&self) -> Result<Option<BufWriter<File>>, errorlib::Tp3ErrorKind> {
+    pub fn create_file(&self) -> Result<FileManager, errorlib::Tp3ErrorKind> {
         match self.save_locally {
-            false => {Ok(None)},
+            false => {Ok(FileManager(None))},
             true => {
             let mut jsonfile = 
                 OpenOptions::new()
@@ -125,7 +151,7 @@ impl Settings {
                 .create(true)
                 .append(true)
                 .open(self.create_savefile_header() + ".tpx3")?;
-            Ok(Some(BufWriter::new(file)))
+            Ok(FileManager(Some(BufWriter::new(file))))
             }
         }
     }

@@ -7,24 +7,25 @@ use timepix3::{speclib, spimlib, spimlib::SpimKind};
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
     
     let (my_settings, mut pack, ns) = Settings::create_debug_settings()?;
+    let mut file_to_write = my_settings.create_file()?;
 
     match my_settings.mode {
         0 if my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1D)?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1D, file_to_write)?;
             Ok(my_settings.mode)
         },
         0 if !my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2D)?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2D, file_to_write)?;
             Ok(my_settings.mode)
         },
         1 => {
             Ok(my_settings.mode)
         },
         2 => {
-            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, &my_settings)?;
+            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, &my_settings, &mut file_to_write)?;
             let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoFallingEdge)?;
             let measurement = spimlib::Live::new(&my_settings);
-            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None)?;
+            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None, file_to_write)?;
             Ok(my_settings.mode)
         },
         6 => {
