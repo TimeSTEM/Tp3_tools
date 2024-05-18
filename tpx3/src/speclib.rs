@@ -403,10 +403,8 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Coincidence2D, L> {
     }
     fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        for index in 0..LIST_SIZE_AUX_EVENTS-1 {
-            self.aux_data[index+1] = self.aux_data[index];
-        }
-        self.aux_data[0] = pack.tdc_time_norm();
+        self.aux_data.push(pack.tdc_time_norm());
+        self.aux_data.remove(0);
     }
     fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
