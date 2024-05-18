@@ -86,7 +86,8 @@ pub mod coincidence {
         fn add_spim_line(&mut self, pack: &Pack) {
             //This must be called only if "self.spim" is Some(TdcRef). Otherwise this channel is
             //another photon
-            self.spim_tdc.expect("Inconsistence in TdcRef regarding spectral imaging.")
+            
+            self.spim_tdc.as_mut().expect("Inconsistence in TdcRef regarding spectral imaging.")
                 .upt(pack.tdc_time_norm(), pack.tdc_counter());
         }
 
