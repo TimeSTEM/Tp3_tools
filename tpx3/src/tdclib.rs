@@ -360,36 +360,25 @@ impl TdcRef {
                 let y = (value >> DACX_BITDEPTH) * yspim / (1<<DACY_BITDEPTH);
                 (x, y)
             };
-            let frac = (dt * (self.subsample * xspim) as TIME % self.period?) as POSITION / (self.subsample * xspim);
             let mut index = (dt * (self.subsample * xspim) as TIME / self.period?) as POSITION;
             if index >= self.subsample * self.subsample * xspim * yspim {
                 index %= self.subsample * self.subsample * xspim * yspim
             }
+            let (x, y) = get_xy_from_index(custom_list[index as usize]);
+            Some(y * xspim + x)
         
+            //TODO: To be tested on the machine           
+            /*
+            let frac = (dt * (self.subsample * xspim) as TIME % self.period?) as POSITION / (self.subsample * xspim);
             let mut previous_index = index - 1;
             if previous_index >= self.subsample * self.subsample * xspim * yspim {
                 previous_index %= self.subsample * self.subsample * xspim * yspim
             }
-            let (x, y) = get_xy_from_index(custom_list[index as usize]);
             let (xp, yp) = get_xy_from_index(custom_list[previous_index as usize]);
             
             let x_cor = exponential_interpolation(frac, xp, x);
             let y_cor = exponential_interpolation(frac, yp, y);
-
-            //println!("{} and {} and {} and {}", x, xp, x_cor, frac);
-
-            Some(y_cor * xspim + x_cor)
-            
-
-            //custom_list.get(index as usize).map(|value| {
-            //    let (x, y) = get_xy_from_index(value);
-                //let (xp, yp) = get_xy_from_index(value);
-            //    y * xspim + x
-            //})
-                //custom_list.get(index as usize).copied()
-            //} else {
-            //    Some( index )
-            //}
+            */
         } else {
             let determ = |dt: TIME, dt_partial: TIME, period: TIME, xspim: POSITION, low_time: TIME, yspim: POSITION| {
                 let mut r = (dt / period) as POSITION; //how many periods -> which line to put.
