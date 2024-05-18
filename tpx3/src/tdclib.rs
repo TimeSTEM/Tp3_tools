@@ -132,9 +132,9 @@ mod tdcvec {
             self.initial_counter.expect("***Tdc Lib***: Tdc initial counter offset was not found.")
         }
 
-        fn get_last_hardware_counter(&self) -> u16 {
-            self.last_counter
-        }
+        //fn get_last_hardware_counter(&self) -> u16 {
+        //    self.last_counter
+        //}
 
         pub fn get_lasttime(&self) -> TIME {
             let last_time = self.data.iter()
@@ -238,8 +238,9 @@ impl TdcType {
 use std::time::{Duration, Instant};
 use crate::errorlib::Tp3ErrorKind;
 use crate::auxiliar::{Settings, misc::TimepixRead};
-use crate::auxiliar::value_types::*;
+use crate::auxiliar::{value_types::*, FileManager};
 use crate::constlib::*;
+use std::io::Write;
 
 #[derive(Debug, Copy, Clone)]
 pub struct TdcRef {
@@ -320,6 +321,7 @@ impl TdcRef {
         Some(((self.counter / 2) % self.ticks_to_frame?) as POSITION)
     }
     
+    /*
     pub fn pixel_time(&self, xspim: POSITION) -> Option<TIME> {
         if UNIFORM_PIXEL {
             Some(self.period? / xspim as TIME)
@@ -327,6 +329,7 @@ impl TdcRef {
             Some(self.low_time? / xspim as TIME)
         }
     }
+    */
 
     pub fn estimate_time(&self) -> Option<TIME> {
         Some((self.counter as TIME / 2) * self.period? + self.begin_time)
@@ -340,22 +343,53 @@ impl TdcRef {
     //the last frame begin
     #[inline]
     pub fn get_positional_index(&self, dt: TIME, xspim: POSITION, yspim: POSITION, list_scan: SlType) -> Option<POSITION> {
-        if UNIFORM_PIXEL {
+        if let Some(custom_list) = list_scan {
+         
+            //exceding time is always with respect to the current pixel time, so this values varies
+            //from 0 - pixel_time.
+            fn exponential_interpolation(exceding_time: POSITION, previous: POSITION, new: POSITION) -> POSITION {
+                let ratio = -(exceding_time as f32 / 50.0);
+                if new > previous {
+                    new - ((new - previous) as f32 * ratio.exp()) as POSITION
+                } else {
+                    new - ((previous - new) as f32 * ratio.exp()) as POSITION
+                }
+            }
+            let get_xy_from_index = |value: POSITION| -> (POSITION, POSITION) {
+                let x = (value & (1<<DACX_BITDEPTH)-1) * xspim / (1<<DACX_BITDEPTH);
+                let y = (value >> DACX_BITDEPTH) * yspim / (1<<DACY_BITDEPTH);
+                (x, y)
+            };
+            let frac = (dt * (self.subsample * xspim) as TIME % self.period?) as POSITION / (self.subsample * xspim);
             let mut index = (dt * (self.subsample * xspim) as TIME / self.period?) as POSITION;
-            index += 0;
             if index >= self.subsample * self.subsample * xspim * yspim {
                 index %= self.subsample * self.subsample * xspim * yspim
             }
-            if let Some(custom_list) = list_scan {
-                custom_list.get(index as usize).map(|value| {
-                    let x = (value & (1<<DACX_BITDEPTH)-1) * xspim / (1<<DACX_BITDEPTH);
-                    let y = (value >> DACX_BITDEPTH) * yspim / (1<<DACY_BITDEPTH);
-                    y * xspim + x
-                })
-                //custom_list.get(index as usize).copied()
-            } else {
-                Some( index )
+        
+            let mut previous_index = index - 1;
+            if previous_index >= self.subsample * self.subsample * xspim * yspim {
+                previous_index %= self.subsample * self.subsample * xspim * yspim
             }
+            let (x, y) = get_xy_from_index(custom_list[index as usize]);
+            let (xp, yp) = get_xy_from_index(custom_list[previous_index as usize]);
+            
+            let x_cor = exponential_interpolation(frac, xp, x);
+            let y_cor = exponential_interpolation(frac, yp, y);
+
+            //println!("{} and {} and {} and {}", x, xp, x_cor, frac);
+
+            Some(y_cor * xspim + x_cor)
+            
+
+            //custom_list.get(index as usize).map(|value| {
+            //    let (x, y) = get_xy_from_index(value);
+                //let (xp, yp) = get_xy_from_index(value);
+            //    y * xspim + x
+            //})
+                //custom_list.get(index as usize).copied()
+            //} else {
+            //    Some( index )
+            //}
         } else {
             let determ = |dt: TIME, dt_partial: TIME, period: TIME, xspim: POSITION, low_time: TIME, yspim: POSITION| {
                 let mut r = (dt / period) as POSITION; //how many periods -> which line to put.
@@ -421,7 +455,7 @@ impl TdcRef {
             Some(ele_time - self.begin_frame - VIDEO_TIME - self.video_delay)
         }
     }
-    pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, my_settings: &Settings) -> Result<Self, Tp3ErrorKind> {
+    pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
         let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
         let start = Instant::now();
@@ -430,6 +464,7 @@ impl TdcRef {
         loop {
             if start.elapsed() > Duration::from_secs(TDC_TIMEOUT) {return Err(Tp3ErrorKind::TdcNoReceived)}
             if let Ok(size) = sock.read_timepix(&mut buffer_pack_data) {
+                file_to_write.write_all(&buffer_pack_data[0..size])?;
                 tdc_search.search_specific_tdc(&buffer_pack_data[0..size]);
                 if tdc_search.check_tdc()? {break;}
             }
