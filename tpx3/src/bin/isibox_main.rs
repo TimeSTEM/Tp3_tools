@@ -11,17 +11,18 @@ use timepix3::constlib::*;
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
     
     let (my_settings, mut pack, ns) = Settings::create_settings(NIONSWIFT_IP_ADDRESS, NIONSWIFT_PORT)?;
+    let mut file_to_write = my_settings.create_file()?;
 
     match my_settings.mode {
         0 if my_settings.bin => {
             let meas = speclib::SpecMeasurement::<speclib::Live1D, u32>::isi_new(&my_settings);
-            let frame_tdc = TdcRef::new_periodic(TdcType::TdcOneRisingEdge, &mut pack, &my_settings)?;
+            let frame_tdc = TdcRef::new_periodic(TdcType::TdcOneRisingEdge, &mut pack, &my_settings, &mut file_to_write)?;
             let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)?;
             speclib::build_spectrum_isi(pack, ns, my_settings, frame_tdc, np_tdc, meas)?;
             Ok(my_settings.mode)
         },
         0 if !my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2D)?;
+            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2D, file_to_write)?;
             Ok(my_settings.mode)
         },
         2 => {
@@ -31,7 +32,7 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             handler.configure_measurement_type(false)?;
             handler.start_threads();
             
-            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, &my_settings)?;
+            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, &my_settings, &mut file_to_write)?;
             let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)?;
             let measurement = spimlib::Live::new(&my_settings);
             spimlib::build_spim_isi(pack, ns, my_settings, spim_tdc, np_tdc, measurement, handler)?;
