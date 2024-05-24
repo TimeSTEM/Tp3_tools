@@ -1,6 +1,6 @@
 //!`speclib` is a collection of tools to set EELS/4D acquisition.
 
-use crate::packetlib::{Packet, PacketEELS as Pack};
+use crate::packetlib::{Packet, PacketDiffraction as Pack};
 use crate::auxiliar::{aux_func, Settings, misc::{TimepixRead, packet_change}};
 use crate::tdclib::{TdcType, TdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
 use crate::isi_box_new;
