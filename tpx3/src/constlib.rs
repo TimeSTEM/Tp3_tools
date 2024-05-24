@@ -2,16 +2,16 @@ use crate::auxiliar::value_types::*;
 
 //***General Values***//
 pub const CONFIG_SIZE: usize = 512;
-pub const SAVE_LOCALLY_FILE: &str = "/media/asi/Data21/TP3_Data/";
+pub const SAVE_LOCALLY_FILE: &str = "/data/";
 pub const TIME_INTERVAL_FRAMES: u128 = 50; //in milliseconds
 pub const HYPERSPECTRAL_PIXEL_CHUNK: POSITION = 500; //In number of pixels
 pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 5000; //in milliseconds
 pub const VIDEO_TIME: TIME = 0;
 pub const SPIM_PIXELS: POSITION = 1025;
-pub const RAW4D_PIXELS_X: POSITION = 256; //#TODO: this value must be taken from diffraction packet (packetlib)
-pub const RAW4D_PIXELS_Y: POSITION = 256; //#TODO: this value must be taken from the diffraction packet (packetlib)
+pub const RAW4D_PIXELS_X: POSITION = 512; //#TODO: this value must be taken from diffraction packet (packetlib)
+pub const RAW4D_PIXELS_Y: POSITION = 512; //#TODO: this value must be taken from the diffraction packet (packetlib)
 pub const BUFFER_SIZE: usize = 16384 * 2;
-pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
+pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 1, 33];
 pub const NIONSWIFT_PORT: u16 = 8088;
 pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coicncidence searching
 pub const LIST_SIZE_AUX_EVENTS: usize = 5;
