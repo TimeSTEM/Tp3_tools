@@ -2,15 +2,12 @@ use crate::auxiliar::value_types::*;
 
 //***General Values***//
 pub const CONFIG_SIZE: usize = 512;
-pub const SAVE_LOCALLY_FILE: &str = "/media/asi/Data21/TP3_Data/";
 pub const TIME_INTERVAL_FRAMES: u128 = 50; //in milliseconds
 pub const HYPERSPECTRAL_PIXEL_CHUNK: POSITION = 500; //In number of pixels
 pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 2000; //in milliseconds
 pub const VIDEO_TIME: TIME = 0;
 pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coincidence searching
 pub const LIST_SIZE_AUX_EVENTS: usize = 5;
-pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_spim.tpx3";
-pub const READ_DEBUG_FILE_JSON: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_spim";
 pub const ELECTRON_OVERFLOW: TIME = 17_179_869_184;
 pub const TDC_OVERFLOW: TIME = 68_719_476_736;
 pub const SYNC_MODE: u8 = 0; //0 synchronizes on the frame, 1 synchronizes on the line.
@@ -19,10 +16,13 @@ pub const INTERNAL_TIMER_FRAME: bool = false; //If true, the TDC is not needed f
 pub const HIGH_DYNAMIC_FRAME_BASED: bool = false; //This sums up 10 frames when using the frame-based mode;
 pub const HIGH_DYNAMIC_FRAME_BASED_VALUE: COUNTER = 16; //This sums up *VALUE* frames when using the frame-based mode;
 
-//***Connection and TCP transfer values***//
+//***Connection, TCP, and transfer values***//
 pub const BUFFER_SIZE: usize = 16384 * 2;
 pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
 pub const NIONSWIFT_PORT: u16 = 8088;
+pub const SAVE_LOCALLY_FILE: &str = "/media/asi/Data21/TP3_Data/";
+pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_spim.tpx3";
+pub const READ_DEBUG_FILE_JSON: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_spim";
 
 //***Packet-related values***//
 pub const PIXELS_X: POSITION = 1025;
