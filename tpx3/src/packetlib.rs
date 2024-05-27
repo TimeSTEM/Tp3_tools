@@ -233,7 +233,7 @@ impl Packet {
     
     #[inline]
     pub const fn chip_array() -> (POSITION, POSITION) {
-        (PIXELS_X, PIXELS_X)
+        (PIXELS_X, PIXELS_Y)
     }
 }
 
