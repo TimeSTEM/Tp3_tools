@@ -852,7 +852,11 @@ fn create_header(set: &Settings, tdc: &TdcRef, extra_pixels: POSITION, shutter_c
     msg.push_str(&(tdc.time().to_string()));
     msg.push_str(",\"frameNumber\":");
     if let Some(shutter) = shutter_control {
-        msg.push_str(&((shutter.get_start_pixel()).to_string()));
+        if set.mode == 11 {//Frame-based hyperspectral image
+            msg.push_str(&((shutter.get_start_pixel()).to_string()));
+        } else {
+            msg.push_str(&((shutter.get_counter()[0]).to_string()));
+        }
     } else {
         msg.push_str(&((tdc.counter()/2).to_string()));
     }
