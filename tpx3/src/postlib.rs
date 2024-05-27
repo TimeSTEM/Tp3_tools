@@ -1,5 +1,5 @@
 pub mod coincidence {
-    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
+    use crate::packetlib::Packet;
     use crate::tdclib::{TdcType, TdcRef};
     use crate::errorlib::Tp3ErrorKind;
     use crate::clusterlib::cluster::ClusterCorrection;
@@ -83,7 +83,7 @@ pub mod coincidence {
             self.index_to_add_in_raw.clear();
         }
 
-        fn add_spim_line(&mut self, pack: &Pack) {
+        fn add_spim_line(&mut self, pack: &Packet) {
             //This must be called only if "self.spim" is Some(TdcRef). Otherwise this channel is
             //another photon
             
@@ -539,7 +539,7 @@ pub mod coincidence {
             let mut temp_edata = TempElectronData::new();
             let mut temp_tdc = TempTdcData::new();
             buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
-                let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
+                let packet = Packet { chip_index: ci, data: packet_change(pack_oct)[0] };
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {
                         ci=nci;
@@ -1166,7 +1166,7 @@ pub mod isi_box {
 }
 
 pub mod ntime_resolved {
-    use crate::packetlib::{Packet, PacketEELS, PacketDiffraction};
+    use crate::packetlib::Packet;
     use crate::tdclib::{TdcType, TdcRef};
     use crate::errorlib::Tp3ErrorKind;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
@@ -1218,19 +1218,19 @@ pub mod ntime_resolved {
             }
         }
 
-        fn add_electron<P: Packet + ?Sized>(&mut self, packet: &P, packet_index: usize) {
+        fn add_electron(&mut self, packet: &Packet, packet_index: usize) {
             let se = SingleElectron::new(packet, self.tdc_periodic, packet_index);
             self.ensemble.add_electron(se);
         }
 
-        fn add_spim_tdc<P: Packet + ?Sized>(&mut self, packet: &P) {
+        fn add_spim_tdc(&mut self, packet: &Packet) {
             //Synchronizing clocks using two different approaches. It is always better to use a multiple of 2 and use the FPGA counter.
             if let Some(my_tdc_periodic) = &mut self.tdc_periodic {
                 my_tdc_periodic.upt(packet.tdc_time_norm(), packet.tdc_counter());
             }
         }
         
-        fn add_extra_tdc<P: Packet + ?Sized>(&mut self, _packet: &P) {
+        fn add_extra_tdc(&mut self, _packet: &Packet) {
             //self.spectra.push(SPIM_PIXELS);
             //spimlib::get_spimindex(, dt: TIME, spim_tdc: &PeriodicTdcRef, self.spimx, self.spimy;
         }
@@ -1348,20 +1348,16 @@ pub mod ntime_resolved {
                 match pack_oct {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci = nci},
                     _ => {
-                        let packet: Box<dyn Packet> = if !data.fourd_data {
-                            Box::new(PacketEELS{chip_index: ci, data: packet_change(pack_oct)[0]})
-                        } else {
-                            Box::new(PacketDiffraction{chip_index: ci, data: packet_change(pack_oct)[0]})
-                        };
+                        let packet = Packet{chip_index: ci, data: packet_change(pack_oct)[0]};
                         match packet.id() {
                             6 if packet.tdc_type() == data.spim_tdc_type.associate_value() => {
-                                data.add_spim_tdc(&*packet);
+                                data.add_spim_tdc(&packet);
                             },
                             6 if packet.tdc_type() == data.extra_tdc_type.associate_value() => {
-                                data.add_extra_tdc(&*packet);
+                                data.add_extra_tdc(&packet);
                             },
                             11 => {
-                                data.add_electron(&*packet, current_raw_index);
+                                data.add_electron(&packet, current_raw_index);
                             },
                             _ => {},
                         };
@@ -1378,7 +1374,7 @@ pub mod ntime_resolved {
 pub mod calibration {
 
     use std::fs::OpenOptions;
-    use crate::packetlib::{Packet, TimeCorrectedPacketEELS as Pack};
+    use crate::packetlib::Packet;
     use crate::auxiliar::{aux_func, misc::packet_change};
     use std::io;
     use std::io::prelude::*;
@@ -1462,7 +1458,7 @@ pub mod calibration {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
-                        let packet = Pack { chip_index: ci, data: packet_change(pack_oct)[0] };
+                        let packet = Packet { chip_index: ci, data: packet_change(pack_oct)[0] };
                         if packet.id() == 11 {
                             let se = SingleElectron::new(&packet, None, current_raw_index);
                             temp_electrons.add_electron(se);

@@ -1,6 +1,6 @@
 //!`speclib` is a collection of tools to set EELS/4D acquisition.
 
-use crate::packetlib::{Packet, PacketEELS as Pack};
+use crate::packetlib::Packet;
 use crate::auxiliar::{aux_func, Settings, misc::{TimepixRead, packet_change}};
 use crate::tdclib::{TdcType, TdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
 use crate::isi_box_new;
@@ -11,7 +11,7 @@ use core::ops::{Add, AddAssign};
 use crate::auxiliar::{value_types::*, FileManager};
 use crate::constlib::*;
 
-const CAM_DESIGN: (POSITION, POSITION) = Pack::chip_array();
+const CAM_DESIGN: (POSITION, POSITION) = Packet::chip_array();
 
 //Generating BitDepth for the standard types
 macro_rules! genbitdepth {
@@ -166,9 +166,9 @@ pub trait SpecKind {
     fn build_aux_tdc(&self) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
     }
-    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &TdcRef, ref_tdc: &TdcRef);
-    fn add_tdc_hit(&mut self, pack: &Pack, settings: &Settings, ref_tdc: &mut TdcRef);
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, _settings: &Settings);
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, frame_tdc: &TdcRef, ref_tdc: &TdcRef);
+    fn add_tdc_hit(&mut self, pack: &Packet, settings: &Settings, ref_tdc: &mut TdcRef);
+    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings);
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings);
     fn shutter_control(&self) -> Option<&ShutterControl> {None}
 }
@@ -225,17 +225,17 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
         }
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         let index = pack.x() + CAM_DESIGN.0 * pack.y();
         add_index!(self, index);
     }
-    fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut TdcRef) {
+    fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         add_index!(self, CAM_DESIGN.0-1);
     }
     //If INTERNAL_TIMER_FRAME, update frame actually adds one to the before last pixel of the
     //system
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         if !INTERNAL_TIMER_FRAME {
             if pack.id() != 6 {println!("{}", pack.id())};
@@ -282,15 +282,15 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
         }
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         let index = pack.x();
         add_index!(self, index);
     }
-    fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut TdcRef) {
+    fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         add_index!(self, CAM_DESIGN.0-1);
     }
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         if !INTERNAL_TIMER_FRAME {
             if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
@@ -325,16 +325,16 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR2D, L> {
         SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTR2D}
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
         if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
             let index = pack.x() + CAM_DESIGN.0 * pack.y();
             add_index!(self, index);
         }
     }
-    fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut TdcRef) {
+    fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
     }
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, _settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         self.is_ready = true;
     }
@@ -357,16 +357,16 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR1D, L> {
         SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTR1D}
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
         if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
             let index = pack.x();
             add_index!(self, index);
         }
     }
-    fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut TdcRef) {
+    fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
     }
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, _settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         self.is_ready = true;
     }
@@ -391,7 +391,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Coincidence2D, L> {
         SpecMeasurement{ data: temp_vec, aux_data: vec![0; LIST_SIZE_AUX_EVENTS], is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Coincidence2D}
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         let etime = pack.electron_time();
         for phtime in self.aux_data.iter() {
             if (*phtime < etime + settings.time_delay + settings.time_width) && (etime + settings.time_delay < *phtime + settings.time_width) {
@@ -401,12 +401,12 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Coincidence2D, L> {
             }
         }
     }
-    fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut TdcRef) {
+    fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         self.aux_data.push(pack.tdc_time_norm());
         self.aux_data.remove(0);
     }
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         if self.timer.elapsed().as_millis() < TIME_INTERVAL_COINCIDENCE_HISTOGRAM {
             self.reset_or_else(frame_tdc, settings);
@@ -438,18 +438,18 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
         SpecMeasurement{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: FastChrono}
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         let line = (frame_tdc.counter()/2) as POSITION;
         let index = pack.x() + line * CAM_DESIGN.0;
         if line < settings.xspim_size {
             add_index!(self, index);
         }
     }
-    fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut TdcRef) {
+    fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         add_index!(self, CAM_DESIGN.0-1);
     }
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         self.is_ready = (frame_tdc.counter()/2) as POSITION > settings.xspim_size;
     }
@@ -471,12 +471,12 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
         SpecMeasurement{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Chrono}
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         let line = (frame_tdc.counter()/2) as POSITION % settings.xspim_size;
         let index = pack.x() + line * CAM_DESIGN.0;
         add_index!(self, index);
     }
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
         let line = (frame_tdc.counter() / 2) as POSITION;
         self.is_ready = line % 20 == 0; //Every 20 lines send chrono;
@@ -484,7 +484,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
             self.aux_data.push(0); //This indicates the frame must be refreshed;
         }
     }
-    fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut TdcRef) {
+    fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         add_index!(self, CAM_DESIGN.0-1);
     }
@@ -509,20 +509,20 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
     }
 
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         if !self.is_ready || settings.cumul {
             let index = pack.x() + CAM_DESIGN.0 * pack.y();
             self.data[index as usize] += L::from_u16(pack.tot());
         }
     }
-    fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut TdcRef) {
+    fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         add_index!(self, CAM_DESIGN.0-1);
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
         if pack.id() == 5 {
             let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
             if !self.is_ready {
@@ -570,7 +570,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
     }
 
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Pack, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         //If you are in cumulation mode, save all the electrons. If not, only save those that the
         //frame has not yet been sent
         if !self.is_ready || settings.cumul{
@@ -578,14 +578,14 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
             self.data[index as usize] += L::from_u16(pack.tot());
         }
     }
-    fn add_tdc_hit(&mut self, pack: &Pack, _settings: &Settings, ref_tdc: &mut TdcRef) {
+    fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         add_index!(self, CAM_DESIGN.0-1);
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
         if pack.id() == 5 {
             let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
             //If is_ready is false, set with temp_ready. If is_ready is true and another temp_ready
@@ -633,7 +633,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrameHyperspec, L> {
     }
 
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Pack, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         let shut = self.shutter.as_ref().unwrap();
         if shut.is_hyperspectral_complete() { return }
         let frame_number = shut.get_counter()[pack.ci() as usize] as POSITION;
@@ -644,8 +644,8 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrameHyperspec, L> {
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
-    fn add_tdc_hit(&mut self, _pack: &Pack, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
-    fn upt_frame(&mut self, pack: &Pack, frame_tdc: &mut TdcRef, settings: &Settings) {
+    fn add_tdc_hit(&mut self, _pack: &Packet, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
+    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
         if pack.id() == 5 {
             let _temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
             let shutter_counter = self.shutter.as_ref().unwrap().get_counter()[pack.ci() as usize] as POSITION;
@@ -820,7 +820,7 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
-                let packet = Pack { chip_index: *last_ci, data: packet_change(x)[0]};
+                let packet = Packet { chip_index: *last_ci, data: packet_change(x)[0]};
                 
                 match packet.id() {
                     11 | 10 => { //Event or frame based

@@ -5,15 +5,12 @@ pub const CONFIG_SIZE: usize = 512;
 pub const SAVE_LOCALLY_FILE: &str = "/media/asi/Data21/TP3_Data/";
 pub const TIME_INTERVAL_FRAMES: u128 = 50; //in milliseconds
 pub const HYPERSPECTRAL_PIXEL_CHUNK: POSITION = 500; //In number of pixels
-pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 5000; //in milliseconds
+pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 2000; //in milliseconds
 pub const VIDEO_TIME: TIME = 0;
 pub const SPIM_PIXELS: POSITION = 1025;
-pub const RAW4D_PIXELS_X: POSITION = 256; //#TODO: this value must be taken from diffraction packet (packetlib)
-pub const RAW4D_PIXELS_Y: POSITION = 256; //#TODO: this value must be taken from the diffraction packet (packetlib)
-pub const BUFFER_SIZE: usize = 16384 * 2;
-pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
-pub const NIONSWIFT_PORT: u16 = 8088;
-pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coicncidence searching
+pub const RAW4D_PIXELS_X: POSITION = 1025;
+pub const RAW4D_PIXELS_Y: POSITION = 256;
+pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coincidence searching
 pub const LIST_SIZE_AUX_EVENTS: usize = 5;
 pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_spim.tpx3";
 pub const READ_DEBUG_FILE_JSON: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_spim";
@@ -21,10 +18,21 @@ pub const ELECTRON_OVERFLOW: TIME = 17_179_869_184;
 pub const TDC_OVERFLOW: TIME = 68_719_476_736;
 pub const SYNC_MODE: u8 = 0; //0 synchronizes on the frame, 1 synchronizes on the line.
 pub const REMOVE_RETURN: bool = true; //This removes the electrons in the flyback mode. UNIFORM_PIXEL must be false to this in order to take place.
-pub const INVERSE_DETECTOR: bool = true; //This mirror the detector in the dispersive direction (EELS);
 pub const INTERNAL_TIMER_FRAME: bool = false; //If true, the TDC is not needed for event-based acquisition in focus mode;
 pub const HIGH_DYNAMIC_FRAME_BASED: bool = false; //This sums up 10 frames when using the frame-based mode;
 pub const HIGH_DYNAMIC_FRAME_BASED_VALUE: COUNTER = 16; //This sums up *VALUE* frames when using the frame-based mode;
+
+//***Connection and TCP transfer values***//
+pub const BUFFER_SIZE: usize = 16384 * 2;
+pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
+pub const NIONSWIFT_PORT: u16 = 8088;
+
+//***Packet-related values***//
+pub const SENSOR_TYPE: u8 = 0; //0 -> 1x4; 1 -> 2x2; _ -> single chip;
+pub const PIXELS_X: POSITION = 1025;
+pub const PIXELS_Y: POSITION = 256;
+pub const INVERSE_DETECTOR: bool = true; //This mirror the detector in the dispersive direction (EELS);
+pub const CORRECT_ELECTRON_TIME_COARSE: bool = true;
 
 //***List***//
 pub const UNIFORM_PIXEL: bool = false; //Assumption that the time per pixel is uniform.

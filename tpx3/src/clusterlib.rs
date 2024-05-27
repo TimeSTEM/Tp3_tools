@@ -234,7 +234,7 @@ pub mod cluster {
     }
 
     impl SingleElectron {
-        pub fn new<T: Packet + ?Sized>(pack: &T, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
+        pub fn new(pack: &Packet, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
                     let ele_time = spim_tdc.correct_or_not_etime(pack.electron_time()).unwrap();
@@ -379,7 +379,7 @@ pub mod cluster {
     }
 
     impl SinglePhoton {
-        pub fn new<T: Packet + ?Sized>(pack: &T, channel: COUNTER, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
+        pub fn new(pack: &Packet, channel: COUNTER, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
                     let tdc_time = spim_tdc.correct_or_not_etime(pack.tdc_time_norm()).unwrap();

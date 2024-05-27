@@ -5,7 +5,7 @@
 mod tdcvec {
     use crate::errorlib::Tp3ErrorKind;
     use crate::tdclib::TdcType;
-    use crate::packetlib::{Packet, PacketStd};
+    use crate::packetlib::Packet;
     use crate::auxiliar::{misc::packet_change, value_types::*};
 
     pub struct TdcSearch<'a> {
@@ -27,7 +27,7 @@ mod tdcvec {
             }
         }
 
-        fn add_tdc<T: Packet>(&mut self, packet: &T) {
+        fn add_tdc(&mut self, packet: &Packet) {
             if let Some(tdc) = TdcType::associate_value_to_enum(packet.tdc_type()) {
                 let time = packet.tdc_time_abs_norm();
                 self.data.push( (time, tdc) );
@@ -157,7 +157,7 @@ mod tdcvec {
                 match *x {
                     [84, 80, 88, 51, _, _, _, _] => {},
                     _ => {
-                        let packet = PacketStd {chip_index: 0, data: packet_change(x)[0]};
+                        let packet = Packet {chip_index: 0, data: packet_change(x)[0]};
                         if packet.id() == 6 && self.tdc_choosen.is_same_inputline(packet.tdc_type()) {
                             self.add_tdc(&packet);
                         }

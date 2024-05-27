@@ -4,19 +4,80 @@
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
 
-pub trait Packet {
-    fn ci(&self) -> u8;
-    fn data(&self) -> u64;
+pub struct Packet {
+    pub chip_index: u8,
+    pub data: u64,
+}
+
+impl Packet {
 
     #[inline]
-    fn x(&self) -> POSITION {
-        (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION
+    pub fn data(&self) -> u64 {
+        self.data
+    }
+
+    #[inline]
+    pub fn ci(&self) -> u8 {
+        self.chip_index
+    }
+
+    #[inline]
+    pub fn x(&self) -> POSITION {
+        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
+        match SENSOR_TYPE {
+            0 => {
+                if !INVERSE_DETECTOR {
+                    match self.ci() {
+                        0 => 255 - temp2,
+                        1 => 256 * 4 - 1 - temp2,
+                        2 => 256 * 3 - 1 - temp2,
+                        3 => 256 * 2 - 1 - temp2,
+                        _ => panic!("More than four CIs."),
+                    }
+                } else {
+                    match self.ci() {
+                        0 => temp2 + 256 * 3,
+                        1 => temp2,
+                        2 => temp2 + 256,
+                        3 => temp2 + 256 * 2,
+                        _ => panic!("More than four CIs."),
+                    }
+                }
+            },
+            1 => {
+                match self.chip_index {
+                    0 => 255 - temp2,
+                    1 => temp2,
+                    2 => temp2 + 256,
+                    3 => 256 * 2 - 1 - temp2,
+                    _ => panic!("More than four CI."),
+                }
+            },
+            _ => {
+                temp2
+            },
+        }
     }
     
     #[inline]
-    fn y(&self) -> POSITION {
-        (((self.data() & 0x00_1F_80_00_00_00_00_00) >> 45) | ((self.data() & 0x00_00_30_00_00_00_00_00) >> 44)) as POSITION
-        //(((self.data() >> 45) & 0xFC) | ((self.data() >> 44) & 0x03)) as POSITION
+    pub fn y(&self) -> POSITION {
+        let temp = (((self.data() & 0x00_1F_80_00_00_00_00_00) >> 45) | ((self.data() & 0x00_00_30_00_00_00_00_00) >> 44)) as POSITION;
+        match SENSOR_TYPE {
+            0 => {
+                temp
+            },
+            1 => {
+                match self.chip_index {
+                    0 => temp,
+                    1 => 256 * 2 - 1 - temp,
+                    2 => 256 * 2 - 1 - temp,
+                    3 => temp,
+                    _ => panic!("More than four CI."),
+                }
+            },
+            _ => temp,
+        }
+                //(((self.data() >> 45) & 0xFC) | ((self.data() >> 44) & 0x03)) as POSITION
     }
 
     /*
@@ -39,105 +100,124 @@ pub trait Packet {
     */
 
     #[inline]
-    fn id(&self) -> u8 {
+    pub fn id(&self) -> u8 {
         ((self.data() & 0xF0_00_00_00_00_00_00_00) >> 60) as u8
         //((self.data() >> 60)) as u8
     }
 
     #[inline]
-    fn spidr(&self) -> TIME {
+    pub fn spidr(&self) -> TIME {
         (self.data() & 0x00_00_00_00_00_00_FF_FF) as TIME
     }
 
     #[inline]
-    fn ftoa(&self) -> TIME {
+    pub fn ftoa(&self) -> TIME {
         ((self.data() & 0x00_00_00_00_00_0F_00_00) >> 16) as TIME
         //((self.data() >> 16) & 0xF) as TIME
     }
 
     #[inline]
-    fn tot(&self) -> u16 {
+    pub fn tot(&self) -> u16 {
         ((self.data() & 0x00_00_00_00_3F_F0_00_00) >> 20) as u16
     }
 
     #[inline]
-    fn toa(&self) -> TIME {
+    pub fn toa(&self) -> TIME {
         ((self.data() & 0x00_00_0F_FF_C0_00_00_00) >> 30) as TIME
         //((self.data() >> 30) & 0x3F_FF) as TIME
     }
 
     #[inline]
-    fn ctoa(&self) -> TIME {
+    pub fn ctoa(&self) -> TIME {
         let toa = self.toa();
         let ftoa = self.ftoa();
         (toa << 4) | (!ftoa & 15)
     }
 
     #[inline]
-    fn fast_electron_time(&self) -> TIME {
+    pub fn fast_electron_time(&self) -> TIME {
         let spidr = self.spidr();
         let toa = self.toa();
         spidr * 262_144 + toa * 16
     }
-    
+
     #[inline]
-    fn electron_time(&self) -> TIME {
+    pub fn electron_time(&self) -> TIME {
         let spidr = self.spidr();
         let ctoa = self.ctoa();
-        spidr * 262_144 + ctoa
+        match CORRECT_ELECTRON_TIME_COARSE {
+            false => spidr * 262_144 + ctoa,
+            true => {
+                match SENSOR_TYPE {
+                    0 => {
+                        let mut x = self.x();
+                        if INVERSE_DETECTOR {
+                            x = (4 * 256 - 1) - x;
+                        }
+                        let t = spidr * 262_144 + ctoa;
+                        match x {
+                            //52..=61 | 308..=317 | 560..=573 | 580..=581 | 584..=585 | 592..=593 | 820..=829 => t-16,
+                            52..=61 | 306..=317 | 324..=325 | 564..=573 | 820..=829 => t-16,
+                            _ => t,
+                        }
+                    },
+                    _ => spidr * 262_144 * ctoa
+                }
+            }
+        }
     }
 
     #[inline]
-    fn tdc_coarse(&self) -> TIME {
+    pub fn tdc_coarse(&self) -> TIME {
         ((self.data() & 0x00_00_0F_FF_FF_FF_FE_00) >> 9) as TIME
     }
     
     #[inline]
-    fn tdc_fine(&self) -> TIME {
+    pub fn tdc_fine(&self) -> TIME {
         ((self.data() & 0x00_00_00_00_00_00_01_E0) >> 5) as TIME
     }
 
     #[inline]
-    fn tdc_counter(&self) -> u16 {
+    pub fn tdc_counter(&self) -> u16 {
         ((self.data() & 0x00_FF_F0_00_00_00_00_00) >> 44) as u16
     }
 
     #[inline]
-    fn tdc_type(&self) -> u8 {
+    pub fn tdc_type(&self) -> u8 {
         ((self.data() & 0x0F_00_00_00_00_00_00_00) >> 56) as u8
     }
     
     #[inline]
-    fn frame_time(&self) -> u64 {
+    pub fn frame_time(&self) -> u64 {
         ((self.data() & 0x00_00_3F_FF_FF_FF_F0_00) >> 12) as u64
     }
     
     #[inline]
-    fn hit_count(&self) -> u8 {
+    pub fn hit_count(&self) -> u8 {
         ((self.data() & 0x00_00_00_00_00_0F_00_00) >> 16) as u8
     }
     
     #[inline]
-    fn shutter_packet_count(&self) -> u64 {
+    pub fn shutter_packet_count(&self) -> u64 {
         (self.data() & 0x00_00_FF_FF_FF_FF_FF_FF) as u64
     }
 
     #[inline]
-    fn tdc_time(&self) -> TIME {
+    pub fn tdc_time(&self) -> TIME {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
         coarse * 2 + fine / 6
     }
     
     #[inline]
-    fn tdc_time_abs(&self) -> TIME {
+    pub fn tdc_time_abs(&self) -> TIME {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
         coarse * 12 + fine
     }
     
     #[inline]
-    fn tdc_time_norm(&self) -> TIME {
+    pub fn tdc_time_norm(&self) -> TIME {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
         let time = coarse * 2 + fine / 6;
@@ -145,13 +225,24 @@ pub trait Packet {
     }
 
     #[inline]
-    fn tdc_time_abs_norm(&self) -> TIME {
+    pub fn tdc_time_abs_norm(&self) -> TIME {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
         let time = coarse * 12 + fine;
         time - (time / (103_079_215_104)) * 103_079_215_104
     }
+    
+    #[inline]
+    pub const fn chip_array() -> (POSITION, POSITION) {
+        match SENSOR_TYPE {
+            0 => (SPIM_PIXELS, 256),
+            1 => (RAW4D_PIXELS_X, RAW4D_PIXELS_Y),
+            _ => (256, 256),
+        }
+    }
 }
+
+/*
 
 pub struct PacketStd {
     pub chip_index: u8,
@@ -351,6 +442,7 @@ impl PacketDiffraction {
         (512, 512)
     }
 }
+*/
 
 pub struct InversePacket {
     pub x: usize,
