@@ -7,9 +7,6 @@ pub const TIME_INTERVAL_FRAMES: u128 = 50; //in milliseconds
 pub const HYPERSPECTRAL_PIXEL_CHUNK: POSITION = 500; //In number of pixels
 pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 2000; //in milliseconds
 pub const VIDEO_TIME: TIME = 0;
-pub const SPIM_PIXELS: POSITION = 1025;
-pub const RAW4D_PIXELS_X: POSITION = 1025;
-pub const RAW4D_PIXELS_Y: POSITION = 256;
 pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coincidence searching
 pub const LIST_SIZE_AUX_EVENTS: usize = 5;
 pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_spim.tpx3";
@@ -28,7 +25,6 @@ pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
 pub const NIONSWIFT_PORT: u16 = 8088;
 
 //***Packet-related values***//
-pub const SENSOR_TYPE: u8 = 0; //0 -> 1x4; 1 -> 2x2; _ -> single chip;
 pub const PIXELS_X: POSITION = 1025;
 pub const PIXELS_Y: POSITION = 256;
 pub const INVERSE_DETECTOR: bool = true; //This mirror the detector in the dispersive direction (EELS);

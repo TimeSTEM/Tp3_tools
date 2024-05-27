@@ -106,7 +106,7 @@ pub mod coincidence {
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon: SinglePhoton) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
-            self.corr_spectrum[SPIM_PIXELS as usize-1] += 1; //Adding the photon
+            self.corr_spectrum[PIXELS_X as usize-1] += 1; //Adding the photon
             self.time.push(val.time());
             self.g2_time.push(photon.g2_time());
             self.tot.push(val.tot());
@@ -145,7 +145,7 @@ pub mod coincidence {
 
 
             //Adding photons to the last pixel
-            self.spectrum[SPIM_PIXELS as usize-1]+=nphotons as u32;
+            self.spectrum[PIXELS_X as usize-1]+=nphotons as u32;
             //for ph_index in temp_tdc.event_list.data.iter().filter_map(|ph| ph.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1)) {
             //    self.spim_frame[ph_index as usize] += 1;
             //}
@@ -215,10 +215,10 @@ pub mod coincidence {
                 x: Vec::new(),
                 y: Vec::new(),
                 tot: Vec::new(),
-                spim_frame: vec![0; (SPIM_PIXELS * my_settings.xspim_size * my_settings.yspim_size) as usize],
+                spim_frame: vec![0; (PIXELS_X * my_settings.xspim_size * my_settings.yspim_size) as usize],
                 cluster_size: Vec::new(),
-                spectrum: vec![0; SPIM_PIXELS as usize],
-                corr_spectrum: vec![0; SPIM_PIXELS as usize],
+                spectrum: vec![0; PIXELS_X as usize],
+                corr_spectrum: vec![0; PIXELS_X as usize],
                 is_spim: my_settings.mode == 2,
                 spim_size: (my_settings.xspim_size, my_settings.yspim_size),
                 spim_index: Vec::new(),

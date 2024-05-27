@@ -271,7 +271,7 @@ pub mod cluster {
             self.data.3
         }
         pub fn image_index(&self) -> POSITION {
-            self.data.1 + SPIM_PIXELS*self.data.2
+            self.data.1 + PIXELS_X*self.data.2
         }
         pub fn relative_time(&self, reference_time: TIME) -> i64 {
             self.data.0 as i64 - reference_time as i64
@@ -398,7 +398,7 @@ pub mod cluster {
             self.data.1
         }
         pub fn get_or_not_spim_index(&self, spim_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEXHYPERSPEC> {
-            spimlib::get_spimindex(SPIM_PIXELS-1, self.frame_dt(), &spim_tdc?, xspim, yspim, None)
+            spimlib::get_spimindex(PIXELS_X-1, self.frame_dt(), &spim_tdc?, xspim, yspim, None)
         }
         pub fn frame_dt(&self) -> TIME {
             self.data.3

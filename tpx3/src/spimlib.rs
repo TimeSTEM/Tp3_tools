@@ -28,22 +28,22 @@ pub trait SpimKind {
 
 #[inline]
 pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEXHYPERSPEC> {
-    Some(spim_tdc.get_return_positional_index(dt, xspim, yspim)? * SPIM_PIXELS + x)
+    Some(spim_tdc.get_return_positional_index(dt, xspim, yspim)? * PIXELS_X + x)
 }
 
 #[inline]
 pub fn get_spimindex(x: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION, list_scan: SlType) -> Option<INDEXHYPERSPEC> {
-    Some(spim_tdc.get_positional_index(dt, xspim, yspim, list_scan)? * SPIM_PIXELS + x)
+    Some(spim_tdc.get_positional_index(dt, xspim, yspim, list_scan)? * PIXELS_X + x)
 }
 
 #[inline]
 pub fn get_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX4D> {
-    Some(spim_tdc.get_positional_index(dt, xspim, yspim, None)? as INDEX4D * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as INDEX4D + (y * RAW4D_PIXELS_X + x)as INDEX4D)
+    Some(spim_tdc.get_positional_index(dt, xspim, yspim, None)? as INDEX4D * (PIXELS_X * PIXELS_Y) as INDEX4D + (y * PIXELS_X + x)as INDEX4D)
 }
 
 #[inline]
 pub fn get_return_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX4D> {
-    Some(spim_tdc.get_return_positional_index(dt, xspim, yspim)? as u64 * (RAW4D_PIXELS_X * RAW4D_PIXELS_Y) as u64 + (y * RAW4D_PIXELS_X + x)as u64)
+    Some(spim_tdc.get_return_positional_index(dt, xspim, yspim)? as u64 * (PIXELS_X * PIXELS_Y) as u64 + (y * PIXELS_X + x)as u64)
 }
 
 ///It outputs list of indices (max `u32`) that
@@ -150,7 +150,7 @@ impl SpimKind for Live {
     fn add_tdc_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
         let tdc_time = line_tdc.correct_or_not_etime(packet.tdc_time_norm()).unwrap();
-        self.data.push((SPIM_PIXELS-1, tdc_time));
+        self.data.push((PIXELS_X-1, tdc_time));
     }
     fn upt_line(&self, packet: &Packet, _settings: &Settings, line_tdc: &mut TdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
@@ -215,7 +215,7 @@ impl SpimKind for LiveScanList {
     fn add_tdc_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
         let tdc_time = line_tdc.correct_or_not_etime(packet.tdc_time_norm()).unwrap();
-        self.data.push((SPIM_PIXELS-1, tdc_time));
+        self.data.push((PIXELS_X-1, tdc_time));
     }
     fn upt_line(&self, packet: &Packet, _settings: &Settings, line_tdc: &mut TdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
@@ -302,7 +302,7 @@ impl SpimKind for Live4D {
     fn add_tdc_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
         let tdc_time = line_tdc.correct_or_not_etime(packet.tdc_time_norm()).unwrap();
-        self.data.push((SPIM_PIXELS-1, tdc_time));
+        self.data.push((PIXELS_X-1, tdc_time));
     }
     fn upt_line(&self, packet: &Packet, _settings: &Settings, line_tdc: &mut TdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());

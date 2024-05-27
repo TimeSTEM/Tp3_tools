@@ -24,8 +24,8 @@ impl Packet {
     #[inline]
     pub fn x(&self) -> POSITION {
         let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
-        match SENSOR_TYPE {
-            0 => {
+        match PIXELS_X {
+            1024 | 1025 => {
                 if !INVERSE_DETECTOR {
                     match self.ci() {
                         0 => 255 - temp2,
@@ -44,7 +44,7 @@ impl Packet {
                     }
                 }
             },
-            1 => {
+            512 => {
                 match self.chip_index {
                     0 => 255 - temp2,
                     1 => temp2,
@@ -62,11 +62,11 @@ impl Packet {
     #[inline]
     pub fn y(&self) -> POSITION {
         let temp = (((self.data() & 0x00_1F_80_00_00_00_00_00) >> 45) | ((self.data() & 0x00_00_30_00_00_00_00_00) >> 44)) as POSITION;
-        match SENSOR_TYPE {
-            0 => {
+        match PIXELS_Y {
+            1024 | 1025 => {
                 temp
             },
-            1 => {
+            512 => {
                 match self.chip_index {
                     0 => temp,
                     1 => 256 * 2 - 1 - temp,
@@ -148,15 +148,14 @@ impl Packet {
         match CORRECT_ELECTRON_TIME_COARSE {
             false => spidr * 262_144 + ctoa,
             true => {
-                match SENSOR_TYPE {
-                    0 => {
+                match PIXELS_X {
+                    1024 | 1025 => {
                         let mut x = self.x();
                         if INVERSE_DETECTOR {
                             x = (4 * 256 - 1) - x;
                         }
                         let t = spidr * 262_144 + ctoa;
                         match x {
-                            //52..=61 | 308..=317 | 560..=573 | 580..=581 | 584..=585 | 592..=593 | 820..=829 => t-16,
                             52..=61 | 306..=317 | 324..=325 | 564..=573 | 820..=829 => t-16,
                             _ => t,
                         }
@@ -234,215 +233,9 @@ impl Packet {
     
     #[inline]
     pub const fn chip_array() -> (POSITION, POSITION) {
-        match SENSOR_TYPE {
-            0 => (SPIM_PIXELS, 256),
-            1 => (RAW4D_PIXELS_X, RAW4D_PIXELS_Y),
-            _ => (256, 256),
-        }
+        (PIXELS_X, PIXELS_X)
     }
 }
-
-/*
-
-pub struct PacketStd {
-    pub chip_index: u8,
-    pub data: u64,
-}
-
-impl Packet for PacketStd {
-    fn ci(&self) -> u8 {
-        self.chip_index
-    }
-    fn data(&self) -> u64 {
-        self.data
-    }
-}
-
-pub struct PacketEELS {
-    pub chip_index: u8,
-    pub data: u64,
-}
-
-impl Packet for PacketEELS {
-    fn ci(&self) -> u8 {
-        self.chip_index
-    }
-    fn data(&self) -> u64 {
-        self.data
-    }
-    
-    #[inline]
-    fn x(&self) -> POSITION {
-        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
-        
-        if !INVERSE_DETECTOR {
-            match self.ci() {
-                0 => 255 - temp2,
-                1 => 256 * 4 - 1 - temp2,
-                2 => 256 * 3 - 1 - temp2,
-                3 => 256 * 2 - 1 - temp2,
-                _ => panic!("More than four CIs."),
-            }
-        } else {
-            match self.ci() {
-                0 => temp2 + 256 * 3,
-                1 => temp2,
-                2 => temp2 + 256,
-                3 => temp2 + 256 * 2,
-                _ => panic!("More than four CIs."),
-            }
-        }
-    }
-}
-
-impl PacketEELS {
-    pub const fn chip_array() -> (POSITION, POSITION) {
-        (1025, 256)
-    }
-}
-
-pub struct PacketSheerEELS {
-    pub chip_index: u8,
-    pub data: u64,
-}
-
-impl Packet for PacketSheerEELS {
-    fn ci(&self) -> u8 {
-        self.chip_index
-    }
-    fn data(&self) -> u64 {
-        self.data
-    }
-    
-    #[inline]
-    fn x(&self) -> POSITION {
-        let hor_shift = self.y() / 16;
-        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
-        
-        match self.ci() {
-            0 => 255 - temp2 + hor_shift,
-            1 => 256 * 4 - 1 - temp2 + hor_shift,
-            2 => 256 * 3 - 1 - temp2 + hor_shift,
-            3 => 256 * 2 - 1 - temp2 + hor_shift,
-            _ => panic!("More than four CIs."),
-        }
-    }
-}
-
-impl PacketSheerEELS {
-    pub const fn chip_array() -> (POSITION, POSITION) {
-        PacketEELS::chip_array()
-    }
-}
-
-
-pub struct TimeCorrectedPacketEELS {
-    pub chip_index: u8,
-    pub data: u64,
-}
-
-impl Packet for TimeCorrectedPacketEELS {
-    fn ci(&self) -> u8 {
-        self.chip_index
-    }
-    fn data(&self) -> u64 {
-        self.data
-    }
-    
-    #[inline]
-    fn x(&self) -> POSITION {
-        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
-        
-        match self.ci() {
-            0 => 255 - temp2,
-            1 => 256 * 4 - 1 - temp2,
-            2 => 256 * 3 - 1 - temp2,
-            3 => 256 * 2 - 1 - temp2,
-            _ => panic!("More than four CIs."),
-        }
-    }
-    
-    fn fast_electron_time(&self) -> TIME {
-        let spidr = self.spidr();
-        let toa = self.toa();
-        spidr * 262_144 + toa * 16
-    }
-    
-    fn electron_time(&self) -> TIME {
-        let spidr = self.spidr();
-        let ctoa = self.ctoa();
-        let x = self.x();
-        let t = spidr * 262_144 + ctoa;
-        match x {
-            //52..=61 | 308..=317 | 560..=573 | 580..=581 | 584..=585 | 592..=593 | 820..=829 => t-16,
-            52..=61 | 306..=317 | 324..=325 | 564..=573 | 820..=829 => t-16,
-            _ => t,
-        }
-    }
-}
-
-impl TimeCorrectedPacketEELS {
-    pub const fn chip_array() -> (POSITION, POSITION) {
-        PacketEELS::chip_array()
-    }
-}
-
-pub struct PacketDiffraction {
-    pub chip_index: u8,
-    pub data: u64,
-}
-
-impl Packet for PacketDiffraction {
-    fn ci(&self) -> u8 {
-        self.chip_index
-    }
-    fn data(&self) -> u64 {
-        self.data
-    }
-    fn x(&self) -> POSITION {
-        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
-        
-        match self.ci() {
-            0 => 255 - temp2,
-            1 => 256 * 4 - 1 - temp2,
-            2 => 256 * 3 - 1 - temp2,
-            3 => 256 * 2 - 1 - temp2,
-            _ => panic!("More than four CIs."),
-        }
-        //This is for 2x2 Timepix3
-        /*
-        let temp2 = (((self.data() & 0x0F_E0_00_00_00_00_00_00) >> 52) | ((self.data() & 0x00_00_40_00_00_00_00_00) >> 46)) as POSITION;
-        match self.chip_index {
-            0 => 255 - temp2,
-            1 => temp2,
-            2 => temp2 + 256,
-            3 => 256 * 2 - 1 - temp2,
-            _ => panic!("More than four CI."),
-        }
-        */
-    }
-
-    /*
-    //This is for the 2x2 Timepix3
-    fn y(&self) -> POSITION {
-        let temp = (((self.data() & 0x00_1F_80_00_00_00_00_00) >> 45) | ((self.data() & 0x00_00_30_00_00_00_00_00) >> 44)) as POSITION;
-        match self.chip_index {
-            0 => temp,
-            1 => 256 * 2 - 1 - temp,
-            2 => 256 * 2 - 1 - temp,
-            3 => temp,
-            _ => panic!("More than four CI."),
-        }
-    }
-    */
-}
-
-impl PacketDiffraction {
-    pub const fn chip_array() -> (POSITION, POSITION) {
-        (512, 512)
-    }
-}
-*/
 
 pub struct InversePacket {
     pub x: usize,

@@ -666,7 +666,7 @@ pub mod isi_box {
                     loop {
                         let mut num = nvec_arclist.lock().unwrap();
                         while let Ok(size) = val.read(&mut buffer) {
-                            aux_func::as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x * SPIM_PIXELS as u32) + 1025 + channel_index));
+                            aux_func::as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x * PIXELS_X as u32) + 1025 + channel_index));
                         }
                         drop(num);
                         let stop_val = stop_arc.lock().unwrap();
