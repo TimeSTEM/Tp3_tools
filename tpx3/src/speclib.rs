@@ -15,15 +15,29 @@ const CAM_DESIGN: (POSITION, POSITION) = Packet::chip_array();
 
 fn tr_check_if_in(ele_time: TIME, ref_tdc: &TdcRef, settings: &Settings) -> bool {
     let period = ref_tdc.period().expect("Period must exist in LiveTR1D.");
-    let last_time = ref_tdc.time();
-    let eff_tdc = if last_time > ele_time {
-        let xper = (last_time - ele_time) / period + 1;
-        last_time - xper * period
+    let last_tdc_time = ref_tdc.time();
+ 
+    //This case ele_time is always greater than photon time
+    /*
+    let eff_tdc = if last_tdc_time > ele_time {
+        let xper = (last_tdc_time - ele_time) / period + 1;
+        last_tdc_time - xper * period
     } else {
-        let xper = (ele_time - last_time) / period;
-        last_time + xper * period
+        let xper = (ele_time - last_tdc_time) / period;
+        last_tdc_time + xper * period
     };
     ele_time > eff_tdc + settings.time_delay && ele_time < eff_tdc + settings.time_delay + settings.time_width
+    */
+
+    //This case photon time is always greater than electron time
+    let eff_tdc = if last_tdc_time > ele_time {
+        let xper = (last_tdc_time - ele_time) / period;
+        last_tdc_time - xper * period
+    } else {
+        let xper = (ele_time - last_tdc_time) / period + 1;
+        last_tdc_time + xper * period
+    };
+    ele_time + settings.time_delay + settings.time_width > eff_tdc && ele_time + settings.time_delay < eff_tdc + settings.time_width
 }
 
 
@@ -115,6 +129,20 @@ macro_rules! add_index {
     }
 }
 
+macro_rules! tp3_vec {
+    ($x: expr) => {
+        {
+            let len = match $x {
+                1 => CAM_DESIGN.0,
+                2 => CAM_DESIGN.0 * CAM_DESIGN.1,
+                _ => {panic!("One or two dimensions only!")},
+            } as usize;
+            let temp_vec: Vec<u32> = vec![0; len];
+            temp_vec
+        }
+    }
+}
+
 pub struct Live2D {
     data: Vec<u32>,
     is_ready: bool,
@@ -135,7 +163,7 @@ impl SpecKind for Live2D {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        Self{ data: vec!(CAM_DESIGN.0 * CAM_DESIGN.1), is_ready: false, timer: Instant::now() }
+        Self{ data: tp3_vec!(2), is_ready: false, timer: Instant::now() }
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         if INTERNAL_TIMER_FRAME {
@@ -199,7 +227,7 @@ impl SpecKind for Live1D {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        Self{ data: vec!(CAM_DESIGN.0),is_ready: false, timer: Instant::now()}
+        Self{ data: tp3_vec!(1), is_ready: false, timer: Instant::now()}
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         if INTERNAL_TIMER_FRAME {
@@ -256,7 +284,7 @@ impl  SpecKind for LiveTR2D {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        Self{ data: vec!(CAM_DESIGN.0 * CAM_DESIGN.1), is_ready: false, timer: Instant::now()}
+        Self{ data: tp3_vec!(2), is_ready: false, timer: Instant::now()}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
@@ -284,6 +312,7 @@ impl  SpecKind for LiveTR2D {
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
         self.is_ready = false;
+        self.timer = Instant::now();
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = 0);
         }
@@ -304,7 +333,7 @@ impl SpecKind for LiveTR1D {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        Self{ data: vec!(CAM_DESIGN.0), is_ready: false, timer: Instant::now()}
+        Self{ data: tp3_vec!(1), is_ready: false, timer: Instant::now()}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
@@ -332,6 +361,7 @@ impl SpecKind for LiveTR1D {
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
         self.is_ready = false;
+        self.timer = Instant::now();
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = 0);
         }
@@ -489,7 +519,7 @@ impl SpecKind for Live2DFrame {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        Self{ data: vec!(CAM_DESIGN.0 * CAM_DESIGN.1), is_ready: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
+        Self{ data: tp3_vec!(2), is_ready: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
     }
 
     #[inline]
@@ -557,7 +587,7 @@ impl SpecKind for Live1DFrame {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        Self{ data: vec!(CAM_DESIGN.0), is_ready: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
+        Self{ data: tp3_vec!(1), is_ready: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
     }
 
     #[inline]

@@ -1,7 +1,7 @@
 use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::Settings;
 use timepix3::tdclib::{TdcType, TdcRef};
-use timepix3::{speclib, spimlib, spimlib::SpimKind};
+use timepix3::{speclib, speclib::SpecKind, spimlib, spimlib::SpimKind};
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
@@ -11,11 +11,17 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
 
     match my_settings.mode {
         0 if my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live1D, file_to_write)?;
+            let mut measurement = speclib::Live1D::new(&my_settings);
+            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
+            let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
             Ok(my_settings.mode)
         },
         0 if !my_settings.bin => {
-            speclib::run_spectrum(pack, ns, my_settings, speclib::Live2D, file_to_write)?;
+            let mut measurement = speclib::Live2D::new(&my_settings);
+            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
+            let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
             Ok(my_settings.mode)
         },
         1 => {

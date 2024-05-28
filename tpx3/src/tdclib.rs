@@ -75,7 +75,7 @@ mod tdcvec {
             else {Ok(())}
         }
 
-        pub fn find_high_time(&self) -> Result<TIME, Tp3ErrorKind> {
+        pub fn find_high_time(&self) -> Option<TIME> {
             let fal_tdc_type = match self.tdc_choosen {
                 TdcType::TdcOneRisingEdge | TdcType::TdcOneFallingEdge => TdcType::TdcOneFallingEdge,
                 TdcType::TdcTwoRisingEdge | TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
@@ -93,20 +93,20 @@ mod tdcvec {
             //let last_fal = fal.pop().expect("Please get at least 01 falling Tdc");
             let last_fal = match fal.pop() {
                 Some(val) => val,
-                None => return Err(Tp3ErrorKind::TdcBadHighTime),
+                None => return None,
             };
             let last_ris = match ris.pop() {
                 Some(val) => val,
-                None => return Err(Tp3ErrorKind::TdcBadHighTime),
+                None => return None,
             };
             if last_fal > last_ris {
-                Ok(last_fal - last_ris)
+                Some(last_fal - last_ris)
             } else {
                 let new_ris = match ris.pop () {
                     Some(val) => val,
-                    None => return Err(Tp3ErrorKind::TdcBadHighTime),
+                    None => return None,
                 };
-                Ok(last_fal - new_ris)
+                Some(last_fal - new_ris)
             }
         }
         
@@ -464,9 +464,9 @@ impl TdcRef {
         let counter_offset = tdc_search.get_counter_offset();
         let begin_time = tdc_search.get_begintime() / 6;
         let last_time = tdc_search.get_lasttime() / 6;
-        let high_time = tdc_search.find_high_time()? / 6;
         let period = tdc_search.find_period()? / 6;
-        let low_time = period - high_time;
+        let high_time = tdc_search.find_high_time().map(|time| time / 6);
+        let low_time = tdc_search.find_high_time().map(|time| period - time / 6);
 
         let per_ref = Self {
             tdctype: tdc_type.associate_value(),
@@ -480,8 +480,8 @@ impl TdcRef {
             subsample: ratio,
             video_delay: my_settings.video_time,
             period: Some(period),
-            high_time: Some(high_time),
-            low_time: Some(low_time),
+            high_time,
+            low_time,
             new_frame: false,
             time: last_time,
         };
