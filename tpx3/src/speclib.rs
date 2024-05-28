@@ -13,6 +13,8 @@ use crate::constlib::*;
 
 const CAM_DESIGN: (POSITION, POSITION) = Packet::chip_array();
 
+
+/*
 //Generating BitDepth for the standard types
 macro_rules! genbitdepth {
     ($($x: ty),*) => {
@@ -82,6 +84,7 @@ pub struct SpecMeasurement<T, K: BitDepth> {
     shutter: Option<ShutterControl>,
     _kind: T,
 }
+*/
 
 #[derive(Default)]
 pub struct ShutterControl {
@@ -163,7 +166,7 @@ pub trait SpecKind {
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, &my_settings, file_to_write)
     }
-    fn build_aux_tdc(&self) -> Result<TdcRef, Tp3ErrorKind> {
+    fn build_aux_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
     }
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, frame_tdc: &TdcRef, ref_tdc: &TdcRef);
@@ -178,7 +181,7 @@ pub trait IsiBoxKind: SpecKind {
     fn append_from_isi(&mut self, ext_data: &[u32]);
 }
 
-
+/*
 macro_rules! tp3_vec {
     ($x: expr) => {
         {
@@ -187,22 +190,32 @@ macro_rules! tp3_vec {
                 2 => CAM_DESIGN.1*CAM_DESIGN.0,
                 _ => {panic!("One or two dimensions only!")},
             } as usize;
-            let temp_vec: Vec<L> = vec![L::zero(); len];
+            let temp_vec: = vec![0; len];
             temp_vec
         }
     }
 }
+*/
 
 macro_rules! add_index {
     ($x: ident, $y: expr) => {
         {
-            $x.data[$y as usize] += L::one();
+            $x.data[$y as usize] += 1;
         }
     }
 }
 
+pub struct Live2D {
+    data: Vec<u32>,
+    aux_data: Vec<TIME>,
+    is_ready: bool,
+    global_stop: bool,
+    timer: Instant,
+    shutter: Option<ShutterControl>,
+}
 
-impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
+
+impl SpecKind for Live2D {
     //If INTERNAL_TIMER_FRAME, the ready is given by the internal elapsed time.
     fn is_ready(&self) -> bool {
         if !INTERNAL_TIMER_FRAME {
@@ -215,7 +228,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live2D }
+        Live2D{ data: vec!(CAM_DESIGN.0 * CAM_DESIGN.1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None }
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         if INTERNAL_TIMER_FRAME {
@@ -242,7 +255,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
             if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
                 self.is_ready = false;
                 if !settings.cumul {
-                    self.data.iter_mut().for_each(|x| *x = L::zero());
+                    self.data.iter_mut().for_each(|x| *x = 0);
                 }
             } else {
                 self.is_ready = true;
@@ -255,12 +268,22 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2D, L> {
         self.timer = Instant::now();
         self.is_ready = false;
         if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = L::zero());
+            self.data.iter_mut().for_each(|x| *x = 0);
         }
     }
 }
 
-impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
+pub struct Live1D {
+    data: Vec<u32>,
+    aux_data: Vec<TIME>,
+    is_ready: bool,
+    global_stop: bool,
+    timer: Instant,
+    shutter: Option<ShutterControl>,
+}
+
+
+impl SpecKind for Live1D {
     fn is_ready(&self) -> bool {
         if !INTERNAL_TIMER_FRAME {
             self.is_ready
@@ -271,8 +294,8 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
     fn build_output(&self) -> &[u8] {
         aux_func::as_bytes(&self.data)
     }
-    fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live1D}
+    fn new(settings: &Settings) -> Self {
+        Live1D{ data: vec!(CAM_DESIGN.0), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         if INTERNAL_TIMER_FRAME {
@@ -296,7 +319,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
             if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
                 self.is_ready = false;
                 if !settings.cumul {
-                    self.data.iter_mut().for_each(|x| *x = L::zero());
+                    self.data.iter_mut().for_each(|x| *x = 0);
                 }
             } else {
                 self.is_ready = true;
@@ -309,12 +332,22 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1D, L> {
         self.timer = Instant::now();
         self.is_ready = false;
         if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = L::zero());
+            self.data.iter_mut().for_each(|x| *x = 0);
         }
     }
 }
 
-impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR2D, L> {
+pub struct LiveTR2D {
+    data: Vec<u32>,
+    aux_data: Vec<TIME>,
+    is_ready: bool,
+    global_stop: bool,
+    timer: Instant,
+    shutter: Option<ShutterControl>,
+}
+
+
+impl  SpecKind for LiveTR2D {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
@@ -322,14 +355,14 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR2D, L> {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTR2D}
+        LiveTR2D{ data: vec!(CAM_DESIGN.0 * CAM_DESIGN.1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
-        if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
-            let index = pack.x() + CAM_DESIGN.0 * pack.y();
-            add_index!(self, index);
-        }
+        //if LiveTR2D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
+        //    let index = pack.x() + CAM_DESIGN.0 * pack.y();
+        //    add_index!(self, index);
+        //}
     }
     fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
@@ -341,12 +374,21 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR2D, L> {
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
         self.is_ready = false;
         if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = L::zero());
+            self.data.iter_mut().for_each(|x| *x = 0);
         }
     }
 }
 
-impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR1D, L> {
+pub struct LiveTR1D {
+    data: Vec<u32>,
+    aux_data: Vec<TIME>,
+    is_ready: bool,
+    global_stop: bool,
+    timer: Instant,
+    shutter: Option<ShutterControl>,
+}
+
+impl SpecKind for LiveTR1D {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
@@ -354,7 +396,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR1D, L> {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: LiveTR1D}
+        LiveTR1D { data: vec!(CAM_DESIGN.0), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
@@ -373,12 +415,21 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<LiveTR1D, L> {
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
         self.is_ready = false;
         if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = L::zero());
+            self.data.iter_mut().for_each(|x| *x = 0);
         }
     }
 }
 
-impl<L: BitDepth> SpecKind for SpecMeasurement<Coincidence2D, L> {
+pub struct Coincidence2D {
+    data: Vec<u32>,
+    aux_data: Vec<TIME>,
+    is_ready: bool,
+    global_stop: bool,
+    timer: Instant,
+    shutter: Option<ShutterControl>,
+}
+
+impl SpecKind for Coincidence2D {
     fn is_ready(&self) -> bool {
         self.is_ready && !self.global_stop
     }
@@ -387,8 +438,8 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Coincidence2D, L> {
     }
     fn new(settings: &Settings) -> Self {
         let len = 2*settings.time_width as usize * CAM_DESIGN.0 as usize;
-        let temp_vec = vec![L::zero(); len];
-        SpecMeasurement{ data: temp_vec, aux_data: vec![0; LIST_SIZE_AUX_EVENTS], is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Coincidence2D}
+        let temp_vec = vec![0; len];
+        Self { data: temp_vec, aux_data: vec![0; LIST_SIZE_AUX_EVENTS], is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
@@ -418,14 +469,21 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Coincidence2D, L> {
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
         self.is_ready = false;
         if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = L::zero());
+            self.data.iter_mut().for_each(|x| *x = 0);
         }
     }
 }
 
+pub struct FastChrono {
+    data: Vec<u32>,
+    aux_data: Vec<TIME>,
+    is_ready: bool,
+    global_stop: bool,
+    timer: Instant,
+    shutter: Option<ShutterControl>,
+}
 
-
-impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
+impl SpecKind for FastChrono {
     fn is_ready(&self) -> bool {
         self.is_ready && !self.global_stop
     }
@@ -434,8 +492,8 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
     }
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
-        let data = vec![L::zero(); len];
-        SpecMeasurement{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: FastChrono}
+        let data = vec![0; len];
+        Self{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
@@ -458,7 +516,16 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<FastChrono, L> {
     }
 }
 
-impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
+pub struct Chrono {
+    data: Vec<u32>,
+    aux_data: Vec<TIME>,
+    is_ready: bool,
+    global_stop: bool,
+    timer: Instant,
+    shutter: Option<ShutterControl>,
+}
+
+impl SpecKind for Chrono {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
@@ -467,8 +534,8 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
     }
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
-        let data = vec![L::zero(); len];
-        SpecMeasurement{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Chrono}
+        let data = vec![0; len];
+        Self{ data, aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
@@ -492,12 +559,20 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Chrono, L> {
         self.is_ready = false;
         if self.aux_data.len() > 0 { //Refresh frame if true;
             self.aux_data.pop(); //Remove for the next cycle;
-            self.data.iter_mut().for_each(|x| *x = L::zero());
+            self.data.iter_mut().for_each(|x| *x = 0);
         }
     }
 }
+pub struct Live2DFrame {
+    data: Vec<u32>,
+    aux_data: Vec<TIME>,
+    is_ready: bool,
+    global_stop: bool,
+    timer: Instant,
+    shutter: Option<ShutterControl>,
+}
 
-impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
+impl SpecKind for Live2DFrame {
     fn is_ready(&self) -> bool {
         self.is_ready && (self.timer.elapsed().as_millis() > TIME_INTERVAL_FRAMES)
     }
@@ -505,14 +580,14 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(2), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live2DFrame }
+        Self{ data: vec!(CAM_DESIGN.0 * CAM_DESIGN.1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
     }
 
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         if !self.is_ready || settings.cumul {
             let index = pack.x() + CAM_DESIGN.0 * pack.y();
-            self.data[index as usize] += L::from_u16(pack.tot());
+            self.data[index as usize] += pack.tot() as u32;
         }
     }
     fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
@@ -531,7 +606,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
                     if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
                         self.is_ready = false;
                         if !settings.cumul { //No cumulation
-                            self.data.iter_mut().for_each(|x| *x = L::zero());
+                            self.data.iter_mut().for_each(|x| *x = 0);
                         }
                     } else {
                         self.is_ready = true;
@@ -540,7 +615,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
             } else {
                 if temp_ready {
                     if !settings.cumul { //No cumulation
-                        self.data.iter_mut().for_each(|x| *x = L::zero());
+                        self.data.iter_mut().for_each(|x| *x = 0);
                     }
                     self.is_ready = false;
                 }
@@ -558,7 +633,16 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live2DFrame, L> {
     }
 }
 
-impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
+pub struct Live1DFrame {
+    data: Vec<u32>,
+    aux_data: Vec<TIME>,
+    is_ready: bool,
+    global_stop: bool,
+    timer: Instant,
+    shutter: Option<ShutterControl>,
+}
+
+impl SpecKind for Live1DFrame {
     fn is_ready(&self) -> bool {
         self.is_ready && (self.timer.elapsed().as_millis() > TIME_INTERVAL_FRAMES)
     }
@@ -566,7 +650,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        SpecMeasurement{ data: tp3_vec!(1), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default()), _kind: Live1DFrame }
+        Self{ data: vec!(CAM_DESIGN.0), aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
     }
 
     #[inline]
@@ -575,7 +659,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
         //frame has not yet been sent
         if !self.is_ready || settings.cumul{
             let index = pack.x();
-            self.data[index as usize] += L::from_u16(pack.tot());
+            self.data[index as usize] += pack.tot() as u32;
         }
     }
     fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
@@ -596,7 +680,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
             } else {
                 if temp_ready {
                     if !settings.cumul {
-                        self.data.iter_mut().for_each(|x| *x = L::zero());
+                        self.data.iter_mut().for_each(|x| *x = 0);
                     }
                     self.is_ready = false;
                 }
@@ -616,7 +700,16 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrame, L> {
     }
 }
 
-impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrameHyperspec, L> {
+pub struct Live1DFrameHyperspec {
+    data: Vec<u32>,
+    aux_data: Vec<TIME>,
+    is_ready: bool,
+    global_stop: bool,
+    timer: Instant,
+    shutter: Option<ShutterControl>,
+}
+
+impl SpecKind for Live1DFrameHyperspec {
     fn is_ready(&self) -> bool {
         self.is_ready
     }
@@ -629,7 +722,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrameHyperspec, L> {
         let len = (CAM_DESIGN.0 * settings.xscan_size * settings.yscan_size) as usize;
         let mut shutter = ShutterControl::default();
         shutter.set_as_hyperspectral();
-        SpecMeasurement{ data: vec![L::zero(); len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(shutter), _kind: Live1DFrameHyperspec }
+        Self{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: Some(shutter)}
     }
 
     #[inline]
@@ -639,7 +732,7 @@ impl<L: BitDepth> SpecKind for SpecMeasurement<Live1DFrameHyperspec, L> {
         let frame_number = shut.get_counter()[pack.ci() as usize] as POSITION;
         //We cannot depass frame_number otherwise the indexation will be bad
         let index = frame_number * CAM_DESIGN.0 + pack.x();
-        self.data[index as usize] += L::from_u16(pack.tot());
+        self.data[index as usize] += pack.tot() as u32;
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
@@ -704,16 +797,17 @@ impl LiveTR1D {
 }
 
 
-impl IsiBoxKind for SpecMeasurement<Live1D, u32> {
+impl IsiBoxKind for Live1D {
     fn isi_new(_settings: &Settings) -> Self {
         let len = (CAM_DESIGN.0 + CHANNELS as POSITION) as usize;
-        SpecMeasurement{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None, _kind: Live1D }
+        Self{ data: vec![0; len], aux_data: Vec::new(), is_ready: false, global_stop: false, timer: Instant::now(), shutter: None}
     }
     fn append_from_isi(&mut self, ext_data: &[u32]) {
         self.data[CAM_DESIGN.0 as usize..].iter_mut().zip(ext_data.iter()).for_each(|(a, b)| *a+=b);
     }
 }
 
+/*
 ///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
 ///
 ///# Examples
@@ -751,8 +845,9 @@ pub fn run_spectrum<V, U, Y>(mut pack: V, ns: U, my_settings: Settings, kind: Y,
     
     Ok(my_settings.mode)
 }
+*/
 
-fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
+pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W, mut file_to_write: FileManager) -> Result<(), Tp3ErrorKind> 
     where V: TimepixRead,
           U: Write,
           W: SpecKind
@@ -762,7 +857,6 @@ fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
     let mut buffer_pack_data: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
     let start = Instant::now();
     
-    let mut file_to_write = my_settings.create_file()?;
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         file_to_write.write_all(&buffer_pack_data[0..size])?;
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
