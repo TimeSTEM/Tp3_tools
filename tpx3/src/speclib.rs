@@ -13,6 +13,20 @@ use crate::constlib::*;
 const CAM_DESIGN: (POSITION, POSITION) = Packet::chip_array();
 
 
+fn tr_check_if_in(ele_time: TIME, ref_tdc: &TdcRef, settings: &Settings) -> bool {
+    let period = ref_tdc.period().expect("Period must exist in LiveTR1D.");
+    let last_time = ref_tdc.time();
+    let eff_tdc = if last_time > ele_time {
+        let xper = (last_time - ele_time) / period + 1;
+        last_time - xper * period
+    } else {
+        let xper = (ele_time - last_time) / period;
+        last_time + xper * period
+    };
+    ele_time > eff_tdc + settings.time_delay && ele_time < eff_tdc + settings.time_delay + settings.time_width
+}
+
+
 #[derive(Default)]
 pub struct ShutterControl {
     time: [TIME; 4],
@@ -121,7 +135,7 @@ impl SpecKind for Live2D {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        Live2D{ data: vec!(CAM_DESIGN.0 * CAM_DESIGN.1), is_ready: false, timer: Instant::now() }
+        Self{ data: vec!(CAM_DESIGN.0 * CAM_DESIGN.1), is_ready: false, timer: Instant::now() }
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         if INTERNAL_TIMER_FRAME {
@@ -185,7 +199,7 @@ impl SpecKind for Live1D {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        Live1D{ data: vec!(CAM_DESIGN.0),is_ready: false, timer: Instant::now()}
+        Self{ data: vec!(CAM_DESIGN.0),is_ready: false, timer: Instant::now()}
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         if INTERNAL_TIMER_FRAME {
@@ -246,17 +260,27 @@ impl  SpecKind for LiveTR2D {
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
-        //if LiveTR2D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
-        //    let index = pack.x() + CAM_DESIGN.0 * pack.y();
-        //    add_index!(self, index);
-        //}
+        if tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
+            let index = pack.x() + CAM_DESIGN.0 * pack.y();
+            add_index!(self, index);
+        }
+    }
+    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_periodic(TdcType::TdcTwoRisingEdge, pack, &my_settings, file_to_write)
     }
     fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
     }
-    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        self.is_ready = true;
+        if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
+            self.is_ready = false;
+            if !settings.cumul {
+                self.data.iter_mut().for_each(|x| *x = 0);
+            }
+        } else {
+            self.is_ready = true;
+        }
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
         self.is_ready = false;
@@ -284,17 +308,27 @@ impl SpecKind for LiveTR1D {
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
-        if LiveTR1D::tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
+        if tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
             let index = pack.x();
             add_index!(self, index);
         }
     }
+    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_periodic(TdcType::TdcTwoRisingEdge, pack, &my_settings, file_to_write)
+    }
     fn add_tdc_hit(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
     }
-    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
+    fn upt_frame(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        self.is_ready = true;
+        if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
+            self.is_ready = false;
+            if !settings.cumul {
+                self.data.iter_mut().for_each(|x| *x = 0);
+            }
+        } else {
+            self.is_ready = true;
+        }
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
         self.is_ready = false;
@@ -649,23 +683,6 @@ impl SpecKind for Live1DFrameHyperspec {
     }
 }
 
-impl LiveTR1D {
-    fn tr_check_if_in(ele_time: TIME, ref_tdc: &TdcRef, settings: &Settings) -> bool {
-        let period = ref_tdc.period().expect("Period must exist in LiveTR1D.");
-        let last_time = ref_tdc.time();
-
-        let eff_tdc = if last_time > ele_time {
-            let xper = (last_time - ele_time) / period + 1;
-            last_time - xper * period
-        } else {
-            let xper = (ele_time - last_time) / period;
-            last_time + xper * period
-        };
-
-        ele_time > eff_tdc + settings.time_delay && ele_time < eff_tdc + settings.time_delay + settings.time_width
-
-    }
-}
 
 
 impl IsiBoxKind for Live1D {

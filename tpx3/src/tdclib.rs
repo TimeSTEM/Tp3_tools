@@ -320,16 +320,6 @@ impl TdcRef {
     pub fn current_line(&self) -> Option<POSITION> {
         Some(((self.counter / 2) % self.ticks_to_frame?) as POSITION)
     }
-    
-    /*
-    pub fn pixel_time(&self, xspim: POSITION) -> Option<TIME> {
-        if UNIFORM_PIXEL {
-            Some(self.period? / xspim as TIME)
-        } else {
-            Some(self.low_time? / xspim as TIME)
-        }
-    }
-    */
 
     pub fn estimate_time(&self) -> Option<TIME> {
         Some((self.counter as TIME / 2) * self.period? + self.begin_time)
