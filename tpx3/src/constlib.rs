@@ -35,6 +35,12 @@ pub const UNIFORM_PIXEL: bool = false; //Assumption that the time per pixel is u
 pub const DACX_BITDEPTH: usize = 14;
 pub const DACY_BITDEPTH: usize = 14;
 
+//***Cluster settings***//
+pub const CLUSTER_DET: TIME = 32; //Cluster time window (in 640 Mhz or 1.5625).
+pub const CLUSTER_SPATIAL: isize = 4; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
+pub static ATOT: &[u8; 1024 * 256 * 4] = include_bytes!("atot_v2.dat");
+pub static BTOT: &[u8; 1024 * 256 * 4] = include_bytes!("btot_v2.dat");
+
 //***POSTLIB***//
 pub const LIMIT_READ: bool = false; //early break of the file processing
 pub const LIMIT_READ_SIZE: usize = 5_000_000_000; //5GB limitations

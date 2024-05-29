@@ -11,38 +11,6 @@ pub mod cluster {
     use rayon::prelude::*;
     use crate::auxiliar::value_types::*;
     
-    const CLUSTER_DET: TIME = 32; //Cluster time window (in 640 Mhz or 1.5625).
-    const CLUSTER_SPATIAL: isize = 4; // If electron hit position in both X or Y > CLUSTER_SPATIAL, then we have a new cluster.
-    
-    static ATOT: &[u8; 1024 * 256 * 4] = include_bytes!("atot_v2.dat");
-    static BTOT: &[u8; 1024 * 256 * 4] = include_bytes!("btot_v2.dat");
-    
-    /*
-    fn as_bytes<T>(v: &[T]) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u8,
-                v.len() * std::mem::size_of::<T>())
-        }
-    }
-    
-    fn transform_time_shift(v: &[u8]) -> &[i16] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const i16,
-                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<i16>() )
-        }
-    }
-    
-    fn transform_time_walk(v: &[u8]) -> &[i16] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const i16,
-                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<i16>() )
-        }
-    }
-    */
-    
     fn transform_energy_calibration(v: &[u8]) -> &[f32] {
         unsafe {
             std::slice::from_raw_parts(
@@ -51,33 +19,17 @@ pub mod cluster {
         }
     }
 
-
-    
-    /*
-    fn read_time_shift() -> Vec<u8> {
-        let mut shift_array: Vec<u8> = vec![0; 1024 * 256 * 2];
-        let mut tfile = OpenOptions::new()
-            .read(true)
-            .open("time_shift.dat")
-            .unwrap();
-        tfile.read(&mut shift_array).unwrap();
-        //println!("{:?}", shift_array);
-        shift_array
-    }
-    */
-
     #[derive(Debug)]
     pub struct CollectionElectron {
         data: Vec<SingleElectron>,
     }
     impl CollectionElectron {
 
-        pub fn values(&self) -> Inspector {
-            Inspector{iter: self.data.iter()}
-        }
+        //pub fn values(&self) -> Inspector {
+        //    Inspector{iter: self.data.iter()}
+        //}
 
         pub fn first_value(&self) -> SingleElectron {
-            //*self.data.iter().filter(|x| x.cluster_size() == 1).next().unwrap()
             *self.data.iter().find(|x| x.cluster_size() == 1).unwrap()
         }
     }
@@ -91,6 +43,7 @@ pub mod cluster {
         }
     }
 
+    /*
     pub struct Inspector<'a> {
         iter: std::slice::Iter<'a, SingleElectron>,
     }
@@ -102,6 +55,7 @@ pub mod cluster {
             self.iter.next()
         }
     }
+    */
 
     impl Default for CollectionElectron {
         fn default() -> Self {
@@ -169,11 +123,7 @@ pub mod cluster {
         }
 
         fn clean<T: ClusterCorrection>(&mut self, correction_type: &T) {
-            //self.sort();
             self.remove_clusters(correction_type);
-            //for _x in 0..10 {
-            //    self.remove_clusters(correction_type);
-            //}
         }
 
         pub fn try_clean<T: ClusterCorrection>(&mut self, min_size: usize, correction_type: &T) -> bool {
@@ -203,6 +153,63 @@ pub mod cluster {
                 tfile.write_all(out_str.as_ref()).expect("Could not write time to file.");
             }
         }
+
+        pub fn search_coincidence(&self, photon_list: &CollectionPhoton, raw_packet_index: &mut Vec<usize>, min_index: &mut usize, time_delay: TIME, time_width: TIME) -> Self {
+            let mut corr_array = Self::new();
+            for electron in self.iter() {
+                let mut index_to_increase = None;
+                let mut index = 0; //The index of the photon for each electron.
+                let mut photons_per_electron = 0;
+                for photon in photon_list.iter().skip(*min_index) {
+                    if (photon.time() / 6 < electron.time() + time_delay + time_width) && (electron.time() + time_delay < photon.time() / 6 + time_width) {
+                        corr_array.add_electron(*electron);
+                        if photons_per_electron == 0 {
+                            raw_packet_index.push(electron.raw_packet_index());
+                        }
+                        photons_per_electron += 1;
+                        if index_to_increase.is_none() { index_to_increase = Some(index); }
+                    }
+                    index += 1;
+                }
+                if let Some(increase) = index_to_increase {
+                    *min_index += increase / PHOTON_LIST_STEP;
+                }
+            }
+            corr_array
+            /*
+            let mut first_corr_photon = 0;
+            for val in temp_edata.electron.values() {
+                self.add_electron(*val);
+                let mut photons_per_electron = 0;
+                let mut index = 0;
+                let mut index_to_increase = None;
+                for ph in temp_tdc.event_list.iter().skip(min_index) {
+                    let new_photon_time = ((ph.time() / 6) as i64 + line_period_offset) as TIME;
+                    if (new_photon_time < val.time() + time_delay + time_width) && (val.time() + time_delay < new_photon_time + time_width) {
+                        self.add_coincident_electron(*val, *ph);
+                        if photons_per_electron == 0 { //The electrons is only added once. There could be multiple photons for the same electron
+                            self.add_packet_to_raw_index((*val).raw_packet_index());
+                        }
+                        if index_to_increase.is_none() {
+                            index_to_increase = Some(index)
+                        }
+                        photons_per_electron += 1;
+                        if photons_per_electron == 2 {
+                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon).fold());
+                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.time()).fold());
+                        }
+                        first_corr_photon = ph.time();
+
+                    }
+                    if new_photon_time > val.time() + time_delay + 10_000 {break;}
+                    index += 1;
+                }
+                if let Some(increase) = index_to_increase {
+                    min_index += increase / PHOTON_LIST_STEP;
+                }
+        */
+        }
+
     }
 
     ///ToA, X, Y, Spim dT, Spim Slice, ToT, Cluster Size, raw packet, packet index, Spim Line

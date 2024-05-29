@@ -163,7 +163,7 @@ pub mod coincidence {
             };
             
             let mut first_corr_photon = 0;
-            for val in temp_edata.electron.values() {
+            for val in temp_edata.electron.iter() {
                 self.add_electron(*val);
                 let mut photons_per_electron = 0;
                 let mut index = 0;
@@ -1245,7 +1245,7 @@ pub mod ntime_resolved {
         
         fn process_hyperspec(&mut self) -> Result<(), Tp3ErrorKind> {
             if self.ensemble.try_clean(0, &self.remove_clusters) {
-                for val in self.ensemble.values() {
+                for val in self.ensemble.iter() {
                     if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
                         self.hyperspec_index.push(index);
                         self.frame_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
@@ -1273,7 +1273,7 @@ pub mod ntime_resolved {
         
         fn process_fourd(&mut self) -> Result<(), Tp3ErrorKind> {
             if self.ensemble.try_clean(0, &self.remove_clusters) {
-                for val in self.ensemble.values() {
+                for val in self.ensemble.iter() {
                     if let Some(index) = val.get_or_not_4d_index(self.tdc_periodic, self.spimx, self.spimy) {
                         self.fourd_index.push(index);
                         self.frame_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
