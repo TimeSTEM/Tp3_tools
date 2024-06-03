@@ -2,7 +2,7 @@ pub mod coincidence {
     use crate::packetlib::Packet;
     use crate::tdclib::{TdcType, TdcRef};
     use crate::errorlib::Tp3ErrorKind;
-    use crate::clusterlib::cluster::ClusterCorrection;
+    use crate::clusterlib::cluster::{CoincidenceSearcher, ClusterCorrection};
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
@@ -10,7 +10,8 @@ pub mod coincidence {
     use crate::auxiliar::{Settings, value_types::*, misc::{output_data, packet_change}, FileManager};
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
-    //use rayon::prelude::*;
+    use rayon::prelude::*;
+    use std::time::Instant;
 
     //When we would like to have large E-PH timeoffsets, such as skipping entire line periods, the
     //difference between E-PH could not fit in i16. We fold these big numbers to fit in a i16
@@ -52,8 +53,18 @@ pub mod coincidence {
     }
 
     impl<T: ClusterCorrection> ElectronData<T> {
+        
         fn add_electron(&mut self, val: SingleElectron) {
             self.spectrum[val.x() as usize] += 1;
+            if self.is_spim {
+                if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
+                    self.spim_frame[index as usize] += 1;
+                }
+            }
+        }
+        
+        fn add_photon(&mut self, val: SinglePhoton) {
+            self.spectrum[PIXELS_X as usize - 1] += 1;
             if self.is_spim {
                 if let Some(index) = val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                     self.spim_frame[index as usize] += 1;
@@ -122,13 +133,15 @@ pub mod coincidence {
             }
         }
         
-        fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME, line_offset: i64) {
+        fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME, _line_offset: i64) {
+            /*
             let _ntotal = temp_tdc.event_list.len();
             let nphotons = temp_tdc.event_list.iter().
                 filter(|se| se.channel() != 16 && se.channel() != 24).
                 count();
-            let mut min_index = temp_tdc.min_index;
             //println!("Total supplementary events: {}. Photons: {}. Minimum size of the array: {}.", ntotal, nphotons, min_index);
+            */
+            let mut min_index = temp_tdc.min_index;
 
             match temp_tdc.tdc_type {
                 TempTdcDataType::FromTP3 => {
@@ -140,28 +153,44 @@ pub mod coincidence {
                 },
             }
 
+            let start = Instant::now();
+            //Sorting and removing clusters (if need) for electrons.
             temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, &self.remove_clusters);
+            //println!("Total elapsed time 1 is: {:?}.", start.elapsed());
 
 
-            //Adding photons to the last pixel
-            self.spectrum[PIXELS_X as usize-1]+=nphotons as u32;
-            //for ph_index in temp_tdc.event_list.data.iter().filter_map(|ph| ph.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1)) {
-            //    self.spim_frame[ph_index as usize] += 1;
+            //Adding photons to the last pixel. We also add the photons in the spectra image.
+            temp_tdc.event_list.iter().for_each(|photon| self.add_photon(*photon));
+            //println!("Total elapsed time 2 is: {:?}.", start.elapsed());
+
+            //Adding electrons to the spectra image
+            temp_edata.electron.iter().for_each(|electron| self.add_electron(*electron));
+            //println!("Total elapsed time 3 is: {:?}.", start.elapsed());
+
+            //Correcting for lines. Only used for ISIBOX. This is currently disabled.
+            //let line_period_offset = match self.spim_tdc { //Adding lineoffset for data
+            //    Some(spim_tdc) => line_offset * spim_tdc.period().unwrap() as i64,
+            //    None => 0,
+            //};
+
+
+            //This effectivelly searches for coincidence.
+            let (coinc_electron, coinc_photon) = temp_edata.electron.search_coincidence(&temp_tdc.event_list, &mut self.index_to_add_in_raw, &mut min_index, time_delay, time_width);
+            temp_tdc.min_index = min_index;
+            //println!("Total elapsed time 4 is: {:?}.", start.elapsed());
+            coinc_electron.iter().zip(coinc_photon.iter()).for_each(|(ele, pho)| self.add_coincident_electron(*ele, *pho));
+            //println!("Total elapsed time 5 is: {:?}.", start.elapsed());
+
+            //Second trial to search for coincidence
+            //let searcher = CoincidenceSearcher::new(&temp_edata.electron, &temp_tdc.event_list, time_delay, time_width);
+            //for (ele, pho) in searcher {
+            //    self.add_coincident_electron(ele, pho);
             //}
-            for ph_index in temp_tdc.event_list.iter() {
-                let index =  ph_index.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1);
-                if let Some(index) = index {
-                    self.spim_frame[index as usize] += 1;
-                }
-            }
+            //println!("Total elapsed time 4 is: {:?}.", start.elapsed());
 
-            //Correcting for lines
-            let line_period_offset = match self.spim_tdc { //Adding lineoffset for data
-                Some(spim_tdc) => line_offset * spim_tdc.period().unwrap() as i64,
-                None => 0,
-            };
             
+            /*
             let mut first_corr_photon = 0;
             for val in temp_edata.electron.iter() {
                 self.add_electron(*val);
@@ -194,6 +223,7 @@ pub mod coincidence {
                 }
             }
             temp_tdc.min_index = min_index;
+            */
 
             //println!("Number of coincident electrons: {:?}. Last photon real time is {:?}. Last relative time is {:?}.", self.x.len(), self.time.iter().last(), self.rel_time.iter().last());
         }

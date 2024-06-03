@@ -6,7 +6,6 @@ pub const TIME_INTERVAL_FRAMES: u128 = 50; //in milliseconds
 pub const HYPERSPECTRAL_PIXEL_CHUNK: POSITION = 500; //In number of pixels
 pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 2000; //in milliseconds
 pub const VIDEO_TIME: TIME = 0;
-pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coincidence searching
 pub const LIST_SIZE_AUX_EVENTS: usize = 5;
 pub const ELECTRON_OVERFLOW: TIME = 17_179_869_184;
 pub const TDC_OVERFLOW: TIME = 68_719_476_736;
@@ -57,8 +56,8 @@ pub const ISI_NB_CORRECTION_ITERACTION: u64 = 100; //How many times your IsiBox 
 
 //Coincidence values using the Timepix3//
 pub const TP3_BUFFER_SIZE: usize = 512_000_000; //Buffer size when reading files
-pub const TP3_TIME_WIDTH: u64 = 200; //Time width considered for coincidence (in units of 1.5625 ns)
-pub const TP3_TIME_DELAY: u64 = 100; //Time delay considered for coincidence (in units of 1.5625 ns)
+pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coincidence searching
+//pub const ELECTRON_PHOTON_MAX_TIME: usize = 10_000; //Max time difference between photon and electron before breaking it out of the loop.
 
 //***TDCLIB***//
 pub const TDC_TIMEOUT: u64 = 10;
