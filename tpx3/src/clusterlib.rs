@@ -383,7 +383,6 @@ pub mod cluster {
         photon_counter: usize,
         time_delay: TIME,
         time_width: TIME,
-        raw_packet_index: Vec<usize>,
     }
 
     impl<'a> CoincidenceSearcher<'a> {
@@ -395,25 +394,27 @@ pub mod cluster {
                 photon_counter: 0,
                 time_delay,
                 time_width,
-                raw_packet_index: Vec::new()
             }
         }
     }
 
     impl<'a> Iterator for CoincidenceSearcher<'a> {
-        type Item = (SingleElectron, SinglePhoton);
+        type Item = (SingleElectron, SinglePhoton, bool);
         fn next(&mut self) -> Option<Self::Item> {
             for electron in self.electron.iter().skip(self.electron_counter) {
-                //self.electron_counter += 1;
+                self.electron_counter += 1;
                 let photons_per_electron = 0;
                 let mut index = 0;
                 //let mut index_to_increase = None;
                 for photon in self.photon.iter().skip(self.photon_counter) {
                     if (photon.time() / 6 < electron.time() + self.time_delay + self.time_width) && (electron.time() + self.time_delay < photon.time() / 6 + self.time_width) {
-                        if photons_per_electron == 0 { self.raw_packet_index.push(electron.raw_packet_index()); }
                         //if index_to_increase.is_none() { index_to_increase = Some(index); }
                         self.photon_counter += index / PHOTON_LIST_STEP;
-                        return Some((*electron, *photon));
+                        if photons_per_electron == 0 {
+                            return Some((*electron, *photon, true));
+                        } else {
+                            return Some((*electron, *photon, false));
+                        }
                     }
                     if photon.time() / 6 > electron.time() + self.time_delay + self.time_width {break;}
                     index += 1;

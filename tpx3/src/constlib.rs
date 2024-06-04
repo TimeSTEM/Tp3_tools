@@ -57,7 +57,6 @@ pub const ISI_NB_CORRECTION_ITERACTION: u64 = 100; //How many times your IsiBox 
 //Coincidence values using the Timepix3//
 pub const TP3_BUFFER_SIZE: usize = 512_000_000; //Buffer size when reading files
 pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coincidence searching
-//pub const ELECTRON_PHOTON_MAX_TIME: usize = 10_000; //Max time difference between photon and electron before breaking it out of the loop.
 
 //***TDCLIB***//
 pub const TDC_TIMEOUT: u64 = 10;

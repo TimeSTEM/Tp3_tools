@@ -153,20 +153,16 @@ pub mod coincidence {
                 },
             }
 
-            let start = Instant::now();
             //Sorting and removing clusters (if need) for electrons.
             temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, &self.remove_clusters);
-            //println!("Total elapsed time 1 is: {:?}.", start.elapsed());
 
 
             //Adding photons to the last pixel. We also add the photons in the spectra image.
             temp_tdc.event_list.iter().for_each(|photon| self.add_photon(*photon));
-            //println!("Total elapsed time 2 is: {:?}.", start.elapsed());
 
             //Adding electrons to the spectra image
             temp_edata.electron.iter().for_each(|electron| self.add_electron(*electron));
-            //println!("Total elapsed time 3 is: {:?}.", start.elapsed());
 
             //Correcting for lines. Only used for ISIBOX. This is currently disabled.
             //let line_period_offset = match self.spim_tdc { //Adding lineoffset for data
@@ -174,57 +170,20 @@ pub mod coincidence {
             //    None => 0,
             //};
 
-
             //This effectivelly searches for coincidence.
             let (coinc_electron, coinc_photon) = temp_edata.electron.search_coincidence(&temp_tdc.event_list, &mut self.index_to_add_in_raw, &mut min_index, time_delay, time_width);
             temp_tdc.min_index = min_index;
-            //println!("Total elapsed time 4 is: {:?}.", start.elapsed());
             coinc_electron.iter().zip(coinc_photon.iter()).for_each(|(ele, pho)| self.add_coincident_electron(*ele, *pho));
-            //println!("Total elapsed time 5 is: {:?}.", start.elapsed());
 
             //Second trial to search for coincidence
             //let searcher = CoincidenceSearcher::new(&temp_edata.electron, &temp_tdc.event_list, time_delay, time_width);
-            //for (ele, pho) in searcher {
+            //for (ele, pho, first_electron) in searcher {
             //    self.add_coincident_electron(ele, pho);
+            //    if first_electron {
+            //        self.add_packet_to_raw_index(ele.raw_packet_index());
+            //    }
             //}
             //println!("Total elapsed time 4 is: {:?}.", start.elapsed());
-
-            
-            /*
-            let mut first_corr_photon = 0;
-            for val in temp_edata.electron.iter() {
-                self.add_electron(*val);
-                let mut photons_per_electron = 0;
-                let mut index = 0;
-                let mut index_to_increase = None;
-                for ph in temp_tdc.event_list.iter().skip(min_index) {
-                    let new_photon_time = ((ph.time() / 6) as i64 + line_period_offset) as TIME;
-                    if (new_photon_time < val.time() + time_delay + time_width) && (val.time() + time_delay < new_photon_time + time_width) {
-                        self.add_coincident_electron(*val, *ph);
-                        if photons_per_electron == 0 { //The electrons is only added once. There could be multiple photons for the same electron
-                            self.add_packet_to_raw_index((*val).raw_packet_index());
-                        }
-                        if index_to_increase.is_none() {
-                            index_to_increase = Some(index)
-                        }
-                        photons_per_electron += 1;
-                        if photons_per_electron == 2 {
-                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(first_corr_photon).fold());
-                            self.double_photon_rel_time.push(val.relative_time_from_abs_tdc(ph.time()).fold());
-                        }
-                        first_corr_photon = ph.time();
-
-                    }
-                    if new_photon_time > val.time() + time_delay + 10_000 {break;}
-                    index += 1;
-                }
-                if let Some(increase) = index_to_increase {
-                    min_index += increase / PHOTON_LIST_STEP;
-                }
-            }
-            temp_tdc.min_index = min_index;
-            */
-
             //println!("Number of coincident electrons: {:?}. Last photon real time is {:?}. Last relative time is {:?}.", self.x.len(), self.time.iter().last(), self.rel_time.iter().last());
         }
 
