@@ -9,6 +9,7 @@ pub mod cluster {
     use std::ops::Deref;
     use crate::constlib::*;
     use rayon::prelude::*;
+    use std::cmp::Ordering;
     use crate::auxiliar::value_types::*;
     
     fn transform_energy_calibration(v: &[u8]) -> &[f32] {
@@ -24,10 +25,6 @@ pub mod cluster {
         data: Vec<SingleElectron>,
     }
     impl CollectionElectron {
-
-        //pub fn values(&self) -> Inspector {
-        //    Inspector{iter: self.data.iter()}
-        //}
 
         pub fn first_value(&self) -> SingleElectron {
             *self.data.iter().find(|x| x.cluster_size() == 1).unwrap()
@@ -58,7 +55,7 @@ pub mod cluster {
         pub fn add_electron(&mut self, electron: SingleElectron) {
             self.data.push(electron);
         }
-        
+
         fn remove_clusters<T: ClusterCorrection>(&mut self, correction_type: &T) {
             
             let mut new_elist: CollectionElectron = CollectionElectron::new();
@@ -105,7 +102,7 @@ pub mod cluster {
         }
 
         pub fn sort(&mut self) {
-            self.data.par_sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
+            self.data.par_sort_unstable();
         }
 
         fn clean<T: ClusterCorrection>(&mut self, correction_type: &T) {
@@ -170,7 +167,7 @@ pub mod cluster {
     }
 
     ///ToA, X, Y, Spim dT, Spim Slice, ToT, Cluster Size, raw packet, packet index, Spim Line
-    #[derive(Copy, Clone, Debug)]
+    #[derive(Copy, Clone, Debug, Eq)]
     pub struct SingleElectron {
         data: (TIME, POSITION, POSITION, TIME, COUNTER, u16, COUNTER, u64, usize, POSITION),
     }
@@ -196,6 +193,26 @@ pub mod cluster {
             val
         }
     }
+    
+    impl PartialEq for SingleElectron {
+        fn eq(&self, other: &Self) -> bool {
+            self.time() == other.time()
+        }
+    }
+    
+    impl PartialOrd for SingleElectron {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+
+    impl Ord for SingleElectron {
+        fn cmp(&self, other: &Self) -> Ordering {
+            (self.time()).cmp(&other.time())
+        }
+    }
+
+
 
     impl SingleElectron {
         pub fn new(pack: &Packet, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
@@ -205,7 +222,6 @@ pub mod cluster {
                     let frame = spim_tdc.frame().unwrap_or(0);
                     SingleElectron {
                         data: (pack.electron_time(), pack.x(), pack.y(), ele_time, frame, pack.tot(), 1, pack.data(), raw_index, spim_tdc.current_line().unwrap())
-                        //data: (pack.electron_time(), pack.x(), pack.y(), ele_time-spim_tdc.time()-VIDEO_TIME, spim_tdc.frame(), pack.tot(), 1, pack.create_header(), pack.data(), raw_index, spim_tdc.current_line().unwrap())
                     }
                 },
                 None => {
@@ -310,6 +326,9 @@ pub mod cluster {
         }
         pub fn sort(&mut self) {
             self.data.sort_unstable_by(|a, b| (a.data).partial_cmp(&b.data).unwrap());
+        }
+        pub fn clear(&mut self) {
+            self.data.clear();
         }
     }
 
