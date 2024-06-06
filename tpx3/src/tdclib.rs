@@ -337,12 +337,12 @@ impl TdcRef {
          
             //exceding time is always with respect to the current pixel time, so this values varies
             //from 0 - pixel_time.
-            fn exponential_interpolation(exceding_time: POSITION, previous: POSITION, new: POSITION) -> POSITION {
-                let ratio = -(exceding_time as f32 / 50.0);
+            fn exponential_interpolation(exceding_time: POSITION, pixel_time: u32, previous: POSITION, new: POSITION) -> POSITION {
+                let ratio = -(1.0 * exceding_time as f32 / pixel_time as f32);
                 if new > previous {
                     new - ((new - previous) as f32 * ratio.exp()) as POSITION
                 } else {
-                    new - ((previous - new) as f32 * ratio.exp()) as POSITION
+                    new + ((previous - new) as f32 * ratio.exp()) as POSITION
                 }
             }
             let get_xy_from_index = |value: POSITION| -> (POSITION, POSITION) {
@@ -356,7 +356,6 @@ impl TdcRef {
             }
             let (x, y) = get_xy_from_index(custom_list[index as usize]);
             Some(y * xspim + x)
-        
             //TODO: To be tested on the machine           
             /*
             let frac = (dt * (self.subsample * xspim) as TIME % self.period?) as POSITION / (self.subsample * xspim);
@@ -366,8 +365,9 @@ impl TdcRef {
             }
             let (xp, yp) = get_xy_from_index(custom_list[previous_index as usize]);
             
-            let x_cor = exponential_interpolation(frac, xp, x);
-            let y_cor = exponential_interpolation(frac, yp, y);
+            let x_cor = exponential_interpolation(frac, self.period? as POSITION / (self.subsample * xspim), xp, x);
+            let y_cor = exponential_interpolation(frac, self.period? as POSITION / (self.subsample * xspim), yp, y);
+            Some(y_cor * xspim + x_cor)
             */
         } else {
             let determ = |dt: TIME, dt_partial: TIME, period: TIME, xspim: POSITION, low_time: TIME, yspim: POSITION| {
