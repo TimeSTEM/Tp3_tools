@@ -371,7 +371,7 @@ impl TdcRef {
             */
         } else {
             let determ = |dt: TIME, dt_partial: TIME, period: TIME, xspim: POSITION, low_time: TIME, yspim: POSITION| {
-                let mut r = (dt / period) as POSITION; //how many periods -> which line to put.
+                let mut r = (dt / period) as POSITION / self.subsample; //how many periods -> which line to put.
                 let rin = ((xspim as TIME * dt_partial) / low_time) as POSITION; //Column correction. Maybe not even needed.
                     
                 if r > (yspim-1) {
