@@ -92,8 +92,8 @@ pub trait SpecKind {
     fn is_ready(&self) -> bool;
     fn build_output(&mut self, settings: &Settings) -> &[u8];
     fn new(settings: &Settings) -> Self;
-    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, &my_settings, file_to_write)
+    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
     }
     fn build_aux_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
@@ -104,6 +104,9 @@ pub trait SpecKind {
     fn add_shutter_hit(&mut self, _pack: &Packet, _frame_tdc: &mut TdcRef, _settings: &Settings) {}
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings);
     fn shutter_control(&self) -> Option<&ShutterControl> {None}
+    fn get_frame_counter(&self, tdc_value: &TdcRef) -> COUNTER {
+        tdc_value.counter() / 2
+    }
 }
 
 pub trait IsiBoxKind: SpecKind {
@@ -136,46 +139,36 @@ macro_rules! tp3_vec {
 pub struct Live2D {
     data: Vec<u32>,
     is_ready: bool,
+    frame_counter: COUNTER,
+    last_time: TIME,
     timer: Instant,
 }
 
 
 impl SpecKind for Live2D {
-    //If INTERNAL_TIMER_FRAME, the ready is given by the internal elapsed time.
     fn is_ready(&self) -> bool {
-        if !INTERNAL_TIMER_FRAME {
-            self.is_ready
-        } else {
-            self.timer.elapsed().as_millis() > TIME_INTERVAL_FRAMES
-        }
+        self.is_ready
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        Self{ data: tp3_vec!(2), is_ready: false, timer: Instant::now() }
-    }
-    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        if INTERNAL_TIMER_FRAME {
-            TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
-        } else {
-            TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, &my_settings, file_to_write)
-        }
+        Self{ data: tp3_vec!(2), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now() }
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         let index = pack.x() + CAM_DESIGN.0 * pack.y();
         add_index!(self, index);
-    }
-    fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        add_index!(self, CAM_DESIGN.0-1);
-    }
-    //If INTERNAL_TIMER_FRAME, update frame actually adds one to the before last pixel of the
-    //system
-    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        if !INTERNAL_TIMER_FRAME {
+        
+        let ele_time = pack.fast_electron_time();
+        //This is an overflow. We correct it.
+        if self.last_time > ele_time + (ELECTRON_OVERFLOW >> 2) {
+            self.last_time = ele_time;
+        }
+        //We check if the frame must be ready or not.
+        if ele_time > self.last_time + settings.acquisition_us * 640 {
+            self.last_time = ele_time;
+            self.frame_counter += 1;
             if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
                 self.is_ready = false;
                 if !settings.cumul {
@@ -184,9 +177,15 @@ impl SpecKind for Live2D {
             } else {
                 self.is_ready = true;
             }
-        } else {
-            add_index!(self, CAM_DESIGN.0-2);
         }
+    }
+    fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
+        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        add_index!(self, CAM_DESIGN.0-1);
+    }
+    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
+        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        add_index!(self, CAM_DESIGN.0-2);
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
         self.timer = Instant::now();
@@ -195,48 +194,44 @@ impl SpecKind for Live2D {
             self.data.iter_mut().for_each(|x| *x = 0);
         }
     }
+    fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
+        self.frame_counter
+    }
 }
 
 pub struct Live1D {
     data: Vec<u32>,
     is_ready: bool,
+    frame_counter: COUNTER,
+    last_time: TIME,
     timer: Instant,
 }
 
 
 impl SpecKind for Live1D {
     fn is_ready(&self) -> bool {
-        if !INTERNAL_TIMER_FRAME {
-            self.is_ready
-        } else {
-            self.timer.elapsed().as_millis() > TIME_INTERVAL_FRAMES
-        }
+        self.is_ready
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        Self{ data: tp3_vec!(1), is_ready: false, timer: Instant::now()}
-    }
-    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        if INTERNAL_TIMER_FRAME {
-            TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
-        } else {
-            TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, &my_settings, file_to_write)
-        }
+        Self{ data: tp3_vec!(1), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now()}
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         let index = pack.x();
         add_index!(self, index);
-    }
-    fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        add_index!(self, CAM_DESIGN.0-1);
-    }
-    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        if !INTERNAL_TIMER_FRAME {
+        
+        let ele_time = pack.fast_electron_time();
+        //This is an overflow. We correct it.
+        if self.last_time > ele_time + (ELECTRON_OVERFLOW >> 2) {
+            self.last_time = ele_time;
+        }
+        //We check if the frame must be ready or not.
+        if ele_time > self.last_time + settings.acquisition_us * 640 {
+            self.last_time = ele_time;
+            self.frame_counter += 1;
             if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
                 self.is_ready = false;
                 if !settings.cumul {
@@ -245,22 +240,33 @@ impl SpecKind for Live1D {
             } else {
                 self.is_ready = true;
             }
-        } else {
-            add_index!(self, CAM_DESIGN.0-2);
         }
     }
-        fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
+    fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
+        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        add_index!(self, CAM_DESIGN.0-1);
+    }
+    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
+        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        add_index!(self, CAM_DESIGN.0-2);
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
         self.timer = Instant::now();
         self.is_ready = false;
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = 0);
         }
     }
+    fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
+        self.frame_counter
+    }
 }
 
 pub struct LiveTR2D {
     data: Vec<u32>,
     is_ready: bool,
+    frame_counter: COUNTER,
+    last_time: TIME,
     timer: Instant,
 }
 
@@ -273,13 +279,32 @@ impl  SpecKind for LiveTR2D {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        Self{ data: tp3_vec!(2), is_ready: false, timer: Instant::now()}
+        Self{ data: tp3_vec!(2), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now()}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
         if tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
             let index = pack.x() + CAM_DESIGN.0 * pack.y();
             add_index!(self, index);
+        } 
+        
+        let ele_time = pack.fast_electron_time();
+        //This is an overflow. We correct it.
+        if self.last_time > ele_time + (ELECTRON_OVERFLOW >> 2) {
+            self.last_time = ele_time;
+        }
+        //We check if the frame must be ready or not.
+        if ele_time > self.last_time + settings.acquisition_us * 640 {
+            self.last_time = ele_time;
+            self.frame_counter += 1;
+            if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
+                self.is_ready = false;
+                if !settings.cumul {
+                    self.data.iter_mut().for_each(|x| *x = 0);
+                }
+            } else {
+                self.is_ready = true;
+            }
         }
     }
     fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
@@ -288,29 +313,26 @@ impl  SpecKind for LiveTR2D {
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
     }
-    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
+    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
-            self.is_ready = false;
-            if !settings.cumul {
-                self.data.iter_mut().for_each(|x| *x = 0);
-            }
-        } else {
-            self.is_ready = true;
-        }
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
-        self.is_ready = false;
         self.timer = Instant::now();
+        self.is_ready = false;
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = 0);
         }
+    }
+    fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
+        self.frame_counter
     }
 }
 
 pub struct LiveTR1D {
     data: Vec<u32>,
     is_ready: bool,
+    frame_counter: COUNTER,
+    last_time: TIME,
     timer: Instant,
 }
 
@@ -322,13 +344,32 @@ impl SpecKind for LiveTR1D {
         aux_func::as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
-        Self{ data: tp3_vec!(1), is_ready: false, timer: Instant::now()}
+        Self{ data: tp3_vec!(1), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now()}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
         if tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
             let index = pack.x();
             add_index!(self, index);
+        }
+        
+        let ele_time = pack.fast_electron_time();
+        //This is an overflow. We correct it.
+        if self.last_time > ele_time + (ELECTRON_OVERFLOW >> 2) {
+            self.last_time = ele_time;
+        }
+        //We check if the frame must be ready or not.
+        if ele_time > self.last_time + settings.acquisition_us * 640 {
+            self.last_time = ele_time;
+            self.frame_counter += 1;
+            if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
+                self.is_ready = false;
+                if !settings.cumul {
+                    self.data.iter_mut().for_each(|x| *x = 0);
+                }
+            } else {
+                self.is_ready = true;
+            }
         }
     }
     fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
@@ -337,16 +378,8 @@ impl SpecKind for LiveTR1D {
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
     }
-    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
+    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
-            self.is_ready = false;
-            if !settings.cumul {
-                self.data.iter_mut().for_each(|x| *x = 0);
-            }
-        } else {
-            self.is_ready = true;
-        }
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
         self.is_ready = false;
@@ -354,6 +387,9 @@ impl SpecKind for LiveTR1D {
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = 0);
         }
+    }
+    fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
+        self.frame_counter
     }
 }
 
@@ -520,7 +556,7 @@ pub struct Live2DFrame {
 
 impl SpecKind for Live2DFrame {
     fn is_ready(&self) -> bool {
-        self.is_ready && (self.timer.elapsed().as_millis() > TIME_INTERVAL_FRAMES)
+        self.is_ready
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
         aux_func::as_bytes(&self.data)
@@ -548,7 +584,7 @@ impl SpecKind for Live2DFrame {
     }
     fn add_shutter_hit(&mut self, pack: &Packet, _frame_tdc: &mut TdcRef, settings: &Settings) {
         let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
-        if !self.is_ready {
+        if !self.is_ready { //It was not ready before
             self.is_ready = temp_ready;
             if self.is_ready {
                 if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
@@ -560,7 +596,7 @@ impl SpecKind for Live2DFrame {
                     self.is_ready = true;
                 }
             }
-        } else {
+        } else { //It was already ready, so a second ready is not sent
             if temp_ready {
                 if !settings.cumul { //No cumulation
                     self.data.iter_mut().for_each(|x| *x = 0);
@@ -576,6 +612,9 @@ impl SpecKind for Live2DFrame {
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()
     }
+    fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
+        self.shutter.as_ref().unwrap().get_counter()[0]
+    }
 }
 
 pub struct Live1DFrame {
@@ -587,7 +626,7 @@ pub struct Live1DFrame {
 
 impl SpecKind for Live1DFrame {
     fn is_ready(&self) -> bool {
-        self.is_ready && (self.timer.elapsed().as_millis() > TIME_INTERVAL_FRAMES)
+        self.is_ready
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
         aux_func::as_bytes(&self.data)
@@ -638,6 +677,9 @@ impl SpecKind for Live1DFrame {
     }
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()
+    }
+    fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
+        self.shutter.as_ref().unwrap().get_counter()[0]
     }
 }
 
@@ -712,6 +754,9 @@ impl SpecKind for Live1DFrameHyperspec {
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()
     }
+    fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
+        self.shutter.as_ref().unwrap().get_start_pixel()
+    }
 }
 
 
@@ -719,7 +764,7 @@ impl SpecKind for Live1DFrameHyperspec {
 impl IsiBoxKind for Live1D {
     fn isi_new(_settings: &Settings) -> Self {
         let len = (CAM_DESIGN.0 + CHANNELS as POSITION) as usize;
-        Self{ data: vec![0; len], is_ready: false,timer: Instant::now()}
+        Self{ data: vec![0; len], is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now()}
     }
     fn append_from_isi(&mut self, ext_data: &[u32]) {
         self.data[CAM_DESIGN.0 as usize..].iter_mut().zip(ext_data.iter()).for_each(|(a, b)| *a+=b);
@@ -779,7 +824,7 @@ pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         file_to_write.write_all(&buffer_pack_data[0..size])?;
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
-            let msg = create_header(&my_settings, &frame_tdc, 0, meas_type.shutter_control());
+            let msg = create_header(&meas_type, &my_settings, &frame_tdc, 0, meas_type.shutter_control());
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             if ns_sock.write(meas_type.build_output(&my_settings)).is_err() {println!("Client disconnected on data."); break;}
             meas_type.reset_or_else(&frame_tdc, &my_settings);
@@ -810,7 +855,7 @@ pub fn build_spectrum_isi<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
             let x = handler.get_data();
-            let msg = create_header(&my_settings, &frame_tdc, CHANNELS as POSITION, meas_type.shutter_control());
+            let msg = create_header(&meas_type, &my_settings, &frame_tdc, CHANNELS as POSITION, meas_type.shutter_control());
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             meas_type.append_from_isi(&x);
             let result = meas_type.build_output(&my_settings);
@@ -860,19 +905,11 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
 //    data[CAM_DESIGN.0..].iter_mut().zip(as_bytes(&isi_box_data).iter()).for_each(|(a, b)| *a+=b);
 //}
 
-fn create_header(set: &Settings, tdc: &TdcRef, extra_pixels: POSITION, shutter_control: Option<&ShutterControl>) -> Vec<u8> {
+fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, extra_pixels: POSITION, shutter_control: Option<&ShutterControl>) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(tdc.time().to_string()));
     msg.push_str(",\"frameNumber\":");
-    if let Some(shutter) = shutter_control {
-        if set.mode == 11 {//Frame-based hyperspectral image
-            msg.push_str(&((shutter.get_start_pixel()).to_string()));
-        } else {
-            msg.push_str(&((shutter.get_counter()[0]).to_string()));
-        }
-    } else {
-        msg.push_str(&((tdc.counter()/2).to_string()));
-    }
+    msg.push_str(&((measurement.get_frame_counter(tdc)).to_string()));
     msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
     if set.mode == 6 { //ChronoMode
         msg.push_str(&((set.xspim_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));

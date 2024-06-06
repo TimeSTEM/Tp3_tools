@@ -2,16 +2,14 @@ use crate::auxiliar::value_types::*;
 
 //***General Values***//
 pub const CONFIG_SIZE: usize = 512;
-pub const TIME_INTERVAL_FRAMES: u128 = 50; //in milliseconds
+pub const TIME_INTERVAL_FRAMES: u128 = 200; //in milliseconds
 pub const HYPERSPECTRAL_PIXEL_CHUNK: POSITION = 500; //In number of pixels
 pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 2000; //in milliseconds
 pub const VIDEO_TIME: TIME = 0;
-pub const LIST_SIZE_AUX_EVENTS: usize = 5;
 pub const ELECTRON_OVERFLOW: TIME = 17_179_869_184;
 pub const TDC_OVERFLOW: TIME = 68_719_476_736;
 pub const SYNC_MODE: u8 = 0; //0 synchronizes on the frame, 1 synchronizes on the line.
 pub const REMOVE_RETURN: bool = true; //This removes the electrons in the flyback mode. UNIFORM_PIXEL must be false to this in order to take place.
-pub const INTERNAL_TIMER_FRAME: bool = false; //If true, the TDC is not needed for event-based acquisition in focus mode;
 pub const HIGH_DYNAMIC_FRAME_BASED: bool = false; //This sums up 10 frames when using the frame-based mode;
 pub const HIGH_DYNAMIC_FRAME_BASED_VALUE: COUNTER = 16; //This sums up *VALUE* frames when using the frame-based mode;
 
@@ -57,6 +55,7 @@ pub const ISI_NB_CORRECTION_ITERACTION: u64 = 100; //How many times your IsiBox 
 //Coincidence values using the Timepix3//
 pub const TP3_BUFFER_SIZE: usize = 512_000_000; //Buffer size when reading files
 pub const PHOTON_LIST_STEP: usize = 10; //How many photons in the list before a step is taken during coincidence searching
+pub const LIST_SIZE_AUX_EVENTS: usize = 5; //List size of Coincidence2D struct in speclib.
 
 //***TDCLIB***//
 pub const TDC_TIMEOUT: u64 = 10;

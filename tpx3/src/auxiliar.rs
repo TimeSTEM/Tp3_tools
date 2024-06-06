@@ -112,6 +112,7 @@ pub struct Settings {
     threshold: u8,
     bias_voltage: u8,
     destination_port: u8,
+    pub acquisition_us: TIME,
     sup0: f32,
     sup1: f32,
 }

@@ -2,7 +2,7 @@ pub mod coincidence {
     use crate::packetlib::Packet;
     use crate::tdclib::{TdcType, TdcRef};
     use crate::errorlib::Tp3ErrorKind;
-    use crate::clusterlib::cluster::{CoincidenceSearcher, ClusterCorrection};
+    use crate::clusterlib::cluster::{ClusterCorrection};
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
@@ -10,8 +10,6 @@ pub mod coincidence {
     use crate::auxiliar::{Settings, value_types::*, misc::{output_data, packet_change}, FileManager};
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
-    use rayon::prelude::*;
-    use std::time::Instant;
 
     //When we would like to have large E-PH timeoffsets, such as skipping entire line periods, the
     //difference between E-PH could not fit in i16. We fold these big numbers to fit in a i16
