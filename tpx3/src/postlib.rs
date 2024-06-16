@@ -52,6 +52,7 @@ pub mod coincidence {
 
     impl<T: ClusterCorrection> ElectronData<T> {
         
+        //Called for all the electrons (not only coincident)
         fn add_electron(&mut self, val: SingleElectron) {
             self.spectrum[val.x() as usize] += 1;
             if self.is_spim {
@@ -61,6 +62,7 @@ pub mod coincidence {
             }
         }
         
+        //Called for all the photons (not only coincident)
         fn add_photon(&mut self, val: SinglePhoton) {
             self.spectrum[PIXELS_X as usize - 1] += 1;
             if self.is_spim {
@@ -131,22 +133,14 @@ pub mod coincidence {
         }
         
         fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME, _line_offset: i64) {
-            /*
-            let _ntotal = temp_tdc.event_list.len();
-            let nphotons = temp_tdc.event_list.iter().
-                filter(|se| se.channel() != 16 && se.channel() != 24).
-                count();
-            //println!("Total supplementary events: {}. Photons: {}. Minimum size of the array: {}.", ntotal, nphotons, min_index);
-            */
+            
             let mut min_index = temp_tdc.min_index;
 
+            //Type of TDC data to be treated.
             match temp_tdc.tdc_type {
                 TempTdcDataType::FromTP3 => {
                     temp_tdc.sort();
                     if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
-                },
-                TempTdcDataType::FromIsiBox => {
-                    //if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1;}
                 },
             }
 
@@ -168,18 +162,20 @@ pub mod coincidence {
 
             //This effectivelly searches for coincidence.
             let (coinc_electron, coinc_photon) = temp_edata.electron.search_coincidence(&temp_tdc.event_list, &mut self.index_to_add_in_raw, &mut min_index, time_delay, time_width);
-            temp_tdc.min_index = min_index;
             coinc_electron.iter().zip(coinc_photon.iter()).for_each(|(ele, pho)| self.add_coincident_electron(*ele, *pho));
 
+            /*
             //Second trial to search for coincidence
-            //let searcher = CoincidenceSearcher::new(&mut temp_edata.electron, &mut temp_tdc.event_list, time_delay, time_width);
-            //for (ele, pho) in searcher {
-            //    self.add_coincident_electron(ele, pho);
-            //    self.add_packet_to_raw_index(ele.raw_packet_index());
-            //}
-            //temp_tdc.min_index = min_index;
+            let searcher = CoincidenceSearcher::new(&mut temp_edata.electron, &mut temp_tdc.event_list, time_delay, time_width);
+            for (ele, pho) in searcher {
+                self.add_coincident_electron(ele, pho);
+                self.add_packet_to_raw_index(ele.raw_packet_index());
+            }
+            */
 
-            //println!("Number of coincident electrons: {:?}. Last photon real time is {:?}. Last relative time is {:?}.", self.x.len(), self.time.iter().last(), self.rel_time.iter().last());
+            //Setting the new min_index in the case the photon list does not start from the
+            //beginning in the next interaction.
+            temp_tdc.min_index = min_index;
         }
 
         fn prepare_spim(&mut self, spim_tdc: TdcRef) {
@@ -314,8 +310,7 @@ pub mod coincidence {
     }
 
     enum TempTdcDataType {
-        FromTP3,
-        FromIsiBox,
+        FromTP3
     }
 
     //the absolute time, the channel, the g2_dT, and the spim index;
