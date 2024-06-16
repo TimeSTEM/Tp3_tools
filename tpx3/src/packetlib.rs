@@ -4,6 +4,7 @@
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
 
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Packet {
     pub chip_index: u8,
     pub data: u64,

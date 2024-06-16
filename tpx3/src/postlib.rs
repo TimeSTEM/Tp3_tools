@@ -2,7 +2,7 @@ pub mod coincidence {
     use crate::packetlib::Packet;
     use crate::tdclib::{TdcType, TdcRef};
     use crate::errorlib::Tp3ErrorKind;
-    use crate::clusterlib::cluster::{ClusterCorrection};
+    use crate::clusterlib::cluster::ClusterCorrection;
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
@@ -95,7 +95,6 @@ pub mod coincidence {
         fn add_spim_line(&mut self, pack: &Packet) {
             //This must be called only if "self.spim" is Some(TdcRef). Otherwise this channel is
             //another photon
-            
             self.spim_tdc.as_mut().expect("Inconsistence in TdcRef regarding spectral imaging.")
                 .upt(pack.tdc_time_norm(), pack.tdc_counter());
         }
@@ -147,14 +146,13 @@ pub mod coincidence {
                     if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
                 },
                 TempTdcDataType::FromIsiBox => {
-                    if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1;}
+                    //if temp_edata.electron.correct_electron_time(self.overflow_electrons) {self.overflow_electrons += 1;}
                 },
             }
 
             //Sorting and removing clusters (if need) for electrons.
             temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, &self.remove_clusters);
-
 
             //Adding photons to the last pixel. We also add the photons in the spectra image.
             temp_tdc.event_list.iter().for_each(|photon| self.add_photon(*photon));
@@ -174,14 +172,13 @@ pub mod coincidence {
             coinc_electron.iter().zip(coinc_photon.iter()).for_each(|(ele, pho)| self.add_coincident_electron(*ele, *pho));
 
             //Second trial to search for coincidence
-            //let searcher = CoincidenceSearcher::new(&temp_edata.electron, &temp_tdc.event_list, time_delay, time_width);
-            //for (ele, pho, first_electron) in searcher {
+            //let searcher = CoincidenceSearcher::new(&mut temp_edata.electron, &mut temp_tdc.event_list, time_delay, time_width);
+            //for (ele, pho) in searcher {
             //    self.add_coincident_electron(ele, pho);
-            //    if first_electron {
-            //        self.add_packet_to_raw_index(ele.raw_packet_index());
-            //    }
+            //    self.add_packet_to_raw_index(ele.raw_packet_index());
             //}
-            //println!("Total elapsed time 4 is: {:?}.", start.elapsed());
+            //temp_tdc.min_index = min_index;
+
             //println!("Number of coincident electrons: {:?}. Last photon real time is {:?}. Last relative time is {:?}.", self.x.len(), self.time.iter().last(), self.rel_time.iter().last());
         }
 
