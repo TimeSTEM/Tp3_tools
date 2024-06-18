@@ -4,7 +4,6 @@ use crate::packetlib::Packet;
 use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, packet_change}};
 use crate::tdclib::{TdcType, TdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
 use crate::isi_box_new;
-//use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, SinglePhoton, CollectionPhoton};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::Write;
@@ -396,10 +395,7 @@ impl SpecKind for LiveTR1D {
 pub struct Coincidence2D {
     data: Vec<u32>,
     aux_data: Vec<TIME>,
-    //electrons: CollectionElectron,
-    //photons: CollectionPhoton,
-    //indexes: Vec<usize>,
-    //min_index: usize,
+    aux_data2: Vec<TIME>,
     timer: Instant,
 }
 
@@ -408,27 +404,12 @@ impl SpecKind for Coincidence2D {
         self.timer.elapsed().as_millis() > TIME_INTERVAL_COINCIDENCE_HISTOGRAM
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
-        /*
-        self.electrons.sort();
-        self.photons.sort();
-        let (coinc_electron, coinc_photon) = self.electrons.search_coincidence(&self.photons, &mut self.indexes, &mut self.min_index, settings.time_delay, settings.time_width);
-        //println!("electrons and photons in coincidence: {:?} and {:?}", coinc_electron.len(), coinc_photon.len());
-        coinc_electron.iter().zip(coinc_photon.iter()).for_each(|(ele, pho)| {
-            let delay = (pho.time() / 6 - settings.time_delay + settings.time_width - ele.time()) as POSITION;
-            let index = ele.x() + delay * CAM_DESIGN.0;
-            add_index!(self, index);
-        });
-        println!("{} and {}", self.electrons.len(), coinc_electron.len());
-        self.min_index = 0;
-        self.electrons.clear();
-        self.photons.clear();
-        */
         as_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
-        let len = 2*settings.time_width as usize * CAM_DESIGN.0 as usize;
+        let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
         let temp_vec = vec![0; len];
-        Self { data: temp_vec, aux_data: vec![0; LIST_SIZE_AUX_EVENTS], timer: Instant::now()}
+        Self { data: temp_vec, aux_data: vec![0; LIST_SIZE_AUX_EVENTS], aux_data2: vec![0; LIST_SIZE_AUX_EVENTS], timer: Instant::now()}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
@@ -438,26 +419,28 @@ impl SpecKind for Coincidence2D {
                 let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
                 let index = pack.x() + delay * CAM_DESIGN.0;
                 add_index!(self, index);
-                return
             }
         }
-        //let electron = SingleElectron::new(pack, None, 0);
-        //self.electrons.add_electron(electron);
+        for phtime in self.aux_data2.iter() {
+            if (*phtime < etime + settings.time_delay + settings.time_width) && (etime + settings.time_delay < *phtime + settings.time_width) {
+                let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
+                let index = pack.x() + delay * CAM_DESIGN.0 + 2*settings.time_width as u32 * CAM_DESIGN.0;
+                add_index!(self, index);
+            }
+        }
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         self.aux_data.push(pack.tdc_time_norm());
         self.aux_data.remove(0);
-        //let photon = SinglePhoton::new(pack, 0, None, 0);
-        //self.photons.add_photon(photon);
-        
     }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        self.aux_data2.push(pack.tdc_time_norm());
+        self.aux_data2.remove(0);
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
         self.timer = Instant::now();
-        //self.is_ready = false;
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = 0);
         }

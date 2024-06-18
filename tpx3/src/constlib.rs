@@ -10,7 +10,7 @@ pub const ELECTRON_OVERFLOW: TIME = 17_179_869_184;
 pub const TDC_OVERFLOW: TIME = 68_719_476_736;
 pub const SYNC_MODE: u8 = 0; //0 synchronizes on the frame, 1 synchronizes on the line.
 pub const REMOVE_RETURN: bool = true; //This removes the electrons in the flyback mode. UNIFORM_PIXEL must be false to this in order to take place.
-pub const HIGH_DYNAMIC_FRAME_BASED: bool = false; //This sums up 10 frames when using the frame-based mode;
+pub const HIGH_DYNAMIC_FRAME_BASED: bool = false; //This sums up *VALUE* frames when using the frame-based mode;
 pub const HIGH_DYNAMIC_FRAME_BASED_VALUE: COUNTER = 16; //This sums up *VALUE* frames when using the frame-based mode;
 
 //***Connection, TCP, and transfer values***//
