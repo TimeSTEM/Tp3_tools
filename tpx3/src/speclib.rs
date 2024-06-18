@@ -1,7 +1,7 @@
 //!`speclib` is a collection of tools to set EELS/4D acquisition.
 
 use crate::packetlib::Packet;
-use crate::auxiliar::{aux_func, Settings, misc::{TimepixRead, packet_change}};
+use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, packet_change}};
 use crate::tdclib::{TdcType, TdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
 use crate::isi_box_new;
 //use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, SinglePhoton, CollectionPhoton};
@@ -150,7 +150,7 @@ impl SpecKind for Live2D {
         self.is_ready
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
-        aux_func::as_bytes(&self.data)
+        as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         Self{ data: tp3_vec!(2), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now() }
@@ -213,7 +213,7 @@ impl SpecKind for Live1D {
         self.is_ready
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
-        aux_func::as_bytes(&self.data)
+        as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         Self{ data: tp3_vec!(1), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now()}
@@ -276,7 +276,7 @@ impl  SpecKind for LiveTR2D {
         self.is_ready
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
-        aux_func::as_bytes(&self.data)
+        as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         Self{ data: tp3_vec!(2), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now()}
@@ -341,7 +341,7 @@ impl SpecKind for LiveTR1D {
         self.is_ready
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
-        aux_func::as_bytes(&self.data)
+        as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         Self{ data: tp3_vec!(1), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now()}
@@ -423,7 +423,7 @@ impl SpecKind for Coincidence2D {
         self.electrons.clear();
         self.photons.clear();
         */
-        aux_func::as_bytes(&self.data)
+        as_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
         let len = 2*settings.time_width as usize * CAM_DESIGN.0 as usize;
@@ -475,7 +475,7 @@ impl SpecKind for FastChrono {
         self.is_ready && !self.global_stop
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
-        aux_func::as_bytes(&self.data)
+        as_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
@@ -514,7 +514,7 @@ impl SpecKind for Chrono {
         self.is_ready
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
-        aux_func::as_bytes(&self.data)
+        as_bytes(&self.data)
     }
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
@@ -559,7 +559,7 @@ impl SpecKind for Live2DFrame {
         self.is_ready
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
-        aux_func::as_bytes(&self.data)
+        as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         Self{ data: tp3_vec!(2), is_ready: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
@@ -629,7 +629,7 @@ impl SpecKind for Live1DFrame {
         self.is_ready
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
-        aux_func::as_bytes(&self.data)
+        as_bytes(&self.data)
     }
     fn new(_settings: &Settings) -> Self {
         Self{ data: tp3_vec!(1), is_ready: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
@@ -697,7 +697,7 @@ impl SpecKind for Live1DFrameHyperspec {
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
         //The number of pixels sent is updated on the reset or else function
         let range = self.shutter.as_ref().expect("This mode must have the Shutter Control").get_index_range_to_send();
-        aux_func::as_bytes(&self.data[range])
+        as_bytes(&self.data[range])
     }
     fn new(settings: &Settings) -> Self {
         let len = (CAM_DESIGN.0 * settings.xscan_size * settings.yscan_size) as usize;

@@ -231,13 +231,14 @@ impl Packet {
         let time = coarse * 12 + fine;
         time - (time / (103_079_215_104)) * 103_079_215_104
     }
-    
+
     #[inline]
     pub const fn chip_array() -> (POSITION, POSITION) {
         (PIXELS_X, PIXELS_Y)
     }
 }
 
+/*
 pub struct InversePacket {
     pub x: usize,
     pub y: usize,
@@ -329,3 +330,4 @@ impl InversePacket {
         (coarse_ticks, fine_ticks)
     }
 }
+*/

@@ -13,43 +13,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json;
 
-pub mod aux_func {
-    pub fn from_bytes<T>(v: &[u8]) -> &[T] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const T,
-                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<T>())
-        }
-    }
-
-    ///This is little endian
-    pub fn as_bytes<T>(v: &[T]) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u8,
-                v.len() * std::mem::size_of::<T>())
-        }
-    }
-
-    ///This is little endian
-    pub fn as_bytes_mut<T>(v: &mut [T]) -> &mut [u8] {
-        unsafe {
-            std::slice::from_raw_parts_mut(
-                v.as_ptr() as *mut u8,
-                v.len() * std::mem::size_of::<T>())
-        }
-    }
-    
-    pub fn as_int(v: &[u8]) -> &[u32] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u32,
-                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
-        }
-    }
-
-}
-
 struct DebugIO {}
 impl Write for DebugIO {
     fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
@@ -414,6 +377,24 @@ pub mod misc {
             std::slice::from_raw_parts(
                 v.as_ptr() as *const u8,
                 v.len() * std::mem::size_of::<T>())
+        }
+    }
+    
+    //General function to convert any type slice to mut bytes
+    pub fn as_bytes_mut<T>(v: &mut [T]) -> &mut [u8] {
+        unsafe {
+            std::slice::from_raw_parts_mut(
+                v.as_ptr() as *mut u8,
+                v.len() * std::mem::size_of::<T>())
+        }
+    }
+    
+    //General function to convert bytes to any type of slice.
+    pub fn from_bytes<T>(v: &[u8]) -> &[T] {
+        unsafe {
+            std::slice::from_raw_parts(
+                v.as_ptr() as *const T,
+                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<T>())
         }
     }
 

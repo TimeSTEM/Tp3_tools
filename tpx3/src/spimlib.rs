@@ -1,7 +1,7 @@
 //!`spimlib` is a collection of tools to set hyperspectral EELS acquisition.
 
 use crate::packetlib::Packet;
-use crate::auxiliar::{aux_func, Settings, misc::{TimepixRead, packet_change}, FileManager};
+use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, as_bytes_mut, packet_change}, FileManager};
 use crate::tdclib::{TdcRef, isi_box::{IsiBoxHand, IsiBoxType}};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
@@ -65,7 +65,7 @@ pub struct LiveScanList {
 impl LiveScanList {
     pub fn create_list<R: std::io::Read>(mut array: R, points: POSITION) -> Result<Vec<POSITION>, Tp3ErrorKind> {
         let mut list_scan: Vec<POSITION> = vec![0; points as usize];
-        array.read_exact(aux_func::as_bytes_mut(&mut list_scan))?;
+        array.read_exact(as_bytes_mut(&mut list_scan))?;
         Ok(list_scan)
     }
 }
@@ -129,7 +129,7 @@ impl Live4DChannelMask<MaskValues> {
     fn grab_mask<R: std::io::Read>(mut array: R) -> Result<Vec<Self>, Tp3ErrorKind> {
         let mut vec_of_channels: Vec<Self> = Vec::new();
         let mut mask = [0; (DETECTOR_SIZE.0 * DETECTOR_SIZE.1) as usize];
-        while array.read_exact(aux_func::as_bytes_mut(&mut mask)).is_ok() {
+        while array.read_exact(as_bytes_mut(&mut mask)).is_ok() {
             vec_of_channels.push(Live4DChannelMask::new(mask));
         }
         Ok(vec_of_channels)
@@ -188,7 +188,7 @@ impl SpimKind for Live {
             }).for_each(|x| temp.push(x));
         */
         
-        aux_func::as_bytes(&self.data_out)
+        as_bytes(&self.data_out)
     }
     fn is_ready(&mut self, _line_tdc: &TdcRef) -> bool {
         true
@@ -228,7 +228,7 @@ impl SpimKind for LiveScanList {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size, list_scan)
             }).collect::<Vec<POSITION>>();
 
-        aux_func::as_bytes(&self.data_out)
+        as_bytes(&self.data_out)
     }
     fn is_ready(&mut self, _line_tdc: &TdcRef) -> bool {
         true
@@ -275,7 +275,7 @@ impl SpimKind for LiveCoincidence {
                 get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size, None)
             }).collect::<Vec<POSITION>>();
         
-        aux_func::as_bytes(&self.data_out)
+        as_bytes(&self.data_out)
     }
     fn is_ready(&mut self, _line_tdc: &TdcRef) -> bool {
         true
@@ -315,7 +315,7 @@ impl SpimKind for Live4D {
                 get_4dindex(x_y >> 16, x_y & 65535, dt, spim_tdc, set.xspim_size, set.yspim_size)
             }).collect::<Vec<u64>>();
         
-        aux_func::as_bytes(&self.data_out)
+        as_bytes(&self.data_out)
     }
     fn is_ready(&mut self, _line_tdc: &TdcRef) -> bool {
         true
@@ -391,7 +391,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
                 }
             });
 
-        aux_func::as_bytes(&self.data_out)
+        as_bytes(&self.data_out)
     }
     #[inline]
     fn is_ready(&mut self, line_tdc: &TdcRef) -> bool {
@@ -482,9 +482,9 @@ pub fn build_spim_isi<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
     for mut tl in rx {
         let result = tl.build_output(&my_settings, &line_tdc, None);
         let x = handler.get_data();
-        if ns_sock.write(aux_func::as_bytes(result)).is_err() {println!("Client disconnected on data."); break;}
+        if ns_sock.write(as_bytes(result)).is_err() {println!("Client disconnected on data."); break;}
         if x.len() > 0 {
-            if ns_sock.write(aux_func::as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
+            if ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
         }
     }
 

@@ -1354,7 +1354,7 @@ pub mod calibration {
 
     use std::fs::OpenOptions;
     use crate::packetlib::Packet;
-    use crate::auxiliar::{aux_func, misc::packet_change};
+    use crate::auxiliar::misc::{as_bytes, packet_change};
     use std::io;
     use std::io::prelude::*;
     use std::fs;
@@ -1368,7 +1368,7 @@ pub mod calibration {
             .truncate(true)
             .create(true)
             .open(name).unwrap();
-        tfile.write_all(aux_func::as_bytes(data)).unwrap();
+        tfile.write_all(as_bytes(data)).unwrap();
         println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
     }
     

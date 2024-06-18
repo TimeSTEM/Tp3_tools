@@ -518,7 +518,7 @@ impl TdcRef {
 
 pub mod isi_box {
     use crate::errorlib::Tp3ErrorKind;
-    use crate::auxiliar::aux_func;
+    use crate::auxiliar::misc::{as_int, as_bytes};
     use std::net::TcpStream;
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
@@ -590,7 +590,7 @@ pub mod isi_box {
                     config_array[1] = yscan;
                     config_array[2] = pixel_time;
                     let mut sock = &self.sockets[0];
-                    match sock.write(aux_func::as_bytes(&config_array)) {
+                    match sock.write(as_bytes(&config_array)) {
                         Ok(size) => {println!("data sent to configure scan parameters: {}", size);},
                         Err(_) => {return Err(Tp3ErrorKind::IsiBoxCouldNotSetParameters);},
                     };
@@ -601,7 +601,7 @@ pub mod isi_box {
                     config_array[0] = measurement_type!($z);
                     if save_locally {config_array[0] = 2;}
                     let mut sock = &self.sockets[0];
-                    match sock.write(aux_func::as_bytes(&config_array)) {
+                    match sock.write(as_bytes(&config_array)) {
                         Ok(size) => {println!("data sent to configure the measurement type: {}", size);},
                         Err(_) => {return Err(Tp3ErrorKind::IsiBoxCouldNotConfigure);},
                     };
@@ -656,7 +656,7 @@ pub mod isi_box {
                     loop {
                         let mut num = nvec_arclist.lock().unwrap();
                         while let Ok(size) = val.read(&mut buffer) {
-                            aux_func::as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x * PIXELS_X as u32) + 1025 + channel_index));
+                            as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x * PIXELS_X as u32) + 1025 + channel_index));
                         }
                         drop(num);
                         let stop_val = stop_arc.lock().unwrap();
@@ -695,7 +695,7 @@ pub mod isi_box {
             let counter_arclist = Arc::clone(&self.data);
             let mut num = counter_arclist.lock().unwrap();
             println!("data sent size is: {:?}", (*num));
-            if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(aux_func::as_bytes(&*num)).is_err() {println!("Could not send data through the external socket.")}
+            if (self.ext_socket.as_ref().expect("The external sockets is not present")).write(as_bytes(&*num)).is_err() {println!("Could not send data through the external socket.")}
             (*num).iter_mut().for_each(|x| *x = 0);
         }
         fn start_threads(&mut self) {
@@ -713,7 +713,7 @@ pub mod isi_box {
                         //    println!("leaving sinde");
                         //    break;
                         //}
-                        (*num).iter_mut().zip(aux_func::as_int(&buffer[0..size]).iter()).for_each(|(a, b)| *a+=*b as u32);
+                        (*num).iter_mut().zip(as_int(&buffer[0..size]).iter()).for_each(|(a, b)| *a+=*b as u32);
                     }
                     drop(num);
                     let stop_val = stop_arc.lock().unwrap();
