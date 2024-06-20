@@ -559,11 +559,9 @@ impl SpecKind for Live2DFrame {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         add_index!(self, CAM_DESIGN.0-1);
     }
-    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
-    }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        add_index!(self, CAM_DESIGN.0-2);
     }
     fn add_shutter_hit(&mut self, pack: &Packet, _frame_tdc: &mut TdcRef, settings: &Settings) {
         let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
@@ -631,11 +629,9 @@ impl SpecKind for Live1DFrame {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         add_index!(self, CAM_DESIGN.0-1);
     }
-    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
-    }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        add_index!(self, CAM_DESIGN.0-2);
     }
     fn add_shutter_hit(&mut self, pack: &Packet, _frame_tdc: &mut TdcRef, settings: &Settings) {
         let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
@@ -897,7 +893,7 @@ fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, ext
     if set.mode == 6 { //ChronoMode
         msg.push_str(&((set.xspim_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
     } else if set.mode == 7 { //Coincidence2D
-        msg.push_str(&((set.time_width as POSITION*2*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
+        msg.push_str(&((set.time_width as POSITION*4*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
     } else if set.mode == 11 { //Frame-based hyperspectral image
         let data_size = shutter_control.unwrap().get_pixel_to_send_size();
         msg.push_str(&((data_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
@@ -915,7 +911,7 @@ fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, ext
     if set.mode == 6 { //ChronoMode
         msg.push_str(&(set.xspim_size.to_string()));
     } else if set.mode == 7 { //Coincidence2D Mode
-        msg.push_str(&((set.time_width*2).to_string()));
+        msg.push_str(&((set.time_width*4).to_string()));
     } else {
         match set.bin {
             true=>{msg.push_str(&(1.to_string()))},
