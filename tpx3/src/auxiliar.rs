@@ -317,6 +317,9 @@ pub mod misc {
     use std::fs::OpenOptions;
     use std::io::{Read, Write};
     use crate::errorlib::Tp3ErrorKind;
+    use crate::auxiliar::Settings;
+    use crate::auxiliar::value_types::*;
+    use crate::tdclib::TdcRef;
     use std::net::TcpStream;
     use std::fs::File;
 
@@ -414,6 +417,23 @@ pub mod misc {
                 v.as_ptr() as *const u64,
                 v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u64>())
         }
+    }
+    
+    //This checks if the electron is inside a given time_delay and time_width for a periodic tdc
+    //reference. This is used with reversible processes in which the reference tdc is periodic.
+    pub fn tr_check_if_in(ele_time: TIME, ref_tdc: &TdcRef, settings: &Settings) -> bool {
+        let period = ref_tdc.period().expect("Period must exist in time-resolved mode.");
+        let last_tdc_time = ref_tdc.time();
+     
+        //This case photon time is always greater than electron time
+        let eff_tdc = if last_tdc_time > ele_time {
+            let xper = (last_tdc_time - ele_time) / period;
+            last_tdc_time - xper * period
+        } else {
+            let xper = (ele_time - last_tdc_time) / period + 1;
+            last_tdc_time + xper * period
+        };
+        ele_time + settings.time_delay + settings.time_width > eff_tdc && ele_time + settings.time_delay < eff_tdc + settings.time_width
     }
     
     //Creates a file and appends over. Filename must be a .tpx3 file. Data is appended in a folder

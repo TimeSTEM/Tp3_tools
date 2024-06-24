@@ -1,7 +1,7 @@
 //!`speclib` is a collection of tools to set EELS/4D acquisition.
 
 use crate::packetlib::Packet;
-use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, packet_change}};
+use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, packet_change, tr_check_if_in}};
 use crate::tdclib::{TdcType, TdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
 use crate::isi_box_new;
 use crate::errorlib::Tp3ErrorKind;
@@ -11,23 +11,6 @@ use crate::auxiliar::{value_types::*, FileManager};
 use crate::constlib::*;
 
 const CAM_DESIGN: (POSITION, POSITION) = Packet::chip_array();
-
-
-fn tr_check_if_in(ele_time: TIME, ref_tdc: &TdcRef, settings: &Settings) -> bool {
-    let period = ref_tdc.period().expect("Period must exist in LiveTR1D.");
-    let last_tdc_time = ref_tdc.time();
- 
-    //This case photon time is always greater than electron time
-    let eff_tdc = if last_tdc_time > ele_time {
-        let xper = (last_tdc_time - ele_time) / period;
-        last_tdc_time - xper * period
-    } else {
-        let xper = (ele_time - last_tdc_time) / period + 1;
-        last_tdc_time + xper * period
-    };
-    ele_time + settings.time_delay + settings.time_width > eff_tdc && ele_time + settings.time_delay < eff_tdc + settings.time_width
-}
-
 
 #[derive(Default)]
 pub struct ShutterControl {
