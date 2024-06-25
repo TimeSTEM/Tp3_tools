@@ -1,8 +1,8 @@
 //!`spimlib` is a collection of tools to set hyperspectral EELS acquisition.
 
 use crate::packetlib::Packet;
-use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, as_bytes_mut, packet_change}, FileManager};
-use crate::tdclib::{TdcRef, isi_box::{IsiBoxHand, IsiBoxType}};
+use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, as_bytes_mut, packet_change, tr_check_if_in}, FileManager};
+use crate::tdclib::{TdcRef, TdcType, isi_box::{IsiBoxHand, IsiBoxType}};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::Write;
@@ -17,7 +17,9 @@ pub trait SpimKind {
     type InputData;
     
     fn data(&self) -> &Vec<Self::InputData>;
-    fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, set: &Settings);
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind>;
+    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind>;
+    fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &TdcRef, set: &Settings);
     fn add_tdc_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &mut TdcRef);
     fn upt_line(&self, packet: &Packet, settings: &Settings, line_tdc: &mut TdcRef);
     fn build_output(&mut self, set: &Settings, spim_tdc: &TdcRef, list_scan: SlType) -> &[u8];
@@ -27,8 +29,8 @@ pub trait SpimKind {
 }
 
 #[inline]
-pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEXHYPERSPEC> {
-    Some(spim_tdc.get_return_positional_index(dt, xspim, yspim)? * PIXELS_X + x)
+pub fn get_return_spimindex(x: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION, list_scan: SlType) -> Option<INDEXHYPERSPEC> {
+    Some(spim_tdc.get_return_positional_index(dt, xspim, yspim, list_scan)? * PIXELS_X + x)
 }
 
 #[inline]
@@ -43,7 +45,7 @@ pub fn get_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim:
 
 #[inline]
 pub fn get_return_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION) -> Option<INDEX4D> {
-    Some(spim_tdc.get_return_positional_index(dt, xspim, yspim)? as u64 * (PIXELS_X * PIXELS_Y) as u64 + (y * PIXELS_X + x)as u64)
+    Some(spim_tdc.get_return_positional_index(dt, xspim, yspim, None)? as INDEX4D * (PIXELS_X * PIXELS_Y) as INDEX4D + (y * PIXELS_X + x) as INDEX4D)
 }
 
 ///It outputs list of indices (max `u32`) that
@@ -54,28 +56,12 @@ pub struct Live {
     _timer: Instant,
 }
 
-///It outputs list of indices (max `u32`) that
-///must be incremented. This is Hyperspectral Imaging
-pub struct LiveScanList {
-    data: Vec<(POSITION, TIME)>,
-    data_out: Vec<INDEXHYPERSPEC>,
-    _timer: Instant,
-}
-
-impl LiveScanList {
-    pub fn create_list<R: std::io::Read>(mut array: R, points: POSITION) -> Result<Vec<POSITION>, Tp3ErrorKind> {
-        let mut list_scan: Vec<POSITION> = vec![0; points as usize];
-        array.read_exact(as_bytes_mut(&mut list_scan))?;
-        Ok(list_scan)
-    }
-}
-
 ///It outputs a list of indices that must
 ///be increment. This is Hyperspectral imaging with
 ///coincident photons around
 pub struct LiveCoincidence {
     data: Vec<(POSITION, TIME)>,
-    aux_data: [TIME; LIST_SIZE_AUX_EVENTS],
+    aux_data: Vec<TIME>,
     data_out: Vec<INDEXHYPERSPEC>,
     _timer: Instant,
 }
@@ -143,9 +129,25 @@ impl SpimKind for Live {
         &self.data
     }
     #[inline]
-    fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, _set: &Settings) {
+    fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &TdcRef, set: &Settings) {
         let ele_time = line_tdc.correct_or_not_etime(packet.electron_time()).unwrap();
-        self.data.push((packet.x(), ele_time)); //This added the overflow.
+        if set.time_resolved {
+            if tr_check_if_in(packet.electron_time(), ref_tdc, set) {
+                self.data.push((packet.x(), ele_time)); //This added the overflow.
+            } 
+        } else {
+            self.data.push((packet.x(), ele_time)); //This added the overflow.
+        }
+    }
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, my_settings, file_to_write)
+    }
+    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        if my_settings.time_resolved {
+            TdcRef::new_periodic(TdcType::TdcTwoRisingEdge, pack, my_settings, file_to_write)
+        } else {
+            TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
+        }
     }
     fn add_tdc_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
@@ -156,7 +158,7 @@ impl SpimKind for Live {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
     }
     #[inline]
-    fn build_output(&mut self, set: &Settings, spim_tdc: &TdcRef, _list_scan: SlType) -> &[u8] {
+    fn build_output(&mut self, set: &Settings, spim_tdc: &TdcRef, list_scan: SlType) -> &[u8] {
 
         //First step is to find the index of the (X, Y) of the spectral image in a flattened way
         //(last index is X*Y). The line value is thus multiplied by the spim size in the X
@@ -177,7 +179,7 @@ impl SpimKind for Live {
         
         self.data_out = self.data.iter()
             .filter_map(|&(x, dt)| {
-                get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size, None)
+                get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size, list_scan)
             }).collect::<Vec<POSITION>>();
 
         /*
@@ -201,46 +203,6 @@ impl SpimKind for Live {
     }
 }
 
-impl SpimKind for LiveScanList {
-    type InputData = (POSITION, TIME);
-
-    fn data(&self) -> &Vec<Self::InputData> {
-        &self.data
-    }
-    #[inline]
-    fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, _set: &Settings) {
-        let ele_time = line_tdc.correct_or_not_etime(packet.electron_time()).unwrap();
-        self.data.push((packet.x(), ele_time)); //This added the overflow.
-    }
-    fn add_tdc_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
-        let tdc_time = line_tdc.correct_or_not_etime(packet.tdc_time_norm()).unwrap();
-        self.data.push((PIXELS_X-1, tdc_time));
-    }
-    fn upt_line(&self, packet: &Packet, _settings: &Settings, line_tdc: &mut TdcRef) {
-        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
-    }
-    #[inline]
-    fn build_output(&mut self, set: &Settings, spim_tdc: &TdcRef, list_scan: SlType) -> &[u8] {
-
-        self.data_out = self.data.iter()
-            .filter_map(|&(x, dt)| {
-                get_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size, list_scan)
-            }).collect::<Vec<POSITION>>();
-
-        as_bytes(&self.data_out)
-    }
-    fn is_ready(&mut self, _line_tdc: &TdcRef) -> bool {
-        true
-    }
-    fn copy_empty(&mut self) -> Self {
-        LiveScanList{ data: Vec::with_capacity(BUFFER_SIZE / 8) , data_out: Vec::new(), _timer: Instant::now()}
-    }
-    fn new(_settings: &Settings) -> Self {
-        LiveScanList{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), _timer: Instant::now()}
-    }
-}
-
 impl SpimKind for LiveCoincidence {
     type InputData = (POSITION, TIME);
 
@@ -248,21 +210,25 @@ impl SpimKind for LiveCoincidence {
         &self.data
     }
     #[inline]
-    fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, set: &Settings) {
-        let ele_time = line_tdc.correct_or_not_etime(packet.electron_time()).unwrap();
+    fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, _ref_tdc: &TdcRef, set: &Settings) {
+        let ele_time = packet.electron_time();
         for phtime in self.aux_data.iter() {
             if (*phtime < ele_time + set.time_delay + set.time_width) && (ele_time + set.time_delay < *phtime + set.time_width) {
+                let ele_time = line_tdc.correct_or_not_etime(packet.electron_time()).unwrap();
                 self.data.push((packet.x(), ele_time)); //This added the overflow.
             }
         }
     }
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, my_settings, file_to_write)
+    }
+    fn build_aux_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
+    }
     fn add_tdc_hit(&mut self, packet: &Packet, _line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
-        let tdc_time = packet.tdc_time_norm();
-        ref_tdc.upt(tdc_time, packet.tdc_counter());
-        for index in 0..LIST_SIZE_AUX_EVENTS-1 {
-            self.aux_data[index+1] = self.aux_data[index];
-        }
-        self.aux_data[0] = packet.tdc_time_norm();
+        ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+        self.aux_data.push(packet.tdc_time_norm());
+        self.aux_data.remove(0);
     }
     fn upt_line(&self, packet: &Packet, _settings: &Settings, line_tdc: &mut TdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
@@ -281,10 +247,10 @@ impl SpimKind for LiveCoincidence {
         true
     }
     fn copy_empty(&mut self) -> Self {
-        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8) , aux_data: [0; LIST_SIZE_AUX_EVENTS], data_out: Vec::new(), _timer: Instant::now()}
+        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8) , aux_data: vec![0; LIST_SIZE_AUX_EVENTS], data_out: Vec::new(), _timer: Instant::now()}
     }
     fn new(_settings: &Settings) -> Self {
-        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8), aux_data: [0; LIST_SIZE_AUX_EVENTS], data_out: Vec::new(), _timer: Instant::now()}
+        LiveCoincidence{ data: Vec::with_capacity(BUFFER_SIZE / 8), aux_data: vec![0; LIST_SIZE_AUX_EVENTS], data_out: Vec::new(), _timer: Instant::now()}
     }
 }
 
@@ -295,14 +261,18 @@ impl SpimKind for Live4D {
         &self.data
     }
     #[inline]
-    fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, _set: &Settings) {
+    fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, _ref_tdc: &TdcRef, _set: &Settings) {
         let ele_time = line_tdc.correct_or_not_etime(packet.electron_time());
         self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time.unwrap())); //This added the overflow.
     }
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, my_settings, file_to_write)
+    }
+    fn build_aux_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
+    }
     fn add_tdc_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
-        let tdc_time = line_tdc.correct_or_not_etime(packet.tdc_time_norm()).unwrap();
-        self.data.push((PIXELS_X-1, tdc_time));
     }
     fn upt_line(&self, packet: &Packet, _settings: &Settings, line_tdc: &mut TdcRef) {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
@@ -335,10 +305,16 @@ impl SpimKind for LiveFrame4D<MaskValues> {
         &self.data
     }
     #[inline]
-    fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, _set: &Settings) {
+    fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, _ref_tdc: &TdcRef, _set: &Settings) {
         let ele_time = line_tdc.correct_or_not_etime(packet.electron_time());
         self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time.unwrap())); //This added the overflow.
 
+    }
+    fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, my_settings, file_to_write)
+    }
+    fn build_aux_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
     }
     fn add_tdc_hit(&mut self, _packet: &Packet, _line_tdc: &TdcRef, _ref_tdc: &mut TdcRef) {
     }
@@ -503,7 +479,7 @@ fn build_spim_data<W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut u8, set
                 let id = packet.id();
                 match id {
                     11 => {
-                        list.add_electron_hit(&packet, line_tdc, settings);
+                        list.add_electron_hit(&packet, line_tdc, ref_tdc, settings);
                     },
                     6 if packet.tdc_type() == line_tdc.id() => {
                         list.upt_line(&packet, settings, line_tdc);

@@ -70,6 +70,7 @@ pub struct Settings {
     pub time_delay: TIME,
     pub time_width: TIME,
     pub video_time: TIME,
+    pub time_resolved: bool,
     save_locally: bool,
     pixel_mask: u8,
     threshold: u8,
@@ -434,6 +435,13 @@ pub mod misc {
             last_tdc_time + xper * period
         };
         ele_time + settings.time_delay + settings.time_width > eff_tdc && ele_time + settings.time_delay < eff_tdc + settings.time_width
+    }
+    
+    //This creates the scan_list used for decoding non-trivial scan patterns
+    pub fn create_list<R: std::io::Read>(mut array: R, points: POSITION) -> Result<Vec<POSITION>, Tp3ErrorKind> {
+        let mut list_scan: Vec<POSITION> = vec![0; points as usize];
+        array.read_exact(as_bytes_mut(&mut list_scan))?;
+        Ok(list_scan)
     }
     
     //Creates a file and appends over. Filename must be a .tpx3 file. Data is appended in a folder

@@ -25,31 +25,17 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
             Ok(my_settings.mode)
         },
-        1 if my_settings.bin => {
-            let mut measurement = speclib::LiveTR1D::new(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
-            Ok(my_settings.mode)
-        },
-        1 if !my_settings.bin => {
-            let mut measurement = speclib::LiveTR2D::new(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
-            Ok(my_settings.mode)
-        },
         2 => {
-            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, &my_settings, &mut file_to_write)?;
-            let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)?;
-            let measurement = spimlib::Live::new(&my_settings);
+            let mut measurement = spimlib::Live::new(&my_settings);
+            let spim_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
+            let np_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None, file_to_write)?;
             Ok(my_settings.mode)
         },
         3 => {
-            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, &my_settings, &mut file_to_write)?;
-            let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)?;
-            let measurement = spimlib::LiveFrame4D::new(&my_settings);
+            let mut measurement = spimlib::LiveFrame4D::new(&my_settings);
+            let spim_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
+            let np_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None, file_to_write)?;
             Ok(my_settings.mode)
         },
@@ -89,25 +75,25 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             Ok(my_settings.mode)
         },
         12 => {
-            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, &my_settings, &mut file_to_write)?;
-            let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)?;
-            let measurement = spimlib::LiveCoincidence::new(&my_settings);
+            let mut measurement = spimlib::LiveCoincidence::new(&my_settings);
+            let spim_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
+            let np_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None, file_to_write)?;
             Ok(my_settings.mode)
         },
         13 => {
-            let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, &my_settings, &mut file_to_write)?;
-            let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)?;
-            let measurement = spimlib::Live4D::new(&my_settings);
+            let mut measurement = spimlib::Live4D::new(&my_settings);
+            let spim_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
+            let np_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None, file_to_write)?;
             Ok(my_settings.mode)
         },
         14 => {
             let number_of_points = my_settings.xscan_size * my_settings.yscan_size;
-            let vec_list = spimlib::LiveScanList::create_list(&ns, number_of_points)?;
+            let vec_list = misc::create_list(&ns, number_of_points)?;
             let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, &my_settings, &mut file_to_write)?;
             let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)?;
-            let measurement = spimlib::LiveScanList::new(&my_settings);
+            let measurement = spimlib::Live::new(&my_settings);
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, Some(&vec_list), file_to_write)?;
             Ok(my_settings.mode)
         },

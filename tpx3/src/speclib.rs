@@ -138,9 +138,15 @@ impl SpecKind for Live2D {
         Self{ data: tp3_vec!(2), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now() }
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
         let index = pack.x() + CAM_DESIGN.0 * pack.y();
-        add_index!(self, index);
+        if settings.time_resolved {
+            if tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
+                add_index!(self, index);
+            } 
+        } else {
+            add_index!(self, index);
+        }
         
         let ele_time = pack.fast_electron_time();
         //This is an overflow. We correct it.
@@ -159,6 +165,13 @@ impl SpecKind for Live2D {
             } else {
                 self.is_ready = true;
             }
+        }
+    }
+    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        if my_settings.time_resolved {
+            TdcRef::new_periodic(TdcType::TdcTwoRisingEdge, pack, my_settings, file_to_write)
+        } else {
+            TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
         }
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
@@ -201,9 +214,15 @@ impl SpecKind for Live1D {
         Self{ data: tp3_vec!(1), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now()}
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
         let index = pack.x();
-        add_index!(self, index);
+        if settings.time_resolved {
+            if tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
+                add_index!(self, index);
+            } 
+        } else {
+            add_index!(self, index);
+        }
         
         let ele_time = pack.fast_electron_time();
         //This is an overflow. We correct it.
@@ -222,6 +241,13 @@ impl SpecKind for Live1D {
             } else {
                 self.is_ready = true;
             }
+        }
+    }
+    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        if my_settings.time_resolved {
+            TdcRef::new_periodic(TdcType::TdcTwoRisingEdge, pack, my_settings, file_to_write)
+        } else {
+            TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
         }
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
@@ -235,137 +261,6 @@ impl SpecKind for Live1D {
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
         self.timer = Instant::now();
         self.is_ready = false;
-        if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = 0);
-        }
-    }
-    fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
-        self.frame_counter
-    }
-}
-
-pub struct LiveTR2D {
-    data: Vec<u32>,
-    is_ready: bool,
-    frame_counter: COUNTER,
-    last_time: TIME,
-    timer: Instant,
-}
-
-
-impl  SpecKind for LiveTR2D {
-    fn is_ready(&self) -> bool {
-        self.is_ready
-    }
-    fn build_output(&mut self, _settings: &Settings) -> &[u8] {
-        as_bytes(&self.data)
-    }
-    fn new(_settings: &Settings) -> Self {
-        Self{ data: tp3_vec!(2), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now()}
-    }
-    #[inline]
-    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
-        if tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
-            let index = pack.x() + CAM_DESIGN.0 * pack.y();
-            add_index!(self, index);
-        } 
-        
-        let ele_time = pack.fast_electron_time();
-        //This is an overflow. We correct it.
-        if self.last_time > ele_time + (ELECTRON_OVERFLOW >> 2) {
-            self.last_time = ele_time;
-        }
-        //We check if the frame must be ready or not.
-        if ele_time > self.last_time + settings.acquisition_us * 640 {
-            self.last_time = ele_time;
-            self.frame_counter += 1;
-            if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
-                self.is_ready = false;
-                if !settings.cumul {
-                    self.data.iter_mut().for_each(|x| *x = 0);
-                }
-            } else {
-                self.is_ready = true;
-            }
-        }
-    }
-    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_periodic(TdcType::TdcTwoRisingEdge, pack, &my_settings, file_to_write)
-    }
-    fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-    }
-    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-    }
-    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
-        self.timer = Instant::now();
-        self.is_ready = false;
-        if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = 0);
-        }
-    }
-    fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
-        self.frame_counter
-    }
-}
-
-pub struct LiveTR1D {
-    data: Vec<u32>,
-    is_ready: bool,
-    frame_counter: COUNTER,
-    last_time: TIME,
-    timer: Instant,
-}
-
-impl SpecKind for LiveTR1D {
-    fn is_ready(&self) -> bool {
-        self.is_ready
-    }
-    fn build_output(&mut self, _settings: &Settings) -> &[u8] {
-        as_bytes(&self.data)
-    }
-    fn new(_settings: &Settings) -> Self {
-        Self{ data: tp3_vec!(1), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now()}
-    }
-    #[inline]
-    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
-        if tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
-            let index = pack.x();
-            add_index!(self, index);
-        }
-        
-        let ele_time = pack.fast_electron_time();
-        //This is an overflow. We correct it.
-        if self.last_time > ele_time + (ELECTRON_OVERFLOW >> 2) {
-            self.last_time = ele_time;
-        }
-        //We check if the frame must be ready or not.
-        if ele_time > self.last_time + settings.acquisition_us * 640 {
-            self.last_time = ele_time;
-            self.frame_counter += 1;
-            if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
-                self.is_ready = false;
-                if !settings.cumul {
-                    self.data.iter_mut().for_each(|x| *x = 0);
-                }
-            } else {
-                self.is_ready = true;
-            }
-        }
-    }
-    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_periodic(TdcType::TdcTwoRisingEdge, pack, &my_settings, file_to_write)
-    }
-    fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-    }
-    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-    }
-    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
-        self.is_ready = false;
-        self.timer = Instant::now();
         if !settings.cumul {
             self.data.iter_mut().for_each(|x| *x = 0);
         }

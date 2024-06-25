@@ -399,12 +399,12 @@ impl TdcRef {
     
     //This recovers the position of the probe during the return given the TDC and the electron ToA
     #[inline]
-    pub fn get_return_positional_index(&self, dt: TIME, xspim: POSITION, yspim: POSITION) -> Option<POSITION> {
+    pub fn get_return_positional_index(&self, dt: TIME, xspim: POSITION, yspim: POSITION, list_scan: SlType) -> Option<POSITION> {
         let val = dt % self.period?;
         if val >= self.low_time? {
             let mut r = (dt / self.period?) as POSITION; //how many periods -> which line to put.
             let rin = ((xspim as TIME * (val - self.low_time?)) / self.high_time?) as POSITION; //Column correction. Maybe not even needed.
-                
+
             if r > (yspim-1) {
                 if r > 4096 {return None;} //This removes overflow electrons. See add_electron_hit
                 r %= yspim;
