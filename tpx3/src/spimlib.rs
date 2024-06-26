@@ -50,7 +50,7 @@ pub fn get_return_4dindex(x: POSITION, y: POSITION, dt: TIME, spim_tdc: &TdcRef,
 
 #[inline]
 pub fn get_coincidence_spimindex(x: POSITION, dt: TIME, spim_tdc: &TdcRef, xspim: POSITION, yspim: POSITION, list_scan: SlType, my_settings: &Settings) -> Option<INDEX4D> {
-    Some(spim_tdc.get_positional_index(dt, xspim, yspim, list_scan)? as INDEX4D * (PIXELS_X as INDEX4D * my_settings.time_delay * 2) + x as INDEX4D)
+    Some(spim_tdc.get_positional_index(dt, xspim, yspim, list_scan)? as INDEX4D * (PIXELS_X as INDEX4D * my_settings.time_width * 2) + x as INDEX4D)
 }
 
 ///It outputs list of indices (max `u32`) that
@@ -241,11 +241,11 @@ impl SpimKind for LiveCoincidence {
         line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
     }
     #[inline]
-    fn build_output(&mut self, set: &Settings, spim_tdc: &TdcRef, _list_scan: SlType) -> &[u8] {
+    fn build_output(&mut self, set: &Settings, spim_tdc: &TdcRef, list_scan: SlType) -> &[u8] {
 
         self.data_out = self.data.iter()
             .filter_map(|&(x, dt)| {
-                get_coincidence_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size, None, set)
+                get_coincidence_spimindex(x, dt, spim_tdc, set.xspim_size, set.yspim_size, list_scan, set)
             }).collect::<Vec<INDEX4D>>();
         
         as_bytes(&self.data_out)
@@ -268,15 +268,25 @@ impl SpimKind for Live4D {
         &self.data
     }
     #[inline]
-    fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, _ref_tdc: &TdcRef, _set: &Settings) {
-        let ele_time = line_tdc.correct_or_not_etime(packet.electron_time());
-        self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time.unwrap())); //This added the overflow.
+    fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &TdcRef, set: &Settings) {
+        let ele_time = line_tdc.correct_or_not_etime(packet.electron_time()).unwrap();
+        if set.time_resolved {
+            if tr_check_if_in(packet.electron_time(), ref_tdc, set) {
+                self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time)); //This added the overflow.
+            } 
+        } else {
+            self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time)); //This added the overflow.
+        }
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, my_settings, file_to_write)
     }
-    fn build_aux_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
+    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        if my_settings.time_resolved {
+            TdcRef::new_periodic(TdcType::TdcTwoRisingEdge, pack, my_settings, file_to_write)
+        } else {
+            TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
+        }
     }
     fn add_tdc_hit(&mut self, packet: &Packet, _line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
