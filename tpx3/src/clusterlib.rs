@@ -228,10 +228,10 @@ pub mod cluster {
             spimlib::get_return_spimindex(self.x(), self.frame_dt(), &spim_tdc?, xspim, yspim, None)
         }
         pub fn get_or_not_4d_index(&self, spim_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX4D> {
-            spimlib::get_4dindex(self.x(), self.y(), self.frame_dt(), &spim_tdc?, xspim, yspim)
+            spimlib::get_4dindex(self.x(), self.y(), self.frame_dt(), &spim_tdc?, xspim, yspim, None)
         }
         pub fn get_or_not_return_4d_index(&self, spim_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX4D> {
-            spimlib::get_return_4dindex(self.x(), self.y(), self.frame_dt(), &spim_tdc?, xspim, yspim)
+            spimlib::get_return_4dindex(self.x(), self.y(), self.frame_dt(), &spim_tdc?, xspim, yspim, None)
         }
     }
 
