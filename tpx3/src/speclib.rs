@@ -2,7 +2,7 @@
 
 use crate::packetlib::Packet;
 use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, packet_change, tr_check_if_in}};
-use crate::tdclib::{TdcType, TdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
+use crate::tdclib::{TdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
 use crate::isi_box_new;
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
@@ -75,10 +75,10 @@ pub trait SpecKind {
     fn build_output(&mut self, settings: &Settings) -> &[u8];
     fn new(settings: &Settings) -> Self;
     fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
+        TdcRef::new_no_read(MAIN_TDC)
     }
     fn build_aux_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
+        TdcRef::new_no_read(SECONDARY_TDC)
     }
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, frame_tdc: &TdcRef, ref_tdc: &TdcRef);
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings);
@@ -169,9 +169,9 @@ impl SpecKind for Live2D {
     }
     fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         if my_settings.time_resolved {
-            TdcRef::new_periodic(TdcType::TdcTwoRisingEdge, pack, my_settings, file_to_write)
+            TdcRef::new_periodic(SECONDARY_TDC, pack, my_settings, file_to_write)
         } else {
-            TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
+            TdcRef::new_no_read(SECONDARY_TDC)
         }
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
@@ -245,9 +245,9 @@ impl SpecKind for Live1D {
     }
     fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         if my_settings.time_resolved {
-            TdcRef::new_periodic(TdcType::TdcTwoRisingEdge, pack, my_settings, file_to_write)
+            TdcRef::new_periodic(SECONDARY_TDC, pack, my_settings, file_to_write)
         } else {
-            TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
+            TdcRef::new_no_read(SECONDARY_TDC)
         }
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
@@ -572,9 +572,6 @@ impl SpecKind for Live1DFrameHyperspec {
         let index = frame_number * CAM_DESIGN.0 + pack.x();
         self.data[index as usize] += pack.tot() as u32;
     }
-    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcOneRisingEdge)
-    }
     fn add_tdc_hit2(&mut self, _pack: &Packet, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -757,10 +754,6 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
     };
     final_data.is_ready()
 }
-
-//fn add_isibox_pixels(data: &mut [u8], isi_box_data: [u32; 17]) {
-//    data[CAM_DESIGN.0..].iter_mut().zip(as_bytes(&isi_box_data).iter()).for_each(|(a, b)| *a+=b);
-//}
 
 fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, extra_pixels: POSITION, shutter_control: Option<&ShutterControl>) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");

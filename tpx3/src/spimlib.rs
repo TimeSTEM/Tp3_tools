@@ -2,7 +2,7 @@
 
 use crate::packetlib::Packet;
 use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, as_bytes_mut, packet_change, tr_check_if_in}, FileManager};
-use crate::tdclib::{TdcRef, TdcType, isi_box::{IsiBoxHand, IsiBoxType}};
+use crate::tdclib::{TdcRef, isi_box::{IsiBoxHand, IsiBoxType}};
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::Write;
@@ -145,13 +145,13 @@ impl SpimKind for Live {
         }
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, my_settings, file_to_write)
+        TdcRef::new_periodic(MAIN_TDC, pack, my_settings, file_to_write)
     }
     fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         if my_settings.time_resolved {
-            TdcRef::new_periodic(TdcType::TdcTwoRisingEdge, pack, my_settings, file_to_write)
+            TdcRef::new_periodic(SECONDARY_TDC, pack, my_settings, file_to_write)
         } else {
-            TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
+            TdcRef::new_no_read(SECONDARY_TDC)
         }
     }
     fn add_tdc_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
@@ -227,10 +227,10 @@ impl SpimKind for LiveCoincidence {
         }
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, my_settings, file_to_write)
+        TdcRef::new_periodic(MAIN_TDC, pack, my_settings, file_to_write)
     }
     fn build_aux_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
+        TdcRef::new_no_read(SECONDARY_TDC)
     }
     fn add_tdc_hit(&mut self, packet: &Packet, _line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
@@ -279,13 +279,13 @@ impl SpimKind for Live4D {
         }
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, my_settings, file_to_write)
+        TdcRef::new_periodic(MAIN_TDC, pack, my_settings, file_to_write)
     }
     fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         if my_settings.time_resolved {
-            TdcRef::new_periodic(TdcType::TdcTwoRisingEdge, pack, my_settings, file_to_write)
+            TdcRef::new_periodic(SECONDARY_TDC, pack, my_settings, file_to_write)
         } else {
-            TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
+            TdcRef::new_no_read(SECONDARY_TDC)
         }
     }
     fn add_tdc_hit(&mut self, packet: &Packet, _line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
@@ -328,10 +328,10 @@ impl SpimKind for LiveFrame4D<MaskValues> {
 
     }
     fn build_main_tdc<V: TimepixRead>(&mut self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_periodic(TdcType::TdcOneRisingEdge, pack, my_settings, file_to_write)
+        TdcRef::new_periodic(MAIN_TDC, pack, my_settings, file_to_write)
     }
     fn build_aux_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)
+        TdcRef::new_no_read(SECONDARY_TDC)
     }
     fn add_tdc_hit(&mut self, _packet: &Packet, _line_tdc: &TdcRef, _ref_tdc: &mut TdcRef) {
     }

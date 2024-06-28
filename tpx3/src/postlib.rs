@@ -1,6 +1,6 @@
 pub mod coincidence {
     use crate::packetlib::Packet;
-    use crate::tdclib::{TdcType, TdcRef};
+    use crate::tdclib::{TdcRef};
     use crate::errorlib::Tp3ErrorKind;
     use crate::clusterlib::cluster::ClusterCorrection;
     use std::io::prelude::*;
@@ -487,13 +487,13 @@ pub mod coincidence {
                 panic!("***Coincidence***: Spim mode is on. X and Y pixels must be greater than 0.");
             }
             let mut empty_filemanager = FileManager::new_empty();
-            let temp = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut file0, &coinc_data.my_settings, &mut empty_filemanager).expect("Could not create period TDC reference.");
+            let temp = TdcRef::new_periodic(MAIN_TDC, &mut file0, &coinc_data.my_settings, &mut empty_filemanager).expect("Could not create period TDC reference.");
             coinc_data.prepare_spim(temp);
             temp
         } else {
-            TdcRef::new_no_read(TdcType::TdcOneFallingEdge).expect("Could not create non periodic TDC reference.")
+            TdcRef::new_no_read(MAIN_TDC).expect("Could not create non periodic TDC reference.")
         };
-        let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge).expect("Could not create non periodic (photon) TDC reference.");
+        let np_tdc = TdcRef::new_no_read(SECONDARY_TDC).expect("Could not create non periodic (photon) TDC reference.");
 
  
         let mut ci = 0;

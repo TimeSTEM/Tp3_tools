@@ -161,7 +161,7 @@ impl Packet {
                             _ => t,
                         }
                     },
-                    _ => spidr * 262_144 * ctoa
+                    _ => spidr * 262_144 + ctoa
                 }
             }
         }
