@@ -1150,7 +1150,7 @@ pub mod ntime_resolved {
     use crate::errorlib::Tp3ErrorKind;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
     use crate::auxiliar::{misc::{packet_change, output_data}, value_types::*, ConfigAcquisition, Settings, FileManager};
-    //use crate::constlib::*;
+    use crate::constlib::*;
     use std::io::prelude::*;
     use std::convert::TryInto;
     use std::fs;
@@ -1291,8 +1291,8 @@ pub mod ntime_resolved {
                 spimx: my_config.xspim,
                 spimy: my_config.yspim,
                 tdc_periodic: None,
-                spim_tdc_type: TdcType::TdcOneFallingEdge,
-                extra_tdc_type: TdcType::TdcTwoRisingEdge,
+                spim_tdc_type: MAIN_TDC,
+                extra_tdc_type: SECONDARY_TDC,
                 remove_clusters: my_config.correction_type,
                 file: my_config.file,
                 fourd_data: my_settings.mode != 2,
