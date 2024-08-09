@@ -24,6 +24,7 @@ pub enum Tp3ErrorKind {
     //From IO-based, such as external libraries (like json parser)
     IOGeneralError,
     IOCouldNotCreateFile,
+    IOFileNotFound,
     SerdeGeneralError,
     Utf8GeneralError,
 
@@ -59,7 +60,7 @@ pub enum Tp3ErrorKind {
 impl From<std::io::Error> for Tp3ErrorKind {
     fn from(e: std::io::Error) -> Tp3ErrorKind {
         match e.kind() {
-            std::io::ErrorKind::NotFound => Tp3ErrorKind::IOCouldNotCreateFile,
+            std::io::ErrorKind::NotFound => Tp3ErrorKind::IOFileNotFound,
             _ => Tp3ErrorKind::IOGeneralError,
         }
     }
