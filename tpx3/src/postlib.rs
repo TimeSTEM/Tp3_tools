@@ -260,6 +260,7 @@ pub mod coincidence {
             let y: Vec<POSITION> = self.coinc_electrons.iter().map(|se| se.y()).collect::<Vec<_>>();
             let tot: Vec<u16> = self.coinc_electrons.iter().map(|se| se.tot()).collect::<Vec<_>>();
             let time: Vec<TIME> = self.coinc_electrons.iter().map(|se| se.time()).collect::<Vec<_>>();
+            output_data(&self.coinc_electrons, self.file.clone(), "coinc_elec.txt");
             output_data(&x, self.file.clone(), "xH.txt");
             output_data(&y, self.file.clone(), "yH.txt");
             output_data(&tot, self.file.clone(), "tot.txt");
