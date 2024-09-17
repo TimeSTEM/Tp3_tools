@@ -28,12 +28,13 @@ pub mod coincidence {
     pub struct ElectronData<T> {
         reduced_raw_data: Vec<u64>,
         index_to_add_in_raw: Vec<usize>,
-        time: Vec<TIME>,
+        coinc_electrons: CollectionElectron,
+        //time: Vec<TIME>,
         channel: Vec<u8>,
         rel_time: Vec<i16>,
-        x: Vec<u16>,
-        y: Vec<u16>,
-        tot: Vec<u16>,
+        //x: Vec<u16>,
+        //y: Vec<u16>,
+        //tot: Vec<u16>,
         cluster_size: Vec<u16>,
         spectrum: Vec<u32>,
         corr_spectrum: Vec<u32>,
@@ -115,13 +116,14 @@ pub mod coincidence {
         fn add_coincident_electron(&mut self, val: SingleElectron, photon: SinglePhoton) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[PIXELS_X as usize-1] += 1; //Adding the photon
-            self.time.push(val.time());
-            self.tot.push(val.tot());
-            self.x.push(val.x().try_into().unwrap());
-            self.y.push(val.y().try_into().unwrap());
+            //self.time.push(val.time());
+            //self.tot.push(val.tot());
+            //self.x.push(val.x().try_into().unwrap());
+            //self.y.push(val.y().try_into().unwrap());
             self.channel.push(photon.channel().try_into().unwrap());
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.time()).fold());
             self.cluster_size.push(val.cluster_size().try_into().unwrap());
+            self.coinc_electrons.add_electron(val);
             
             match val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
                 Some(index) => self.spim_index.push(index),
@@ -172,12 +174,13 @@ pub mod coincidence {
             Self {
                 reduced_raw_data: Vec::new(),
                 index_to_add_in_raw: Vec::new(),
-                time: Vec::new(),
+                coinc_electrons: CollectionElectron::new(),
+                //time: Vec::new(),
                 channel: Vec::new(),
                 rel_time: Vec::new(),
-                x: Vec::new(),
-                y: Vec::new(),
-                tot: Vec::new(),
+                //x: Vec::new(),
+                //y: Vec::new(),
+                //tot: Vec::new(),
                 spim_frame: vec![0; (PIXELS_X * my_settings.xspim_size * my_settings.yspim_size) as usize],
                 cluster_size: Vec::new(),
                 spectrum: vec![0; PIXELS_X as usize],
@@ -204,12 +207,13 @@ pub mod coincidence {
         fn early_output_data(&mut self) {
             self.output_reduced_raw();
             self.output_relative_time();
-            self.output_time();
+            //self.output_time();
             self.output_channel();
-            self.output_dispersive();
-            self.output_non_dispersive();
+            //self.output_dispersive();
+            //self.output_non_dispersive();
             self.output_spim_index();
-            self.output_tot();
+            //self.output_tot();
+            self.output_values();
             self.output_cluster_size();
         }
 
@@ -241,16 +245,30 @@ pub mod coincidence {
             self.reduced_raw_data.clear();
         }
         
-        fn output_time(&mut self) {
-            output_data(&self.time, self.file.clone(), "tabsH.txt");
-            self.time.clear();
-        }
+        //fn output_time(&mut self) {
+        //    output_data(&self.time, self.file.clone(), "tabsH.txt");
+        //    self.time.clear();
+        //}
         
         fn output_channel(&mut self) {
             output_data(&self.channel, self.file.clone(), "channel.txt");
             self.channel.clear();
         }
+
+        fn output_values(&mut self) {
+            let x: Vec<POSITION> = self.coinc_electrons.iter().map(|se| se.x()).collect::<Vec<_>>();
+            let y: Vec<POSITION> = self.coinc_electrons.iter().map(|se| se.y()).collect::<Vec<_>>();
+            let tot: Vec<u16> = self.coinc_electrons.iter().map(|se| se.tot()).collect::<Vec<_>>();
+            let time: Vec<TIME> = self.coinc_electrons.iter().map(|se| se.time()).collect::<Vec<_>>();
+            output_data(&x, self.file.clone(), "xH.txt");
+            output_data(&y, self.file.clone(), "yH.txt");
+            output_data(&tot, self.file.clone(), "tot.txt");
+            output_data(&time, self.file.clone(), "tabsH.txt");
+            self.coinc_electrons.clear();
+            //self.x.clear();
+        }
         
+        /*
         fn output_dispersive(&mut self) {
             output_data(&self.x, self.file.clone(), "xH.txt");
             self.x.clear();
@@ -260,6 +278,12 @@ pub mod coincidence {
             output_data(&self.y, self.file.clone(), "yH.txt");
             self.y.clear();
         }
+        
+        fn output_tot(&mut self) {
+            output_data(&self.tot, self.file.clone(), "tot.txt");
+            self.tot.clear();
+        }
+        */
         
         fn output_spim_index(&mut self) {
             output_data(&self.spim_index, self.file.clone(), "si.txt");
@@ -271,10 +295,6 @@ pub mod coincidence {
             self.cluster_size.clear();
         }
 
-        fn output_tot(&mut self) {
-            output_data(&self.tot, self.file.clone(), "tot.txt");
-            self.tot.clear();
-        }
             
     }
 
