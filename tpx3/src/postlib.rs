@@ -149,7 +149,6 @@ pub mod coincidence {
                 channel: Vec::new(),
                 rel_time: Vec::new(),
                 spim_frame: vec![0; (PIXELS_X * my_settings.xspim_size * my_settings.yspim_size) as usize],
-                //cluster_size: Vec::new(),
                 spectrum: vec![0; PIXELS_X as usize],
                 corr_spectrum: vec![0; PIXELS_X as usize],
                 is_spim: my_settings.mode == 2,
@@ -211,8 +210,8 @@ pub mod coincidence {
         }
 
         fn output_values(&mut self) {
-            let x: Vec<POSITION> = self.coinc_electrons.iter().map(|se| se.x()).collect::<Vec<_>>();
-            let y: Vec<POSITION> = self.coinc_electrons.iter().map(|se| se.y()).collect::<Vec<_>>();
+            let x: Vec<u16> = self.coinc_electrons.iter().map(|se| se.x() as u16).collect::<Vec<_>>();
+            let y: Vec<u16> = self.coinc_electrons.iter().map(|se| se.y() as u16).collect::<Vec<_>>();
             let tot: Vec<u16> = self.coinc_electrons.iter().map(|se| se.tot()).collect::<Vec<_>>();
             let time: Vec<TIME> = self.coinc_electrons.iter().map(|se| se.time()).collect::<Vec<_>>();
             let cs: Vec<u16> = self.coinc_electrons.iter().map(|se| se.cluster_size()).collect::<Vec<_>>();
