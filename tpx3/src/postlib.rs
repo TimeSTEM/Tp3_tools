@@ -31,13 +31,11 @@ pub mod coincidence {
         coinc_electrons: CollectionElectron,
         channel: Vec<u8>,
         rel_time: Vec<i16>,
-        //cluster_size: Vec<u16>,
         spectrum: Vec<u32>,
         corr_spectrum: Vec<u32>,
         spim_frame: Vec<u32>,
         is_spim: bool,
         spim_size: (POSITION, POSITION),
-        spim_index: Vec<INDEXHYPERSPEC>,
         spim_tdc: Option<TdcRef>,
         remove_clusters: T,
         overflow_electrons: COUNTER,
@@ -101,13 +99,7 @@ pub mod coincidence {
             self.corr_spectrum[PIXELS_X as usize-1] += 1; //Adding the photon
             self.channel.push(photon.channel().try_into().unwrap());
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.time()).fold());
-            //self.cluster_size.push(val.cluster_size().try_into().unwrap());
             self.coinc_electrons.add_electron(val);
-            
-            match val.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
-                Some(index) => self.spim_index.push(index),
-                None => self.spim_index.push(POSITION::MAX),
-            }
         }
         
         fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME, _line_offset: i64) {
@@ -162,7 +154,6 @@ pub mod coincidence {
                 corr_spectrum: vec![0; PIXELS_X as usize],
                 is_spim: my_settings.mode == 2,
                 spim_size: (my_settings.xspim_size, my_settings.yspim_size),
-                spim_index: Vec::new(),
                 spim_tdc: None,
                 remove_clusters: correction_type,
                 overflow_electrons: 0,
@@ -183,7 +174,6 @@ pub mod coincidence {
             self.output_reduced_raw();
             self.output_relative_time();
             self.output_channel();
-            self.output_spim_index();
             self.output_values();
         }
 
@@ -226,6 +216,12 @@ pub mod coincidence {
             let tot: Vec<u16> = self.coinc_electrons.iter().map(|se| se.tot()).collect::<Vec<_>>();
             let time: Vec<TIME> = self.coinc_electrons.iter().map(|se| se.time()).collect::<Vec<_>>();
             let cs: Vec<u16> = self.coinc_electrons.iter().map(|se| se.cluster_size()).collect::<Vec<_>>();
+            let spim_index: Vec<INDEXHYPERSPEC> = self.coinc_electrons.iter().map(|se| {
+                match se.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
+                    Some(index) => index,
+                    None => POSITION::MAX,
+                }
+            }).collect::<Vec<_>>();
             
             output_data(&self.coinc_electrons, self.file.clone(), "coinc_elec.txt");
             output_data(&x, self.file.clone(), "xH.txt");
@@ -233,12 +229,8 @@ pub mod coincidence {
             output_data(&tot, self.file.clone(), "tot.txt");
             output_data(&time, self.file.clone(), "tabsH.txt");
             output_data(&cs, self.file.clone(), "tabsH.txt");
+            output_data(&spim_index, self.file.clone(), "si.txt");
             self.coinc_electrons.clear();
-        }
-        
-        fn output_spim_index(&mut self) {
-            output_data(&self.spim_index, self.file.clone(), "si.txt");
-            self.spim_index.clear();
         }
             
     }
