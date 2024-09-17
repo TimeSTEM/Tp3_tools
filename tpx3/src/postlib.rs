@@ -326,7 +326,6 @@ pub mod coincidence {
     }
 
     pub fn search_coincidence<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<(), Tp3ErrorKind> {
-
         //If folder exists, the procedure does not continue.
         coinc_data.try_create_folder()?;
         
