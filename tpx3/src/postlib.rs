@@ -256,6 +256,10 @@ pub mod coincidence {
         }
 
         fn output_values(&mut self) {
+            let a = std::mem::size_of::<SingleElectron>();
+            let b = std::mem::size_of::<u64>();
+            println!("{:?}", a);
+            println!("{:?}", b);
             let x: Vec<POSITION> = self.coinc_electrons.iter().map(|se| se.x()).collect::<Vec<_>>();
             let y: Vec<POSITION> = self.coinc_electrons.iter().map(|se| se.y()).collect::<Vec<_>>();
             let tot: Vec<u16> = self.coinc_electrons.iter().map(|se| se.tot()).collect::<Vec<_>>();
