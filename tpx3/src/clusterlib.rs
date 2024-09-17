@@ -377,8 +377,7 @@ pub mod cluster {
                     self.photon_counter += index / PHOTON_LIST_STEP;
                     return Some((electron, *photon));
                 }
-                //if photon.time() / 6 > electron.time() + self.time_delay + self.time_width {break;}
-                if photon.time() / 6 + self.time_width < electron.time() + self.time_delay + self.time_width {break;}
+                if photon.time() / 6 > electron.time() + self.time_delay + self.time_width {break;}
                 index += 1;
             }
             self.next()
