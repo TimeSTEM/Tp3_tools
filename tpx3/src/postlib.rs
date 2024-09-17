@@ -2,7 +2,7 @@ pub mod coincidence {
     use crate::packetlib::Packet;
     use crate::tdclib::{TdcRef};
     use crate::errorlib::Tp3ErrorKind;
-    use crate::clusterlib::cluster::ClusterCorrection;
+    use crate::clusterlib::cluster::{ClusterCorrection, CoincidenceSearcher};
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
@@ -31,8 +31,6 @@ pub mod coincidence {
         time: Vec<TIME>,
         channel: Vec<u8>,
         rel_time: Vec<i16>,
-        double_photon_rel_time: Vec<i16>,
-        g2_time: Vec<Option<i16>>,
         x: Vec<u16>,
         y: Vec<u16>,
         tot: Vec<u16>,
@@ -118,7 +116,6 @@ pub mod coincidence {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[PIXELS_X as usize-1] += 1; //Adding the photon
             self.time.push(val.time());
-            self.g2_time.push(photon.g2_time());
             self.tot.push(val.tot());
             self.x.push(val.x().try_into().unwrap());
             self.y.push(val.y().try_into().unwrap());
@@ -136,15 +133,9 @@ pub mod coincidence {
             
             let mut min_index = temp_tdc.min_index;
 
-            //Type of TDC data to be treated.
-            match temp_tdc.tdc_type {
-                TempTdcDataType::FromTP3 => {
-                    temp_tdc.sort();
-                    if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
-                },
-            }
-
             //Sorting and removing clusters (if need) for electrons.
+            temp_tdc.sort();
+            if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
             temp_edata.electron.sort();
             temp_edata.electron.try_clean(0, &self.remove_clusters);
 
@@ -153,12 +144,6 @@ pub mod coincidence {
 
             //Adding electrons to the spectra image
             temp_edata.electron.iter().for_each(|electron| self.add_electron(*electron));
-
-            //Correcting for lines. Only used for ISIBOX. This is currently disabled.
-            //let line_period_offset = match self.spim_tdc { //Adding lineoffset for data
-            //    Some(spim_tdc) => line_offset * spim_tdc.period().unwrap() as i64,
-            //    None => 0,
-            //};
 
             //This effectivelly searches for coincidence.
             let (coinc_electron, coinc_photon) = temp_edata.electron.search_coincidence(&temp_tdc.event_list, &mut self.index_to_add_in_raw, &mut min_index, time_delay, time_width);
@@ -190,8 +175,6 @@ pub mod coincidence {
                 time: Vec::new(),
                 channel: Vec::new(),
                 rel_time: Vec::new(),
-                double_photon_rel_time: Vec::new(),
-                g2_time: Vec::new(),
                 x: Vec::new(),
                 y: Vec::new(),
                 tot: Vec::new(),
@@ -222,7 +205,6 @@ pub mod coincidence {
             self.output_reduced_raw();
             self.output_relative_time();
             self.output_time();
-            self.output_g2_time();
             self.output_channel();
             self.output_dispersive();
             self.output_non_dispersive();
@@ -251,9 +233,7 @@ pub mod coincidence {
 
         fn output_relative_time(&mut self) {
             output_data(&self.rel_time, self.file.clone(), "tH.txt");
-            output_data(&self.double_photon_rel_time, self.file.clone(), "double_tH.txt");
             self.rel_time.clear();
-            self.double_photon_rel_time.clear();
         }
         
         fn output_reduced_raw(&mut self) {
@@ -264,17 +244,6 @@ pub mod coincidence {
         fn output_time(&mut self) {
             output_data(&self.time, self.file.clone(), "tabsH.txt");
             self.time.clear();
-        }
-        
-        fn output_g2_time(&mut self) {
-            let vec = self.g2_time.iter().map(|x| {
-                match x {
-                    None => -5_000,
-                    Some(x) => *x,
-                }
-            }).collect::<Vec<i16>>();
-            output_data(&vec, self.file.clone(), "g2tH.txt");
-            self.g2_time.clear();
         }
         
         fn output_channel(&mut self) {
@@ -309,10 +278,6 @@ pub mod coincidence {
             
     }
 
-    enum TempTdcDataType {
-        FromTP3
-    }
-
     //the absolute time, the channel, the g2_dT, and the spim index;
     pub type TdcStructureData = (TIME, COUNTER, Option<i16>, Option<INDEXHYPERSPEC>);
     pub struct TempTdcData {
@@ -320,7 +285,6 @@ pub mod coincidence {
         //tdc: Vec<TdcStructureData>,
         //clean_tdc: Vec<TdcStructureData>,
         min_index: usize,
-        tdc_type: TempTdcDataType,
     }
 
     impl TempTdcData {
@@ -330,7 +294,6 @@ pub mod coincidence {
                 //tdc: Vec::new(),
                 //clean_tdc: Vec::new(),
                 min_index: 0,
-                tdc_type: TempTdcDataType::FromTP3,
             }
         }
         
