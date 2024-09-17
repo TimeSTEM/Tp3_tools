@@ -130,7 +130,7 @@ pub mod cluster {
     ///ToA, X, Y, ToT, Spim dT, Spim Slice, Cluster Size, raw packet, packet index, Spim Line
     #[derive(Copy, Clone, Eq)]
     pub struct SingleElectron {
-        data: (TIME, COUNTER, COUNTER, Packet, usize, POSITION),
+        data: (Option<TIME>, Option<POSITION>, Option<POSITION>, Option<u16>, TIME, COUNTER, COUNTER, Packet, usize, POSITION),
     }
     
     ///Important for sorting
@@ -157,46 +157,46 @@ pub mod cluster {
                     let ele_time = spim_tdc.correct_or_not_etime(pack.electron_time()).unwrap();
                     let frame = spim_tdc.frame().unwrap_or(0);
                     SingleElectron {
-                        data: (ele_time, frame, 1, *pack, raw_index, spim_tdc.current_line().unwrap())
+                        data: (None, None, None, None, ele_time, frame, 1, *pack, raw_index, spim_tdc.current_line().unwrap())
                     }
                 },
                 None => {
                     SingleElectron {
-                        data: (0, 0, 1, *pack, raw_index, 0),
+                        data: (None, None, None, None, 0, 0, 1, *pack, raw_index, 0),
                     }
                 },
             }
         }
 
         pub fn time(&self) -> TIME {
-            self.raw_packet_data().electron_time()
+            self.data.0.unwrap_or_else(|| self.raw_packet_data().electron_time())
         }
         pub fn x(&self) -> POSITION {
-            self.raw_packet_data().x()
+            self.data.1.unwrap_or_else(|| self.raw_packet_data().x())
         }
         pub fn y(&self) -> POSITION {
-            self.raw_packet_data().y()
+            self.data.2.unwrap_or_else(|| self.raw_packet_data().y())
         }
         pub fn tot(&self) -> u16 {
-            self.raw_packet_data().tot()
+            self.data.3.unwrap_or_else(|| self.raw_packet_data().tot())
         }
         pub fn frame_dt(&self) -> TIME {
-            self.data.0
+            self.data.4
         } 
         pub fn spim_slice(&self) -> COUNTER {
-            self.data.1
+            self.data.5
         }
         pub fn cluster_size(&self) -> COUNTER {
-            self.data.2
+            self.data.6
         }
         pub fn raw_packet_data(&self) -> Packet {
-            self.data.3
+            self.data.7
         }
         pub fn raw_packet_index(&self) -> usize {
-            self.data.4
+            self.data.8
         }
         pub fn spim_line(&self) -> POSITION {
-            self.data.5
+            self.data.9
         }
         pub fn image_index(&self) -> POSITION {
             self.x() + PIXELS_X*self.y()
