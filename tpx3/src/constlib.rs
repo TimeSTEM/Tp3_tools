@@ -13,8 +13,8 @@ pub const SYNC_MODE: u8 = 0; //0 synchronizes on the frame, 1 synchronizes on th
 pub const REMOVE_RETURN: bool = true; //This removes the electrons in the flyback mode. UNIFORM_PIXEL must be false to this in order to take place.
 pub const HIGH_DYNAMIC_FRAME_BASED: bool = false; //This sums up *VALUE* frames when using the frame-based mode;
 pub const HIGH_DYNAMIC_FRAME_BASED_VALUE: COUNTER = 16; //This sums up *VALUE* frames when using the frame-based mode;
-pub const MAIN_TDC: TdcType = TdcType::TdcOneRisingEdge; //TODO: must be implemented
-pub const SECONDARY_TDC: TdcType = TdcType::TdcTwoRisingEdge; //TODO: must be implemented
+pub const MAIN_TDC: TdcType = TdcType::TdcOneRisingEdge; //The main TDC, used for external sync
+pub const SECONDARY_TDC: TdcType = TdcType::TdcTwoRisingEdge; //Secondary TDC
 
 //***Connection, TCP, and transfer values***//
 pub const BUFFER_SIZE: usize = 16384 * 2;

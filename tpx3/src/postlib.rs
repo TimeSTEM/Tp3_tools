@@ -2,7 +2,7 @@ pub mod coincidence {
     use crate::packetlib::Packet;
     use crate::tdclib::TdcRef;
     use crate::errorlib::Tp3ErrorKind;
-    use crate::clusterlib::cluster::ClusterCorrection;
+    use crate::clusterlib::{cluster, cluster::ClusterCorrection};
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
@@ -268,7 +268,11 @@ pub mod coincidence {
         }
     }
 
-    pub fn search_coincidence<T: ClusterCorrection>(coinc_data: &mut ElectronData<T>) -> Result<(), Tp3ErrorKind> {
+    pub fn search_coincidence(dir: &str, cluster_correction: &str, settings: Settings) -> Result<(), Tp3ErrorKind> {
+        
+        //Creating the ElectronData structure
+        let mut coinc_data = ElectronData::new(dir.to_owned(), cluster::grab_cluster_correction(cluster_correction),settings);
+
         //If folder exists, the procedure does not continue.
         coinc_data.try_create_folder()?;
         
@@ -291,7 +295,6 @@ pub mod coincidence {
             TdcRef::new_no_read(MAIN_TDC).expect("Could not create non periodic TDC reference.")
         };
         let np_tdc = TdcRef::new_no_read(SECONDARY_TDC).expect("Could not create non periodic (photon) TDC reference.");
-
  
         let mut ci = 0;
         let mut file = match fs::File::open(&coinc_data.file) {
@@ -306,7 +309,7 @@ pub mod coincidence {
         bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Searching electron photon coincidences")
                       .unwrap()
                       .progress_chars("=>-"));
-        
+
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
@@ -326,7 +329,6 @@ pub mod coincidence {
                             6 if packet.tdc_type() == np_tdc.id() => {
                                 let photon = SinglePhoton::new(&packet, 0, coinc_data.spim_tdc, current_raw_index);
                                 temp_tdc.add_photon(photon);
-                                //temp_tdc.add_tdc(&packet, 0, coinc_data.spim_tdc, coinc_data.spim_size.0, coinc_data.spim_size.1);
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
                             },
                             6 if packet.tdc_type() == main_tdc.id() => {

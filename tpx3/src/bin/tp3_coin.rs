@@ -1,6 +1,5 @@
 use timepix3::postlib::coincidence::*;
 use timepix3::auxiliar::Settings;
-use timepix3::clusterlib::cluster;
 use std::{fs, env};
 use rayon::prelude::*;
 
@@ -45,36 +44,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let dir = path.to_str().unwrap();
         let path_length = dir.len();
         if &dir[path_length - 4 ..path_length] == "tpx3" {
-            //println!("***Coincidence***: Looping over file {:?}", dir);
             if let Ok(settings) = Settings::get_settings_from_json(&dir[0..path_length - 5]) {
                 println!("***Coincidence***: File {} has the following settings from json: {:?}.", dir, settings);
-                let mut coinc_data = ElectronData::new(dir.to_owned(), cluster::grab_cluster_correction(cluster_correction),settings);
-                if let Err(_) = search_coincidence(&mut coinc_data) {
+                if let Err(_) = search_coincidence(dir, cluster_correction, settings) {
                     println!("***Coincidence***: Skipping file {}. Possibly already done it.", dir);
                 }
             } else {
                 println!("***Coincidence***: Skipping file {}. No JSON file is present.", dir);
          }
-
-            
-            /*
-            args_copy[1] = dir.to_string();
-            */
-
-            //let cluster_correction_type = cluster::grab_cluster_correction(&args[5]);
-            //let config_set = ConfigAcquisition::new(&args_copy, cluster_correction_type);
         }
     });
-
-
-    //let cluster_correction_type = cluster::grab_cluster_correction(&args[5]);
-    //let config_set = ConfigAcquisition::new(&args, cluster_correction_type);
-    //let mut coinc_data = ElectronData::new(config_set);
-    //search_coincidence(&mut coinc_data)?;
-    
-
-    //coinc_data.output_data();
-
     Ok(())
 }
 
