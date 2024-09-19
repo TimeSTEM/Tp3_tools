@@ -41,6 +41,7 @@ pub mod coincidence {
         overflow_electrons: COUNTER,
         file: String,
         my_settings: Settings,
+        coinc_counter: POSITION,
     }
 
     impl<T: ClusterCorrection> ElectronData<T> {
@@ -95,11 +96,12 @@ pub mod coincidence {
         }
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon: SinglePhoton) {
-            self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
+            self.corr_spectrum[(self.coinc_counter * PIXELS_X + val.x()) as usize] += 1; //Adding the electron
             self.corr_spectrum[PIXELS_X as usize-1] += 1; //Adding the photon
             self.channel.push(photon.channel().try_into().unwrap());
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.time()).fold());
             self.coinc_electrons.add_electron(val);
+            self.coinc_counter += 1;
         }
         
         fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME, _line_offset: i64) {
@@ -158,6 +160,7 @@ pub mod coincidence {
                 overflow_electrons: 0,
                 file: file_path,
                 my_settings,
+                coinc_counter: 0
             }
         }
 
@@ -196,7 +199,6 @@ pub mod coincidence {
             let y: Vec<u16> = self.coinc_electrons.iter().map(|se| se.y() as u16).collect();
             let tot: Vec<u16> = self.coinc_electrons.iter().map(|se| se.tot()).collect();
             let time: Vec<TIME> = self.coinc_electrons.iter().map(|se| se.time()).collect();
-            let cs: Vec<u16> = self.coinc_electrons.iter().map(|se| se.cluster_size()).collect();
             let condensed_packet: Vec<u64> = self.coinc_electrons.iter().map(|se| se.raw_packet_data().modified_packet_data()).collect();
             let spim_index: Vec<INDEXHYPERSPEC> = self.coinc_electrons.
                 iter().
@@ -208,7 +210,6 @@ pub mod coincidence {
             output_data(&y, self.file.clone(), "yH.txt");
             output_data(&tot, self.file.clone(), "tot.txt");
             output_data(&time, self.file.clone(), "tabsH.txt");
-            output_data(&cs, self.file.clone(), "cs.txt");
             output_data(&condensed_packet, self.file.clone(), "condensed_packet.txt");
             output_data(&spim_index, self.file.clone(), "si.txt");
             self.coinc_electrons.clear();
@@ -342,6 +343,21 @@ pub mod coincidence {
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
                             },
                             11 => {
+                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
+                                temp_edata.add_electron(se);
+                            },
+                            12 => { //In some versions, the id can be a modified one, based on the CI.
+                                let packet = Packet { chip_index: 1, data: packet_change(pack_oct)[0] };
+                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
+                                temp_edata.add_electron(se);
+                            },
+                            13 => { //In some versions, the id can be a modified one, based on the CI.
+                                let packet = Packet { chip_index: 2, data: packet_change(pack_oct)[0] };
+                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
+                                temp_edata.add_electron(se);
+                            },
+                            14 => { //In some versions, the id can be a modified one, based on the CI.
+                                let packet = Packet { chip_index: 3, data: packet_change(pack_oct)[0] };
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
                                 temp_edata.add_electron(se);
                             },
