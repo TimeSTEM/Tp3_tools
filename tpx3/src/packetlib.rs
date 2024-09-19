@@ -231,11 +231,23 @@ impl Packet {
         let time = coarse * 12 + fine;
         time - (time / (103_079_215_104)) * 103_079_215_104
     }
+    
+    #[inline]
+    pub fn modified_packet_data(&self) -> u64 {
+        match self.ci() {
+            0 => (self.data() << 4) | 0xB0_00_00_00_00_00_00_00,
+            1 => (self.data() << 4) | 0xC0_00_00_00_00_00_00_00,
+            2 => (self.data() << 4) | 0xD0_00_00_00_00_00_00_00,
+            3 => (self.data() << 4) | 0xE0_00_00_00_00_00_00_00,
+            _ => self.data(),
+        }
+    }
 
     #[inline]
     pub const fn chip_array() -> (POSITION, POSITION) {
         (PIXELS_X, PIXELS_Y)
     }
+
 }
 
 /*

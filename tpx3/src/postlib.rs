@@ -192,23 +192,24 @@ pub mod coincidence {
             //a time overflow and sort the data, output data would be strange without this.
             self.coinc_electrons.reorder_by_packet_index();
             
-            let x: Vec<u16> = self.coinc_electrons.iter().map(|se| se.x() as u16).collect::<Vec<_>>();
-            let y: Vec<u16> = self.coinc_electrons.iter().map(|se| se.y() as u16).collect::<Vec<_>>();
-            let tot: Vec<u16> = self.coinc_electrons.iter().map(|se| se.tot()).collect::<Vec<_>>();
-            let time: Vec<TIME> = self.coinc_electrons.iter().map(|se| se.time()).collect::<Vec<_>>();
-            let cs: Vec<u16> = self.coinc_electrons.iter().map(|se| se.cluster_size()).collect::<Vec<_>>();
+            let x: Vec<u16> = self.coinc_electrons.iter().map(|se| se.x() as u16).collect();
+            let y: Vec<u16> = self.coinc_electrons.iter().map(|se| se.y() as u16).collect();
+            let tot: Vec<u16> = self.coinc_electrons.iter().map(|se| se.tot()).collect();
+            let time: Vec<TIME> = self.coinc_electrons.iter().map(|se| se.time()).collect();
+            let cs: Vec<u16> = self.coinc_electrons.iter().map(|se| se.cluster_size()).collect();
+            let condensed_packet: Vec<u64> = self.coinc_electrons.iter().map(|se| se.raw_packet_data().modified_packet_data()).collect();
             let spim_index: Vec<INDEXHYPERSPEC> = self.coinc_electrons.
                 iter().
                 map(|se| 
                     se.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)
             ).collect::<Vec<_>>();
             
-            output_data(&self.coinc_electrons, self.file.clone(), "coinc_elec.txt");
             output_data(&x, self.file.clone(), "xH.txt");
             output_data(&y, self.file.clone(), "yH.txt");
             output_data(&tot, self.file.clone(), "tot.txt");
             output_data(&time, self.file.clone(), "tabsH.txt");
             output_data(&cs, self.file.clone(), "cs.txt");
+            output_data(&condensed_packet, self.file.clone(), "condensed_packet.txt");
             output_data(&spim_index, self.file.clone(), "si.txt");
             self.coinc_electrons.clear();
             
