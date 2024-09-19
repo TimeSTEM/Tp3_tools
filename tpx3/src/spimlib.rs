@@ -476,9 +476,7 @@ pub fn build_spim_isi<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
         let result = tl.build_output(&my_settings, &line_tdc, None);
         let x = handler.get_data();
         if ns_sock.write(as_bytes(result)).is_err() {println!("Client disconnected on data."); break;}
-        if x.len() > 0 {
-            if ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
-        }
+        if x.len() > 0 && ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
     }
 
     handler.stop_threads();

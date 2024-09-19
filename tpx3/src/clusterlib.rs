@@ -104,9 +104,8 @@ pub mod cluster {
             let mut corr_photons = CollectionPhoton::new();
             for electron in self.iter() {
                 let mut index_to_increase = None;
-                let mut index = 0; //The index of the photon for each electron.
                 let mut photons_per_electron = 0;
-                for photon in photon_list.iter().skip(*min_index) {
+                for (index, photon) in photon_list.iter().skip(*min_index).enumerate() {
                     if (photon.time() / 6 < electron.time() + time_delay + time_width) && (electron.time() + time_delay < photon.time() / 6 + time_width) {
                         corr_array.add_electron(*electron);
                         corr_photons.add_photon(*photon);
@@ -117,7 +116,6 @@ pub mod cluster {
                         if index_to_increase.is_none() { index_to_increase = Some(index); }
                     }
                     if photon.time() / 6 > electron.time() + time_delay + time_width {break;}
-                    index += 1;
                 }
                 if let Some(increase) = index_to_increase {
                     *min_index += increase / PHOTON_LIST_STEP;
@@ -127,10 +125,6 @@ pub mod cluster {
         }
         pub fn reorder_by_packet_index(&mut self) {
             self.data.par_sort_unstable_by_key(|&i| i.raw_packet_index());
-            //let mut indices: Vec<usize> = (0..self.data.len()).collect();
-            //let packet_index: Vec<usize> = self.data.iter().map(|se| se.raw_packet_index()).collect::<Vec<_>>();
-            //indices.sort_by_key(|&i| packet_index[i]);
-            //let new_vec: Vec<SingleElectron> = indices.iter().map(|&i| self.data[i]).collect();
         }
     }
 

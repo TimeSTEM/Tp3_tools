@@ -284,7 +284,7 @@ pub mod simple_log {
         let dir = Path::new("Microscope/Log/");
         create_dir_all(dir)?;
         let date = Local::now().format("%Y-%m-%d").to_string() + ".txt";
-        let file_path = dir.join(&date);
+        let file_path = dir.join(date);
         let mut file = OpenOptions::new().write(true).truncate(false).create(true).append(true).open(file_path)?;
         let date = Local::now().to_string();
         file.write_all(date.as_bytes())?;
@@ -380,7 +380,7 @@ pub mod misc {
         unsafe {
             std::slice::from_raw_parts(
                 v.as_ptr() as *const u8,
-                v.len() * std::mem::size_of::<T>())
+                std::mem::size_of_val(v))
         }
     }
     
@@ -389,7 +389,7 @@ pub mod misc {
         unsafe {
             std::slice::from_raw_parts_mut(
                 v.as_ptr() as *mut u8,
-                v.len() * std::mem::size_of::<T>())
+                std::mem::size_of_val(v))
         }
     }
     
@@ -398,7 +398,7 @@ pub mod misc {
         unsafe {
             std::slice::from_raw_parts(
                 v.as_ptr() as *const T,
-                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<T>())
+                std::mem::size_of_val(v) / std::mem::size_of::<T>())
         }
     }
 
@@ -407,7 +407,7 @@ pub mod misc {
         unsafe {
             std::slice::from_raw_parts(
                 v.as_ptr() as *const u32,
-                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u32>())
+                std::mem::size_of_val(v) / std::mem::size_of::<u32>())
         }
     }
 
@@ -416,7 +416,7 @@ pub mod misc {
         unsafe {
             std::slice::from_raw_parts(
                 v.as_ptr() as *const u64,
-                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<u64>())
+                std::mem::size_of_val(v) / std::mem::size_of::<u64>())
         }
     }
     
@@ -467,70 +467,4 @@ pub mod value_types {
     pub type COUNTER = u32;
     pub type TIME = u64;
     pub type SlType<'a> = Option<&'a [POSITION]>; //ScanList type
-}
-
-pub mod compressing {
-    
-    use std::io::{Read, Write};
-    use std::fs;
-    use std::fs::OpenOptions;
-    
-    fn as_int(v: &[u8]) -> &[usize] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const usize,
-                //v.len() )
-                v.len() * std::mem::size_of::<u8>() / std::mem::size_of::<usize>())
-        }
-    }
-    
-    fn as_bytes<T>(v: &[T]) -> &[u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                v.as_ptr() as *const u8,
-                v.len() * std::mem::size_of::<T>())
-        }
-    }
-    
-    pub fn compress_file(file: &str) {
-        let mut my_file = fs::File::open(file).expect("Could not open desired file.");
-        let mut buffer: Vec<u8> = vec![0; 512_000_000];
-
-        let mut repetitions = 0;
-
-        let mut index: Vec<usize> = Vec::new();
-        let mut count: Vec<u16> = Vec::new();
-        let mut last_index = 0;
-        let mut counter = 0;
-        while let Ok(size) = my_file.read(&mut buffer) {
-            if size == 0 {break}
-            for val in as_int(&buffer) {
-                if last_index != *val {
-                    index.push(last_index);
-                    count.push(counter);
-                    counter = 0;
-                } else {
-                    repetitions += 1;
-                    counter += 1;
-                }
-                last_index = *val;
-
-            }
-        }
-        let mut tfile = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open("si_complete_index.txt").expect("Could not output time histogram.");
-        tfile.write_all(as_bytes(&index)).expect("Could not write time to file.");
-        
-        let mut tfile = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open("si_complete_count.txt").expect("Could not output time histogram.");
-        tfile.write_all(as_bytes(&count)).expect("Could not write time to file.");
-        
-        println!("{} and {} and {}", index.len(), count.len(), repetitions);
-        
-    }
-
 }

@@ -518,13 +518,11 @@ impl SpecKind for Live1DFrame {
         //reset_or_else does not set is_ready to false.
         if !self.is_ready {
             self.is_ready = temp_ready;
-        } else {
-            if temp_ready {
-                if !settings.cumul {
-                    self.data.iter_mut().for_each(|x| *x = 0);
-                }
-                self.is_ready = false;
+        } else if temp_ready {
+            if !settings.cumul {
+                self.data.iter_mut().for_each(|x| *x = 0);
             }
+            self.is_ready = false;
         }
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {

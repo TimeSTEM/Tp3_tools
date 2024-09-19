@@ -1,8 +1,8 @@
 pub mod coincidence {
     use crate::packetlib::Packet;
-    use crate::tdclib::{TdcRef};
+    use crate::tdclib::TdcRef;
     use crate::errorlib::Tp3ErrorKind;
-    use crate::clusterlib::cluster::{ClusterCorrection, CoincidenceSearcher};
+    use crate::clusterlib::cluster::ClusterCorrection;
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
@@ -188,6 +188,8 @@ pub mod coincidence {
         }
 
         fn early_output_data(&mut self) {
+            //This reorders the packet based on how they have arrived. If you are in the middle of
+            //a time overflow and sort the data, output data would be strange without this.
             self.coinc_electrons.reorder_by_packet_index();
             
             let x: Vec<u16> = self.coinc_electrons.iter().map(|se| se.x() as u16).collect::<Vec<_>>();
@@ -229,8 +231,6 @@ pub mod coincidence {
     pub type TdcStructureData = (TIME, COUNTER, Option<i16>, Option<INDEXHYPERSPEC>);
     pub struct TempTdcData {
         event_list: CollectionPhoton,
-        //tdc: Vec<TdcStructureData>,
-        //clean_tdc: Vec<TdcStructureData>,
         min_index: usize,
     }
 
@@ -238,8 +238,6 @@ pub mod coincidence {
         fn new() -> Self {
             Self {
                 event_list: CollectionPhoton::new(),
-                //tdc: Vec::new(),
-                //clean_tdc: Vec::new(),
                 min_index: 0,
             }
         }
@@ -250,8 +248,6 @@ pub mod coincidence {
 
         fn sort(&mut self) {
             self.event_list.sort();
-            //self.tdc.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
-            //self.clean_tdc = self.tdc.iter().filter(|ph| ph.1 != 16 && ph.1 != 24).cloned().collect::<Vec<_>>();
         }
     }
 
