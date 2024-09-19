@@ -169,13 +169,6 @@ pub mod coincidence {
             }
         }
         
-        fn early_output_data(&mut self) {
-            self.output_reduced_raw();
-            self.output_relative_time();
-            self.output_channel();
-            self.output_values();
-        }
-
         fn output_data(&self) {
             self.output_spectrum();
             self.output_hyperspec();
@@ -194,42 +187,40 @@ pub mod coincidence {
             output_data(&self.spim_frame, self.file.clone(), "spim_frame.txt");
         }
 
-        fn output_relative_time(&mut self) {
-            output_data(&self.rel_time, self.file.clone(), "tH.txt");
-            self.rel_time.clear();
-        }
-        
-        fn output_reduced_raw(&mut self) {
-            output_data(&self.reduced_raw_data, self.file.clone(), "reduced_raw.tpx3");
-            self.reduced_raw_data.clear();
-        }
-        
-        fn output_channel(&mut self) {
-            output_data(&self.channel, self.file.clone(), "channel.txt");
-            self.channel.clear();
-        }
-
-        fn output_values(&mut self) {
+        fn early_output_data(&mut self) {
+            let packet_index: Vec<usize> = self.coinc_electrons.iter().map(|se| se.raw_packet_index()).collect::<Vec<_>>();
+            
             let x: Vec<u16> = self.coinc_electrons.iter().map(|se| se.x() as u16).collect::<Vec<_>>();
             let y: Vec<u16> = self.coinc_electrons.iter().map(|se| se.y() as u16).collect::<Vec<_>>();
             let tot: Vec<u16> = self.coinc_electrons.iter().map(|se| se.tot()).collect::<Vec<_>>();
             let time: Vec<TIME> = self.coinc_electrons.iter().map(|se| se.time()).collect::<Vec<_>>();
             let cs: Vec<u16> = self.coinc_electrons.iter().map(|se| se.cluster_size()).collect::<Vec<_>>();
-            let spim_index: Vec<INDEXHYPERSPEC> = self.coinc_electrons.iter().map(|se| {
-                match se.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1) {
-                    Some(index) => index,
-                    None => POSITION::MAX,
-                }
-            }).collect::<Vec<_>>();
+            let spim_index: Vec<INDEXHYPERSPEC> = self.coinc_electrons.
+                iter().
+                map(|se| 
+                    se.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)
+            ).collect::<Vec<_>>();
             
             output_data(&self.coinc_electrons, self.file.clone(), "coinc_elec.txt");
             output_data(&x, self.file.clone(), "xH.txt");
             output_data(&y, self.file.clone(), "yH.txt");
             output_data(&tot, self.file.clone(), "tot.txt");
             output_data(&time, self.file.clone(), "tabsH.txt");
-            output_data(&cs, self.file.clone(), "tabsH.txt");
+            output_data(&cs, self.file.clone(), "cs.txt");
             output_data(&spim_index, self.file.clone(), "si.txt");
             self.coinc_electrons.clear();
+            
+            //The photon channel
+            output_data(&self.channel, self.file.clone(), "channel.txt");
+            self.channel.clear();
+            
+            //The relative time
+            output_data(&self.rel_time, self.file.clone(), "tH.txt");
+            self.rel_time.clear();
+            
+            //Unrelated with the ordered ones above
+            output_data(&self.reduced_raw_data, self.file.clone(), "reduced_raw.tpx3");
+            self.reduced_raw_data.clear();
         }
             
     }
