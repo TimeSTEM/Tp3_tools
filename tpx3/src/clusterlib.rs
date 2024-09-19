@@ -125,6 +125,13 @@ pub mod cluster {
             }
             (corr_array, corr_photons)
         }
+        pub fn reorder_by_packet_index(&mut self) {
+            self.data.par_sort_unstable_by_key(|&i| i.raw_packet_index());
+            //let mut indices: Vec<usize> = (0..self.data.len()).collect();
+            //let packet_index: Vec<usize> = self.data.iter().map(|se| se.raw_packet_index()).collect::<Vec<_>>();
+            //indices.sort_by_key(|&i| packet_index[i]);
+            //let new_vec: Vec<SingleElectron> = indices.iter().map(|&i| self.data[i]).collect();
+        }
     }
 
     ///ToA, X, Y, ToT, Spim dT, Spim Slice, Cluster Size, raw packet, packet index, Spim Line

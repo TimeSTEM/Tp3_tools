@@ -188,7 +188,7 @@ pub mod coincidence {
         }
 
         fn early_output_data(&mut self) {
-            let packet_index: Vec<usize> = self.coinc_electrons.iter().map(|se| se.raw_packet_index()).collect::<Vec<_>>();
+            self.coinc_electrons.reorder_by_packet_index();
             
             let x: Vec<u16> = self.coinc_electrons.iter().map(|se| se.x() as u16).collect::<Vec<_>>();
             let y: Vec<u16> = self.coinc_electrons.iter().map(|se| se.y() as u16).collect::<Vec<_>>();
