@@ -96,12 +96,15 @@ pub mod coincidence {
         }
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon: SinglePhoton) {
-            self.corr_spectrum[(self.coinc_counter * PIXELS_X + val.x()) as usize] += 1; //Adding the electron
+            self.corr_spectrum[(self.coinc_counter / 1000 * PIXELS_X + val.x()) as usize] += 1; //Adding the electron
             self.corr_spectrum[PIXELS_X as usize-1] += 1; //Adding the photon
             self.channel.push(photon.channel().try_into().unwrap());
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.time()).fold());
             self.coinc_electrons.add_electron(val);
             self.coinc_counter += 1;
+            if (self.coinc_counter / 1000 * PIXELS_X + 1025) as usize > self.corr_spectrum.len() {
+                self.corr_spectrum.extend(std::iter::repeat(0).take(PIXELS_X as usize));
+            }
         }
         
         fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME, _line_offset: i64) {
