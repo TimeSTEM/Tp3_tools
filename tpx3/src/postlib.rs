@@ -187,7 +187,7 @@ pub mod coincidence {
                 iter().
                 map(|se| 
                     se.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)
-            ).collect::<Vec<_>>();
+            ).collect();
             
             output_data(&x, self.file.clone(), "xH.txt");
             output_data(&y, self.file.clone(), "yH.txt");
@@ -218,47 +218,6 @@ pub mod coincidence {
             self.reduced_raw_data.clear();
         }
             
-    }
-
-    //the absolute time, the channel, the g2_dT, and the spim index;
-    //pub type TdcStructureData = (TIME, COUNTER, Option<i16>, Option<INDEXHYPERSPEC>);
-    pub struct TempTdcData {
-        event_list: CollectionPhoton,
-        min_index: usize,
-    }
-
-    impl TempTdcData {
-        fn new() -> Self {
-            Self {
-                event_list: CollectionPhoton::new(),
-                min_index: 0,
-            }
-        }
-        
-        fn add_photon(&mut self, photon: SinglePhoton) {
-            self.event_list.add_photon(photon)
-        }
-
-        fn sort(&mut self) {
-            self.event_list.sort();
-        }
-    }
-
-    pub struct TempElectronData {
-        pub electron: CollectionElectron, //Time, X, Y and ToT and Time difference (for Spim positioning)
-        pub min_index: usize,
-    }
-
-    impl TempElectronData {
-        fn new() -> Self {
-            Self {
-                electron: CollectionElectron::new(),
-                min_index: 0,
-            }
-        }
-        fn add_electron(&mut self, se: SingleElectron) {
-            self.electron.add_electron(se);
-        }
     }
 
     pub fn search_coincidence(dir: &str, cluster_correction: &str, settings: Settings) -> Result<(), Tp3ErrorKind> {

@@ -21,7 +21,7 @@ pub const BUFFER_SIZE: usize = 16384 * 2;
 pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
 pub const NIONSWIFT_PORT: u16 = 8088;
 pub const SAVE_LOCALLY_FILE: &str = "/media/asi/Data21/TP3_Data/";
-pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\reduced_raw.tpx3";
+pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\01.tpx3";
 pub const READ_DEBUG_FILE_JSON: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_spim";
 
 //***Packet-related values***//
@@ -44,10 +44,6 @@ pub static BTOT: &[u8; 1024 * 256 * 4] = include_bytes!("btot_v2.dat");
 //***POSTLIB***//
 pub const LIMIT_READ: bool = false; //early break of the file processing
 pub const LIMIT_READ_SIZE: usize = 5_000_000_000; //5GB limitations
-
-//IsiBox alone constants//
-pub const ISI_CORRECTION_MAX_DIF: u64 = 1_000; //Maximum clock difference between two detected lines. If the difference is bigger than this value, a new line is put in between (in units of 120 ps)
-pub const ISI_NB_CORRECTION_ITERACTION: u64 = 100; //How many times your IsiBox will execute the line check algorithm. 
 
 //Coincidence values using the Timepix3//
 pub const TP3_BUFFER_SIZE: usize = 512_000_000; //Buffer size when reading files

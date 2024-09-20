@@ -328,12 +328,14 @@ impl SpecKind for Coincidence2D {
 pub struct FastChrono {
     data: Vec<u32>,
     is_ready: bool,
-    global_stop: bool,
+    last_time: TIME,
+    frame_counter: COUNTER,
+    timer: Instant,
 }
 
 impl SpecKind for FastChrono {
     fn is_ready(&self) -> bool {
-        self.is_ready && !self.global_stop
+        self.is_ready
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
         as_bytes(&self.data)
@@ -341,26 +343,54 @@ impl SpecKind for FastChrono {
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
         let data = vec![0; len];
-        Self{ data, is_ready: false, global_stop: false}
+        Self{ data, is_ready: false, last_time: 0, frame_counter: 0, timer: Instant::now()}
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
-        let line = (frame_tdc.counter()/2) as POSITION;
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+        
+        let ele_time = pack.fast_electron_time();
+        //This is an overflow. We correct it.
+        if self.last_time > ele_time + (ELECTRON_OVERFLOW >> 2) {
+            self.last_time = ele_time;
+        }
+        
+        //We check for a new line and if true we erase it.
+        if ele_time > self.last_time + settings.acquisition_us * 640 {
+            self.last_time = ele_time;
+            self.frame_counter += 1;
+            self.data
+                .iter_mut()
+                .skip(((self.frame_counter % settings.xspim_size) * CAM_DESIGN.0) as usize)
+                .take(PIXELS_X as usize)
+                .for_each(|x| *x = 0);
+        }
+
+        //We determine the current line
+        let line = self.frame_counter % settings.xspim_size;
         let index = pack.x() + line * CAM_DESIGN.0;
-        if line < settings.xspim_size {
-            add_index!(self, index);
+        add_index!(self, index);
+
+        //The timer of the ready control. Sending a frame every TIME_INTERVAL_FRAMES
+        if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
+            self.is_ready = false;
+        } else {
+            self.is_ready = true;
         }
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        add_index!(self, CAM_DESIGN.0-1);
+        //add_index!(self, CAM_DESIGN.0-1);
     }
-    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
+    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
-        self.is_ready = (frame_tdc.counter()/2) as POSITION > settings.xspim_size;
+        //self.is_ready = (frame_tdc.counter()/2) as POSITION > settings.xspim_size;
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
-        self.global_stop = true;
+        self.timer = Instant::now();
+        self.is_ready = false;
+    }
+    fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
+        self.frame_counter
     }
 }
 
