@@ -207,11 +207,11 @@ pub mod coincidence {
 
             //Output corr EELS spectrum
             output_data(&self.corr_spectrum, self.file.clone(), "cspec.txt");
-            self.corr_spectrum.clear();
+            self.corr_spectrum.iter_mut().for_each(|x| *x = 0);
             
             //Output total EELS spectrum
             output_data(&self.spectrum, self.file.clone(), "spec.txt");
-            self.spectrum.clear();
+            self.spectrum.iter_mut().for_each(|x| *x = 0);
             
             //Unrelated with the ordered ones above
             output_data(&self.reduced_raw_data, self.file.clone(), "reduced_raw.tpx3");
