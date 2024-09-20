@@ -41,7 +41,6 @@ pub mod coincidence {
         overflow_electrons: COUNTER,
         file: String,
         my_settings: Settings,
-        coinc_counter: POSITION,
     }
 
     impl<T: ClusterCorrection> ElectronData<T> {
@@ -96,35 +95,31 @@ pub mod coincidence {
         }
 
         fn add_coincident_electron(&mut self, val: SingleElectron, photon: SinglePhoton) {
-            self.corr_spectrum[(self.coinc_counter / 1000 * PIXELS_X + val.x()) as usize] += 1; //Adding the electron
+            self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[PIXELS_X as usize-1] += 1; //Adding the photon
             self.channel.push(photon.channel().try_into().unwrap());
             self.rel_time.push(val.relative_time_from_abs_tdc(photon.time()).fold());
             self.coinc_electrons.add_electron(val);
-            self.coinc_counter += 1;
-            if (self.coinc_counter / 1000 * PIXELS_X + 1025) as usize > self.corr_spectrum.len() {
-                self.corr_spectrum.extend(std::iter::repeat(0).take(PIXELS_X as usize));
-            }
         }
         
-        fn add_events(&mut self, mut temp_edata: TempElectronData, temp_tdc: &mut TempTdcData, time_delay: TIME, time_width: TIME, _line_offset: i64) {
+        fn add_events(&mut self, mut temp_edata: CollectionElectron, temp_tdc: &mut CollectionPhoton, time_delay: TIME, time_width: TIME, _line_offset: i64) {
             
-            let mut min_index = temp_tdc.min_index;
+            let mut min_index = 0;
 
             //Sorting and removing clusters (if need) for electrons.
             temp_tdc.sort();
-            if temp_edata.electron.check_if_overflow() {self.overflow_electrons += 1;}
-            temp_edata.electron.sort();
-            temp_edata.electron.try_clean(0, &self.remove_clusters);
+            if temp_edata.check_if_overflow() {self.overflow_electrons += 1;}
+            temp_edata.sort();
+            temp_edata.try_clean(0, &self.remove_clusters);
 
             //Adding photons to the last pixel. We also add the photons in the spectra image.
-            temp_tdc.event_list.iter().for_each(|photon| self.add_photon(*photon));
+            temp_tdc.iter().for_each(|photon| self.add_photon(*photon));
 
             //Adding electrons to the spectra image
-            temp_edata.electron.iter().for_each(|electron| self.add_electron(*electron));
+            temp_edata.iter().for_each(|electron| self.add_electron(*electron));
 
             //This effectivelly searches for coincidence.
-            let (coinc_electron, coinc_photon) = temp_edata.electron.search_coincidence(&temp_tdc.event_list, &mut self.index_to_add_in_raw, &mut min_index, time_delay, time_width);
+            let (coinc_electron, coinc_photon) = temp_edata.search_coincidence(&temp_tdc, &mut self.index_to_add_in_raw, &mut min_index, time_delay, time_width);
             coinc_electron.iter().zip(coinc_photon.iter()).for_each(|(ele, pho)| self.add_coincident_electron(*ele, *pho));
 
             /*
@@ -138,7 +133,7 @@ pub mod coincidence {
 
             //Setting the new min_index in the case the photon list does not start from the
             //beginning in the next interaction.
-            temp_tdc.min_index = min_index;
+            //temp_tdc.min_index = min_index;
         }
 
         fn prepare_spim(&mut self, spim_tdc: TdcRef) {
@@ -163,7 +158,6 @@ pub mod coincidence {
                 overflow_electrons: 0,
                 file: file_path,
                 my_settings,
-                coinc_counter: 0
             }
         }
 
@@ -175,20 +169,6 @@ pub mod coincidence {
             }
         }
         
-        fn output_data(&self) {
-            self.output_spectrum();
-            self.output_hyperspec();
-            self.output_corr_spectrum();
-        }
-        
-        fn output_corr_spectrum(&self) {
-            output_data(&self.corr_spectrum, self.file.clone(), "cspec.txt");
-        }
-        
-        fn output_spectrum(&self) {
-            output_data(&self.spectrum, self.file.clone(), "spec.txt");
-        }
-
         fn output_hyperspec(&self) {
             output_data(&self.spim_frame, self.file.clone(), "spim_frame.txt");
         }
@@ -224,6 +204,14 @@ pub mod coincidence {
             //The relative time
             output_data(&self.rel_time, self.file.clone(), "tH.txt");
             self.rel_time.clear();
+
+            //Output corr EELS spectrum
+            output_data(&self.corr_spectrum, self.file.clone(), "cspec.txt");
+            self.corr_spectrum.clear();
+            
+            //Output total EELS spectrum
+            output_data(&self.spectrum, self.file.clone(), "spec.txt");
+            self.spectrum.clear();
             
             //Unrelated with the ordered ones above
             output_data(&self.reduced_raw_data, self.file.clone(), "reduced_raw.tpx3");
@@ -233,7 +221,7 @@ pub mod coincidence {
     }
 
     //the absolute time, the channel, the g2_dT, and the spim index;
-    pub type TdcStructureData = (TIME, COUNTER, Option<i16>, Option<INDEXHYPERSPEC>);
+    //pub type TdcStructureData = (TIME, COUNTER, Option<i16>, Option<INDEXHYPERSPEC>);
     pub struct TempTdcData {
         event_list: CollectionPhoton,
         min_index: usize,
@@ -320,8 +308,8 @@ pub mod coincidence {
             total_size += size;
             if LIMIT_READ && total_size >= LIMIT_READ_SIZE {break;}
             bar.inc(TP3_BUFFER_SIZE as u64);
-            let mut temp_edata = TempElectronData::new();
-            let mut temp_tdc = TempTdcData::new();
+            let mut temp_edata = CollectionElectron::new();
+            let mut temp_tdc = CollectionPhoton::new();
             buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
                 let packet = Packet { chip_index: ci, data: packet_change(pack_oct)[0] };
                 match *pack_oct {
@@ -376,11 +364,12 @@ pub mod coincidence {
             coinc_data.early_output_data();
         }
         println!("Total number of bytes read {}", total_size);
-        coinc_data.output_data();
+        coinc_data.output_hyperspec();
         Ok(())
     }
 }
 
+/*
 pub mod isi_box {
     use std::fs::OpenOptions;
     use std::io::{Read, Write};
@@ -727,6 +716,7 @@ pub mod isi_box {
             list
         }
 }
+*/
 
 pub mod ntime_resolved {
     use crate::packetlib::Packet;
