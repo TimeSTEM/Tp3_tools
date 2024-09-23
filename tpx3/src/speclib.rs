@@ -10,6 +10,8 @@ use std::time::Instant;
 use std::io::Write;
 use crate::auxiliar::{value_types::*, FileManager};
 use crate::constlib::*;
+use rayon::prelude::*;
+use std::sync::Mutex;
 
 const CAM_DESIGN: (POSITION, POSITION) = Packet::chip_array();
 
@@ -275,7 +277,9 @@ impl SpecKind for Live1D {
 //Circular buffer for the elctrons. Currently not used. Still under test.
 pub struct Coincidence2DV2 {
     data: Vec<u32>,
-    buffer: CollectionElectron,
+    electron_buffer: Vec<(TIME, POSITION)>,
+    photon_buffer: Vec<TIME>,
+    index: usize,
     timer: Instant,
 }
 
@@ -289,31 +293,61 @@ impl SpecKind for Coincidence2DV2 {
     fn new(settings: &Settings) -> Self {
         let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
         let temp_vec = vec![0; len];
-        Self { data: temp_vec, buffer: CollectionElectron::new(), timer: Instant::now()}
+        Self { data: temp_vec, electron_buffer: vec![(0, 0); CIRCULAR_BUFFER], photon_buffer: vec![0; LIST_SIZE_AUX_EVENTS], timer: Instant::now(), index: 0}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
-        let electron = SingleElectron::new(pack, None, 0);
-        self.buffer.add_electron(electron);
-        if self.buffer.len() > 8 {
-            self.buffer.remove(0);
-        }
-        //self.buffer.sort()
+        self.electron_buffer[self.index] = (pack.electron_time(), pack.x());
+        self.index += 1;
+        self.index = self.index % CIRCULAR_BUFFER;
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
-        let phtime = pack.tdc_time_norm();
-        for ele in self.buffer.iter() {
-            //if ele.time() + settings.time_delay > phtime + settings.time_width {break}
-            if (phtime < ele.time() + settings.time_delay + settings.time_width) && (ele.time() + settings.time_delay < phtime + settings.time_width) {
-                let delay = (phtime - settings.time_delay + settings.time_width - ele.time()) as POSITION;
-                let index = ele.x() + delay * CAM_DESIGN.0;
-                add_index!(self, index);
-                break;
-            }
+        self.photon_buffer.push(pack.tdc_time_norm());
+        self.photon_buffer.remove(0);
+
+        let mut all_indices_to_add = Vec::new();
+        for phtime in &self.photon_buffer {
+            let indices_to_add: Vec<POSITION> = self.electron_buffer.iter()
+                .filter_map(|ele| {
+                    if (*phtime < ele.0 + settings.time_delay + settings.time_width) &&
+                        (ele.0 + settings.time_delay < phtime + settings.time_width) {
+                            let delay = (phtime - settings.time_delay + settings.time_width - ele.0) as POSITION;
+                            let index = ele.1 + delay * CAM_DESIGN.0;
+                            Some(index) // Return the index to add
+                        } else {
+                            None // Filter out this element
+                        }
+                })
+            .collect(); // Collect the results into a vector
+            all_indices_to_add.extend(indices_to_add);
         }
+
+        for index in all_indices_to_add {
+            self.data[index as usize] += 1;
+        }
+
+
+    /*
+        let mut indices_to_add = Vec::new();
+
+        self.electron_buffer.iter_mut().for_each(|ele| {
+        //for ele in self.electron_buffer.iter() {
+            //if ele.time() + settings.time_delay > phtime + settings.time_width {break}
+            if (phtime < ele.0 + settings.time_delay + settings.time_width) && (ele.0 + settings.time_delay < phtime + settings.time_width) {
+                let delay = (phtime - settings.time_delay + settings.time_width - ele.0) as POSITION;
+                let index = ele.1 + delay * CAM_DESIGN.0;
+                indices_to_add.push(index);
+                //add_index!(self, index);
+            }
+        });
+
+        for index in indices_to_add {
+            add_index!(self, index);
+        }
+        */
     }
-    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
+    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
