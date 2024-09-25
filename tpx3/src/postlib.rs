@@ -38,7 +38,6 @@ pub mod coincidence {
         spim_size: (POSITION, POSITION),
         spim_tdc: Option<TdcRef>,
         remove_clusters: T,
-        overflow_electrons: COUNTER,
         file: String,
         my_settings: Settings,
     }
@@ -106,10 +105,13 @@ pub mod coincidence {
             
             let mut min_index = 0;
 
-            //Sorting and removing clusters (if need) for electrons.
+            //Sorting photons.
             temp_tdc.sort();
-            if temp_edata.check_if_overflow() {self.overflow_electrons += 1;}
+            temp_tdc.dedup();
+
+            //Sorting and removing clusters (if need) for electrons.
             temp_edata.sort();
+            temp_edata.dedup();
             temp_edata.try_clean(0, &self.remove_clusters);
 
             //Adding photons to the last pixel. We also add the photons in the spectra image.
@@ -155,7 +157,6 @@ pub mod coincidence {
                 spim_size: (my_settings.xspim_size, my_settings.yspim_size),
                 spim_tdc: None,
                 remove_clusters: correction_type,
-                overflow_electrons: 0,
                 file: file_path,
                 my_settings,
             }
