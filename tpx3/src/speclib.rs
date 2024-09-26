@@ -92,6 +92,8 @@ pub trait SpecKind {
     fn get_frame_counter(&self, tdc_value: &TdcRef) -> COUNTER {
         tdc_value.counter() / 2
     }
+    fn data_size(&self) -> COUNTER {0} //TODO: must be implemented in header
+    fn data_height(&self) -> COUNTER {0} //TODO: must be implemented in header
 }
 
 pub trait IsiBoxKind: SpecKind {
@@ -510,8 +512,12 @@ impl SpecKind for ChronoFrame {
         let index = pack.x() + self.current_line * CAM_DESIGN.0;
         self.data[index as usize] += pack.tot() as u32;
     }
-    fn add_tdc_hit2(&mut self, _pack: &Packet, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
-    fn add_tdc_hit1(&mut self, _pack: &Packet, _frame_tdc: &mut TdcRef, _settings: &Settings) {} 
+    fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
+        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+    }
+    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
+        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+    }
     fn add_shutter_hit(&mut self, pack: &Packet, _frame_tdc: &mut TdcRef, _settings: &Settings) {
         self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
     }
@@ -878,7 +884,7 @@ fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, ext
     msg.push_str(",\"frameNumber\":");
     msg.push_str(&((measurement.get_frame_counter(tdc)).to_string()));
     msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
-    if set.mode == 6 { //ChronoMode
+    if set.mode == 6 || set.mode == 8 { //ChronoMode
         msg.push_str(&((set.xspim_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
     } else if set.mode == 7 { //Coincidence2D
         msg.push_str(&((set.time_width as POSITION*4*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
@@ -896,7 +902,7 @@ fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, ext
     msg.push_str(",\"width\":");
     msg.push_str(&((CAM_DESIGN.0+extra_pixels).to_string()));
     msg.push_str(",\"height\":");
-    if set.mode == 6 { //ChronoMode
+    if set.mode == 6 || set.mode == 8 { //ChronoMode
         msg.push_str(&(set.xspim_size.to_string()));
     } else if set.mode == 7 { //Coincidence2D Mode
         msg.push_str(&((set.time_width*4).to_string()));
