@@ -53,6 +53,13 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
             Ok(my_settings.mode)
         },
+        8 => {
+            let mut measurement = speclib::ChronoFrame::new(&my_settings);
+            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
+            let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
+            Ok(my_settings.mode)
+        },
         10 if my_settings.bin => {
             let mut measurement = speclib::Live1DFrame::new(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;

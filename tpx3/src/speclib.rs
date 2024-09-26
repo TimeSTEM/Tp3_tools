@@ -471,6 +471,62 @@ impl SpecKind for Chrono {
     }
 }
 
+pub struct ChronoFrame {
+    data: Vec<u32>,
+    frame_counter: COUNTER,
+    current_line: COUNTER,
+    timer: Instant,
+    shutter: Option<ShutterControl>,
+}
+
+impl SpecKind for ChronoFrame {
+    fn is_ready(&self) -> bool {
+        self.timer.elapsed().as_millis() > TIME_INTERVAL_FRAMES
+    }
+    fn build_output(&mut self, _settings: &Settings) -> &[u8] {
+        as_bytes(&self.data)
+    }
+    fn new(settings: &Settings) -> Self {
+        let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
+        let shutter = ShutterControl::default();
+        Self{ data: vec![0; len], frame_counter: 0, current_line: 0, timer: Instant::now(), shutter: Some(shutter)}
+    }
+
+    #[inline]
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+        let shut = self.shutter.as_ref().unwrap();
+        let frame_number = shut.get_counter()[pack.ci() as usize] as POSITION;
+        
+        //If a new frame, we update and delete the current line in Chrono.
+        if frame_number > self.frame_counter {
+            self.frame_counter = frame_number;
+            self.current_line = self.frame_counter % settings.xspim_size;
+            
+            let start = ((self.frame_counter % settings.xspim_size) * CAM_DESIGN.0) as usize;
+            let end = start + PIXELS_X as usize;
+            self.data[start..end].iter_mut().for_each(|x| *x = 0);
+        }
+        //We determine the current line
+        let index = pack.x() + self.current_line * CAM_DESIGN.0;
+        self.data[index as usize] += pack.tot() as u32;
+    }
+    fn add_tdc_hit2(&mut self, _pack: &Packet, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
+    fn add_tdc_hit1(&mut self, _pack: &Packet, _frame_tdc: &mut TdcRef, _settings: &Settings) {} 
+    fn add_shutter_hit(&mut self, pack: &Packet, _frame_tdc: &mut TdcRef, _settings: &Settings) {
+        self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
+        self.timer = Instant::now();
+    }
+    fn shutter_control(&self) -> Option<&ShutterControl> {
+        self.shutter.as_ref()
+    }
+    fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
+        self.frame_counter
+    }
+}
+
+
 pub struct Live2DFrame {
     data: Vec<u32>,
     is_ready: bool,

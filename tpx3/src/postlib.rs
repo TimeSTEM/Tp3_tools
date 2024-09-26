@@ -107,11 +107,11 @@ pub mod coincidence {
 
             //Sorting photons.
             temp_tdc.sort();
-            temp_tdc.dedup();
+            //temp_tdc.dedup();
 
             //Sorting and removing clusters (if need) for electrons.
             temp_edata.sort();
-            temp_edata.dedup();
+            //temp_edata.dedup();
             temp_edata.try_clean(0, &self.remove_clusters);
 
             //Adding photons to the last pixel. We also add the photons in the spectra image.
