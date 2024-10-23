@@ -326,6 +326,9 @@ pub mod cluster {
         pub fn g2_time(&self) -> Option<i16> {
             self.data.2
         }
+        pub fn raw_packet_data(&self) -> Packet {
+            self.data.4
+        }
     }
 
     pub fn grab_cluster_correction(val: &str) -> Box<dyn ClusterCorrection> {

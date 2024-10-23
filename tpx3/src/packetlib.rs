@@ -234,7 +234,6 @@ impl Packet {
     
     #[inline]
     pub fn modified_packet_data(&self) -> u64 {
-        assert!(self.id() == 11);
         match self.ci() {
             0 => (self.data() << 4) | 0xB0_00_00_00_00_00_00_00,
             1 => (self.data() << 4) | 0xC0_00_00_00_00_00_00_00,

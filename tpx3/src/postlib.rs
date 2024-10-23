@@ -107,11 +107,11 @@ pub mod coincidence {
 
             //Sorting photons.
             temp_tdc.sort();
-            //temp_tdc.dedup();
+            temp_tdc.dedup_by(|a, b| a.raw_packet_data() == b.raw_packet_data());
 
             //Sorting and removing clusters (if need) for electrons.
             temp_edata.sort();
-            //temp_edata.dedup();
+            temp_edata.dedup_by(|a, b| a.raw_packet_data().data == b.raw_packet_data().data);
             temp_edata.try_clean(0, &self.remove_clusters);
 
             //Adding photons to the last pixel. We also add the photons in the spectra image.
@@ -298,16 +298,21 @@ pub mod coincidence {
                                 temp_edata.add_electron(se);
                             },
                             12 => { //In some versions, the id can be a modified one, based on the CI.
-                                let packet = Packet { chip_index: 1, data: packet_change(pack_oct)[0] };
+                                let packet = Packet { chip_index: 0, data: packet_change(pack_oct)[0] };
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
                                 temp_edata.add_electron(se);
                             },
                             13 => { //In some versions, the id can be a modified one, based on the CI.
-                                let packet = Packet { chip_index: 2, data: packet_change(pack_oct)[0] };
+                                let packet = Packet { chip_index: 1, data: packet_change(pack_oct)[0] };
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
                                 temp_edata.add_electron(se);
                             },
                             14 => { //In some versions, the id can be a modified one, based on the CI.
+                                let packet = Packet { chip_index: 2, data: packet_change(pack_oct)[0] };
+                                let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
+                                temp_edata.add_electron(se);
+                            },
+                            15 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet { chip_index: 3, data: packet_change(pack_oct)[0] };
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
                                 temp_edata.add_electron(se);
