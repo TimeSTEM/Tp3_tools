@@ -137,7 +137,7 @@ impl SpimKind for Live {
     fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &TdcRef, set: &Settings) {
         let ele_time = line_tdc.correct_or_not_etime(packet.electron_time()).unwrap();
         if set.time_resolved {
-            if tr_check_if_in(packet.electron_time(), ref_tdc, set) {
+            if tr_check_if_in(packet.electron_time(), ref_tdc, set).is_some() {
                 self.data.push((packet.x(), ele_time)); //This added the overflow.
             } 
         } else {
@@ -271,7 +271,7 @@ impl SpimKind for Live4D {
     fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &TdcRef, set: &Settings) {
         let ele_time = line_tdc.correct_or_not_etime(packet.electron_time()).unwrap();
         if set.time_resolved {
-            if tr_check_if_in(packet.electron_time(), ref_tdc, set) {
+            if tr_check_if_in(packet.electron_time(), ref_tdc, set).is_some() {
                 self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time)); //This added the overflow.
             } 
         } else {

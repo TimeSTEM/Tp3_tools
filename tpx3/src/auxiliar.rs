@@ -421,8 +421,10 @@ pub mod misc {
     }
     
     //This checks if the electron is inside a given time_delay and time_width for a periodic tdc
-    //reference. This is used with reversible processes in which the reference tdc is periodic.
-    pub fn tr_check_if_in(ele_time: TIME, ref_tdc: &TdcRef, settings: &Settings) -> bool {
+    //reference. This is used with reversible processes in which the reference tdc is periodic. In
+    //case the value is inside width and delay, It returns the value of the effective tdc, i.e.,
+    //the modified tdc time.
+    pub fn tr_check_if_in(ele_time: TIME, ref_tdc: &TdcRef, settings: &Settings) -> Option<TIME> {
         let period = ref_tdc.period().expect("Period must exist in time-resolved mode.");
         let last_tdc_time = ref_tdc.time();
      
@@ -434,7 +436,17 @@ pub mod misc {
             let xper = (ele_time - last_tdc_time) / period + 1;
             last_tdc_time + xper * period
         };
-        ele_time + settings.time_delay + settings.time_width > eff_tdc && ele_time + settings.time_delay < eff_tdc + settings.time_width
+        if ele_time + settings.time_delay + settings.time_width > eff_tdc && ele_time + settings.time_delay < eff_tdc + settings.time_width {
+            Some(eff_tdc)
+        } else {
+            None
+        }
+    }
+
+    //This checks if the electron is inside a given time_delay and time_width for a non-periodic
+    //tdc reference. This is used with stocastic events.
+    pub fn check_if_in(etime: TIME, phtime: &TIME, settings: &Settings) -> bool {
+        (*phtime < etime + settings.time_delay + settings.time_width) && (etime + settings.time_delay < *phtime + settings.time_width)
     }
     
     //This creates the scan_list used for decoding non-trivial scan patterns

@@ -121,7 +121,7 @@ pub mod coincidence {
             temp_edata.iter().for_each(|electron| self.add_electron(*electron));
 
             //This effectivelly searches for coincidence.
-            let (coinc_electron, coinc_photon) = temp_edata.search_coincidence(&temp_tdc, &mut self.index_to_add_in_raw, &mut min_index, time_delay, time_width);
+            let (coinc_electron, coinc_photon) = temp_edata.search_coincidence(temp_tdc, &mut self.index_to_add_in_raw, &mut min_index, time_delay, time_width);
             coinc_electron.iter().zip(coinc_photon.iter()).for_each(|(ele, pho)| self.add_coincident_electron(*ele, *pho));
 
             /*
@@ -932,7 +932,7 @@ pub mod calibration {
                 let electron_tot_reference = electron.frame_dt() as i64;
                 let time_diference = (electron_time - electron_tot_reference) as i8;
                 self.rel_time.push(time_diference);
-                self.cluster_size.push(electron.cluster_size().try_into().unwrap());
+                self.cluster_size.push(electron.cluster_size());
             }
         }
         pub fn output_relative_calibration_time(&self) {

@@ -1,17 +1,16 @@
 //!`speclib` is a collection of tools to set EELS/4D acquisition.
 
 use crate::packetlib::Packet;
-use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, packet_change, tr_check_if_in}};
+use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, packet_change, tr_check_if_in, check_if_in}};
 use crate::tdclib::{TdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
 use crate::isi_box_new;
 use crate::errorlib::Tp3ErrorKind;
-use crate::clusterlib::cluster::{SingleElectron, CollectionElectron};
 use std::time::Instant;
 use std::io::Write;
 use crate::auxiliar::{value_types::*, FileManager};
 use crate::constlib::*;
-use rayon::prelude::*;
-use std::sync::Mutex;
+//use rayon::prelude::*;
+//use std::sync::Mutex;
 
 const CAM_DESIGN: (POSITION, POSITION) = Packet::chip_array();
 
@@ -146,7 +145,7 @@ impl SpecKind for Live2D {
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
         let index = pack.x() + CAM_DESIGN.0 * pack.y();
         if settings.time_resolved {
-            if tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
+            if tr_check_if_in(pack.electron_time(), ref_tdc, settings).is_some() {
                 add_index!(self, index);
             } 
         } else {
@@ -222,7 +221,7 @@ impl SpecKind for Live1D {
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
         let index = pack.x();
         if settings.time_resolved {
-            if tr_check_if_in(pack.electron_time(), ref_tdc, settings) {
+            if tr_check_if_in(pack.electron_time(), ref_tdc, settings).is_some() {
                 add_index!(self, index);
             } 
         } else {
@@ -301,7 +300,7 @@ impl SpecKind for Coincidence2DV2 {
     fn add_electron_hit(&mut self, pack: &Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         self.electron_buffer[self.index] = (pack.electron_time(), pack.x());
         self.index += 1;
-        self.index = self.index % CIRCULAR_BUFFER;
+        self.index %= CIRCULAR_BUFFER;
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
@@ -349,7 +348,7 @@ impl SpecKind for Coincidence2DV2 {
         }
         */
     }
-    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, settings: &Settings) {
+    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
@@ -379,21 +378,41 @@ impl SpecKind for Coincidence2D {
         Self { data: temp_vec, aux_data: vec![0; LIST_SIZE_AUX_EVENTS], aux_data2: vec![0; LIST_SIZE_AUX_EVENTS], timer: Instant::now()}
     }
     #[inline]
-    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+    fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
         let etime = pack.electron_time();
-        for phtime in self.aux_data.iter() {
-            if (*phtime < etime + settings.time_delay + settings.time_width) && (etime + settings.time_delay < *phtime + settings.time_width) {
+        if settings.time_resolved {
+            if let Some(phtime) = tr_check_if_in(etime, frame_tdc, settings) {
                 let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
                 let index = pack.x() + delay * CAM_DESIGN.0;
                 add_index!(self, index);
             }
-        }
-        for phtime in self.aux_data2.iter() {
-            if (*phtime < etime + settings.time_delay + settings.time_width) && (etime + settings.time_delay < *phtime + settings.time_width) {
+            if let Some(phtime) = tr_check_if_in(etime, ref_tdc, settings) {
                 let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
                 let index = pack.x() + delay * CAM_DESIGN.0 + 2*settings.time_width as u32 * CAM_DESIGN.0;
                 add_index!(self, index);
             }
+        } else {
+            for phtime in self.aux_data.iter() {
+                if check_if_in(etime, phtime, settings) {
+                    let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
+                    let index = pack.x() + delay * CAM_DESIGN.0;
+                    add_index!(self, index);
+                }
+            }
+            for phtime in self.aux_data2.iter() {
+                if check_if_in(etime, phtime, settings) {
+                    let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
+                    let index = pack.x() + delay * CAM_DESIGN.0 + 2*settings.time_width as u32 * CAM_DESIGN.0;
+                    add_index!(self, index);
+                }
+            }
+        }
+    }
+    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        if my_settings.time_resolved {
+            TdcRef::new_periodic(SECONDARY_TDC, pack, my_settings, file_to_write)
+        } else {
+            TdcRef::new_no_read(SECONDARY_TDC)
         }
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {

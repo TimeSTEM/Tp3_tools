@@ -15,6 +15,7 @@ pub const HIGH_DYNAMIC_FRAME_BASED: bool = false; //This sums up *VALUE* frames 
 pub const HIGH_DYNAMIC_FRAME_BASED_VALUE: COUNTER = 16; //This sums up *VALUE* frames when using the frame-based mode;
 pub const MAIN_TDC: TdcType = TdcType::TdcOneRisingEdge; //The main TDC, used for external sync
 pub const SECONDARY_TDC: TdcType = TdcType::TdcTwoRisingEdge; //Secondary TDC
+pub const PERIOD_DIVIDER: usize = 0; //This divides the period detected by the Timepix3. This is power of 2, so the divided value is 2**PERIOD_DIVIDER;
 
 //***Connection, TCP, and transfer values***//
 pub const BUFFER_SIZE: usize = 16384 * 2;

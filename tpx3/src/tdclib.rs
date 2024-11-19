@@ -306,7 +306,7 @@ impl TdcRef {
     }
 
     pub fn period(&self) -> Option<TIME> {
-        self.period
+        Some(self.period? >> PERIOD_DIVIDER)
     }
 
     pub fn new_frame(&self) -> bool {
@@ -656,7 +656,7 @@ pub mod isi_box {
                     loop {
                         let mut num = nvec_arclist.lock().unwrap();
                         while let Ok(size) = val.read(&mut buffer) {
-                            as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x * PIXELS_X as u32) + 1025 + channel_index));
+                            as_int(&buffer[0..size]).iter().for_each(|&x| (*num).push((x * PIXELS_X) + 1025 + channel_index));
                         }
                         drop(num);
                         let stop_val = stop_arc.lock().unwrap();
@@ -713,7 +713,7 @@ pub mod isi_box {
                         //    println!("leaving sinde");
                         //    break;
                         //}
-                        (*num).iter_mut().zip(as_int(&buffer[0..size]).iter()).for_each(|(a, b)| *a+=*b as u32);
+                        (*num).iter_mut().zip(as_int(&buffer[0..size]).iter()).for_each(|(a, b)| *a+=*b);
                     }
                     drop(num);
                     let stop_val = stop_arc.lock().unwrap();
