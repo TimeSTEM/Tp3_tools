@@ -10,7 +10,6 @@ use std::io::Write;
 use crate::auxiliar::{value_types::*, FileManager};
 use crate::constlib::*;
 //use rayon::prelude::*;
-//use std::sync::Mutex;
 
 const CAM_DESIGN: (POSITION, POSITION) = Packet::chip_array();
 
@@ -275,7 +274,8 @@ impl SpecKind for Live1D {
 }
 
 
-//Circular buffer for the elctrons. Currently not used. Still under test.
+//Circular buffer for the elctrons. Currently not used. This is similar to what is done in the
+//FPGA.
 pub struct Coincidence2DV2 {
     data: Vec<u32>,
     electron_buffer: Vec<(TIME, POSITION)>,
@@ -307,46 +307,46 @@ impl SpecKind for Coincidence2DV2 {
         self.photon_buffer.push(pack.tdc_time_norm());
         self.photon_buffer.remove(0);
 
-        let mut all_indices_to_add = Vec::new();
         for phtime in &self.photon_buffer {
-            let indices_to_add: Vec<POSITION> = self.electron_buffer.iter()
-                .filter_map(|ele| {
-                    if (*phtime < ele.0 + settings.time_delay + settings.time_width) &&
-                        (ele.0 + settings.time_delay < phtime + settings.time_width) {
-                            let delay = (phtime - settings.time_delay + settings.time_width - ele.0) as POSITION;
-                            let index = ele.1 + delay * CAM_DESIGN.0;
-                            Some(index) // Return the index to add
-                        } else {
-                            None // Filter out this element
-                        }
-                })
-            .collect(); // Collect the results into a vector
-            all_indices_to_add.extend(indices_to_add);
+            for ele in &mut self.electron_buffer {
+                if (*phtime < ele.0 + settings.time_delay + settings.time_width) &&
+                    (ele.0 + settings.time_delay < phtime + settings.time_width) {
+                        let delay = (phtime - settings.time_delay + settings.time_width - ele.0) as POSITION;
+                        let index = ele.1 + delay * CAM_DESIGN.0;
+                        *ele = (0, 0); //this electron should not appear again. It is already send.
+                        self.data[index as usize] += 1;
+                }
+            }
         }
 
+        /*
+        //This is a rayon implementation
+
+        let all_indices_to_add: Vec<POSITION> = self.photon_buffer.par_iter()
+            .flat_map(|phtime| {
+                self.electron_buffer.iter()
+                    .filter_map(|ele| {
+                        if (*phtime < ele.0 + settings.time_delay + settings.time_width)
+                            && (ele.0 + settings.time_delay < phtime + settings.time_width)
+                        {
+                            let delay = (phtime - settings.time_delay + settings.time_width - ele.0) as POSITION;
+                            let index = ele.1 + delay * CAM_DESIGN.0;
+                            *ele = (0, 0); // This part needs to be handled carefully
+                            Some(index)
+                        } else {
+                            None
+                        }
+                    })
+                .collect::<Vec<_>>() // Collect the results for this photon
+            })
+        .collect(); // Collect all indices across all photons
+        
         for index in all_indices_to_add {
             self.data[index as usize] += 1;
         }
-
-
-    /*
-        let mut indices_to_add = Vec::new();
-
-        self.electron_buffer.iter_mut().for_each(|ele| {
-        //for ele in self.electron_buffer.iter() {
-            //if ele.time() + settings.time_delay > phtime + settings.time_width {break}
-            if (phtime < ele.0 + settings.time_delay + settings.time_width) && (ele.0 + settings.time_delay < phtime + settings.time_width) {
-                let delay = (phtime - settings.time_delay + settings.time_width - ele.0) as POSITION;
-                let index = ele.1 + delay * CAM_DESIGN.0;
-                indices_to_add.push(index);
-                //add_index!(self, index);
-            }
-        });
-
-        for index in indices_to_add {
-            add_index!(self, index);
-        }
         */
+        
+
     }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
@@ -377,6 +377,8 @@ impl SpecKind for Coincidence2D {
         let temp_vec = vec![0; len];
         Self { data: temp_vec, aux_data: vec![0; LIST_SIZE_AUX_EVENTS], aux_data2: vec![0; LIST_SIZE_AUX_EVENTS], timer: Instant::now()}
     }
+    //This func gets electrons in which the TDC has already arrived by TCP. So it could be
+    //electrons second tcp, first time, or electrons second tdc, second time.
     #[inline]
     fn add_electron_hit(&mut self, pack: &Packet, settings: &Settings, frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
         let etime = pack.electron_time();

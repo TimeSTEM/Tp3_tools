@@ -49,8 +49,8 @@ pub const LIMIT_READ_SIZE: usize = 5_000_000_000; //5GB limitations
 //Coincidence values using the Timepix3//
 pub const TP3_BUFFER_SIZE: usize = 512_000_000; //Buffer size when reading files
 pub const PHOTON_LIST_STEP: usize = 5; //How many photons in the list before a step is taken during coincidence searching
-pub const LIST_SIZE_AUX_EVENTS: usize = 5; //List size of Coincidence2D struct in speclib.
-pub const CIRCULAR_BUFFER: usize = 2048;
+pub const LIST_SIZE_AUX_EVENTS: usize = 4; //List size of Coincidence2D struct in speclib.
+pub const CIRCULAR_BUFFER: usize = 4096;
 
 //***TDCLIB***//
 pub const TDC_TIMEOUT: u64 = 10;
