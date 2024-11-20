@@ -75,7 +75,7 @@ pub trait SpecKind {
     fn is_ready(&self) -> bool;
     fn build_output(&mut self, settings: &Settings) -> &[u8];
     fn new(settings: &Settings) -> Self;
-    fn build_main_tdc<V: TimepixRead>(&mut self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+    fn build_main_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(MAIN_TDC)
     }
     fn build_aux_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
@@ -385,12 +385,12 @@ impl SpecKind for Coincidence2D {
         if settings.time_resolved {
             if let Some(phtime) = tr_check_if_in(etime, frame_tdc, settings) {
                 let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
-                let index = pack.x() + delay * CAM_DESIGN.0;
+                let index = pack.x() + delay * CAM_DESIGN.0 + 2*settings.time_width as u32 * CAM_DESIGN.0;
                 add_index!(self, index);
             }
             if let Some(phtime) = tr_check_if_in(etime, ref_tdc, settings) {
                 let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
-                let index = pack.x() + delay * CAM_DESIGN.0 + 2*settings.time_width as u32 * CAM_DESIGN.0;
+                let index = pack.x() + delay * CAM_DESIGN.0;
                 add_index!(self, index);
             }
         } else {
@@ -415,6 +415,13 @@ impl SpecKind for Coincidence2D {
             TdcRef::new_periodic(SECONDARY_TDC, pack, my_settings, file_to_write)
         } else {
             TdcRef::new_no_read(SECONDARY_TDC)
+        }
+    }
+    fn build_main_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        if my_settings.time_resolved {
+            TdcRef::new_periodic(MAIN_TDC, pack, my_settings, file_to_write)
+        } else {
+            TdcRef::new_no_read(MAIN_TDC)
         }
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
