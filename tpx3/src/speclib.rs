@@ -5,6 +5,7 @@ use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, packet_change, tr_
 use crate::tdclib::{TdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
 use crate::isi_box_new;
 use crate::errorlib::Tp3ErrorKind;
+use crate::clusterlib::cluster::{SinglePhoton, CollectionPhoton, SingleElectron, CollectionElectron};
 use std::time::Instant;
 use std::io::Write;
 use crate::auxiliar::{value_types::*, FileManager};
@@ -270,6 +271,56 @@ impl SpecKind for Live1D {
     }
     fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
         self.frame_counter
+    }
+}
+
+//Same implementation as the post-processing data. Currently not used.
+pub struct Coincidence2DV3 {
+    data: Vec<u32>,
+    electron_buffer: CollectionElectron,
+    photon_buffer: CollectionPhoton,
+    timer: Instant,
+}
+
+impl SpecKind for Coincidence2DV3 {
+    fn is_ready(&self) -> bool {
+        self.timer.elapsed().as_millis() > TIME_INTERVAL_COINCIDENCE_HISTOGRAM
+    }
+    fn build_output(&mut self, settings: &Settings) -> &[u8] {
+        let mut rpi = Vec::new();
+        let mut index = 0;
+        self.electron_buffer.sort();
+        self.photon_buffer.sort();
+        let (coinc_electron, coinc_photon) = self.electron_buffer.search_coincidence(&mut self.photon_buffer, &mut rpi, &mut index, settings.time_delay, settings.time_width);
+        coinc_electron.iter().zip(coinc_photon.iter()).for_each(|(ele, photon)| {
+            let delay = (photon.time() / 6 - settings.time_delay + settings.time_width - ele.time()) as POSITION;
+            let index = ele.x() + delay * CAM_DESIGN.0;
+            self.data[index as usize] += 1;
+        });
+        as_bytes(&self.data)
+    }
+    fn new(settings: &Settings) -> Self {
+        let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
+        let temp_vec = vec![0; len];
+        Self { data: temp_vec, electron_buffer: CollectionElectron::new(), photon_buffer: CollectionPhoton::new(), timer: Instant::now()}
+    }
+    #[inline]
+    fn add_electron_hit(&mut self, pack: &Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+        let se = SingleElectron::new(pack, None, 0);
+        self.electron_buffer.add_electron(se);
+    }
+    fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
+        ref_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        let sp = SinglePhoton::new(pack, 1, None, 0);
+        self.photon_buffer.add_photon(sp);
+    }
+    fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
+        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
+        self.timer = Instant::now();
+        self.electron_buffer.clear();
+        self.photon_buffer.clear();
     }
 }
 
