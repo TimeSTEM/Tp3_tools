@@ -10,6 +10,7 @@ pub mod coincidence {
     use crate::auxiliar::{Settings, value_types::*, misc::{output_data, packet_change}, FileManager};
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
+    use std::ffi::CStr;
 
     //When we would like to have large E-PH timeoffsets, such as skipping entire line periods, the
     //difference between E-PH could not fit in i16. We fold these big numbers to fit in a i16
@@ -221,8 +222,42 @@ pub mod coincidence {
             
     }
 
-    pub fn search_coincidence(dir: &str, cluster_correction: &str, settings: Settings) -> Result<(), Tp3ErrorKind> {
+    #[no_mangle]
+    pub extern "C" fn search_coincidence_from_external(dir: *const i8) -> u8 {
+        //Check if the string is good to go.
+        if dir.is_null() {
+            return 1
+        }
+
+        //Convert the directory *const u8 to CStr
+        let c_str = unsafe { CStr::from_ptr(dir) };
+
+        //Convert to a rust byte slice
+        let bytes = c_str.to_bytes();
+
+        //Check if the last 4 bytes are "tpx3"
+        let is_tpx3_file =  &bytes[bytes.len() - 4 ..] == b"tpx3";
+        if !is_tpx3_file { return 2 }
+
+        //Get the settings
+        let str_slice = match std::str::from_utf8(&bytes) {
+            Ok(slice) => slice,
+            Err(_) => return 3,
+        };
+        println!("{:?}", str_slice);
+        let settings = match Settings::get_settings_from_json(&str_slice[0..bytes.len()-5]) {
+            Ok(settings) => settings,
+            Err(_) => return 4,
+        };
         
+        //Finally searching
+        match search_coincidence(&str_slice, "0", settings) {
+            Ok(_) => 0,
+            Err(_) => 5,
+        }
+    }
+
+    pub fn search_coincidence(dir: &str, cluster_correction: &str, settings: Settings) -> Result<(), Tp3ErrorKind> {
         //Creating the ElectronData structure
         let mut coinc_data = ElectronData::new(dir.to_owned(), cluster::grab_cluster_correction(cluster_correction),settings);
 
