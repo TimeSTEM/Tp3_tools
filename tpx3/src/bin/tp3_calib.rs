@@ -7,8 +7,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args: Vec<String> = env::args().collect();
     
-    let config_set = ConfigAcquisition::new(&args, cluster::FixedToTCalibration(30, 60));
-    let config_set = ConfigAcquisition::new(&args, cluster::MuonTrack);
+    //Pick ONE!
+    //let config_set = ConfigAcquisition::new(&args, cluster::ClusterCorrectionTypes::FixedToTCalibration(30, 60));
+    let config_set = ConfigAcquisition::new(&args, cluster::ClusterCorrectionTypes::MuonTrack);
     //let config_set = ConfigAcquisition::new(&args, cluster::SingleClusterToTCalibration);
     
     //let config_set = ConfigAcquisition::new(&args, cluster::NoCorrectionVerbose);

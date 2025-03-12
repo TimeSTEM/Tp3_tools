@@ -394,12 +394,12 @@ pub mod cluster {
         LargestToT,
         LargestToTWithThreshold(u16, u16), //Threshold min and max
         ClosestToTWithThreshold(u16, u16, u16), //Reference, Threshold min and max
-        //FixedToT(u16), //Reference
-        //FixedToTCalibration(u16, u16), //Reference
-        //MuonTrack, //
-        NoCorrection, //
-        //NoCorrectionVerbose, //
-        //SingleClusterToTCalibration, //
+        FixedToT(u16), //Reference
+        FixedToTCalibration(u16, u16), //Reference
+        MuonTrack,
+        NoCorrection,
+        NoCorrectionVerbose,
+        SingleClusterToTCalibration,
     }
 
     impl ClusterCorrectionTypes {
@@ -495,9 +495,109 @@ pub mod cluster {
                     });
                     Some(val)
                 },
-                //ClusterCorrectionTypes::FixedToT(reference) => {},
-                //ClusterCorrectionTypes::FixedToTCalibration(ref1, ref2) => {},
-                //ClusterCorrectionTypes::MuonTrack => {},
+                ClusterCorrectionTypes::FixedToT(reference) => {
+                    let cluster_size = cluster.len() as u16;
+                    
+                    let cluster_filter_size = cluster.iter().
+                        filter(|se| se.tot() == *reference).
+                        count();
+
+                    if cluster_filter_size == 0 {return None};
+
+                    let t_mean:TIME = cluster.iter().
+                        filter(|se| se.tot() == *reference).
+                        map(|se| se.time()).sum::<TIME>() / cluster_filter_size as TIME;
+                    
+                    let x_mean:POSITION = cluster.iter().
+                        map(|se| se.x()).
+                        sum::<POSITION>() / cluster_size as POSITION;
+                    
+                    let y_mean:POSITION = cluster.iter().
+                        map(|se| se.y()).
+                        sum::<POSITION>() / cluster_size as POSITION;
+                    
+                    let time_dif: TIME = cluster.iter().
+                        map(|se| se.frame_dt()).
+                        next().
+                        unwrap();
+                    
+                    let slice: COUNTER = cluster.iter().
+                        map(|se| se.spim_slice()).
+                        next().
+                        unwrap();
+                    
+                    let tot_sum: u16 = cluster.iter().
+                        map(|se| se.tot() as usize).
+                        sum::<usize>() as u16;
+                    
+                    let raw_packet_data: Packet = cluster.iter().
+                        map(|se| se.raw_packet_data()).
+                        next().
+                        unwrap();
+                    
+                    let raw_packet_index: usize = cluster.iter().
+                        map(|se| se.raw_packet_index()).
+                        next().
+                        unwrap();
+
+                    let mut val = CollectionElectron::new();
+                    val.add_electron(SingleElectron{
+                        data: (Some(t_mean), Some(x_mean), Some(y_mean), Some(tot_sum), time_dif, slice, cluster_size, raw_packet_data, raw_packet_index, 0),
+                    });
+                    Some(val)
+                },
+                ClusterCorrectionTypes::FixedToTCalibration(energy_ref, energy_sum_ref) => {
+                    let cluster_size = cluster.len() as u16;
+
+                    if (cluster_size < 3) || (cluster_size > 4) {return None;} //3 to 4 objects in the cluster
+                    
+                    let cluster_filter_size = cluster.iter().
+                        filter(|se| se.tot_to_energy() == *energy_ref).
+                        count(); //Number of elements in the reference energy value
+                    
+                    if cluster_filter_size != 1 {return None}; //It must be one for complete control
+                    
+                    let energy_sum: u16 = cluster.iter().
+                        map(|se| se.tot_to_energy() as usize).
+                        sum::<usize>() as u16;
+
+                    if energy_sum < energy_sum_ref - 15 {return None;} //The energy sum must be close to the electron energy value
+                    if energy_sum > energy_sum_ref + 15 {return None;}
+
+                    let time_reference = cluster.iter().
+                        filter(|se| se.tot_to_energy() == *energy_ref).
+                        map(|se| se.time()).
+                        next().
+                        unwrap();
+
+                    let mut val = CollectionElectron::new();
+                    for electron in cluster {
+                        //if electron.tot_to_energy() == self.0 {continue;} //ToT reference not need to be output
+                        let time_diference = electron.time() as i64 - time_reference as i64;
+                        if time_diference.abs() > 100 {continue;} //must not output far-away data from tot==reference value
+                        val.add_electron(SingleElectron{
+                            data: (None, None, None, Some(electron.tot_to_energy()), time_reference, electron.spim_slice(), cluster_size, electron.raw_packet_data(), electron.raw_packet_index(), 0),
+                        });
+                    }
+                    Some(val)
+                },
+                ClusterCorrectionTypes::MuonTrack => {
+                    let cluster_size = cluster.len() as u16;
+                    if cluster_size == 1 {return None;}
+                    let time_reference = cluster.iter().
+                        map(|se| se.time()).
+                        next().
+                        unwrap();
+
+                    let mut val = CollectionElectron::new();
+                    for electron in cluster {
+                        //let time_diference = electron.time() as i64 - time_reference as i64;
+                        val.add_electron(SingleElectron{
+                            data: (None, None, None, None, time_reference, electron.spim_slice(), cluster_size, electron.raw_packet_data(), electron.raw_packet_index(), 0),
+                        });
+                    }
+                    Some(val)
+                },
                 ClusterCorrectionTypes::NoCorrection => {
                     let mut val = CollectionElectron::new();
                     for electron in cluster {
@@ -507,13 +607,50 @@ pub mod cluster {
                     }
                     Some(val)
                 },
-                //ClusterCorrectionTypes::NoCorrectionVerbose => {},
-                //ClusterCorrectionTypes::SingleClusterToTCalibration => {},
+                ClusterCorrectionTypes::NoCorrectionVerbose => {
+                    let cluster_size = cluster.len() as u16;
+                    let mut val = CollectionElectron::new();
+                    for electron in cluster {
+                        val.add_electron(SingleElectron{
+                            data: (None, None, None, None, electron.frame_dt(), electron.spim_slice(), cluster_size, electron.raw_packet_data(), electron.raw_packet_index(), 0),
+                    });
+                    }
+                    Some(val)
+                },
+                ClusterCorrectionTypes::SingleClusterToTCalibration => {
+                    let cluster_size = cluster.len() as u16;
+                    if cluster_size != 1 {return None}; //It must be single cluster
+                    let mut val = CollectionElectron::new();
+                    for electron in cluster {
+                        val.add_electron(SingleElectron {
+                            data: (None, None, None, None, electron.frame_dt(), electron.spim_slice(), cluster_size, electron.raw_packet_data(), electron.raw_packet_index(), 0),
+                        });
+                    }
+                    Some(val)
+                },
             }
 
         }
         fn must_correct(&self) -> bool {
-            true
+            match &self {
+                ClusterCorrectionTypes::NoCorrection => {false},
+                _ => true,
+            }
+        }
+        pub fn set_thresholds(&mut self, min_value: u16, max_value: u16) {
+            match self {
+                ClusterCorrectionTypes::LargestToTWithThreshold(min, max) => {*min = min_value; *max=max_value;},
+                ClusterCorrectionTypes::ClosestToTWithThreshold(_, min, max) => {*min = min_value; *max = max_value},
+                _ => {},
+            }
+        }
+        pub fn set_reference(&mut self, reference: u16) {
+            match self {
+                ClusterCorrectionTypes::FixedToT(ref_value) => {*ref_value = reference}
+                ClusterCorrectionTypes::ClosestToTWithThreshold(ref_value, _, _) => {*ref_value = reference}
+                ClusterCorrectionTypes::FixedToTCalibration(ref_value, _) => {*ref_value = reference}
+                _ => {},
+            }
         }
     }
 
