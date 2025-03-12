@@ -391,7 +391,16 @@ pub mod cluster {
     enum ClusterCorrectionTypes {
         AverageCorrection,
         LargestToT,
+        LargestToTWithThreshold(u16, u16), //Threshold min and max
+        ClosestToTWithThreshold(u16, u16, u16), //Reference, Threshold min and max
+        FixedToT(u16), //Reference
+        FixedToTCalibration(u16, u16), //Reference
+        MuonTrack, //
+        NoCorrection, //
+        NoCorrectionVerbose, //
+        SingleClusterToTCalibration, //
     }
+
     impl ClusterCorrectionTypes {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
 
@@ -453,6 +462,29 @@ pub mod cluster {
                     });
                     Some(val)
                 }
+                ClusterCorrectionTypes::LargestToTWithThreshold(min, max) => {
+                    let cluster_size = cluster.len() as u16;
+
+                    let electron = cluster.iter().
+                        reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
+                        unwrap();
+
+                    if electron.tot() < *min {return None;}
+                    if electron.tot() > *max {return None;}
+
+                    let mut val = CollectionElectron::new();
+                    val.add_electron(SingleElectron {
+                        data: (None, None, None, None, electron.frame_dt(), electron.spim_slice(), cluster_size, electron.raw_packet_data(), electron.raw_packet_index(), 0),
+                    });
+                    Some(val)
+                },
+                ClusterCorrectionTypes::ClosestToTWithThreshold => {},
+                ClusterCorrectionTypes::FixedToT => {},
+                ClusterCorrectionTypes::FixedToTCalibration => {},
+                ClusterCorrectionTypes::MuonTrack => {},
+                ClusterCorrectionTypes::NoCorrection => {},
+                ClusterCorrectionTypes::NoCorrectionVerbose => {},
+                ClusterCorrectionTypes::SingleClusterToTCalibration => {},
             }
 
         }
