@@ -331,20 +331,7 @@ pub mod cluster {
         }
     }
 
-    pub fn grab_cluster_correction(val: &str) -> ClusterCorrectionTypes {
-        match val {
-            "0" => ClusterCorrectionTypes::NoCorrection,
-            "1" => ClusterCorrectionTypes::AverageCorrection,
-            "2" => ClusterCorrectionTypes::LargestToT,
-            "3" => ClusterCorrectionTypes::LargestToTWithThreshold(20, 100),
-            "4" => ClusterCorrectionTypes::ClosestToTWithThreshold(50, 20, 100),
-            //"5" => {Box::new(FixedToT(10))},
-            //"6" => {Box::new(FixedToTCalibration(30, 60))},
-            //"7" => {Box::new(NoCorrectionVerbose)},
-            //"8" => {Box::new(SingleClusterToTCalibration)},
-            _ => ClusterCorrectionTypes::NoCorrection,
-        }
-    }
+
 
 
     ///This is used for searching coincidence as a iterator, but it does not seem
@@ -385,6 +372,22 @@ pub mod cluster {
                 index += 1;
             }
             self.next()
+        }
+    }
+
+    ///This function is used to select a given ClusterCorrectionType with a string
+    pub fn grab_cluster_correction(val: &str) -> ClusterCorrectionTypes {
+        match val {
+            "0" => ClusterCorrectionTypes::NoCorrection,
+            "1" => ClusterCorrectionTypes::AverageCorrection,
+            "2" => ClusterCorrectionTypes::LargestToT,
+            "3" => ClusterCorrectionTypes::LargestToTWithThreshold(20, 100),
+            "4" => ClusterCorrectionTypes::ClosestToTWithThreshold(50, 20, 100),
+            "5" => ClusterCorrectionTypes::FixedToT(10),
+            "6" => ClusterCorrectionTypes::FixedToTCalibration(30, 60),
+            "7" => ClusterCorrectionTypes::NoCorrectionVerbose,
+            "8" => ClusterCorrectionTypes::SingleClusterToTCalibration,
+            _ => ClusterCorrectionTypes::NoCorrection,
         }
     }
 
