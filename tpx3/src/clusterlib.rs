@@ -393,12 +393,12 @@ pub mod cluster {
         LargestToT,
         LargestToTWithThreshold(u16, u16), //Threshold min and max
         ClosestToTWithThreshold(u16, u16, u16), //Reference, Threshold min and max
-        FixedToT(u16), //Reference
-        FixedToTCalibration(u16, u16), //Reference
-        MuonTrack, //
-        NoCorrection, //
-        NoCorrectionVerbose, //
-        SingleClusterToTCalibration, //
+        //FixedToT(u16), //Reference
+        //FixedToTCalibration(u16, u16), //Reference
+        //MuonTrack, //
+        //NoCorrection, //
+        //NoCorrectionVerbose, //
+        //SingleClusterToTCalibration, //
     }
 
     impl ClusterCorrectionTypes {
@@ -478,13 +478,28 @@ pub mod cluster {
                     });
                     Some(val)
                 },
-                ClusterCorrectionTypes::ClosestToTWithThreshold => {},
-                ClusterCorrectionTypes::FixedToT => {},
-                ClusterCorrectionTypes::FixedToTCalibration => {},
-                ClusterCorrectionTypes::MuonTrack => {},
-                ClusterCorrectionTypes::NoCorrection => {},
-                ClusterCorrectionTypes::NoCorrectionVerbose => {},
-                ClusterCorrectionTypes::SingleClusterToTCalibration => {},
+                ClusterCorrectionTypes::ClosestToTWithThreshold(reference, min_th, max_th) => {
+                    let cluster_size = cluster.len() as u16;
+
+                    let electron = cluster.iter().
+                        reduce(|accum, item| if (accum.tot() as i16 - *reference as i16).abs() < (item.tot() as i16 - *reference as i16).abs() {accum} else {item}).
+                        unwrap();
+
+                    if electron.tot() < *min_th {return None;}
+                    if electron.tot() > *max_th {return None;}
+
+                    let mut val = CollectionElectron::new();
+                    val.add_electron(SingleElectron {
+                        data: (None, None, None, None, electron.frame_dt(), electron.spim_slice(), cluster_size, electron.raw_packet_data(), electron.raw_packet_index(), 0),
+                    });
+                    Some(val)
+                },
+                //ClusterCorrectionTypes::FixedToT(reference) => {},
+                //ClusterCorrectionTypes::FixedToTCalibration(ref1, ref2) => {},
+                //ClusterCorrectionTypes::MuonTrack => {},
+                //ClusterCorrectionTypes::NoCorrection => {},
+                //ClusterCorrectionTypes::NoCorrectionVerbose => {},
+                //ClusterCorrectionTypes::SingleClusterToTCalibration => {},
             }
 
         }
