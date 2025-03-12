@@ -51,7 +51,7 @@ pub mod cluster {
         fn first_value(&self) -> SingleElectron {
             *self.data.iter().find(|x| x.cluster_size() == 1).unwrap()
         }
-        fn remove_clusters<T: ClusterCorrection>(&mut self, correction_type: &T) {
+        fn remove_clusters(&mut self, correction_type: &ClusterCorrectionTypes) {
             let mut new_elist: CollectionElectron = CollectionElectron::new();
             let mut last: SingleElectron = self.first_value();
             let mut cluster_vec: Vec<SingleElectron> = Vec::new();
@@ -82,10 +82,10 @@ pub mod cluster {
         pub fn sort(&mut self) {
             self.data.par_sort_unstable();
         }
-        fn clean<T: ClusterCorrection>(&mut self, correction_type: &T) {
+        fn clean(&mut self, correction_type: &ClusterCorrectionTypes) {
             self.remove_clusters(correction_type);
         }
-        pub fn try_clean<T: ClusterCorrection>(&mut self, min_size: usize, correction_type: &T) -> bool {
+        pub fn try_clean(&mut self, min_size: usize, correction_type: &ClusterCorrectionTypes) -> bool {
             if self.data.len() > min_size && correction_type.must_correct() {
                 let nelectrons = self.data.len();
                 self.clean(correction_type);
@@ -331,18 +331,18 @@ pub mod cluster {
         }
     }
 
-    pub fn grab_cluster_correction(val: &str) -> Box<dyn ClusterCorrection> {
+    pub fn grab_cluster_correction(val: &str) -> ClusterCorrectionTypes {
         match val {
-            "0" => {Box::new(NoCorrection)},
-            "1" => {Box::new(AverageCorrection)},
-            "2" => {Box::new(LargestToT)},
-            "3" => {Box::new(LargestToTWithThreshold(20, 100))},
-            "4" => {Box::new(ClosestToTWithThreshold(50, 20, 100))},
-            "5" => {Box::new(FixedToT(10))},
-            "6" => {Box::new(FixedToTCalibration(30, 60))},
-            "7" => {Box::new(NoCorrectionVerbose)},
-            "8" => {Box::new(SingleClusterToTCalibration)},
-            _ => {Box::new(NoCorrection)},
+            "0" => ClusterCorrectionTypes::NoCorrection,
+            "1" => ClusterCorrectionTypes::AverageCorrection,
+            "2" => ClusterCorrectionTypes::LargestToT,
+            "3" => ClusterCorrectionTypes::LargestToTWithThreshold(20, 100),
+            "4" => ClusterCorrectionTypes::ClosestToTWithThreshold(50, 20, 100),
+            //"5" => {Box::new(FixedToT(10))},
+            //"6" => {Box::new(FixedToTCalibration(30, 60))},
+            //"7" => {Box::new(NoCorrectionVerbose)},
+            //"8" => {Box::new(SingleClusterToTCalibration)},
+            _ => ClusterCorrectionTypes::NoCorrection,
         }
     }
 
@@ -388,7 +388,8 @@ pub mod cluster {
         }
     }
 
-    enum ClusterCorrectionTypes {
+    #[derive(Debug)]
+    pub enum ClusterCorrectionTypes {
         AverageCorrection,
         LargestToT,
         LargestToTWithThreshold(u16, u16), //Threshold min and max
@@ -396,7 +397,7 @@ pub mod cluster {
         //FixedToT(u16), //Reference
         //FixedToTCalibration(u16, u16), //Reference
         //MuonTrack, //
-        //NoCorrection, //
+        NoCorrection, //
         //NoCorrectionVerbose, //
         //SingleClusterToTCalibration, //
     }
@@ -497,16 +498,28 @@ pub mod cluster {
                 //ClusterCorrectionTypes::FixedToT(reference) => {},
                 //ClusterCorrectionTypes::FixedToTCalibration(ref1, ref2) => {},
                 //ClusterCorrectionTypes::MuonTrack => {},
-                //ClusterCorrectionTypes::NoCorrection => {},
+                ClusterCorrectionTypes::NoCorrection => {
+                    let mut val = CollectionElectron::new();
+                    for electron in cluster {
+                        val.add_electron(SingleElectron{
+                            data: (None, None, None, None, electron.frame_dt(), electron.spim_slice(), 1, electron.raw_packet_data(), electron.raw_packet_index(), 0),
+                        });
+                    }
+                    Some(val)
+                },
                 //ClusterCorrectionTypes::NoCorrectionVerbose => {},
                 //ClusterCorrectionTypes::SingleClusterToTCalibration => {},
             }
 
         }
+        fn must_correct(&self) -> bool {
+            true
+        }
     }
 
 
 
+    /*
     pub struct AverageCorrection; //
     pub struct LargestToT; //
     pub struct LargestToTWithThreshold(pub u16, pub u16); //Threshold min and max
@@ -816,4 +829,5 @@ pub mod cluster {
             Some(val)
         }
     }
+    */
 }

@@ -2,7 +2,7 @@ pub mod coincidence {
     use crate::packetlib::Packet;
     use crate::tdclib::TdcRef;
     use crate::errorlib::Tp3ErrorKind;
-    use crate::clusterlib::{cluster, cluster::ClusterCorrection};
+    use crate::clusterlib::{cluster, cluster::ClusterCorrectionTypes};
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
@@ -26,7 +26,7 @@ pub mod coincidence {
     }
 
     //Non-standard data types 
-    pub struct ElectronData<T> {
+    pub struct ElectronData {
         reduced_raw_data: Vec<u64>,
         index_to_add_in_raw: Vec<usize>,
         coinc_electrons: CollectionElectron,
@@ -38,12 +38,12 @@ pub mod coincidence {
         is_spim: bool,
         spim_size: (POSITION, POSITION),
         spim_tdc: Option<TdcRef>,
-        remove_clusters: T,
+        remove_clusters: ClusterCorrectionTypes,
         file: String,
         my_settings: Settings,
     }
 
-    impl<T: ClusterCorrection> ElectronData<T> {
+    impl ElectronData {
         
         //Called for all the electrons (not only coincident)
         fn add_electron(&mut self, val: SingleElectron) {
@@ -144,7 +144,7 @@ pub mod coincidence {
             self.spim_tdc = Some(spim_tdc);
         }
 
-        pub fn new(file_path: String, correction_type: T, my_settings: Settings) -> Self {
+        pub fn new(file_path: String, correction_type: ClusterCorrectionTypes, my_settings: Settings) -> Self {
             Self {
                 reduced_raw_data: Vec::new(),
                 index_to_add_in_raw: Vec::new(),
@@ -252,8 +252,8 @@ pub mod coincidence {
         
         //Finally searching
         match search_coincidence(&str_slice, "0", settings) {
-            Ok(_) => 0,
-            Err(_) => 5,
+            Ok(_) => return 0,
+            Err(_) => return 5,
         }
     }
 
@@ -722,7 +722,7 @@ pub mod ntime_resolved {
     use crate::packetlib::Packet;
     use crate::tdclib::{TdcType, TdcRef};
     use crate::errorlib::Tp3ErrorKind;
-    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
+    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrectionTypes};
     use crate::auxiliar::{misc::{packet_change, output_data}, value_types::*, ConfigAcquisition, Settings, FileManager};
     use crate::constlib::*;
     use std::io::prelude::*;
@@ -731,7 +731,7 @@ pub mod ntime_resolved {
     use indicatif::{ProgressBar, ProgressStyle};
 
     /// This enables spatial+spectral analysis in a certain spectral window.
-    pub struct TimeSpectralSpatial<T> {
+    pub struct TimeSpectralSpatial {
         hyperspec_index: Vec<INDEXHYPERSPEC>, //Main data,
         hyperspec_return_index: Vec<INDEXHYPERSPEC>, //Main data from flyback,
         fourd_index: Vec<INDEX4D>,
@@ -744,13 +744,13 @@ pub mod ntime_resolved {
         tdc_periodic: Option<TdcRef>, //The periodic tdc. Can be none if xspim and yspim <= 1,
         spim_tdc_type: TdcType, //The tdc type for the spim,
         extra_tdc_type: TdcType, //The tdc type for the external,
-        remove_clusters: T,
+        remove_clusters: ClusterCorrectionTypes,
         file: String,
         fourd_data: bool,
         my_settings: Settings,
     }
 
-    impl<T: ClusterCorrection> TimeSpectralSpatial<T> {
+    impl TimeSpectralSpatial {
         fn prepare(&mut self, file: &mut fs::File) -> Result<(), Tp3ErrorKind> {
             let mut empty_filemanager = FileManager::new_empty();
             self.tdc_periodic = match self.tdc_periodic {
@@ -852,7 +852,7 @@ pub mod ntime_resolved {
             Ok(())
         }
         
-        pub fn new(my_config: ConfigAcquisition<T>, my_settings: Settings) -> Result<Self, Tp3ErrorKind> {
+        pub fn new(my_config: ConfigAcquisition, my_settings: Settings) -> Result<Self, Tp3ErrorKind> {
 
             Ok(Self {
                 hyperspec_index: Vec::new(),
@@ -876,7 +876,7 @@ pub mod ntime_resolved {
         }
     }
 
-    pub fn analyze_data<T: ClusterCorrection>(data: &mut TimeSpectralSpatial<T>) -> Result<(), Tp3ErrorKind> {
+    pub fn analyze_data(data: &mut TimeSpectralSpatial) -> Result<(), Tp3ErrorKind> {
         
         data.try_create_folder()?;
         
@@ -933,7 +933,7 @@ pub mod calibration {
     use std::io::prelude::*;
     use std::fs;
     use std::convert::TryInto;
-    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrection};
+    use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, ClusterCorrectionTypes};
     use indicatif::{ProgressBar, ProgressStyle};
     
     fn output_data<T>(data: &[T], name: &str) {
@@ -987,7 +987,7 @@ pub mod calibration {
         }
     }
 
-    pub fn calibrate<T: ClusterCorrection>(file: &str, correction_type: &T) -> io::Result<()> {
+    pub fn calibrate(file: &str, correction_type: &ClusterCorrectionTypes) -> io::Result<()> {
 
         let mut ci = 0;
         let mut file = fs::File::open(file)?;

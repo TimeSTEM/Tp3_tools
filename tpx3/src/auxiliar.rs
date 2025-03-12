@@ -2,7 +2,7 @@
 use crate::errorlib::Tp3ErrorKind;
 use std::net::{TcpListener, TcpStream, SocketAddr};
 use crate::auxiliar::misc::TimepixRead;
-use crate::clusterlib::cluster::ClusterCorrection;
+use crate::clusterlib::cluster::ClusterCorrectionTypes;
 use crate::errorlib;
 use std::io::{Read, Write, BufWriter};
 use std::fs::File;
@@ -238,20 +238,20 @@ impl Settings {
 
 ///`ConfigAcquisition` is used for post-processing, where reading external TPX3 files is necessary.
 #[derive(Debug)]
-pub struct ConfigAcquisition<T: ClusterCorrection> {
+pub struct ConfigAcquisition {
     pub file: String,
     pub is_spim: bool,
     pub xspim: POSITION,
     pub yspim: POSITION,
-    pub correction_type: T,
+    pub correction_type: ClusterCorrectionTypes,
 }
 
-impl<T: ClusterCorrection> ConfigAcquisition<T> {
+impl ConfigAcquisition {
     pub fn file(&self) -> &str {
         &self.file
     }
 
-    pub fn new(args: &[String], correction_type: T) -> Self {
+    pub fn new(args: &[String], correction_type: ClusterCorrectionTypes) -> Self {
         //if args.len() != 4+1 {
         //    panic!("One must provide 5 ({} detected) arguments (file, is_spim, xspim, yspim).", args.len()-1);
         //}
