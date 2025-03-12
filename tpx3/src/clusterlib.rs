@@ -388,6 +388,78 @@ pub mod cluster {
         }
     }
 
+    enum ClusterCorrectionTypes {
+        AverageCorrection,
+        LargestToT,
+    }
+    impl ClusterCorrectionTypes {
+        fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
+
+            match &self {
+                ClusterCorrectionTypes::AverageCorrection => {
+                    let cluster_size = cluster.len() as u16;
+                    let t_mean:TIME = cluster.iter().
+                        map(|se| se.time()).
+                        sum::<TIME>() / cluster_size as TIME;
+                    
+                    let x_mean:POSITION = cluster.iter().
+                        map(|se| se.x()).
+                        sum::<POSITION>() / cluster_size as POSITION;
+                    
+                    let y_mean:POSITION = cluster.iter().
+                        map(|se| se.y()).
+                        sum::<POSITION>() / cluster_size as POSITION;
+                    
+                    let time_dif: TIME = cluster.iter().
+                        map(|se| se.frame_dt()).
+                        next().
+                        unwrap();
+                    
+                    let slice: COUNTER = cluster.iter().
+                        map(|se| se.spim_slice()).
+                        next().
+                        unwrap();
+                    
+                    let tot_sum: u16 = cluster.iter().
+                        map(|se| se.tot() as usize).
+                        sum::<usize>() as u16;
+                    
+                    let raw_data = cluster.iter().
+                        map(|se| se.raw_packet_data()).
+                        next().
+                        unwrap();
+                    
+                    let raw_index = cluster.iter().
+                        map(|se| se.raw_packet_index()).
+                        next().
+                        unwrap();
+                    
+                    let mut val = CollectionElectron::new();
+                    val.add_electron(SingleElectron {
+                        data: (Some(t_mean), Some(x_mean), Some(y_mean), Some(tot_sum), time_dif, slice, cluster_size, raw_data, raw_index, 0),
+                    });
+                    Some(val)
+                },
+                ClusterCorrectionTypes::LargestToT => {
+                    let cluster_size = cluster.len() as u16;
+
+                    let electron = cluster.iter().
+                        reduce(|accum, item| if accum.tot() > item.tot() {accum} else {item}).
+                        unwrap();
+
+                    let mut val = CollectionElectron::new();
+                    val.add_electron(SingleElectron {
+                        data: (None, None, None, None, electron.frame_dt(), electron.spim_slice(), cluster_size, electron.raw_packet_data(), electron.raw_packet_index(), 0),
+                    });
+                    Some(val)
+                }
+            }
+
+        }
+    }
+
+
+
     pub struct AverageCorrection; //
     pub struct LargestToT; //
     pub struct LargestToTWithThreshold(pub u16, pub u16); //Threshold min and max
