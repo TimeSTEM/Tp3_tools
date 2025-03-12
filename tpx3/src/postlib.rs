@@ -181,7 +181,6 @@ pub mod coincidence {
         pub fn prepare_to_search(&self) -> Result<(), Tp3ErrorKind> {
             self.try_create_folder()?;
             self.is_file_readable()?;
-            Settings::get_settings_from_json(&self.file[..self.file.len()-5])?;
             Ok(())
         }
         
@@ -253,6 +252,7 @@ pub mod coincidence {
         //Creating the electron data structure
         let coinc_data = ElectronData::new(str_slice.to_owned(), cluster::grab_cluster_correction("0"), settings);
 
+        //Returning the RAW pointer
         Box::into_raw(Box::new(coinc_data))
     }
 

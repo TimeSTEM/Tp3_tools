@@ -50,6 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let mut electron_data = ElectronData::new(dir.to_owned(), cluster::grab_cluster_correction(cluster_correction), settings);
                 if let Err(error) = electron_data.prepare_to_search() {
                     println!("***Coincidence***: Error during prepare: {:?}.", error);
+                    return;
                 }
                 search_coincidence(&mut electron_data);
             } else {
