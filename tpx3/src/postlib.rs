@@ -161,7 +161,7 @@ pub mod coincidence {
                 file: file_path,
                 my_settings,
             }
-        }
+        } 
 
         fn try_create_folder(&self) -> Result<(), Tp3ErrorKind> {
             let path_length = &self.file.len();
@@ -169,6 +169,20 @@ pub mod coincidence {
                 Ok(_) => {Ok(())},
                 Err(_) => { Err(Tp3ErrorKind::CoincidenceFolderAlreadyCreated) }
             }
+        }
+        
+        fn is_file_readable(&self) -> Result<(), Tp3ErrorKind> {
+            match fs::File::open(&self.file) {
+                Ok(_) => {Ok(())},
+                Err(_) => { Err(Tp3ErrorKind::CoincidenceCantReadFile) }
+            }
+        }
+
+        pub fn prepare_to_search(&self) -> Result<(), Tp3ErrorKind> {
+            self.try_create_folder()?;
+            self.is_file_readable()?;
+            Settings::get_settings_from_json(&self.file[..self.file.len()-5])?;
+            Ok(())
         }
         
         fn output_hyperspec(&self) {
@@ -223,52 +237,38 @@ pub mod coincidence {
     }
 
     #[no_mangle]
-    pub extern "C" fn search_coincidence_from_external(dir: *const i8) -> u8 {
-        //Check if the string is good to go.
-        if dir.is_null() {
-            return 1
-        }
-
+    pub extern "C" fn create_electron_data(dir: *const i8) -> *mut ElectronData {
         //Convert the directory *const u8 to CStr
         let c_str = unsafe { CStr::from_ptr(dir) };
 
         //Convert to a rust byte slice
         let bytes = c_str.to_bytes();
 
-        //Check if the last 4 bytes are "tpx3"
-        let is_tpx3_file =  &bytes[bytes.len() - 4 ..] == b"tpx3";
-        if !is_tpx3_file { return 2 }
-
-        //Get the settings
-        let str_slice = match std::str::from_utf8(&bytes) {
-            Ok(slice) => slice,
-            Err(_) => return 3,
-        };
-        println!("{:?}", str_slice);
-        let settings = match Settings::get_settings_from_json(&str_slice[0..bytes.len()-5]) {
-            Ok(settings) => settings,
-            Err(_) => return 4,
-        };
+        //Get the string slice
+        let str_slice = std::str::from_utf8(&bytes).unwrap();
         
-        //Finally searching
-        match search_coincidence(&str_slice, "0", settings) {
-            Ok(_) => return 0,
-            Err(_) => return 5,
-        }
+        //Get the settings
+        let settings = Settings::get_settings_from_json(&str_slice[0..bytes.len()-5]).unwrap();
+
+        //Creating the electron data structure
+        let coinc_data = ElectronData::new(str_slice.to_owned(), cluster::grab_cluster_correction("0"), settings);
+
+        Box::into_raw(Box::new(coinc_data))
     }
 
-    pub fn search_coincidence(dir: &str, cluster_correction: &str, settings: Settings) -> Result<(), Tp3ErrorKind> {
-        //Creating the ElectronData structure
-        let mut coinc_data = ElectronData::new(dir.to_owned(), cluster::grab_cluster_correction(cluster_correction),settings);
-
-        //If folder exists, the procedure does not continue.
-        coinc_data.try_create_folder()?;
-        
-        //Opening the raw data file.
-        let mut file0 = match fs::File::open(&coinc_data.file) {
-            Ok(val) => val,
-            Err(_) => return Err(Tp3ErrorKind::CoincidenceCantReadFile),
+    #[no_mangle]
+    pub extern "C" fn search_coincidence_external(coinc_data: *mut ElectronData) -> u8 {
+        let deref = unsafe {&mut *coinc_data };
+        if let Err(_) = deref.prepare_to_search() {
+            return 1;
         };
+        search_coincidence(deref);
+        0
+    }
+
+    pub fn search_coincidence(coinc_data: &mut ElectronData){
+        //Opening the raw data file. We have already checked if the file opens so no worries here.
+        let mut file0 = fs::File::open(&coinc_data.file).unwrap();
 
         let progress_size = file0.metadata().unwrap().len();
         let main_tdc: TdcRef = if coinc_data.is_spim {
@@ -285,10 +285,7 @@ pub mod coincidence {
         let np_tdc = TdcRef::new_no_read(SECONDARY_TDC).expect("Could not create non periodic (photon) TDC reference.");
  
         let mut ci = 0;
-        let mut file = match fs::File::open(&coinc_data.file) {
-            Ok(val) => val,
-            Err(_) => return Err(Tp3ErrorKind::CoincidenceCantReadFile),
-        };
+        let mut file = fs::File::open(&coinc_data.file).unwrap();
 
         let mut buffer: Vec<u8> = vec![0; TP3_BUFFER_SIZE];
         let mut total_size = 0;
@@ -365,7 +362,6 @@ pub mod coincidence {
         }
         println!("Total number of bytes read {}", total_size);
         coinc_data.output_hyperspec();
-        Ok(())
     }
 }
 

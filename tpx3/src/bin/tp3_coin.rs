@@ -1,4 +1,5 @@
 use timepix3::postlib::coincidence::*;
+use timepix3::clusterlib::cluster;
 use timepix3::auxiliar::Settings;
 use std::{fs, env};
 use rayon::prelude::*;
@@ -46,9 +47,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if &dir[path_length - 4 ..path_length] == "tpx3" {
             if let Ok(settings) = Settings::get_settings_from_json(&dir[0..path_length - 5]) {
                 println!("***Coincidence***: File {} has the following settings from json: {:?}.", dir, settings);
-                if let Err(_) = search_coincidence(dir, cluster_correction, settings) {
-                    println!("***Coincidence***: Skipping file {}. Possibly already done it.", dir);
+                let mut electron_data = ElectronData::new(dir.to_owned(), cluster::grab_cluster_correction(cluster_correction), settings);
+                if let Err(error) = electron_data.prepare_to_search() {
+                    println!("***Coincidence***: Error during prepare: {:?}.", error);
                 }
+                search_coincidence(&mut electron_data);
             } else {
                 println!("***Coincidence***: Skipping file {}. No JSON file is present.", dir);
          }
