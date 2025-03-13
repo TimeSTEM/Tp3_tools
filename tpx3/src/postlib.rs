@@ -11,6 +11,7 @@ pub mod coincidence {
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
     use std::ffi::CStr;
+    use std::thread;
 
     //When we would like to have large E-PH timeoffsets, such as skipping entire line periods, the
     //difference between E-PH could not fit in i16. We fold these big numbers to fit in a i16
@@ -244,10 +245,10 @@ pub mod coincidence {
         let bytes = c_str.to_bytes();
 
         //Get the string slice
-        let str_slice = std::str::from_utf8(&bytes).unwrap();
+        let str_slice = std::str::from_utf8(&bytes).expect("Could not convert to string slice.");
         
         //Get the settings
-        let settings = Settings::get_settings_from_json(&str_slice[0..bytes.len()-5]).unwrap();
+        let settings = Settings::get_settings_from_json(&str_slice[0..bytes.len()-5]).expect("JSON not properly open.");
 
         //Creating the electron data structure
         let coinc_data = ElectronData::new(str_slice.to_owned(), cluster::grab_cluster_correction("0"), settings);
@@ -265,6 +266,26 @@ pub mod coincidence {
         search_coincidence(deref);
         0
     }
+
+   #[no_mangle]
+    pub extern "C" fn get_raw_relative_time(coinc_data: *mut ElectronData, length: *mut u32) -> *const i16 {
+        unsafe {
+            let s = &*coinc_data;
+            *length = s.channel.len() as u32;
+            s.rel_time.as_ptr()
+        }
+    }
+
+    #[no_mangle]
+    pub extern "C" fn add_to_value(value: *mut u32) {
+        unsafe {*value += 1 } ;
+    }
+
+    #[no_mangle]
+    pub extern "C" fn free_electron_data(coinc_data: *mut ElectronData) {
+        unsafe { drop(Box::from_raw(coinc_data)) } ;
+    }
+
 
     pub fn search_coincidence(coinc_data: &mut ElectronData){
         //Opening the raw data file. We have already checked if the file opens so no worries here.
