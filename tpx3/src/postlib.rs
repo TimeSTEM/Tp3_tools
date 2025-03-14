@@ -30,8 +30,6 @@ pub mod coincidence {
         reduced_raw_data: Vec<u64>,
         index_to_add_in_raw: Vec<usize>,
         coinc_electrons: CollectionElectron,
-        //pub channel: Vec<u8>,
-        //pub rel_time: Vec<i16>,
         spectrum: Vec<u32>,
         corr_spectrum: Vec<u32>,
         spim_frame: Vec<u32>,
@@ -98,8 +96,6 @@ pub mod coincidence {
         fn add_coincident_electron(&mut self, mut val: SingleElectron, photon: SinglePhoton) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[PIXELS_X as usize-1] += 1; //Adding the photon
-            //self.channel.push(photon.channel().try_into().unwrap());
-            //self.rel_time.push(val.relative_time_from_abs_tdc(photon.time()).fold());
             val.associate_coincident_photon(photon);
             self.coinc_electrons.add_electron(val);
         }
@@ -151,8 +147,6 @@ pub mod coincidence {
                 reduced_raw_data: Vec::new(),
                 index_to_add_in_raw: Vec::new(),
                 coinc_electrons: CollectionElectron::new(),
-                //channel: Vec::new(),
-                //rel_time: Vec::new(),
                 spim_frame: vec![0; (PIXELS_X * my_settings.xspim_size * my_settings.yspim_size) as usize],
                 spectrum: vec![0; PIXELS_X as usize],
                 corr_spectrum: vec![0; PIXELS_X as usize],
@@ -225,14 +219,6 @@ pub mod coincidence {
             output_data(&condensed_packet, self.file.clone(), "condensed_packet.txt");
             output_data(&spim_index, self.file.clone(), "si.txt");
             self.coinc_electrons.clear();
-            
-            //The photon channel
-            //output_data(&self.channel, self.file.clone(), "channel.txt");
-            //self.channel.clear();
-            
-            //The relative time
-            //output_data(&self.rel_time, self.file.clone(), "tH.txt");
-            //self.rel_time.clear();
 
             //Output corr EELS spectrum
             output_data(&self.corr_spectrum, self.file.clone(), "cspec.txt");
@@ -248,70 +234,7 @@ pub mod coincidence {
         }
             
     }
-
-    /*
-    #[no_mangle]
-    pub extern "C" fn create_electron_data(dir: *const i8) -> *mut ElectronData {
-        //Convert the directory *const u8 to CStr
-        let c_str = unsafe { CStr::from_ptr(dir) };
-
-        //Convert to a rust byte slice
-        let bytes = c_str.to_bytes();
-
-        //Get the string slice
-        let str_slice = std::str::from_utf8(&bytes).expect("Could not convert to string slice.");
-        
-        //Get the settings
-        let settings = Settings::get_settings_from_json(&str_slice[0..bytes.len()-5]).expect("JSON not properly open.");
-
-        //Creating the electron data structure
-        let coinc_data = ElectronData::new(str_slice.to_owned(), cluster::grab_cluster_correction("0"), settings, false);
-
-        //Returning the RAW pointer
-        Box::into_raw(Box::new(coinc_data))
-    }
-
-    #[no_mangle]
-    pub extern "C" fn search_coincidence_external(coinc_data: *mut ElectronData) -> u8 {
-        let deref = unsafe {&mut *coinc_data };
-        if let Err(_) = deref.prepare_to_search() {
-            return 1;
-        };
-        search_coincidence(deref);
-        0
-    }
-
-   #[no_mangle]
-    pub extern "C" fn get_raw_relative_time(coinc_data: *mut ElectronData, length: *mut u32) -> *const i16 {
-        unsafe {
-            let s = &*coinc_data;
-            *length = s.channel.len() as u32;
-            s.rel_time.as_ptr()
-        }
-    }
-   
-    #[no_mangle]
-    pub extern "C" fn get_raw_condensed_packet(coinc_data: *mut ElectronData, length: *mut u32) -> *const u64 {
-
-        unsafe {
-            let s = &*coinc_data;
-            let condensed_packet: Vec<u64> = s.coinc_electrons.iter().map(|se| se.raw_packet_data().modified_packet_data()).collect();
-            *length = condensed_packet.len() as u32;
-            condensed_packet.as_ptr()
-        }
-    }
-
-    #[no_mangle]
-    pub extern "C" fn add_to_value(value: *mut u32) {
-        unsafe {*value += 1 } ;
-    }
-
-    #[no_mangle]
-    pub extern "C" fn free_electron_data(coinc_data: *mut ElectronData) {
-        unsafe { drop(Box::from_raw(coinc_data)) } ;
-    }
-    */
-
+    
     pub fn search_coincidence(coinc_data: &mut ElectronData){
         //Opening the raw data file. We have already checked if the file opens so no worries here.
         let mut file0 = fs::File::open(&coinc_data.file).unwrap();
