@@ -9,8 +9,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     //Pick ONE!
     //let config_set = ConfigAcquisition::new(&args, cluster::ClusterCorrectionTypes::FixedToTCalibration(30, 60));
-    let config_set = ConfigAcquisition::new(&args, cluster::ClusterCorrectionTypes::MuonTrack);
+    //let config_set = ConfigAcquisition::new(&args, cluster::ClusterCorrectionTypes::MuonTrack);
     //let config_set = ConfigAcquisition::new(&args, cluster::SingleClusterToTCalibration);
+    let config_set = ConfigAcquisition::new(&args, cluster::ClusterCorrectionTypes::NoCorrection);
     
     //let config_set = ConfigAcquisition::new(&args, cluster::NoCorrectionVerbose);
     //let config_set = ConfigAcquisition::new(&args, cluster::AverageCorrection);

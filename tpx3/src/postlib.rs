@@ -2,20 +2,18 @@ pub mod coincidence {
     use crate::packetlib::Packet;
     use crate::tdclib::TdcRef;
     use crate::errorlib::Tp3ErrorKind;
-    use crate::clusterlib::{cluster, cluster::ClusterCorrectionTypes};
+    use crate::clusterlib::cluster::ClusterCorrectionTypes;
     use std::io::prelude::*;
     use std::fs;
-    use std::convert::TryInto;
     use crate::clusterlib::cluster::{SingleElectron, CollectionElectron, SinglePhoton, CollectionPhoton};
     use crate::auxiliar::{Settings, value_types::*, misc::{output_data, packet_change}, FileManager};
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
-    use std::ffi::CStr;
 
     //When we would like to have large E-PH timeoffsets, such as skipping entire line periods, the
     //difference between E-PH could not fit in i16. We fold these big numbers to fit in a i16
     //vector, and thus reducing the size of the output data
-    trait FoldNumber<T>: Sized {
+    pub trait FoldNumber<T>: Sized {
         fn fold(self) -> T;
     }
 
@@ -34,8 +32,8 @@ pub mod coincidence {
         corr_spectrum: Vec<u32>,
         spim_frame: Vec<u32>,
         is_spim: bool,
-        spim_size: (POSITION, POSITION),
-        spim_tdc: Option<TdcRef>,
+        pub spim_size: (POSITION, POSITION),
+        pub spim_tdc: Option<TdcRef>,
         remove_clusters: ClusterCorrectionTypes,
         file: String,
         my_settings: Settings,
@@ -188,8 +186,37 @@ pub mod coincidence {
         pub fn get_electron_collection(&self) -> &CollectionElectron {
             &self.coinc_electrons
         }
+        pub fn create_x(&self) -> Vec<u16> {
+            self.coinc_electrons.iter().map(|se| se.x() as u16).collect()
+        }
+        pub fn create_y(&self) -> Vec<u16> {
+            self.coinc_electrons.iter().map(|se| se.y() as u16).collect()
+        }
+        pub fn create_channel(&self) -> Vec<u8> {
+            self.coinc_electrons.iter().map(|se| se.coincident_photon().unwrap().channel() as u8).collect()
+        }
+        pub fn create_tot(&self) -> Vec<u16> {
+            self.coinc_electrons.iter().map(|se| se.tot()).collect()
+        }
+        pub fn create_abs_time(&self) -> Vec<TIME> {
+            self.coinc_electrons.iter().map(|se| se.time()).collect()
+        }
+        pub fn create_rel_time(&self) -> Vec<i16> {
+            self.coinc_electrons.iter().map(|se| se.relative_time_from_coincident_photon().unwrap().fold()).collect()
+        }
+        pub fn create_condensed_packet(&self) -> Vec<u64> {
+            self.coinc_electrons.iter().map(|se| se.raw_packet_data().modified_packet_data()).collect()
+        }
+        pub fn create_spim_index(&self) -> Vec<INDEXHYPERSPEC> {
+            self.coinc_electrons.iter().map(|se| se.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)).collect()
+        }
 
         fn early_output_data(&mut self) {
+            
+            //We always create the reduced raw data. Much safer this way
+            output_data(&self.reduced_raw_data, self.file.clone(), "reduced_raw.tpx3");
+            self.reduced_raw_data.clear();
+            
             //This reorders the packet based on how they have arrived. If you are in the middle of
             //a time overflow and sort the data, output data would be strange without this.
             self.coinc_electrons.reorder_by_packet_index();
@@ -197,18 +224,14 @@ pub mod coincidence {
             //Check if we should save locally. If not, we get away from this func
             if !self.save_locally { return; };
             
-            let channel: Vec<u16> = self.coinc_electrons.iter().map(|se| se.coincident_photon().unwrap().channel() as u16).collect();
-            let relative_time: Vec<i16> = self.coinc_electrons.iter().map(|se| se.relative_time_from_coincident_photon().unwrap().fold()).collect();
-            let x: Vec<u16> = self.coinc_electrons.iter().map(|se| se.x() as u16).collect();
-            let y: Vec<u16> = self.coinc_electrons.iter().map(|se| se.y() as u16).collect();
-            let tot: Vec<u16> = self.coinc_electrons.iter().map(|se| se.tot()).collect();
-            let time: Vec<TIME> = self.coinc_electrons.iter().map(|se| se.time()).collect();
-            let condensed_packet: Vec<u64> = self.coinc_electrons.iter().map(|se| se.raw_packet_data().modified_packet_data()).collect();
-            let spim_index: Vec<INDEXHYPERSPEC> = self.coinc_electrons.
-                iter().
-                map(|se| 
-                    se.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)
-            ).collect();
+            let channel: Vec<u8> = self.create_channel();
+            let relative_time: Vec<i16> = self.create_rel_time();
+            let x: Vec<u16> = self.create_x();
+            let y: Vec<u16> = self.create_y();
+            let tot: Vec<u16> = self.create_tot();
+            let time: Vec<TIME> = self.create_abs_time();
+            let condensed_packet: Vec<u64> = self.create_condensed_packet();
+            let spim_index: Vec<INDEXHYPERSPEC> = self.create_spim_index();
             
             output_data(&channel, self.file.clone(), "channel.txt");
             output_data(&relative_time, self.file.clone(), "tH.txt");
@@ -228,9 +251,6 @@ pub mod coincidence {
             output_data(&self.spectrum, self.file.clone(), "spec.txt");
             self.spectrum.iter_mut().for_each(|x| *x = 0);
             
-            //Unrelated with the ordered ones above
-            output_data(&self.reduced_raw_data, self.file.clone(), "reduced_raw.tpx3");
-            self.reduced_raw_data.clear();
         }
             
     }
