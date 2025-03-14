@@ -128,10 +128,10 @@ pub mod cluster {
         }
     }
 
-    ///ToA, X, Y, ToT, Spim dT, Spim Slice, Cluster Size, raw packet, packet index, Spim Line
+    ///Spim dT, Spim Slice, Cluster Size, raw packet, packet index, Spim Line, CoincidencePhoton
     #[derive(Copy, Clone, Eq)]
     pub struct SingleElectron {
-        data: (Option<TIME>, Option<POSITION>, Option<POSITION>, Option<u16>, TIME, COUNTER, u16, Packet, usize, POSITION),
+        data: (TIME, COUNTER, u16, Packet, usize, POSITION, Option<SinglePhoton>),
     }
     
     ///Important for sorting
@@ -158,46 +158,52 @@ pub mod cluster {
                     let ele_time = spim_tdc.correct_or_not_etime(pack.electron_time()).unwrap();
                     let frame = spim_tdc.frame().unwrap_or(0);
                     SingleElectron {
-                        data: (None, None, None, None, ele_time, frame, 1, *pack, raw_index, spim_tdc.current_line().unwrap())
+                        data: (ele_time, frame, 1, *pack, raw_index, spim_tdc.current_line().unwrap(), None)
                     }
                 },
                 None => {
                     SingleElectron {
-                        data: (None, None, None, None, 0, 0, 1, *pack, raw_index, 0),
+                        data: (0, 0, 1, *pack, raw_index, 0, None),
                     }
                 },
             }
         }
 
         pub fn time(&self) -> TIME {
-            self.data.0.unwrap_or_else(|| self.raw_packet_data().electron_time())
+            self.raw_packet_data().electron_time()
         }
         pub fn x(&self) -> POSITION {
-            self.data.1.unwrap_or_else(|| self.raw_packet_data().x())
+            self.raw_packet_data().x()
         }
         pub fn y(&self) -> POSITION {
-            self.data.2.unwrap_or_else(|| self.raw_packet_data().y())
+            self.raw_packet_data().y()
         }
         pub fn tot(&self) -> u16 {
-            self.data.3.unwrap_or_else(|| self.raw_packet_data().tot())
+            self.raw_packet_data().tot()
         }
         pub fn frame_dt(&self) -> TIME {
-            self.data.4
+            self.data.0
         } 
         pub fn spim_slice(&self) -> COUNTER {
-            self.data.5
+            self.data.1
         }
         pub fn cluster_size(&self) -> u16 {
-            self.data.6
+            self.data.2
         }
         pub fn raw_packet_data(&self) -> Packet {
-            self.data.7
+            self.data.3
         }
         pub fn raw_packet_index(&self) -> usize {
-            self.data.8
+            self.data.4
         }
         pub fn spim_line(&self) -> POSITION {
-            self.data.9
+            self.data.5
+        }
+        pub fn coincident_photon(&self) -> Option<SinglePhoton> {
+            self.data.6
+        }
+        pub fn associate_coincident_photon(&mut self, photon: SinglePhoton) {
+            self.data.6 = Some(photon)
         }
         pub fn image_index(&self) -> POSITION {
             self.x() + PIXELS_X*self.y()
@@ -209,6 +215,11 @@ pub mod cluster {
         //electron bin is ~0.260 ps
         pub fn relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
             (self.time()*6) as i64 - reference_time as i64
+        }
+        //Similar to the function above, but it uses the coincident photon associated already
+        pub fn relative_time_from_coincident_photon(&self) -> Option<i64> {
+            let reference_time = self.coincident_photon()?.time();
+            Some((self.time()*6) as i64 - reference_time as i64)
         }
         fn tot_to_energy(&self) -> u16 {
             let index = self.x() as usize + 1024 * self.y() as usize;
@@ -379,36 +390,46 @@ pub mod cluster {
     pub fn grab_cluster_correction(val: &str) -> ClusterCorrectionTypes {
         match val {
             "0" => ClusterCorrectionTypes::NoCorrection,
-            "1" => ClusterCorrectionTypes::AverageCorrection,
-            "2" => ClusterCorrectionTypes::LargestToT,
-            "3" => ClusterCorrectionTypes::LargestToTWithThreshold(20, 100),
-            "4" => ClusterCorrectionTypes::ClosestToTWithThreshold(50, 20, 100),
-            "5" => ClusterCorrectionTypes::FixedToT(10),
-            "6" => ClusterCorrectionTypes::FixedToTCalibration(30, 60),
-            "7" => ClusterCorrectionTypes::NoCorrectionVerbose,
-            "8" => ClusterCorrectionTypes::SingleClusterToTCalibration,
+            //"1" => ClusterCorrectionTypes::AverageCorrection,
+            //"2" => ClusterCorrectionTypes::LargestToT,
+            //"3" => ClusterCorrectionTypes::LargestToTWithThreshold(20, 100),
+            //"4" => ClusterCorrectionTypes::ClosestToTWithThreshold(50, 20, 100),
+            //"5" => ClusterCorrectionTypes::FixedToT(10),
+            //"6" => ClusterCorrectionTypes::FixedToTCalibration(30, 60),
+            //"7" => ClusterCorrectionTypes::NoCorrectionVerbose,
+            //"8" => ClusterCorrectionTypes::SingleClusterToTCalibration,
             _ => ClusterCorrectionTypes::NoCorrection,
         }
     }
 
     #[derive(Debug)]
     pub enum ClusterCorrectionTypes {
-        AverageCorrection,
-        LargestToT,
-        LargestToTWithThreshold(u16, u16), //Threshold min and max
-        ClosestToTWithThreshold(u16, u16, u16), //Reference, Threshold min and max
-        FixedToT(u16), //Reference
-        FixedToTCalibration(u16, u16), //Reference
-        MuonTrack,
         NoCorrection,
-        NoCorrectionVerbose,
-        SingleClusterToTCalibration,
+        //AverageCorrection,
+        //LargestToT,
+        //LargestToTWithThreshold(u16, u16), //Threshold min and max
+        //ClosestToTWithThreshold(u16, u16, u16), //Reference, Threshold min and max
+        //FixedToT(u16), //Reference
+        //FixedToTCalibration(u16, u16), //Reference
+        //MuonTrack,
+        //NoCorrectionVerbose,
+        //SingleClusterToTCalibration,
     }
 
     impl ClusterCorrectionTypes {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
 
             match &self {
+                ClusterCorrectionTypes::NoCorrection => {
+                    let mut val = CollectionElectron::new();
+                    for electron in cluster {
+                        val.add_electron(SingleElectron{
+                            data: (electron.frame_dt(), electron.spim_slice(), 1, electron.raw_packet_data(), electron.raw_packet_index(), 0, electron.coincident_photon()),
+                        });
+                    }
+                    Some(val)
+                },
+                /*
                 ClusterCorrectionTypes::AverageCorrection => {
                     let cluster_size = cluster.len() as u16;
                     let t_mean:TIME = cluster.iter().
@@ -601,15 +622,6 @@ pub mod cluster {
                     }
                     Some(val)
                 },
-                ClusterCorrectionTypes::NoCorrection => {
-                    let mut val = CollectionElectron::new();
-                    for electron in cluster {
-                        val.add_electron(SingleElectron{
-                            data: (None, None, None, None, electron.frame_dt(), electron.spim_slice(), 1, electron.raw_packet_data(), electron.raw_packet_index(), 0),
-                        });
-                    }
-                    Some(val)
-                },
                 ClusterCorrectionTypes::NoCorrectionVerbose => {
                     let cluster_size = cluster.len() as u16;
                     let mut val = CollectionElectron::new();
@@ -631,6 +643,7 @@ pub mod cluster {
                     }
                     Some(val)
                 },
+                */
             }
 
         }
@@ -640,18 +653,18 @@ pub mod cluster {
                 _ => true,
             }
         }
-        pub fn set_thresholds(&mut self, min_value: u16, max_value: u16) {
+        pub fn set_thresholds(&mut self, _min_value: u16, _max_value: u16) {
             match self {
-                ClusterCorrectionTypes::LargestToTWithThreshold(min, max) => {*min = min_value; *max=max_value;},
-                ClusterCorrectionTypes::ClosestToTWithThreshold(_, min, max) => {*min = min_value; *max = max_value},
+                //ClusterCorrectionTypes::LargestToTWithThreshold(min, max) => {*min = min_value; *max=max_value;},
+                //ClusterCorrectionTypes::ClosestToTWithThreshold(_, min, max) => {*min = min_value; *max = max_value},
                 _ => {},
             }
         }
-        pub fn set_reference(&mut self, reference: u16) {
+        pub fn set_reference(&mut self, _reference: u16) {
             match self {
-                ClusterCorrectionTypes::FixedToT(ref_value) => {*ref_value = reference}
-                ClusterCorrectionTypes::ClosestToTWithThreshold(ref_value, _, _) => {*ref_value = reference}
-                ClusterCorrectionTypes::FixedToTCalibration(ref_value, _) => {*ref_value = reference}
+                //ClusterCorrectionTypes::FixedToT(ref_value) => {*ref_value = reference}
+                //ClusterCorrectionTypes::ClosestToTWithThreshold(ref_value, _, _) => {*ref_value = reference}
+                //ClusterCorrectionTypes::FixedToTCalibration(ref_value, _) => {*ref_value = reference}
                 _ => {},
             }
         }

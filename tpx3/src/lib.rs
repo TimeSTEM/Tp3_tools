@@ -14,3 +14,4 @@ pub mod speclib;
 pub mod spimlib;
 pub mod errorlib;
 pub mod clusterlib;
+pub mod external;

@@ -11,7 +11,6 @@ pub mod coincidence {
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
     use std::ffi::CStr;
-    use std::thread;
 
     //When we would like to have large E-PH timeoffsets, such as skipping entire line periods, the
     //difference between E-PH could not fit in i16. We fold these big numbers to fit in a i16
@@ -30,9 +29,9 @@ pub mod coincidence {
     pub struct ElectronData {
         reduced_raw_data: Vec<u64>,
         index_to_add_in_raw: Vec<usize>,
-        coinc_electrons: CollectionElectron,
-        channel: Vec<u8>,
-        rel_time: Vec<i16>,
+        pub coinc_electrons: CollectionElectron,
+        //pub channel: Vec<u8>,
+        //pub rel_time: Vec<i16>,
         spectrum: Vec<u32>,
         corr_spectrum: Vec<u32>,
         spim_frame: Vec<u32>,
@@ -42,6 +41,7 @@ pub mod coincidence {
         remove_clusters: ClusterCorrectionTypes,
         file: String,
         my_settings: Settings,
+        save_locally: bool
     }
 
     impl ElectronData {
@@ -95,11 +95,12 @@ pub mod coincidence {
                 .upt(pack.tdc_time_norm(), pack.tdc_counter());
         }
 
-        fn add_coincident_electron(&mut self, val: SingleElectron, photon: SinglePhoton) {
+        fn add_coincident_electron(&mut self, mut val: SingleElectron, photon: SinglePhoton) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[PIXELS_X as usize-1] += 1; //Adding the photon
-            self.channel.push(photon.channel().try_into().unwrap());
-            self.rel_time.push(val.relative_time_from_abs_tdc(photon.time()).fold());
+            //self.channel.push(photon.channel().try_into().unwrap());
+            //self.rel_time.push(val.relative_time_from_abs_tdc(photon.time()).fold());
+            val.associate_coincident_photon(photon);
             self.coinc_electrons.add_electron(val);
         }
         
@@ -145,13 +146,13 @@ pub mod coincidence {
             self.spim_tdc = Some(spim_tdc);
         }
 
-        pub fn new(file_path: String, correction_type: ClusterCorrectionTypes, my_settings: Settings) -> Self {
+        pub fn new(file_path: String, correction_type: ClusterCorrectionTypes, my_settings: Settings, save_locally: bool) -> Self {
             Self {
                 reduced_raw_data: Vec::new(),
                 index_to_add_in_raw: Vec::new(),
                 coinc_electrons: CollectionElectron::new(),
-                channel: Vec::new(),
-                rel_time: Vec::new(),
+                //channel: Vec::new(),
+                //rel_time: Vec::new(),
                 spim_frame: vec![0; (PIXELS_X * my_settings.xspim_size * my_settings.yspim_size) as usize],
                 spectrum: vec![0; PIXELS_X as usize],
                 corr_spectrum: vec![0; PIXELS_X as usize],
@@ -161,6 +162,7 @@ pub mod coincidence {
                 remove_clusters: correction_type,
                 file: file_path,
                 my_settings,
+                save_locally,
             }
         } 
 
@@ -180,7 +182,7 @@ pub mod coincidence {
         }
 
         pub fn prepare_to_search(&self) -> Result<(), Tp3ErrorKind> {
-            self.try_create_folder()?;
+            if self.save_locally { self.try_create_folder()?; };
             self.is_file_readable()?;
             Ok(())
         }
@@ -192,8 +194,13 @@ pub mod coincidence {
         fn early_output_data(&mut self) {
             //This reorders the packet based on how they have arrived. If you are in the middle of
             //a time overflow and sort the data, output data would be strange without this.
-            self.coinc_electrons.reorder_by_packet_index();
+            //self.coinc_electrons.reorder_by_packet_index();
+
+            //Check if we should save locally. If not, we get away from this func
+            if !self.save_locally { return; };
             
+            let channel: Vec<u16> = self.coinc_electrons.iter().map(|se| se.coincident_photon().unwrap().channel() as u16).collect();
+            let relative_time: Vec<i16> = self.coinc_electrons.iter().map(|se| se.relative_time_from_coincident_photon().unwrap().fold()).collect();
             let x: Vec<u16> = self.coinc_electrons.iter().map(|se| se.x() as u16).collect();
             let y: Vec<u16> = self.coinc_electrons.iter().map(|se| se.y() as u16).collect();
             let tot: Vec<u16> = self.coinc_electrons.iter().map(|se| se.tot()).collect();
@@ -205,6 +212,8 @@ pub mod coincidence {
                     se.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)
             ).collect();
             
+            output_data(&channel, self.file.clone(), "channel.txt");
+            output_data(&relative_time, self.file.clone(), "tH.txt");
             output_data(&x, self.file.clone(), "xH.txt");
             output_data(&y, self.file.clone(), "yH.txt");
             output_data(&tot, self.file.clone(), "tot.txt");
@@ -214,12 +223,12 @@ pub mod coincidence {
             self.coinc_electrons.clear();
             
             //The photon channel
-            output_data(&self.channel, self.file.clone(), "channel.txt");
-            self.channel.clear();
+            //output_data(&self.channel, self.file.clone(), "channel.txt");
+            //self.channel.clear();
             
             //The relative time
-            output_data(&self.rel_time, self.file.clone(), "tH.txt");
-            self.rel_time.clear();
+            //output_data(&self.rel_time, self.file.clone(), "tH.txt");
+            //self.rel_time.clear();
 
             //Output corr EELS spectrum
             output_data(&self.corr_spectrum, self.file.clone(), "cspec.txt");
@@ -236,6 +245,7 @@ pub mod coincidence {
             
     }
 
+    /*
     #[no_mangle]
     pub extern "C" fn create_electron_data(dir: *const i8) -> *mut ElectronData {
         //Convert the directory *const u8 to CStr
@@ -251,7 +261,7 @@ pub mod coincidence {
         let settings = Settings::get_settings_from_json(&str_slice[0..bytes.len()-5]).expect("JSON not properly open.");
 
         //Creating the electron data structure
-        let coinc_data = ElectronData::new(str_slice.to_owned(), cluster::grab_cluster_correction("0"), settings);
+        let coinc_data = ElectronData::new(str_slice.to_owned(), cluster::grab_cluster_correction("0"), settings, false);
 
         //Returning the RAW pointer
         Box::into_raw(Box::new(coinc_data))
@@ -275,6 +285,17 @@ pub mod coincidence {
             s.rel_time.as_ptr()
         }
     }
+   
+    #[no_mangle]
+    pub extern "C" fn get_raw_condensed_packet(coinc_data: *mut ElectronData, length: *mut u32) -> *const u64 {
+
+        unsafe {
+            let s = &*coinc_data;
+            let condensed_packet: Vec<u64> = s.coinc_electrons.iter().map(|se| se.raw_packet_data().modified_packet_data()).collect();
+            *length = condensed_packet.len() as u32;
+            condensed_packet.as_ptr()
+        }
+    }
 
     #[no_mangle]
     pub extern "C" fn add_to_value(value: *mut u32) {
@@ -285,7 +306,7 @@ pub mod coincidence {
     pub extern "C" fn free_electron_data(coinc_data: *mut ElectronData) {
         unsafe { drop(Box::from_raw(coinc_data)) } ;
     }
-
+    */
 
     pub fn search_coincidence(coinc_data: &mut ElectronData){
         //Opening the raw data file. We have already checked if the file opens so no worries here.
