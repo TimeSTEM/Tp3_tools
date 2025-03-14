@@ -29,7 +29,7 @@ pub mod coincidence {
     pub struct ElectronData {
         reduced_raw_data: Vec<u64>,
         index_to_add_in_raw: Vec<usize>,
-        pub coinc_electrons: CollectionElectron,
+        coinc_electrons: CollectionElectron,
         //pub channel: Vec<u8>,
         //pub rel_time: Vec<i16>,
         spectrum: Vec<u32>,
@@ -191,10 +191,14 @@ pub mod coincidence {
             output_data(&self.spim_frame, self.file.clone(), "spim_frame.txt");
         }
 
+        pub fn get_electron_collection(&self) -> &CollectionElectron {
+            &self.coinc_electrons
+        }
+
         fn early_output_data(&mut self) {
             //This reorders the packet based on how they have arrived. If you are in the middle of
             //a time overflow and sort the data, output data would be strange without this.
-            //self.coinc_electrons.reorder_by_packet_index();
+            self.coinc_electrons.reorder_by_packet_index();
 
             //Check if we should save locally. If not, we get away from this func
             if !self.save_locally { return; };
