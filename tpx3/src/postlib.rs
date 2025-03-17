@@ -32,12 +32,12 @@ pub mod coincidence {
         corr_spectrum: Vec<u32>,
         spim_frame: Vec<u32>,
         is_spim: bool,
-        pub spim_size: (POSITION, POSITION),
-        pub spim_tdc: Option<TdcRef>,
+        spim_size: (POSITION, POSITION),
+        spim_tdc: Option<TdcRef>,
         remove_clusters: ClusterCorrectionTypes,
         file: String,
         my_settings: Settings,
-        save_locally: bool
+        save_locally: bool,
     }
 
     impl ElectronData {
@@ -117,7 +117,8 @@ pub mod coincidence {
             //Adding electrons to the spectra image
             temp_edata.iter().for_each(|electron| self.add_electron(*electron));
 
-            //This effectivelly searches for coincidence.
+            //This effectivelly searches for coincidence. It also adds electrons in
+            //self.index_to_add_in_raw.
             let (coinc_electron, coinc_photon) = temp_edata.search_coincidence(temp_tdc, &mut self.index_to_add_in_raw, &mut min_index, time_delay, time_width);
             coinc_electron.iter().zip(coinc_photon.iter()).for_each(|(ele, pho)| self.add_coincident_electron(*ele, *pho));
 
@@ -173,13 +174,14 @@ pub mod coincidence {
             }
         }
 
-        pub fn prepare_to_search(&self) -> Result<(), Tp3ErrorKind> {
-            if self.save_locally { self.try_create_folder()?; };
+        pub fn prepare_to_search(&mut self) -> Result<(), Tp3ErrorKind> {
+            if self.save_locally {self.try_create_folder()?;};
             self.is_file_readable()?;
             Ok(())
         }
         
         fn output_hyperspec(&self) {
+            if !self.save_locally { return; };
             output_data(&self.spim_frame, self.file.clone(), "spim_frame.txt");
         }
 
@@ -212,16 +214,10 @@ pub mod coincidence {
         }
 
         fn early_output_data(&mut self) {
-            
-            //We always create the reduced raw data. Much safer this way
-            output_data(&self.reduced_raw_data, self.file.clone(), "reduced_raw.tpx3");
-            self.reduced_raw_data.clear();
-            
             //This reorders the packet based on how they have arrived. If you are in the middle of
             //a time overflow and sort the data, output data would be strange without this.
             self.coinc_electrons.reorder_by_packet_index();
 
-            //Check if we should save locally. If not, we get away from this func
             if !self.save_locally { return; };
             
             let channel: Vec<u8> = self.create_channel();
@@ -250,12 +246,16 @@ pub mod coincidence {
             //Output total EELS spectrum
             output_data(&self.spectrum, self.file.clone(), "spec.txt");
             self.spectrum.iter_mut().for_each(|x| *x = 0);
+                
+            //Output reduced raw
+            output_data(&self.reduced_raw_data, self.file.clone(), "reduced_raw.tpx3");
+            self.reduced_raw_data.clear();
             
         }
             
     }
     
-    pub fn search_coincidence(coinc_data: &mut ElectronData){
+    pub fn search_coincidence(coinc_data: &mut ElectronData, limit_read_size: u32){
         //Opening the raw data file. We have already checked if the file opens so no worries here.
         let mut file0 = fs::File::open(&coinc_data.file).unwrap();
 
@@ -287,7 +287,7 @@ pub mod coincidence {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
-            if LIMIT_READ && total_size >= LIMIT_READ_SIZE {break;}
+            if limit_read_size != 0 && total_size as u32 >= limit_read_size {break;}
             bar.inc(TP3_BUFFER_SIZE as u64);
             let mut temp_edata = CollectionElectron::new();
             let mut temp_tdc = CollectionPhoton::new();

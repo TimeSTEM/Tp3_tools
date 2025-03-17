@@ -42,10 +42,6 @@ pub const CLUSTER_SPATIAL: isize = 4; // If electron hit position in both X or Y
 pub static ATOT: &[u8; 1024 * 256 * 4] = include_bytes!("atot_v2.dat");
 pub static BTOT: &[u8; 1024 * 256 * 4] = include_bytes!("btot_v2.dat");
 
-//***POSTLIB***//
-pub const LIMIT_READ: bool = false; //early break of the file processing
-pub const LIMIT_READ_SIZE: usize = 5_000_000_000; //5GB limitations
-
 //Coincidence values using the Timepix3//
 pub const TP3_BUFFER_SIZE: usize = 512_000_000; //Buffer size when reading files
 pub const PHOTON_LIST_STEP: usize = 5; //How many photons in the list before a step is taken during coincidence searching

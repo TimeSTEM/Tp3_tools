@@ -461,6 +461,8 @@ pub mod misc {
     pub fn output_data<T>(data: &[T], filename: String, name: &str) {
         let len = filename.len();
         let complete_filename = filename[..len-5].to_string() + "/" + name;
+        output_data_raw(data, complete_filename);
+        /*
         let mut tfile = OpenOptions::new()
             .write(true)
             .append(true)
@@ -468,6 +470,18 @@ pub mod misc {
             .open(complete_filename).unwrap();
         tfile.write_all(as_bytes(data)).unwrap();
         //println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
+        */
+    }
+
+    //Creates a file and appends over. Filename must be a .tpx3 file. Data is appended in a folder
+    //of the same name, that must be previously created
+    pub fn output_data_raw<T>(data: &[T], filename: String) {
+        let mut tfile = OpenOptions::new()
+            .write(true)
+            .append(true)
+            .create(true)
+            .open(filename).unwrap();
+        tfile.write_all(as_bytes(data)).unwrap();
     }
 
 }
