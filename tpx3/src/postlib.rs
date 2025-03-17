@@ -209,6 +209,9 @@ pub mod coincidence {
         pub fn create_condensed_packet(&self) -> Vec<u64> {
             self.coinc_electrons.iter().map(|se| se.raw_packet_data().modified_packet_data()).collect()
         }
+        pub fn create_reduced_raw(&self) -> &[u64] {
+            &self.reduced_raw_data
+        }
         pub fn create_spim_index(&self) -> Vec<INDEXHYPERSPEC> {
             self.coinc_electrons.iter().map(|se| se.get_or_not_spim_index(self.spim_tdc, self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)).collect()
         }
