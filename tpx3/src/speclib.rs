@@ -27,12 +27,12 @@ pub struct ShutterControl {
 impl ShutterControl {
     fn try_set_time(&mut self, timestamp: TIME, ci: u8, shutter_closed: bool) -> bool {
         //When shutter_closed is true, we receive electrons as packets. Shutter_closed false means a new frame just
-        //started, but we must wait <ACQUISITION_TIME> in order to close it and receive our data
+        //started, and we must wait <ACQUISITION_TIME> in order to shutter to close and receive our data.
         let ci = ci as usize;
         self.shutter_closed_status[ci] = shutter_closed;
         if !shutter_closed && self.time[ci] != timestamp {
-            //first false in which all timestemps differ is the frame_condition. The shutter just
-            //opened in one chip so electrons are not arriving as packets anymore.
+            //first false (new frame) in which all timestemps differ is the frame_condition. The shutter just
+            //opened in one chip so electrons are not arriving as packets anymore. Frame is ready.
             let temp2 = if HIGH_DYNAMIC_FRAME_BASED {
                 self.time.iter().all(|val| *val != timestamp) && self.counter[ci] % HIGH_DYNAMIC_FRAME_BASED_VALUE  == 0
             } else {
@@ -671,6 +671,7 @@ impl SpecKind for Live2DFrame {
 
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
         self.timer = Instant::now();
+        self.is_ready = false;
     }
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()
@@ -733,6 +734,7 @@ impl SpecKind for Live1DFrame {
         //Empty. The shutter control defines the behaviour and not the TCP stack, but we reset the
         //timer. We also reset the counter in case we use it for high dynamic measurements
         self.timer = Instant::now();
+        self.is_ready = false;
     }
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()
