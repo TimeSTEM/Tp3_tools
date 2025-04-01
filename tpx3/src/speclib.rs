@@ -671,7 +671,6 @@ impl SpecKind for Live2DFrame {
 
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
         self.timer = Instant::now();
-        self.is_ready = false;
     }
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()
@@ -734,7 +733,6 @@ impl SpecKind for Live1DFrame {
         //Empty. The shutter control defines the behaviour and not the TCP stack, but we reset the
         //timer. We also reset the counter in case we use it for high dynamic measurements
         self.timer = Instant::now();
-        self.is_ready = false;
     }
     fn shutter_control(&self) -> Option<&ShutterControl> {
         self.shutter.as_ref()
