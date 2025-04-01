@@ -621,7 +621,7 @@ pub struct Live2DFrame {
 
 impl SpecKind for Live2DFrame {
     fn is_ready(&self) -> bool {
-        self.is_ready
+        self.is_ready && self.timer.elapsed().as_millis() > TIME_INTERVAL_FRAMES
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
         as_bytes(&self.data)
@@ -647,25 +647,14 @@ impl SpecKind for Live2DFrame {
     }
     fn add_shutter_hit(&mut self, pack: &Packet, _frame_tdc: &mut TdcRef, settings: &Settings) {
         let temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
-        if !self.is_ready { //It was not ready before
+        
+        if !self.is_ready {
             self.is_ready = temp_ready;
-            if self.is_ready {
-                if self.timer.elapsed().as_millis() < TIME_INTERVAL_FRAMES {
-                    self.is_ready = false;
-                    if !settings.cumul { //No cumulation
-                        self.data.iter_mut().for_each(|x| *x = 0);
-                    }
-                } else {
-                    self.is_ready = true;
-                }
+        } else if temp_ready {
+            if !settings.cumul {
+                self.data.iter_mut().for_each(|x| *x = 0);
             }
-        } else { //It was already ready, so a second ready is not sent
-            if temp_ready {
-                if !settings.cumul { //No cumulation
-                    self.data.iter_mut().for_each(|x| *x = 0);
-                }
-                self.is_ready = false;
-            }
+            self.is_ready = false;
         }
     }
 
@@ -689,7 +678,7 @@ pub struct Live1DFrame {
 
 impl SpecKind for Live1DFrame {
     fn is_ready(&self) -> bool {
-        self.is_ready
+        self.is_ready && self.timer.elapsed().as_millis() > TIME_INTERVAL_FRAMES
     }
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
         as_bytes(&self.data)
