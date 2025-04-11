@@ -481,7 +481,7 @@ impl SpecKind for Coincidence2D {
         self.aux_data.remove(0);
     }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        frame_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
         self.aux_data2.push(pack.tdc_time_norm());
         self.aux_data2.remove(0);
     }

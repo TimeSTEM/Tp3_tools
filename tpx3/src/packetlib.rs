@@ -217,6 +217,8 @@ impl Packet {
     }
     
     #[inline]
+    ///This value goes to a maximum of the electron time overflow. Guarantee that tdc_time_norm -
+    ///electron_time >= 0.
     pub fn tdc_time_norm(&self) -> TIME {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();

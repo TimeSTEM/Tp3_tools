@@ -306,7 +306,7 @@ impl TdcRef {
     }
 
     pub fn period(&self) -> Option<TIME> {
-        Some(self.period? >> PERIOD_DIVIDER)
+        Some(self.period?)
     }
 
     pub fn new_frame(&self) -> bool {

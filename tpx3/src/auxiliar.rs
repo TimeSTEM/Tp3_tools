@@ -320,6 +320,7 @@ pub mod misc {
     use crate::errorlib::Tp3ErrorKind;
     use crate::auxiliar::Settings;
     use crate::auxiliar::value_types::*;
+    use crate::constlib::*;
     use crate::tdclib::TdcRef;
     use std::net::TcpStream;
     use std::fs::File;
@@ -429,12 +430,13 @@ pub mod misc {
         let last_tdc_time = ref_tdc.time();
      
         //This case photon time is always greater than electron time
+        let xper;
         let eff_tdc = if last_tdc_time > ele_time {
-            let xper = (last_tdc_time - ele_time) / period;
-            last_tdc_time - xper * period
+            xper = ((last_tdc_time - ele_time) * PERIOD_DIVIDER) / period;
+            last_tdc_time - (xper * period) / PERIOD_DIVIDER
         } else {
-            let xper = (ele_time - last_tdc_time) / period + 1;
-            last_tdc_time + xper * period
+            xper = ((ele_time - last_tdc_time) * PERIOD_DIVIDER) / period + 1;
+            last_tdc_time + (xper * period) / PERIOD_DIVIDER
         };
         if ele_time + settings.time_delay + settings.time_width > eff_tdc && ele_time + settings.time_delay < eff_tdc + settings.time_width {
             Some(eff_tdc)

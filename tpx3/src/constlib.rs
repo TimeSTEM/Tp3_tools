@@ -15,14 +15,14 @@ pub const HIGH_DYNAMIC_FRAME_BASED: bool = false; //This sums up *VALUE* frames 
 pub const HIGH_DYNAMIC_FRAME_BASED_VALUE: COUNTER = 16; //This sums up *VALUE* frames when using the frame-based mode;
 pub const MAIN_TDC: TdcType = TdcType::TdcOneRisingEdge; //The main TDC, used for external sync
 pub const SECONDARY_TDC: TdcType = TdcType::TdcTwoRisingEdge; //Secondary TDC
-pub const PERIOD_DIVIDER: usize = 0; //This divides the period detected by the Timepix3. This is power of 2, so the divided value is 2**PERIOD_DIVIDER;
+pub const PERIOD_DIVIDER: TIME = 512; //This divides the period detected by the Timepix3. The divided value is PERIOD_DIVIDER;
 
 //***Connection, TCP, and transfer values***//
 pub const BUFFER_SIZE: usize = 16384 * 2;
 pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
 pub const NIONSWIFT_PORT: u16 = 8088;
 pub const SAVE_LOCALLY_FILE: &str = "/media/asi/Data21/TP3_Data/";
-pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\01.tpx3";
+pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\Test_TPX_ps_04042025/2025_04_04_14_22_47.tpx3";
 pub const READ_DEBUG_FILE_JSON: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_spim";
 
 //***Packet-related values***//
