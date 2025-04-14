@@ -518,7 +518,7 @@ pub mod raw_into_readable {
         fn add_electron(&mut self, ele: SingleElectron) {
             self.x.push(ele.x());
             self.y.push(ele.y());
-            self.time.push(ele.time());
+            self.time.push(ele.time() * 6);
         }
         
         fn try_create_folder(&self) -> Result<(), Tp3ErrorKind> {
