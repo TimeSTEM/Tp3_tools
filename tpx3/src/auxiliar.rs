@@ -506,18 +506,27 @@ pub mod raw_into_readable {
     use crate::packetlib::Packet;
     use crate::auxiliar::{value_types::*, misc::{output_data, packet_change}};
     use crate::tdclib::TdcType;
+    use crate::errorlib::*;
 
-    #[derive(Default)]
     struct ToReadable {
         x: Vec<POSITION>, //If None -> TDC hit
         y: Vec<POSITION>, //If None -> TDC hit
         time: Vec<TIME>, // For both Electron 
+        file: String,
     }
     impl ToReadable {
         fn add_electron(&mut self, ele: SingleElectron) {
             self.x.push(ele.x());
             self.y.push(ele.y());
             self.time.push(ele.time());
+        }
+        
+        fn try_create_folder(&self) -> Result<(), Tp3ErrorKind> {
+            let path_length = &self.file.len();
+            match fs::create_dir(&self.file[..path_length - 5]) {
+                Ok(_) => {Ok(())},
+                Err(_) => { Err(Tp3ErrorKind::FolderAlreadyCreated) }
+            }
         }
         fn add_tdc(&mut self, tdc: SinglePhoton) {
             let associate_value = TdcType::associate_value_to_enum(tdc.raw_packet_data().tdc_type()).unwrap();
@@ -533,17 +542,25 @@ pub mod raw_into_readable {
             self.y.push(0);
             self.time.push(tdc.time());
         }
-        fn early_output_data(&mut self, path: &str) {
-            output_data(&self.x, path.to_string(), "xH.txt");
-            output_data(&self.y, path.to_string(), "yH.txt");
-            output_data(&self.time, path.to_string(), "tH.txt");
+        fn early_output_data(&mut self) {
+            output_data(&self.x, self.file.clone(), "xH.txt");
+            output_data(&self.y, self.file.clone(), "yH.txt");
+            output_data(&self.time, self.file.clone(), "tH.txt");
             self.x.clear();
             self.y.clear();
             self.time.clear();
         }
+        fn new(file: String) -> Self {
+            ToReadable {
+                x: Vec::new(),
+                y: Vec::new(),
+                time: Vec::new(),
+                file
+            }
+        }
     }
 
-    pub fn build_data(path: &str, limit_read_size: u32) {
+    pub fn build_data(path: &str, limit_read_size: u32) -> Result<(), Tp3ErrorKind> {
         //Opening the raw data file. We have already checked if the file opens so no worries here.
         let mut file = fs::File::open(path).unwrap();
 
@@ -553,7 +570,8 @@ pub mod raw_into_readable {
         let mut buffer: Vec<u8> = vec![0; TP3_BUFFER_SIZE];
         let mut total_size = 0;
 
-        let mut data_handler = ToReadable::default();
+        let mut data_handler = ToReadable::new(path.to_string());
+        data_handler.try_create_folder()?;
         
         let bar = ProgressBar::new(progress_size);
         bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Searching electron photon coincidences")
@@ -584,7 +602,8 @@ pub mod raw_into_readable {
                     },
                 };
             });
-            data_handler.early_output_data(path);
+            data_handler.early_output_data();
         }
+        Ok(())
     }
 }

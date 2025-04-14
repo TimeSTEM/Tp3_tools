@@ -18,8 +18,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let dir = path.to_str().unwrap();
         let path_length = dir.len();
         if &dir[path_length - 4 ..path_length] == "tpx3" {
-            println!("***List analysis***: File {} will be treated.", dir);
-            raw_into_readable::build_data(dir, 0);
+            if let Err(error) = raw_into_readable::build_data(dir, 0) {
+                println!("***List analysis***: Error during treatment: {:?}.", error);
+            }
         }
     });
     Ok(())

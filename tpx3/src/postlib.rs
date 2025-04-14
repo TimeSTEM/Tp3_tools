@@ -163,7 +163,7 @@ pub mod coincidence {
             let path_length = &self.file.len();
             match fs::create_dir(&self.file[..path_length - 5]) {
                 Ok(_) => {Ok(())},
-                Err(_) => { Err(Tp3ErrorKind::CoincidenceFolderAlreadyCreated) }
+                Err(_) => { Err(Tp3ErrorKind::FolderAlreadyCreated) }
             }
         }
         
@@ -755,7 +755,7 @@ pub mod ntime_resolved {
             let path_length = &self.file.len();
             match fs::create_dir(&self.file[..path_length - 5]) {
                 Ok(_) => {Ok(())},
-                Err(_) => { Err(Tp3ErrorKind::CoincidenceFolderAlreadyCreated) }
+                Err(_) => { Err(Tp3ErrorKind::FolderAlreadyCreated) }
             }
         }
 

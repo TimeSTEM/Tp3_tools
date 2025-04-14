@@ -27,9 +27,9 @@ pub enum Tp3ErrorKind {
     IOFileNotFound,
     SerdeGeneralError,
     Utf8GeneralError,
+    FolderAlreadyCreated,
 
     //Coincidence-related
-    CoincidenceFolderAlreadyCreated,
     CoincidenceCantReadFile,
 
     //Read-packet related
