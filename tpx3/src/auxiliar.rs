@@ -496,3 +496,95 @@ pub mod value_types {
     pub type TIME = u64;
     pub type SlType<'a> = Option<&'a [POSITION]>; //ScanList type
 }
+
+pub mod raw_into_readable {
+    use std::fs;
+    use std::io::prelude::*;
+    use crate::constlib::*;
+    use indicatif::{ProgressBar, ProgressStyle};
+    use crate::clusterlib::cluster::{SinglePhoton, SingleElectron};
+    use crate::packetlib::Packet;
+    use crate::auxiliar::{value_types::*, misc::{output_data, packet_change}};
+    use crate::tdclib::TdcType;
+
+    #[derive(Default)]
+    struct ToReadable {
+        x: Vec<POSITION>, //If None -> TDC hit
+        y: Vec<POSITION>, //If None -> TDC hit
+        time: Vec<TIME>, // For both Electron 
+    }
+    impl ToReadable {
+        fn add_electron(&mut self, ele: SingleElectron) {
+            self.x.push(ele.x());
+            self.y.push(ele.y());
+            self.time.push(ele.time());
+        }
+        fn add_tdc(&mut self, tdc: SinglePhoton) {
+            let associate_value = TdcType::associate_value_to_enum(tdc.raw_packet_data().tdc_type()).unwrap();
+            let x;
+            match associate_value {
+                TdcType::TdcOneRisingEdge => x = 1025,
+                TdcType::TdcOneFallingEdge => x = 1026,
+                TdcType::TdcTwoRisingEdge => x = 1027,
+                TdcType::TdcTwoFallingEdge => x = 1028,
+                TdcType::NoTdc => x = 1029,
+            }
+            self.x.push(x);
+            self.y.push(0);
+            self.time.push(tdc.time());
+        }
+        fn early_output_data(&mut self, path: &str) {
+            output_data(&self.x, path.to_string(), "xH.txt");
+            output_data(&self.y, path.to_string(), "yH.txt");
+            output_data(&self.time, path.to_string(), "tH.txt");
+            self.x.clear();
+            self.y.clear();
+            self.time.clear();
+        }
+    }
+
+    pub fn build_data(path: &str, limit_read_size: u32) {
+        //Opening the raw data file. We have already checked if the file opens so no worries here.
+        let mut file = fs::File::open(path).unwrap();
+
+        let progress_size = file.metadata().unwrap().len();
+        let mut ci = 0;
+
+        let mut buffer: Vec<u8> = vec![0; TP3_BUFFER_SIZE];
+        let mut total_size = 0;
+
+        let mut data_handler = ToReadable::default();
+        
+        let bar = ProgressBar::new(progress_size);
+        bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Searching electron photon coincidences")
+                      .unwrap()
+                      .progress_chars("=>-"));
+
+        while let Ok(size) = file.read(&mut buffer) {
+            if size == 0 {println!("Finished Reading."); break;}
+            total_size += size;
+            if limit_read_size != 0 && total_size as u32 >= limit_read_size {break;}
+            bar.inc(TP3_BUFFER_SIZE as u64);
+            buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
+                let packet = Packet { chip_index: ci, data: packet_change(pack_oct)[0] };
+                match *pack_oct {
+                    [84, 80, 88, 51, nci, _, _, _] => { ci=nci; },
+                    _ => {
+                        match packet.id() {
+                            6 => { //TDC hit
+                                let photon = SinglePhoton::new(&packet, 0, None, current_raw_index);
+                                data_handler.add_tdc(photon);
+                            },
+                            11 => { //Electron hit
+                                let se = SingleElectron::new(&packet, None, current_raw_index);
+                                data_handler.add_electron(se);
+                            },
+                            _ => {},
+                        };
+                    },
+                };
+            });
+            data_handler.early_output_data(path);
+        }
+    }
+}
