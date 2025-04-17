@@ -155,12 +155,12 @@ impl SpimKind for Live {
         }
     }
     fn add_tdc_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+        ref_tdc.upt(packet);
         let tdc_time = line_tdc.correct_or_not_etime(packet.tdc_time_norm()).unwrap();
         self.data.push((PIXELS_X-1, tdc_time));
     }
     fn upt_line(&self, packet: &Packet, _settings: &Settings, line_tdc: &mut TdcRef) {
-        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+        line_tdc.upt(packet);
     }
     #[inline]
     fn build_output(&mut self, set: &Settings, spim_tdc: &TdcRef, list_scan: SlType) -> &[u8] {
@@ -233,12 +233,12 @@ impl SpimKind for LiveCoincidence {
         TdcRef::new_no_read(SECONDARY_TDC)
     }
     fn add_tdc_hit(&mut self, packet: &Packet, _line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+        ref_tdc.upt(packet);
         self.aux_data.push(packet.tdc_time_norm());
         self.aux_data.remove(0);
     }
     fn upt_line(&self, packet: &Packet, _settings: &Settings, line_tdc: &mut TdcRef) {
-        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+        line_tdc.upt(packet);
     }
     #[inline]
     fn build_output(&mut self, set: &Settings, spim_tdc: &TdcRef, list_scan: SlType) -> &[u8] {
@@ -289,10 +289,10 @@ impl SpimKind for Live4D {
         }
     }
     fn add_tdc_hit(&mut self, packet: &Packet, _line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+        ref_tdc.upt(packet);
     }
     fn upt_line(&self, packet: &Packet, _settings: &Settings, line_tdc: &mut TdcRef) {
-        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+        line_tdc.upt(packet);
     }
     #[inline]
     fn build_output(&mut self, set: &Settings, spim_tdc: &TdcRef, list_scan: SlType) -> &[u8] {
@@ -336,7 +336,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
     fn add_tdc_hit(&mut self, _packet: &Packet, _line_tdc: &TdcRef, _ref_tdc: &mut TdcRef) {
     }
     fn upt_line(&self, packet: &Packet, _settings: &Settings, line_tdc: &mut TdcRef) {
-        line_tdc.upt(packet.tdc_time_norm(), packet.tdc_counter());
+        line_tdc.upt(packet);
     }
     #[inline]
     fn build_output(&mut self, set: &Settings, spim_tdc: &TdcRef, _list_scan: SlType) -> &[u8] {

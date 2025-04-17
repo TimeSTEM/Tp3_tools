@@ -179,11 +179,11 @@ impl SpecKind for Live2D {
         }
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        ref_tdc.upt(pack);
         add_index!(self, CAM_DESIGN.0-1);
     }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        frame_tdc.upt(pack);
         add_index!(self, CAM_DESIGN.0-2);
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
@@ -255,11 +255,11 @@ impl SpecKind for Live1D {
         }
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        ref_tdc.upt(pack);
         add_index!(self, CAM_DESIGN.0-1);
     }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        frame_tdc.upt(pack);
         add_index!(self, CAM_DESIGN.0-2);
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
@@ -310,12 +310,12 @@ impl SpecKind for Coincidence2DV3 {
         self.electron_buffer.add_electron(se);
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        ref_tdc.upt(pack);
         let sp = SinglePhoton::new(pack, 1, None, 0);
         self.photon_buffer.add_photon(sp);
     }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        frame_tdc.upt(pack);
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
         self.timer = Instant::now();
@@ -354,7 +354,7 @@ impl SpecKind for Coincidence2DV2 {
         self.index %= CIRCULAR_BUFFER;
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        ref_tdc.upt(pack);
         self.photon_buffer.push(pack.tdc_time_norm());
         self.photon_buffer.remove(0);
 
@@ -400,7 +400,7 @@ impl SpecKind for Coincidence2DV2 {
 
     }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        frame_tdc.upt(pack);
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
         self.timer = Instant::now();
@@ -442,7 +442,9 @@ impl SpecKind for Coincidence2D {
             if let Some(phtime) = tr_check_if_in(etime, ref_tdc, settings) {
                 let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
                 let index = pack.x() + delay * CAM_DESIGN.0;
-                add_index!(self, index);
+                if pack.y() == 96 { //96, 128, 165
+                    add_index!(self, index);
+                }
             }
         } else {
             for phtime in self.aux_data.iter() {
@@ -476,12 +478,12 @@ impl SpecKind for Coincidence2D {
         }
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        ref_tdc.upt(pack);
         self.aux_data.push(pack.tdc_time_norm());
         self.aux_data.remove(0);
     }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        frame_tdc.upt(pack);
         self.aux_data2.push(pack.tdc_time_norm());
         self.aux_data2.remove(0);
     }
@@ -539,10 +541,10 @@ impl SpecKind for Chrono {
 
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        ref_tdc.upt(pack);
     }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        frame_tdc.upt(pack);
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
         self.timer = Instant::now();
@@ -592,10 +594,10 @@ impl SpecKind for ChronoFrame {
         self.data[index as usize] += pack.tot() as u32;
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        ref_tdc.upt(pack);
     }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        frame_tdc.upt(pack);
     }
     fn add_shutter_hit(&mut self, pack: &Packet, _frame_tdc: &mut TdcRef, _settings: &Settings) {
         self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
@@ -638,11 +640,11 @@ impl SpecKind for Live2DFrame {
         }
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        ref_tdc.upt(pack);
         add_index!(self, CAM_DESIGN.0-1);
     }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        frame_tdc.upt(pack);
         add_index!(self, CAM_DESIGN.0-2);
     }
     fn add_shutter_hit(&mut self, pack: &Packet, _frame_tdc: &mut TdcRef, settings: &Settings) {
@@ -697,11 +699,11 @@ impl SpecKind for Live1DFrame {
         }
     }
     fn add_tdc_hit2(&mut self, pack: &Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(pack.tdc_time_norm(), pack.tdc_counter());
+        ref_tdc.upt(pack);
         add_index!(self, CAM_DESIGN.0-1);
     }
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        frame_tdc.upt(pack);
         add_index!(self, CAM_DESIGN.0-2);
     }
     fn add_shutter_hit(&mut self, pack: &Packet, _frame_tdc: &mut TdcRef, settings: &Settings) {
@@ -765,7 +767,7 @@ impl SpecKind for Live1DFrameHyperspec {
     }
     fn add_tdc_hit2(&mut self, _pack: &Packet, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
     fn add_tdc_hit1(&mut self, pack: &Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(pack.tdc_time(), pack.tdc_counter());
+        frame_tdc.upt(pack);
     } 
     fn add_shutter_hit(&mut self, pack: &Packet, _frame_tdc: &mut TdcRef, settings: &Settings) {
         let _temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
@@ -938,7 +940,11 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
                     5 if packet.tdc_type() == 10 || packet.tdc_type() == 15  => { //Shutter value.
                         final_data.add_shutter_hit(&packet, frame_tdc, settings);
                     },
-                    _ => {},
+                    _ => {
+                        if packet.id() == 6 {
+                            //println!("{} and {}", packet.tdc_type(), packet.tdc_time_abs());
+                        }
+                    },
                 };
             },
         };

@@ -88,7 +88,7 @@ pub mod coincidence {
             //This must be called only if "self.spim" is Some(TdcRef). Otherwise this channel is
             //another photon
             self.spim_tdc.as_mut().expect("Inconsistence in TdcRef regarding spectral imaging.")
-                .upt(pack.tdc_time_norm(), pack.tdc_counter());
+                .upt(pack);
         }
 
         fn add_coincident_electron(&mut self, mut val: SingleElectron, photon: SinglePhoton) {
@@ -767,7 +767,7 @@ pub mod ntime_resolved {
         fn add_spim_tdc(&mut self, packet: &Packet) {
             //Synchronizing clocks using two different approaches. It is always better to use a multiple of 2 and use the FPGA counter.
             if let Some(my_tdc_periodic) = &mut self.tdc_periodic {
-                my_tdc_periodic.upt(packet.tdc_time_norm(), packet.tdc_counter());
+                my_tdc_periodic.upt(packet);
             }
         }
         

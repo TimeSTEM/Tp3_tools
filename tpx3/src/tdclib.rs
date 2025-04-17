@@ -240,6 +240,7 @@ use crate::errorlib::Tp3ErrorKind;
 use crate::auxiliar::{Settings, misc::TimepixRead};
 use crate::auxiliar::{value_types::*, FileManager};
 use crate::constlib::*;
+use crate::packetlib::Packet;
 use std::io::Write;
 
 #[derive(Debug, Copy, Clone)]
@@ -266,7 +267,9 @@ impl TdcRef {
         self.tdctype
     }
 
-    pub fn upt(&mut self, time: TIME, hard_counter: u16) {
+    pub fn upt(&mut self, packet: &Packet) {
+        let hard_counter = packet.tdc_counter();
+        let time = packet.tdc_time_norm();
         if hard_counter < self.last_hard_counter {
             self.counter_overflow += 1;
         }
