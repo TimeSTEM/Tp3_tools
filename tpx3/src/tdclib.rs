@@ -157,7 +157,7 @@ mod tdcvec {
                 match *x {
                     [84, 80, 88, 51, _, _, _, _] => {},
                     _ => {
-                        let packet = Packet {chip_index: 0, data: packet_change(x)[0]};
+                        let packet = Packet::new(0, packet_change(x)[0]);
                         if packet.id() == 6 && self.tdc_choosen.is_same_inputline(packet.tdc_type()) {
                             self.add_tdc(&packet);
                         }

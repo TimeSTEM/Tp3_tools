@@ -442,7 +442,7 @@ impl SpecKind for Coincidence2D {
             if let Some(phtime) = tr_check_if_in(etime, ref_tdc, settings) {
                 let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
                 let index = pack.x() + delay * CAM_DESIGN.0;
-                if pack.y() == 96 { //96, 128, 165
+                if pack.y() == 165 { //96, 128, 165
                     add_index!(self, index);
                 }
             }
@@ -925,8 +925,7 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
-                let packet = Packet { chip_index: *last_ci, data: packet_change(x)[0]};
-                
+                let packet = Packet::new(*last_ci, packet_change(x)[0]);
                 match packet.id() {
                     11 | 10 => { //Event or frame based
                         final_data.add_electron_hit(&packet, settings, frame_tdc, ref_tdc);

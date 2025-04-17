@@ -490,7 +490,7 @@ fn build_spim_data<W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut u8, set
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
-                let packet = Packet { chip_index: *last_ci, data: packet_change(x)[0]};
+                let packet = Packet::new(*last_ci, packet_change(x)[0]);
                 let id = packet.id();
                 match id {
                     11 => {

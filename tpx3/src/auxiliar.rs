@@ -584,7 +584,7 @@ pub mod raw_into_readable {
             if limit_read_size != 0 && total_size as u32 >= limit_read_size {break;}
             bar.inc(TP3_BUFFER_SIZE as u64);
             buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
-                let packet = Packet { chip_index: ci, data: packet_change(pack_oct)[0] };
+                let packet = Packet::new(ci, packet_change(pack_oct)[0]);
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => { ci=nci; },
                     _ => {

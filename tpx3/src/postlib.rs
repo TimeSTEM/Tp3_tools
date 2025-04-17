@@ -108,7 +108,7 @@ pub mod coincidence {
 
             //Sorting and removing clusters (if need) for electrons.
             temp_edata.sort();
-            temp_edata.dedup_by(|a, b| a.raw_packet_data().data == b.raw_packet_data().data);
+            temp_edata.dedup_by(|a, b| a.raw_packet_data().data() == b.raw_packet_data().data());
             temp_edata.try_clean(0, &self.remove_clusters);
 
             //Adding photons to the last pixel. We also add the photons in the spectra image.
@@ -295,7 +295,7 @@ pub mod coincidence {
             let mut temp_edata = CollectionElectron::new();
             let mut temp_tdc = CollectionPhoton::new();
             buffer[0..size].chunks_exact(8).enumerate().for_each(|(current_raw_index, pack_oct)| {
-                let packet = Packet { chip_index: ci, data: packet_change(pack_oct)[0] };
+                let packet = Packet::new(ci, packet_change(pack_oct)[0]);
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {
                         ci=nci;
@@ -322,22 +322,22 @@ pub mod coincidence {
                                 temp_edata.add_electron(se);
                             },
                             12 => { //In some versions, the id can be a modified one, based on the CI.
-                                let packet = Packet { chip_index: 0, data: packet_change(pack_oct)[0] };
+                                let packet = Packet::new(0, packet_change(pack_oct)[0]);
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
                                 temp_edata.add_electron(se);
                             },
                             13 => { //In some versions, the id can be a modified one, based on the CI.
-                                let packet = Packet { chip_index: 1, data: packet_change(pack_oct)[0] };
+                                let packet = Packet::new(1, packet_change(pack_oct)[0]);
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
                                 temp_edata.add_electron(se);
                             },
                             14 => { //In some versions, the id can be a modified one, based on the CI.
-                                let packet = Packet { chip_index: 2, data: packet_change(pack_oct)[0] };
+                                let packet = Packet::new(2, packet_change(pack_oct)[0]);
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
                                 temp_edata.add_electron(se);
                             },
                             15 => { //In some versions, the id can be a modified one, based on the CI.
-                                let packet = Packet { chip_index: 3, data: packet_change(pack_oct)[0] };
+                                let packet = Packet::new(3, packet_change(pack_oct)[0]);
                                 let se = SingleElectron::new(&packet, coinc_data.spim_tdc, current_raw_index);
                                 temp_edata.add_electron(se);
                             },
@@ -889,7 +889,7 @@ pub mod ntime_resolved {
                 match pack_oct {
                     &[84, 80, 88, 51, nci, _, _, _] => {ci = nci},
                     _ => {
-                        let packet = Packet{chip_index: ci, data: packet_change(pack_oct)[0]};
+                        let packet = Packet::new(ci, packet_change(pack_oct)[0]);
                         match packet.id() {
                             6 if packet.tdc_type() == data.spim_tdc_type.associate_value() => {
                                 data.add_spim_tdc(&packet);
@@ -999,7 +999,7 @@ pub mod calibration {
                 match *pack_oct {
                     [84, 80, 88, 51, nci, _, _, _] => {ci=nci;},
                     _ => {
-                        let packet = Packet { chip_index: ci, data: packet_change(pack_oct)[0] };
+                        let packet = Packet::new(ci, packet_change(pack_oct)[0]);
                         if packet.id() == 11 {
                             let se = SingleElectron::new(&packet, None, current_raw_index);
                             temp_electrons.add_electron(se);

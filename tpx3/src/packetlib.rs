@@ -6,11 +6,18 @@ use crate::constlib::*;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Packet {
-    pub chip_index: u8,
-    pub data: u64,
+    chip_index: u8,
+    data: u64,
 }
 
 impl Packet {
+
+    pub fn new(chip_index: u8, data: u64) -> Self {
+        Packet {
+            chip_index,
+            data,
+        }
+    }
 
     #[inline]
     pub fn data(&self) -> u64 {
