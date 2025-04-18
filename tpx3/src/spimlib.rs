@@ -135,7 +135,7 @@ impl SpimKind for Live {
     }
     #[inline]
     fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &TdcRef, set: &Settings) {
-        let ele_time = line_tdc.sync_frame_time(packet.electron_time()).unwrap();
+        let ele_time = line_tdc.sync_electron_frame_time(packet).unwrap();
         if set.time_resolved {
             if ref_tdc.tr_check_if_in(packet.electron_time(), set).is_some() {
                 self.data.push((packet.x(), ele_time)); //This added the overflow.
@@ -156,7 +156,7 @@ impl SpimKind for Live {
     }
     fn add_tdc_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(packet);
-        let tdc_time = line_tdc.sync_frame_time(packet.tdc_time_norm()).unwrap();
+        let tdc_time = line_tdc.sync_tdc_frame_time(packet).unwrap();
         self.data.push((PIXELS_X-1, tdc_time));
     }
     fn upt_line(&self, packet: &Packet, _settings: &Settings, line_tdc: &mut TdcRef) {
@@ -220,7 +220,7 @@ impl SpimKind for LiveCoincidence {
         for phtime in self.aux_data.iter() {
             if (*phtime < ele_time + set.time_delay + set.time_width) && (ele_time + set.time_delay < *phtime + set.time_width) {
                 let delay = (phtime - set.time_delay + set.time_width - ele_time) as POSITION;
-                let ele_time_corr = line_tdc.sync_frame_time(packet.electron_time()).unwrap();
+                let ele_time_corr = line_tdc.sync_electron_frame_time(packet).unwrap();
                 let index = packet.x() + delay * PIXELS_X;
                 self.data.push((index, ele_time_corr)); //This added the overflow.
             }
@@ -269,7 +269,7 @@ impl SpimKind for Live4D {
     }
     #[inline]
     fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &TdcRef, set: &Settings) {
-        let ele_time = line_tdc.sync_frame_time(packet.electron_time()).unwrap();
+        let ele_time = line_tdc.sync_electron_frame_time(packet).unwrap();
         if set.time_resolved {
             if ref_tdc.tr_check_if_in(packet.electron_time(), set).is_some() {
                 self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time)); //This added the overflow.
@@ -323,7 +323,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
     }
     #[inline]
     fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, _ref_tdc: &TdcRef, _set: &Settings) {
-        let ele_time = line_tdc.sync_frame_time(packet.electron_time());
+        let ele_time = line_tdc.sync_electron_frame_time(packet);
         self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time.unwrap())); //This added the overflow.
 
     }

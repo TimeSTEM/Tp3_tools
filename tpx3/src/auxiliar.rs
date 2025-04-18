@@ -320,8 +320,6 @@ pub mod misc {
     use crate::errorlib::Tp3ErrorKind;
     use crate::auxiliar::Settings;
     use crate::auxiliar::value_types::*;
-    use crate::constlib::*;
-    use crate::tdclib::TdcRef;
     use std::net::TcpStream;
     use std::fs::File;
 

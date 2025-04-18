@@ -155,7 +155,7 @@ pub mod cluster {
         pub fn new(pack: Packet, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
-                    let ele_time = spim_tdc.sync_frame_time(pack.electron_time()).unwrap();
+                    let ele_time = spim_tdc.sync_electron_frame_time(&pack).unwrap();
                     let frame = spim_tdc.frame().unwrap_or(0);
                     SingleElectron {
                         data: (ele_time, frame, 1, pack, raw_index, spim_tdc.current_line().unwrap(), None)
@@ -310,7 +310,7 @@ pub mod cluster {
         pub fn new(pack: Packet, channel: COUNTER, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
-                    let tdc_time = spim_tdc.sync_frame_time(pack.tdc_time_norm()).unwrap();
+                    let tdc_time = spim_tdc.sync_tdc_frame_time(&pack).unwrap();
                     SinglePhoton{
                         data: (pack.tdc_time_abs_norm(), channel, None, tdc_time, pack, raw_index)
                     }

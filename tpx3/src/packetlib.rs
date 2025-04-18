@@ -4,13 +4,6 @@
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
 
-enum PacketType {
-    ElectronEvent,
-    TdcEvent,
-    FrameEvent,
-}
-
-
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Packet {
     chip_index: u8,
@@ -221,7 +214,6 @@ impl Packet {
 
     #[inline]
     pub fn tdc_time(&self) -> TIME {
-        //self.tdc_time_abs_norm()
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
         coarse * 2 + fine / 6
