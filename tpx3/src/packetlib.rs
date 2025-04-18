@@ -4,6 +4,13 @@
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
 
+enum PacketType {
+    ElectronEvent,
+    TdcEvent,
+    FrameEvent,
+}
+
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Packet {
     chip_index: u8,
@@ -114,12 +121,12 @@ impl Packet {
     }
 
     #[inline]
-    pub fn spidr(&self) -> TIME {
+    fn spidr(&self) -> TIME {
         (self.data() & 0x00_00_00_00_00_00_FF_FF) as TIME
     }
 
     #[inline]
-    pub fn ftoa(&self) -> TIME {
+    fn ftoa(&self) -> TIME {
         ((self.data() & 0x00_00_00_00_00_0F_00_00) >> 16) as TIME
         //((self.data() >> 16) & 0xF) as TIME
     }
@@ -130,19 +137,20 @@ impl Packet {
     }
 
     #[inline]
-    pub fn toa(&self) -> TIME {
+    fn toa(&self) -> TIME {
         ((self.data() & 0x00_00_0F_FF_C0_00_00_00) >> 30) as TIME
         //((self.data() >> 30) & 0x3F_FF) as TIME
     }
 
     #[inline]
-    pub fn ctoa(&self) -> TIME {
+    fn ctoa(&self) -> TIME {
         let toa = self.toa();
         let ftoa = self.ftoa();
         (toa << 4) | (!ftoa & 15)
     }
 
     #[inline]
+    ///In units of 25 ns;
     pub fn fast_electron_time(&self) -> TIME {
         let spidr = self.spidr();
         let toa = self.toa();
@@ -150,6 +158,8 @@ impl Packet {
     }
 
     #[inline]
+    //In units of 0.260 ns. The resolution is 1.5625 ns but it is oversampled to match the TDC bin
+    //of 0.260 ns.
     pub fn electron_time(&self) -> TIME {
         let spidr = self.spidr();
         let ctoa = self.ctoa();
@@ -175,12 +185,12 @@ impl Packet {
     }
 
     #[inline]
-    pub fn tdc_coarse(&self) -> TIME {
+    fn tdc_coarse(&self) -> TIME {
         ((self.data() & 0x00_00_0F_FF_FF_FF_FE_00) >> 9) as TIME
     }
     
     #[inline]
-    pub fn tdc_fine(&self) -> TIME {
+    fn tdc_fine(&self) -> TIME {
         ((self.data() & 0x00_00_00_00_00_00_01_E0) >> 5) as TIME
     }
 
@@ -211,6 +221,7 @@ impl Packet {
 
     #[inline]
     pub fn tdc_time(&self) -> TIME {
+        //self.tdc_time_abs_norm()
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
         coarse * 2 + fine / 6
@@ -225,7 +236,7 @@ impl Packet {
     
     #[inline]
     ///This value goes to a maximum of the electron time overflow. Guarantee that tdc_time_norm -
-    ///electron_time >= 0.
+    ///electron_time >= 0. It is in units of 1.5625 ns.
     pub fn tdc_time_norm(&self) -> TIME {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
@@ -234,6 +245,7 @@ impl Packet {
     }
 
     #[inline]
+    ///This values goes to maximum of the electron time overflow * 6. It is in units of 0.260 ps.
     pub fn tdc_time_abs_norm(&self) -> TIME {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();

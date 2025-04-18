@@ -420,30 +420,6 @@ pub mod misc {
                 std::mem::size_of_val(v) / std::mem::size_of::<u64>())
         }
     }
-    
-    //This checks if the electron is inside a given time_delay and time_width for a periodic tdc
-    //reference. This is used with reversible processes in which the reference tdc is periodic. In
-    //case the value is inside width and delay, It returns the value of the effective tdc, i.e.,
-    //the modified tdc time.
-    pub fn tr_check_if_in(ele_time: TIME, ref_tdc: &TdcRef, settings: &Settings) -> Option<TIME> {
-        let period = ref_tdc.period().expect("Period must exist in time-resolved mode.");
-        let last_tdc_time = ref_tdc.time();
-     
-        //This case photon time is always greater than electron time
-        let xper;
-        let eff_tdc = if last_tdc_time > ele_time {
-            xper = ((last_tdc_time - ele_time) * PERIOD_DIVIDER) / period;
-            last_tdc_time - (xper * period) / PERIOD_DIVIDER
-        } else {
-            xper = ((ele_time - last_tdc_time) * PERIOD_DIVIDER) / period + 1;
-            last_tdc_time + (xper * period) / PERIOD_DIVIDER
-        };
-        if ele_time + settings.time_delay + settings.time_width > eff_tdc && ele_time + settings.time_delay < eff_tdc + settings.time_width {
-            Some(eff_tdc)
-        } else {
-            None
-        }
-    }
 
     //This checks if the electron is inside a given time_delay and time_width for a non-periodic
     //tdc reference. This is used with stocastic events.
@@ -464,15 +440,6 @@ pub mod misc {
         let len = filename.len();
         let complete_filename = filename[..len-5].to_string() + "/" + name;
         output_data_raw(data, complete_filename);
-        /*
-        let mut tfile = OpenOptions::new()
-            .write(true)
-            .append(true)
-            .create(true)
-            .open(complete_filename).unwrap();
-        tfile.write_all(as_bytes(data)).unwrap();
-        //println!("Outputting data under {:?} name. Vector len is {}", name, data.len());
-        */
     }
 
     //Creates a file and appends over. Filename must be a .tpx3 file. Data is appended in a folder
@@ -590,11 +557,11 @@ pub mod raw_into_readable {
                     _ => {
                         match packet.id() {
                             6 => { //TDC hit
-                                let photon = SinglePhoton::new(&packet, 0, None, current_raw_index);
+                                let photon = SinglePhoton::new(packet, 0, None, current_raw_index);
                                 data_handler.add_tdc(photon);
                             },
                             11 => { //Electron hit
-                                let se = SingleElectron::new(&packet, None, current_raw_index);
+                                let se = SingleElectron::new(packet, None, current_raw_index);
                                 data_handler.add_electron(se);
                             },
                             _ => {},

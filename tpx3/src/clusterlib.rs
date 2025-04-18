@@ -124,7 +124,7 @@ pub mod cluster {
             (corr_array, corr_photons)
         }
         pub fn reorder_by_packet_index(&mut self) {
-            self.data.par_sort_unstable_by_key(|&i| i.raw_packet_index());
+            self.data.par_sort_unstable_by_key(|i| i.raw_packet_index());
         }
     }
 
@@ -152,18 +152,18 @@ pub mod cluster {
     }
 
     impl SingleElectron {
-        pub fn new(pack: &Packet, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
+        pub fn new(pack: Packet, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
-                    let ele_time = spim_tdc.correct_or_not_etime(pack.electron_time()).unwrap();
+                    let ele_time = spim_tdc.sync_frame_time(pack.electron_time()).unwrap();
                     let frame = spim_tdc.frame().unwrap_or(0);
                     SingleElectron {
-                        data: (ele_time, frame, 1, *pack, raw_index, spim_tdc.current_line().unwrap(), None)
+                        data: (ele_time, frame, 1, pack, raw_index, spim_tdc.current_line().unwrap(), None)
                     }
                 },
                 None => {
                     SingleElectron {
-                        data: (0, 0, 1, *pack, raw_index, 0, None),
+                        data: (0, 0, 1, pack, raw_index, 0, None),
                     }
                 },
             }
@@ -190,8 +190,8 @@ pub mod cluster {
         pub fn cluster_size(&self) -> u16 {
             self.data.2
         }
-        pub fn raw_packet_data(&self) -> Packet {
-            self.data.3
+        pub fn raw_packet_data(&self) -> &Packet {
+            &self.data.3
         }
         pub fn raw_packet_index(&self) -> usize {
             self.data.4
@@ -307,17 +307,17 @@ pub mod cluster {
     }
 
     impl SinglePhoton {
-        pub fn new(pack: &Packet, channel: COUNTER, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
+        pub fn new(pack: Packet, channel: COUNTER, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
-                    let tdc_time = spim_tdc.correct_or_not_etime(pack.tdc_time_norm()).unwrap();
+                    let tdc_time = spim_tdc.sync_frame_time(pack.tdc_time_norm()).unwrap();
                     SinglePhoton{
-                        data: (pack.tdc_time_abs_norm(), channel, None, tdc_time, *pack, raw_index)
+                        data: (pack.tdc_time_abs_norm(), channel, None, tdc_time, pack, raw_index)
                     }
                 }
                 None => {
                     SinglePhoton{
-                        data: (pack.tdc_time_abs_norm(), channel, None, 0, *pack, raw_index)
+                        data: (pack.tdc_time_abs_norm(), channel, None, 0, pack, raw_index)
                     }
                 }
             }
@@ -418,14 +418,14 @@ pub mod cluster {
 
     impl ClusterCorrectionTypes {
         fn new_from_cluster(&self, cluster: &[SingleElectron]) -> Option<CollectionElectron> {
-
             match &self {
                 ClusterCorrectionTypes::NoCorrection => {
                     let mut val = CollectionElectron::new();
                     for electron in cluster {
-                        val.add_electron(SingleElectron{
-                            data: (electron.frame_dt(), electron.spim_slice(), 1, electron.raw_packet_data(), electron.raw_packet_index(), 0, electron.coincident_photon()),
-                        });
+                        val.add_electron(*electron);
+                        //val.add_electron(SingleElectron{
+                        //    data: (electron.frame_dt(), electron.spim_slice(), 1, electron.raw_packet_data(), electron.raw_packet_index(), 0, electron.coincident_photon()),
+                        //});
                     }
                     Some(val)
                 },

@@ -422,7 +422,7 @@ impl TdcRef {
     }
     
     #[inline]
-    pub fn correct_or_not_etime(&self, mut ele_time: TIME) -> Option<TIME> {
+    pub fn sync_frame_time(&self, mut ele_time: TIME) -> Option<TIME> {
         if SYNC_MODE == 0 {
             if ele_time < self.begin_frame + VIDEO_TIME + self.video_delay{
                 let factor = (self.begin_frame + VIDEO_TIME + self.video_delay - ele_time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
@@ -437,6 +437,32 @@ impl TdcRef {
             Some(ele_time - self.begin_frame - VIDEO_TIME - self.video_delay)
         }
     }
+
+    //This checks if the electron is inside a given time_delay and time_width for a periodic tdc
+    //reference. This is used with reversible processes in which the reference tdc is periodic. In
+    //case the value is inside width and delay, It returns the value of the effective tdc, i.e.,
+    //the modified tdc time.
+    pub fn tr_check_if_in(&self, ele_time: TIME, settings: &Settings) -> Option<TIME> {
+        let period = self.period().expect("Period must exist in time-resolved mode.");
+        let last_tdc_time = self.time();
+     
+        //This case photon time is always greater than electron time
+        let xper;
+        let eff_tdc = if last_tdc_time > ele_time {
+            xper = ((last_tdc_time - ele_time) * PERIOD_DIVIDER) / period;
+            last_tdc_time - (xper * period) / PERIOD_DIVIDER
+        } else {
+            xper = ((ele_time - last_tdc_time) * PERIOD_DIVIDER) / period + 1;
+            last_tdc_time + (xper * period) / PERIOD_DIVIDER
+        };
+        if ele_time + settings.time_delay + settings.time_width > eff_tdc && ele_time + settings.time_delay < eff_tdc + settings.time_width {
+            Some(eff_tdc)
+        } else {
+            None
+        }
+    }
+
+
     pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
         let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
