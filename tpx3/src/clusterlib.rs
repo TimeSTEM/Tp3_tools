@@ -170,7 +170,7 @@ pub mod cluster {
         }
 
         pub fn time(&self) -> TIME {
-            self.raw_packet_data().electron_time()
+            self.raw_packet_data().electron_time_in_tdc_units()
         }
         pub fn x(&self) -> POSITION {
             self.raw_packet_data().x()

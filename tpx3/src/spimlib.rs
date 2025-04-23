@@ -137,7 +137,7 @@ impl SpimKind for Live {
     fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &TdcRef, set: &Settings) {
         let ele_time = line_tdc.sync_electron_frame_time(packet).unwrap();
         if set.time_resolved {
-            if ref_tdc.tr_check_if_in(packet.electron_time(), set).is_some() {
+            if ref_tdc.tr_electron_check_if_in(packet, set).is_some() {
                 self.data.push((packet.x(), ele_time)); //This added the overflow.
             } 
         } else {
@@ -216,7 +216,7 @@ impl SpimKind for LiveCoincidence {
     }
     #[inline]
     fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, _ref_tdc: &TdcRef, set: &Settings) {
-        let ele_time = packet.electron_time();
+        let ele_time = packet.electron_time_in_tdc_units();
         for phtime in self.aux_data.iter() {
             if (*phtime < ele_time + set.time_delay + set.time_width) && (ele_time + set.time_delay < *phtime + set.time_width) {
                 let delay = (phtime - set.time_delay + set.time_width - ele_time) as POSITION;
@@ -234,7 +234,7 @@ impl SpimKind for LiveCoincidence {
     }
     fn add_tdc_hit(&mut self, packet: &Packet, _line_tdc: &TdcRef, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(packet);
-        self.aux_data.push(packet.tdc_time_norm());
+        self.aux_data.push(packet.tdc_time_abs_norm());
         self.aux_data.remove(0);
     }
     fn upt_line(&self, packet: &Packet, _settings: &Settings, line_tdc: &mut TdcRef) {
@@ -271,7 +271,7 @@ impl SpimKind for Live4D {
     fn add_electron_hit(&mut self, packet: &Packet, line_tdc: &TdcRef, ref_tdc: &TdcRef, set: &Settings) {
         let ele_time = line_tdc.sync_electron_frame_time(packet).unwrap();
         if set.time_resolved {
-            if ref_tdc.tr_check_if_in(packet.electron_time(), set).is_some() {
+            if ref_tdc.tr_electron_check_if_in(packet, set).is_some() {
                 self.data.push(((packet.x() << 16) + (packet.y() & 65535), ele_time)); //This added the overflow.
             } 
         } else {

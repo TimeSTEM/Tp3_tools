@@ -269,7 +269,7 @@ impl TdcRef {
 
     pub fn upt(&mut self, packet: &Packet) {
         let hard_counter = packet.tdc_counter();
-        let time = packet.tdc_time_norm();
+        let time = packet.tdc_time_abs_norm();
         if hard_counter < self.last_hard_counter {
             self.counter_overflow += 1;
         }
@@ -422,25 +422,8 @@ impl TdcRef {
     }
     
     #[inline]
-    pub fn sync_frame_time(&self, mut time: TIME) -> Option<TIME> {
-        if SYNC_MODE == 0 {
-            if time < self.begin_frame + VIDEO_TIME + self.video_delay{
-                let factor = (self.begin_frame + VIDEO_TIME + self.video_delay - time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
-                time += self.period?*(self.subsample*self.ticks_to_frame?) as TIME * factor;
-            }
-            Some(time - self.begin_frame - VIDEO_TIME - self.video_delay)
-        } else {
-            if time < self.time + VIDEO_TIME + self.video_delay {
-                let factor = (self.time + VIDEO_TIME + self.video_delay - time) / (self.period?) + 1;
-                time += self.period? * factor * self.current_line()? as u64;
-            }
-            Some(time - self.begin_frame - VIDEO_TIME - self.video_delay)
-        }
-    }
-
-    #[inline]
     pub fn sync_electron_frame_time(&self, pack: &Packet) -> Option<TIME> {
-        let mut ele_time = pack.electron_time();
+        let mut ele_time = pack.electron_time_in_tdc_units();
         if SYNC_MODE == 0 {
             if ele_time < self.begin_frame + VIDEO_TIME + self.video_delay{
                 let factor = (self.begin_frame + VIDEO_TIME + self.video_delay - ele_time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
@@ -458,7 +441,7 @@ impl TdcRef {
 
     #[inline]
     pub fn sync_tdc_frame_time(&self, pack: &Packet) -> Option<TIME> {
-        let mut tdc_time = pack.tdc_time_norm();
+        let mut tdc_time = pack.tdc_time_abs_norm();
         if SYNC_MODE == 0 {
             if tdc_time < self.begin_frame + VIDEO_TIME + self.video_delay{
                 let factor = (self.begin_frame + VIDEO_TIME + self.video_delay - tdc_time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
@@ -474,15 +457,12 @@ impl TdcRef {
         }
     }
 
-
-
     //This checks if the electron is inside a given time_delay and time_width for a periodic tdc
-    //reference. This is used with reversible processes in which the reference tdc is periodic. In
-    //case the value is inside width and delay, It returns the value of the effective tdc, i.e.,
-    //the modified tdc time.
-    pub fn tr_check_if_in(&self, ele_time: TIME, settings: &Settings) -> Option<TIME> {
+    //reference.
+    pub fn tr_electron_check_if_in(&self, pack: &Packet, settings: &Settings) -> Option<TIME> {
         let period = self.period().expect("Period must exist in time-resolved mode.");
         let last_tdc_time = self.time();
+        let ele_time = pack.electron_time_in_tdc_units();
      
         //This case photon time is always greater than electron time
         let xper;
@@ -500,6 +480,28 @@ impl TdcRef {
         }
     }
 
+    //This checks if the tdc is inside a given time_delay and time_width for a periodic tdc
+    //reference.
+    pub fn tr_tdc_check_if_in(&self, pack: &Packet, settings: &Settings) -> Option<TIME> {
+        let period = self.period().expect("Period must exist in time-resolved mode.");
+        let last_tdc_time = self.time();
+        let tdc_time = pack.tdc_time_abs_norm();
+     
+        //This case photon time is always greater than electron time
+        let xper;
+        let eff_tdc = if last_tdc_time > tdc_time {
+            xper = ((last_tdc_time - tdc_time) * PERIOD_DIVIDER) / period;
+            last_tdc_time - (xper * period) / PERIOD_DIVIDER
+        } else {
+            xper = ((tdc_time - last_tdc_time) * PERIOD_DIVIDER) / period + 1;
+            last_tdc_time + (xper * period) / PERIOD_DIVIDER
+        };
+        if tdc_time + settings.time_delay + settings.time_width > eff_tdc && tdc_time + settings.time_delay < eff_tdc + settings.time_width {
+            Some(eff_tdc)
+        } else {
+            None
+        }
+    }
 
     pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
@@ -529,11 +531,11 @@ impl TdcRef {
 
         let ratio = my_settings.xscan_size / my_settings.xspim_size;
         let counter_offset = tdc_search.get_counter_offset();
-        let begin_time = tdc_search.get_begintime() / 6;
-        let last_time = tdc_search.get_lasttime() / 6;
-        let period = tdc_search.find_period()? / 6;
-        let high_time = tdc_search.find_high_time().map(|time| time / 6);
-        let low_time = tdc_search.find_high_time().map(|time| period - time / 6);
+        let begin_time = tdc_search.get_begintime();
+        let last_time = tdc_search.get_lasttime();
+        let period = tdc_search.find_period()?;
+        let high_time = tdc_search.find_high_time().map(|time| time);
+        let low_time = tdc_search.find_high_time().map(|time| period - time);
 
         let per_ref = Self {
             tdctype: tdc_type.associate_value(),

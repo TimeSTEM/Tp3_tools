@@ -145,7 +145,7 @@ impl SpecKind for Live2D {
     fn add_electron_hit(&mut self, pack: Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
         let index = pack.x() + CAM_DESIGN.0 * pack.y();
         if settings.time_resolved {
-            if ref_tdc.tr_check_if_in(pack.electron_time(), settings).is_some() {
+            if ref_tdc.tr_electron_check_if_in(&pack, settings).is_some() {
                 add_index!(self, index);
             } 
         } else {
@@ -221,7 +221,7 @@ impl SpecKind for Live1D {
     fn add_electron_hit(&mut self, pack: Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
         let index = pack.x();
         if settings.time_resolved {
-            if ref_tdc.tr_check_if_in(pack.electron_time(), settings).is_some() {
+            if ref_tdc.tr_electron_check_if_in(&pack, settings).is_some() {
                 add_index!(self, index);
             } 
         } else {
@@ -349,13 +349,13 @@ impl SpecKind for Coincidence2DV2 {
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
-        self.electron_buffer[self.index] = (pack.electron_time(), pack.x());
+        self.electron_buffer[self.index] = (pack.electron_time_in_tdc_units(), pack.x());
         self.index += 1;
         self.index %= CIRCULAR_BUFFER;
     }
     fn add_tdc_hit2(&mut self, pack: Packet, settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(&pack);
-        self.photon_buffer.push(pack.tdc_time_norm());
+        self.photon_buffer.push(pack.tdc_time_abs_norm());
         self.photon_buffer.remove(0);
 
         for phtime in &self.photon_buffer {
@@ -432,19 +432,17 @@ impl SpecKind for Coincidence2D {
     //electrons second tcp, first time, or electrons second tdc, second time.
     #[inline]
     fn add_electron_hit(&mut self, pack: Packet, settings: &Settings, frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
-        let etime = pack.electron_time();
+        let etime = pack.electron_time_in_tdc_units();
         if settings.time_resolved {
-            if let Some(phtime) = frame_tdc.tr_check_if_in(etime, settings) {
+            if let Some(phtime) = frame_tdc.tr_electron_check_if_in(&pack, settings) {
                 let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
                 let index = pack.x() + delay * CAM_DESIGN.0 + 2*settings.time_width as u32 * CAM_DESIGN.0;
                 add_index!(self, index);
             }
-            if let Some(phtime) = ref_tdc.tr_check_if_in(etime, settings) {
+            if let Some(phtime) = ref_tdc.tr_electron_check_if_in(&pack, settings) {
                 let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
                 let index = pack.x() + delay * CAM_DESIGN.0;
-                if pack.y() == 165 && pack.tot() > 30 { //96, 128, 165
-                    add_index!(self, index);
-                }
+                add_index!(self, index);
             }
         } else {
             for phtime in self.aux_data.iter() {
@@ -479,12 +477,12 @@ impl SpecKind for Coincidence2D {
     }
     fn add_tdc_hit2(&mut self, pack: Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(&pack);
-        self.aux_data.push(pack.tdc_time_norm());
+        self.aux_data.push(pack.tdc_time_abs_norm());
         self.aux_data.remove(0);
     }
     fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(&pack);
-        self.aux_data2.push(pack.tdc_time_norm());
+        self.aux_data2.push(pack.tdc_time_abs_norm());
         self.aux_data2.remove(0);
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
