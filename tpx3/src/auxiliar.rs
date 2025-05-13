@@ -421,7 +421,8 @@ pub mod misc {
 
     //This checks if the electron is inside a given time_delay and time_width for a non-periodic
     //tdc reference. This is used with stocastic events.
-    pub fn check_if_in(etime: TIME, phtime: &TIME, settings: &Settings) -> bool {
+    #[inline]
+    pub fn check_if_in(etime: &TIME, phtime: &TIME, settings: &Settings) -> bool {
         (*phtime < etime + settings.time_delay + settings.time_width) && (etime + settings.time_delay < *phtime + settings.time_width)
     }
     

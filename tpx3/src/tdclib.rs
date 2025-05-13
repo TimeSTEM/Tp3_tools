@@ -237,7 +237,7 @@ impl TdcType {
 
 use std::time::{Duration, Instant};
 use crate::errorlib::Tp3ErrorKind;
-use crate::auxiliar::{Settings, misc::TimepixRead};
+use crate::auxiliar::{Settings, misc::{check_if_in, TimepixRead}};
 use crate::auxiliar::{value_types::*, FileManager};
 use crate::constlib::*;
 use crate::packetlib::Packet;
@@ -457,23 +457,32 @@ impl TdcRef {
         }
     }
 
+    //This gets the closest time for a period TDC.
+    #[inline]
+    fn get_closest_tdc(&self, time: TIME) -> TIME {
+        let period = self.period().expect("Period must exist in time-resolved mode.");
+        let last_tdc_time = self.time();
+     
+        //This case TDC time is always greater than electron time
+        let xper;
+        let eff_tdc = if last_tdc_time > time {
+            xper = ((last_tdc_time - time) * PERIOD_DIVIDER) / period;
+            last_tdc_time - (xper * period) / PERIOD_DIVIDER
+        } else {
+            xper = ((time - last_tdc_time) * PERIOD_DIVIDER) / period + 1;
+            last_tdc_time + (xper * period) / PERIOD_DIVIDER
+        };
+        eff_tdc
+    }
+
     //This checks if the electron is inside a given time_delay and time_width for a periodic tdc
     //reference.
     pub fn tr_electron_check_if_in(&self, pack: &Packet, settings: &Settings) -> Option<TIME> {
-        let period = self.period().expect("Period must exist in time-resolved mode.");
-        let last_tdc_time = self.time();
         let ele_time = pack.electron_time_in_tdc_units();
+        let eff_tdc = self.get_closest_tdc(ele_time);
      
         //This case photon time is always greater than electron time
-        let xper;
-        let eff_tdc = if last_tdc_time > ele_time {
-            xper = ((last_tdc_time - ele_time) * PERIOD_DIVIDER) / period;
-            last_tdc_time - (xper * period) / PERIOD_DIVIDER
-        } else {
-            xper = ((ele_time - last_tdc_time) * PERIOD_DIVIDER) / period + 1;
-            last_tdc_time + (xper * period) / PERIOD_DIVIDER
-        };
-        if ele_time + settings.time_delay + settings.time_width > eff_tdc && ele_time + settings.time_delay < eff_tdc + settings.time_width {
+        if check_if_in(&ele_time, &eff_tdc, settings) {
             Some(eff_tdc)
         } else {
             None
@@ -483,24 +492,22 @@ impl TdcRef {
     //This checks if the tdc is inside a given time_delay and time_width for a periodic tdc
     //reference.
     pub fn tr_tdc_check_if_in(&self, pack: &Packet, settings: &Settings) -> Option<TIME> {
-        let period = self.period().expect("Period must exist in time-resolved mode.");
-        let last_tdc_time = self.time();
         let tdc_time = pack.tdc_time_abs_norm();
+        let eff_tdc = self.get_closest_tdc(tdc_time);
      
         //This case photon time is always greater than electron time
-        let xper;
-        let eff_tdc = if last_tdc_time > tdc_time {
-            xper = ((last_tdc_time - tdc_time) * PERIOD_DIVIDER) / period;
-            last_tdc_time - (xper * period) / PERIOD_DIVIDER
-        } else {
-            xper = ((tdc_time - last_tdc_time) * PERIOD_DIVIDER) / period + 1;
-            last_tdc_time + (xper * period) / PERIOD_DIVIDER
-        };
-        if tdc_time + settings.time_delay + settings.time_width > eff_tdc && tdc_time + settings.time_delay < eff_tdc + settings.time_width {
+        if check_if_in(&tdc_time, &eff_tdc, settings) {
             Some(eff_tdc)
         } else {
             None
         }
+    }
+
+    //This corrects the electron arrival time when using a fast blanking device.
+    pub fn tr_electron_correct_by_blanking(&self, pack: &Packet, settings: &Settings) -> Option<TIME> {
+        let ele_time = pack.electron_time_in_tdc_units();
+        let eff_tdc = self.get_closest_tdc(ele_time);
+        Some(0)
     }
 
     pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<Self, Tp3ErrorKind> {
