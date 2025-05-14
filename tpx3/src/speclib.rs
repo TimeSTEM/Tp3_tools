@@ -442,18 +442,22 @@ impl SpecKind for Coincidence2D {
             if let Some(phtime) = ref_tdc.tr_electron_check_if_in(&pack, settings) {
                 let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
                 let index = pack.x() + delay * CAM_DESIGN.0;
+                //pack.y() 96 means fase 0. pack 166 means phase 180 degree. Period is 6446290 /
+                //65536
+                //if pack.y() == 166 {
                 add_index!(self, index);
+                //}
             }
         } else {
             for phtime in self.aux_data.iter() {
-                if check_if_in(etime, phtime, settings) {
+                if check_if_in(&etime, phtime, settings) {
                     let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
                     let index = pack.x() + delay * CAM_DESIGN.0;
                     add_index!(self, index);
                 }
             }
             for phtime in self.aux_data2.iter() {
-                if check_if_in(etime, phtime, settings) {
+                if check_if_in(&etime, phtime, settings) {
                     let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
                     let index = pack.x() + delay * CAM_DESIGN.0 + 2*settings.time_width as u32 * CAM_DESIGN.0;
                     add_index!(self, index);
