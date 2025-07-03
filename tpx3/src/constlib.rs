@@ -16,6 +16,7 @@ pub const HIGH_DYNAMIC_FRAME_BASED_VALUE: COUNTER = 16; //This sums up *VALUE* f
 pub const MAIN_TDC: TdcType = TdcType::TdcOneRisingEdge; //The main TDC, used for external sync
 pub const SECONDARY_TDC: TdcType = TdcType::TdcTwoRisingEdge; //Secondary TDC
 pub const PERIOD_DIVIDER: TIME = 65536; //This divides the period detected by the Timepix3. The divided value is PERIOD_DIVIDER;
+pub const BLANKING_PERIOD: TIME = 6446292; //This is what is received by the TDC after division. So (BLANKING_PERIOD / PERIOD_DIVIDER) * 0.260 ~ 25.57 ns (39.10 MHz).
 
 //***Connection, TCP, and transfer values***//
 pub const BUFFER_SIZE: usize = 16384 * 2;

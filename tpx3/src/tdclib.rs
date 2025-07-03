@@ -260,6 +260,7 @@ pub struct TdcRef {
     video_delay: TIME,
     begin_frame: TIME,
     new_frame: bool,
+    oscillator: bool,
 }
 
 impl TdcRef {
@@ -457,7 +458,8 @@ impl TdcRef {
         }
     }
 
-    //This gets the closest time for a period TDC.
+    //This gets the closest time for a period TDC. Here, the TDC time found is always greater than
+    //the electron time.
     #[inline]
     fn get_closest_tdc(&self, time: TIME) -> TIME {
         let period = self.period().expect("Period must exist in time-resolved mode.");
@@ -476,7 +478,7 @@ impl TdcRef {
     }
 
     //This checks if the electron is inside a given time_delay and time_width for a periodic tdc
-    //reference.
+    //and returns the closest TDC.
     pub fn tr_electron_check_if_in(&self, pack: &Packet, settings: &Settings) -> Option<TIME> {
         let ele_time = pack.electron_time_in_tdc_units();
         let eff_tdc = self.get_closest_tdc(ele_time);
@@ -490,7 +492,7 @@ impl TdcRef {
     }
 
     //This checks if the tdc is inside a given time_delay and time_width for a periodic tdc
-    //reference.
+    //and returns the closest TDC.
     pub fn tr_tdc_check_if_in(&self, pack: &Packet, settings: &Settings) -> Option<TIME> {
         let tdc_time = pack.tdc_time_abs_norm();
         let eff_tdc = self.get_closest_tdc(tdc_time);
@@ -503,11 +505,47 @@ impl TdcRef {
         }
     }
 
-    //This corrects the electron arrival time when using a fast blanking device.
-    pub fn tr_electron_correct_by_blanking(&self, pack: &Packet, settings: &Settings) -> Option<TIME> {
-        let ele_time = pack.electron_time_in_tdc_units();
-        let eff_tdc = self.get_closest_tdc(ele_time);
-        Some(0)
+    pub fn tr_electron_correct_by_blanking(&self, pack: &Packet, _settings: &Settings) -> Option<TIME> {
+        if self.oscillator {
+            let ele_time = pack.electron_time_in_tdc_units();
+            let eff_tdc = self.get_closest_tdc(ele_time);
+
+            let delta = eff_tdc - ele_time;
+            let quarter_period = ((delta * 4 * PERIOD_DIVIDER) / BLANKING_PERIOD) as usize;
+            if quarter_period > 3 {
+                return None;
+            }
+
+            const PI: f64 = std::f64::consts::PI;
+            const INV_PI: f64 = 1.0 / PI;
+            const SCALE: f64 = 24.0 * INV_PI;
+            const HALF_PI: f64 = PI / 2.0;
+
+            let y = pack.y() as f64;
+            const YMAX: f64 = 166.0;
+            const YMIN: f64 = 96.0;
+    
+            if y < YMIN || y > YMAX {
+                return None;
+            }
+    
+            let y_normalized = 2.0 * (y - YMIN) / (YMAX - YMIN) - 1.0;
+            if y_normalized < -1.0 || y_normalized > 1.0 {
+                return None;
+            }
+    
+            let y_corr = match quarter_period {
+                0 => ((y_normalized.asin() + HALF_PI) * SCALE) - 24.0,
+                1 => (y_normalized.acos() * SCALE) - 48.0,
+                2 => ((y_normalized.asin() + HALF_PI) * SCALE) - 72.0,
+                3 => (y_normalized.acos() * SCALE) - 96.0,
+                _ => return None,
+            };
+    
+            Some(eff_tdc - y_corr.abs().round() as TIME)
+        } else {
+            Some(pack.electron_time_in_tdc_units())
+        }
     }
 
     pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<Self, Tp3ErrorKind> {
@@ -544,6 +582,12 @@ impl TdcRef {
         let high_time = tdc_search.find_high_time().map(|time| time);
         let low_time = tdc_search.find_high_time().map(|time| period - time);
 
+        let mut oscillator = false;
+        if ((period as i64 - 100).abs() as TIME) < BLANKING_PERIOD {
+            println!("***Tdc Lib***: The fast oscillator has been detected.");
+            oscillator = true;
+        }
+
         let per_ref = Self {
             tdctype: tdc_type.associate_value(),
             counter: 0,
@@ -560,6 +604,7 @@ impl TdcRef {
             low_time,
             new_frame: false,
             time: last_time,
+            oscillator,
         };
         println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
         Ok(per_ref)
@@ -586,6 +631,7 @@ impl TdcRef {
             low_time: None,
             new_frame: false,
             time: last_time,
+            oscillator: false,
         };
         println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
         Ok(per_ref)
