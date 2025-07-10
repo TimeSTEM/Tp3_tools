@@ -2,12 +2,13 @@
 //!in around `TdcType` enum.
 
 
-mod tdcvec {
+mod prepare_tdc {
     use crate::errorlib::Tp3ErrorKind;
     use crate::tdclib::TdcType;
     use crate::packetlib::Packet;
     use crate::auxiliar::{misc::packet_change, value_types::*};
 
+    ///This struct is used to search for the tdc in case of periodic signals.
     pub struct TdcSearch<'a> {
         data: Vec<(TIME, TdcType)>,
         how_many: usize,
@@ -165,7 +166,54 @@ mod tdcvec {
                 };
             });
         }
+    }
 
+    ///This struct is using to estimate the size of the beam in the EELS camera. We need Ymax and
+    ///Ymin in order to correct the time of arrival.
+    pub struct OscillatorEstimate {
+        data: Vec<POSITION>,
+        how_many: usize,
+    }
+    impl OscillatorEstimate {
+        pub fn new(how_many: usize) -> Self {
+            OscillatorEstimate {
+                data: Vec::new(),
+                how_many,
+            }
+        }
+        pub fn add_electron(&mut self, packet: Packet) {
+            self.data.push(packet.y());
+        }
+        pub fn check(&self) -> bool {
+            self.data.len() > self.how_many
+        }
+        pub fn search_for_electrons(&mut self, data: &[u8]) {
+            data.chunks_exact(8).for_each(|x| {
+                match *x {
+                    [84, 80, 88, 51, _, _, _, _] => {},
+                    _ => {
+                        let packet = Packet::new(0, packet_change(x)[0]);
+                        if packet.id() == 10 || packet.id() == 11 {
+                            self.add_electron(packet);
+                        }
+                    }
+                };
+            })
+        }
+        pub fn extract_amplitude(&mut self, percentile_min: f64, percentile_max: f64) -> (POSITION, POSITION) {
+            self.data.sort();
+            let size = self.data.len();
+
+            fn get_percentile(data: &[POSITION], length: usize, percentage: f64) -> POSITION {
+                let to_advance = (length as f64 * percentage / 100.0) as usize;
+                data.iter().nth(to_advance).copied().expect("***Tdc Lib***: Could not extract the value of the oscillator...")
+            }
+
+            let ymax = get_percentile(&self.data, size, percentile_max);
+            let ymin = get_percentile(&self.data, size, percentile_min);
+            (ymax, ymin)
+
+        }
     }
 }
 
@@ -260,7 +308,7 @@ pub struct TdcRef {
     video_delay: TIME,
     begin_frame: TIME,
     new_frame: bool,
-    oscillator: bool,
+    oscillator_size: Option<(POSITION, POSITION)>,
 }
 
 impl TdcRef {
@@ -506,7 +554,7 @@ impl TdcRef {
     }
 
     pub fn tr_electron_correct_by_blanking(&self, pack: &Packet, _settings: &Settings) -> Option<TIME> {
-        if self.oscillator {
+        if let Some((ymax_osc, ymin_osc)) = self.oscillator_size {
             let ele_time = pack.electron_time_in_tdc_units();
             let eff_tdc = self.get_closest_tdc(ele_time);
 
@@ -521,15 +569,18 @@ impl TdcRef {
             const SCALE: f64 = 24.0 * INV_PI;
             const HALF_PI: f64 = PI / 2.0;
 
-            let y = pack.y() as f64;
-            const YMAX: f64 = 166.0;
-            const YMIN: f64 = 96.0;
-    
-            if y < YMIN || y > YMAX {
+            let y = pack.y();
+            if y < ymin_osc || y > ymax_osc {
                 return None;
             }
+
+            let y = y as f64;
+            //let ymin = 96.0;
+            //let ymax = 166.0;
+            let ymin = ymin_osc as f64;
+            let ymax = ymax_osc as f64;
     
-            let y_normalized = 2.0 * (y - YMIN) / (YMAX - YMIN) - 1.0;
+            let y_normalized = 2.0 * (y - ymin) / (ymax - ymin) - 1.0;
             if y_normalized < -1.0 || y_normalized > 1.0 {
                 return None;
             }
@@ -550,7 +601,7 @@ impl TdcRef {
 
     pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
-        let mut tdc_search = tdcvec::TdcSearch::new(&tdc_type, 3);
+        let mut tdc_search = prepare_tdc::TdcSearch::new(&tdc_type, 3);
         let start = Instant::now();
 
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
@@ -582,10 +633,24 @@ impl TdcRef {
         let high_time = tdc_search.find_high_time().map(|time| time);
         let low_time = tdc_search.find_high_time().map(|time| period - time);
 
-        let mut oscillator = false;
+
+        //If the TDC is periodic, we check if the fast oscillator is ON.
+        let mut oscillator_size: Option<(POSITION, POSITION)> = None;
         if ((period as i64 - 100).abs() as TIME) < BLANKING_PERIOD {
             println!("***Tdc Lib***: The fast oscillator has been detected.");
-            oscillator = true;
+            println!("***Tdc Lib***: Estimating the values of the beam...");
+            let mut osc_estimate = prepare_tdc::OscillatorEstimate::new(NUMBER_OF_ELECTRONS_FOR_OSCILLATOR);
+            let start = Instant::now();
+            loop {
+                if start.elapsed() > Duration::from_secs(TDC_TIMEOUT) {return Err(Tp3ErrorKind::TdcNoReceived)}
+                if let Ok(size) = sock.read_timepix(&mut buffer_pack_data) {
+                    file_to_write.write_all(&buffer_pack_data[0..size])?;
+                    osc_estimate.search_for_electrons(&buffer_pack_data[0..size]);
+                    if osc_estimate.check() {break;}
+                }
+            }
+            oscillator_size = Some(osc_estimate.extract_amplitude(YMIN_PERCENTILE, YMAX_PERCENTILE));
+            println!("***TdcLib***: The size for the YMAX and YMIN has been found as {:?}.", oscillator_size); 
         }
 
         let per_ref = Self {
@@ -604,7 +669,7 @@ impl TdcRef {
             low_time,
             new_frame: false,
             time: last_time,
-            oscillator,
+            oscillator_size,
         };
         println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
         Ok(per_ref)
@@ -631,7 +696,7 @@ impl TdcRef {
             low_time: None,
             new_frame: false,
             time: last_time,
-            oscillator: false,
+            oscillator_size: None,
         };
         println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
         Ok(per_ref)

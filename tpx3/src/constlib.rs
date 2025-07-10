@@ -18,6 +18,11 @@ pub const SECONDARY_TDC: TdcType = TdcType::TdcTwoRisingEdge; //Secondary TDC
 pub const PERIOD_DIVIDER: TIME = 65536; //This divides the period detected by the Timepix3. The divided value is PERIOD_DIVIDER;
 pub const BLANKING_PERIOD: TIME = 6446292; //This is what is received by the TDC after division. So (BLANKING_PERIOD / PERIOD_DIVIDER) * 0.260 ~ 25.57 ns (39.10 MHz).
 
+//***Estimating Oscillator properties***//
+pub const YMAX_PERCENTILE: f64 = 95.0; //The percentile for the upper part.
+pub const YMIN_PERCENTILE: f64 = 5.0; //The percentile for the bottom part.
+pub const NUMBER_OF_ELECTRONS_FOR_OSCILLATOR: usize = 1_000_000; //Nunmber of electron to perform the statistics;
+
 //***Connection, TCP, and transfer values***//
 pub const BUFFER_SIZE: usize = 16384 * 2;
 pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
