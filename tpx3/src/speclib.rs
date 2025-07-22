@@ -440,7 +440,7 @@ impl SpecKind for Coincidence2D {
                 add_index!(self, index);
             }
             if let Some(phtime) = ref_tdc.tr_electron_check_if_in(&pack, settings) {
-                if let Some(etime) = ref_tdc.tr_electron_correct_by_blanking(&pack, settings) {
+                if let Some(etime) = ref_tdc.tr_electron_correct_by_blanking(&pack) {
                     let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
                     let index = pack.x() + delay * CAM_DESIGN.0;
                     add_index!(self, index);

@@ -152,7 +152,7 @@ pub mod cluster {
     }
 
     impl SingleElectron {
-        pub fn new(pack: Packet, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
+        pub fn new(pack: Packet, begin_frame: Option<&TdcRef>, raw_index: usize) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
                     let ele_time = spim_tdc.sync_electron_frame_time(&pack).unwrap();
@@ -171,6 +171,9 @@ pub mod cluster {
 
         pub fn time(&self) -> TIME {
             self.raw_packet_data().electron_time_in_tdc_units()
+        }
+        pub fn time_corrected_by_oscillator(&self, oscillator: TdcRef) -> Option<TIME> {
+            oscillator.tr_electron_correct_by_blanking(self.raw_packet_data())
         }
         pub fn x(&self) -> POSITION {
             self.raw_packet_data().x()
@@ -233,17 +236,17 @@ pub mod cluster {
         fn is_new_cluster(&self, s: &SingleElectron) -> bool {
             self.time() > s.time() + CLUSTER_DET || (self.x() as isize - s.x() as isize).abs() > CLUSTER_SPATIAL || (self.y() as isize - s.y() as isize).abs() > CLUSTER_SPATIAL
         }
-        pub fn get_or_not_spim_index(&self, spim_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEXHYPERSPEC> {
-            spimlib::get_spimindex(self.x(), self.frame_dt(), &spim_tdc?, xspim, yspim, None)
+        pub fn get_or_not_spim_index(&self, spim_tdc: Option<&TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEXHYPERSPEC> {
+            spimlib::get_spimindex(self.x(), self.frame_dt(), spim_tdc?, xspim, yspim, None)
         }
-        pub fn get_or_not_return_spim_index(&self, spim_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEXHYPERSPEC> {
-            spimlib::get_return_spimindex(self.x(), self.frame_dt(), &spim_tdc?, xspim, yspim, None)
+        pub fn get_or_not_return_spim_index(&self, spim_tdc: Option<&TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEXHYPERSPEC> {
+            spimlib::get_return_spimindex(self.x(), self.frame_dt(), spim_tdc?, xspim, yspim, None)
         }
-        pub fn get_or_not_4d_index(&self, spim_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX4D> {
-            spimlib::get_4dindex(self.x(), self.y(), self.frame_dt(), &spim_tdc?, xspim, yspim, None)
+        pub fn get_or_not_4d_index(&self, spim_tdc: Option<&TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX4D> {
+            spimlib::get_4dindex(self.x(), self.y(), self.frame_dt(), spim_tdc?, xspim, yspim, None)
         }
-        pub fn get_or_not_return_4d_index(&self, spim_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX4D> {
-            spimlib::get_return_4dindex(self.x(), self.y(), self.frame_dt(), &spim_tdc?, xspim, yspim, None)
+        pub fn get_or_not_return_4d_index(&self, spim_tdc: Option<&TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEX4D> {
+            spimlib::get_return_4dindex(self.x(), self.y(), self.frame_dt(), spim_tdc?, xspim, yspim, None)
         }
     }
 
@@ -307,7 +310,7 @@ pub mod cluster {
     }
 
     impl SinglePhoton {
-        pub fn new(pack: Packet, channel: COUNTER, begin_frame: Option<TdcRef>, raw_index: usize) -> Self {
+        pub fn new(pack: Packet, channel: COUNTER, begin_frame: Option<&TdcRef>, raw_index: usize) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
                     let tdc_time = spim_tdc.sync_tdc_frame_time(&pack).unwrap();
@@ -325,8 +328,8 @@ pub mod cluster {
         pub fn channel(&self) -> COUNTER {
             self.data.1
         }
-        pub fn get_or_not_spim_index(&self, spim_tdc: Option<TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEXHYPERSPEC> {
-            spimlib::get_spimindex(PIXELS_X-1, self.frame_dt(), &spim_tdc?, xspim, yspim, None)
+        pub fn get_or_not_spim_index(&self, spim_tdc: Option<&TdcRef>, xspim: POSITION, yspim: POSITION) -> Option<INDEXHYPERSPEC> {
+            spimlib::get_spimindex(PIXELS_X-1, self.frame_dt(), spim_tdc?, xspim, yspim, None)
         }
         pub fn frame_dt(&self) -> TIME {
             self.data.3

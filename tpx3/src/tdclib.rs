@@ -303,7 +303,7 @@ pub struct TdcRef {
     period: Option<TIME>,
     high_time: Option<TIME>,
     low_time: Option<TIME>,
-    ticks_to_frame: Option<COUNTER>,
+    ticks_to_frame: Option<COUNTER>, //Here it means it is a scan reference.
     subsample: POSITION,
     video_delay: TIME,
     begin_frame: TIME,
@@ -553,7 +553,7 @@ impl TdcRef {
         }
     }
 
-    pub fn tr_electron_correct_by_blanking(&self, pack: &Packet, _settings: &Settings) -> Option<TIME> {
+    pub fn tr_electron_correct_by_blanking(&self, pack: &Packet) -> Option<TIME> {
         if let Some((ymax_osc, ymin_osc)) = self.oscillator_size {
             let ele_time = pack.electron_time_in_tdc_units();
             let eff_tdc = self.get_closest_tdc(ele_time);

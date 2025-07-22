@@ -52,11 +52,29 @@ pub mod coincidence {
             false
         }
 
+        //Get spectralImage TDC
+        fn get_spim_tdc(&self) -> Option<TdcRef> {
+            if self.is_spim() {
+                self.tdc1
+            } else {
+                None
+            }
+        }
+
+        //Get Oscillator TDC
+        fn get_oscillator_tdc(&self) -> Option<TdcRef> {
+            if self.is_fast_oscillator() {
+                self.tdc2
+            } else {
+                None
+            }
+        }
+
         //Called for all the electrons (not only coincident)
         fn add_electron(&mut self, val: &SingleElectron) {
             self.spectrum[val.x() as usize] += 1;
             if self.is_spim() {
-                if let Some(index) = val.get_or_not_spim_index(self.tdc1, self.spim_size.0, self.spim_size.1) {
+                if let Some(index) = val.get_or_not_spim_index(self.tdc1.as_ref(), self.spim_size.0, self.spim_size.1) {
                     self.spim_frame[index as usize] += 1;
                 }
             }
@@ -66,7 +84,7 @@ pub mod coincidence {
         fn add_photon(&mut self, val: &SinglePhoton) {
             self.spectrum[PIXELS_X as usize - 1] += 1;
             if self.is_spim() {
-                if let Some(index) = val.get_or_not_spim_index(self.tdc1, self.spim_size.0, self.spim_size.1) {
+                if let Some(index) = val.get_or_not_spim_index(self.tdc1.as_ref(), self.spim_size.0, self.spim_size.1) {
                     self.spim_frame[index as usize] += 1;
                 }
             }
@@ -238,7 +256,7 @@ pub mod coincidence {
             &self.reduced_raw_data
         }
         pub fn create_spim_index(&self) -> Vec<INDEXHYPERSPEC> {
-            self.coinc_electrons.iter().map(|se| se.get_or_not_spim_index(self.tdc1, self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)).collect()
+            self.coinc_electrons.iter().map(|se| se.get_or_not_spim_index(self.tdc1.as_ref(), self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)).collect()
         }
 
         fn early_output_data(&mut self) {
@@ -317,42 +335,42 @@ pub mod coincidence {
                     },
                     _ => {
                         match packet.id() {
-                            6 if packet.tdc_type() == coinc_data.tdc2.unwrap().id() => { //Oscillator of Photon
-                                let photon = SinglePhoton::new(packet, 0, coinc_data.tdc1, current_raw_index);
+                            6 if packet.tdc_type() == coinc_data.tdc2.as_ref().unwrap().id() => { //Oscillator of Photon
+                                let photon = SinglePhoton::new(packet, 0, coinc_data.tdc1.as_ref(), current_raw_index);
                                 temp_tdc.add_photon(photon);
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
                             },
-                            6 if packet.tdc_type() == coinc_data.tdc1.unwrap().id() => { //Hyperspec or Photon
+                            6 if packet.tdc_type() == coinc_data.tdc1.as_ref().unwrap().id() => { //Hyperspec or Photon
                                 if coinc_data.is_spim() {
-                                    coinc_data.tdc1.unwrap().upt(&packet);
+                                    coinc_data.tdc1.as_mut().unwrap().upt(&packet);
                                 } else { //if its not synchronized measurement, this tdc is used as a event-channel.
-                                    let photon = SinglePhoton::new(packet, 1, coinc_data.tdc1, current_raw_index);
+                                    let photon = SinglePhoton::new(packet, 1, coinc_data.tdc1.as_ref(), current_raw_index);
                                     temp_tdc.add_photon(photon);
                                 }
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
                             },
                             11 => {
-                                let se = SingleElectron::new(packet, coinc_data.tdc1, current_raw_index);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc().as_ref(), current_raw_index);
                                 temp_edata.add_electron(se);
                             },
                             12 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet::new(0, packet_change(pack_oct)[0]);
-                                let se = SingleElectron::new(packet, coinc_data.tdc1, current_raw_index);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc().as_ref(), current_raw_index);
                                 temp_edata.add_electron(se);
                             },
                             13 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet::new(1, packet_change(pack_oct)[0]);
-                                let se = SingleElectron::new(packet, coinc_data.tdc1, current_raw_index);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc().as_ref(), current_raw_index);
                                 temp_edata.add_electron(se);
                             },
                             14 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet::new(2, packet_change(pack_oct)[0]);
-                                let se = SingleElectron::new(packet, coinc_data.tdc1, current_raw_index);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc().as_ref(), current_raw_index);
                                 temp_edata.add_electron(se);
                             },
                             15 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet::new(3, packet_change(pack_oct)[0]);
-                                let se = SingleElectron::new(packet, coinc_data.tdc1, current_raw_index);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc().as_ref(), current_raw_index);
                                 temp_edata.add_electron(se);
                             },
                             _ => {
@@ -755,13 +773,10 @@ pub mod ntime_resolved {
     impl TimeSpectralSpatial {
         fn prepare(&mut self, file: &mut fs::File) -> Result<(), Tp3ErrorKind> {
             let mut empty_filemanager = FileManager::new_empty();
-            self.tdc_periodic = match self.tdc_periodic {
-                None if self.spimx>1 && self.spimy>1 => {
-                    Some(TdcRef::new_periodic(self.spim_tdc_type.clone(), file, &self.my_settings, &mut empty_filemanager).expect("Problem in creating periodic tdc ref."))
-                },
-                Some(val) => Some(val),
-                _ => None,
-            };
+            
+            if self.tdc_periodic.is_none() && self.spimx>1 && self.spimy>1 {
+                self.tdc_periodic = Some(TdcRef::new_periodic(self.spim_tdc_type.clone(), file, &self.my_settings, &mut empty_filemanager).expect("Problem in creating periodic tdc ref."))
+            }
             Ok(())
         }
     
@@ -774,7 +789,7 @@ pub mod ntime_resolved {
         }
 
         fn add_electron(&mut self, packet: Packet, packet_index: usize) {
-            let se = SingleElectron::new(packet, self.tdc_periodic, packet_index);
+            let se = SingleElectron::new(packet, self.tdc_periodic.as_ref(), packet_index);
             self.ensemble.add_electron(se);
         }
 
@@ -801,12 +816,12 @@ pub mod ntime_resolved {
         fn process_hyperspec(&mut self) -> Result<(), Tp3ErrorKind> {
             if self.ensemble.try_clean(0, &self.remove_clusters) {
                 for val in self.ensemble.iter() {
-                    if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
+                    if let Some(index) = val.get_or_not_spim_index(self.tdc_periodic.as_ref(), self.spimx, self.spimy) {
                         self.hyperspec_index.push(index);
                         self.frame_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
                     }
                     
-                    if let Some(index) = val.get_or_not_return_spim_index(self.tdc_periodic, self.spimx, self.spimy) {
+                    if let Some(index) = val.get_or_not_return_spim_index(self.tdc_periodic.as_ref(), self.spimx, self.spimy) {
                         self.hyperspec_return_index.push(index);
                         self.frame_return_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
                     }
@@ -829,12 +844,12 @@ pub mod ntime_resolved {
         fn process_fourd(&mut self) -> Result<(), Tp3ErrorKind> {
             if self.ensemble.try_clean(0, &self.remove_clusters) {
                 for val in self.ensemble.iter() {
-                    if let Some(index) = val.get_or_not_4d_index(self.tdc_periodic, self.spimx, self.spimy) {
+                    if let Some(index) = val.get_or_not_4d_index(self.tdc_periodic.as_ref(), self.spimx, self.spimy) {
                         self.fourd_index.push(index);
                         self.frame_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
                     }
                     
-                    if let Some(index) = val.get_or_not_return_4d_index(self.tdc_periodic, self.spimx, self.spimy) {
+                    if let Some(index) = val.get_or_not_return_4d_index(self.tdc_periodic.as_ref(), self.spimx, self.spimy) {
                         self.fourd_return_index.push(index);
                         self.frame_return_indices.push((val.spim_slice()).try_into().expect("Exceeded the maximum number of indices"));
                     }
