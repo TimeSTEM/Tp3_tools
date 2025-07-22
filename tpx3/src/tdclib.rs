@@ -636,7 +636,7 @@ impl TdcRef {
 
         //If the TDC is periodic, we check if the fast oscillator is ON.
         let mut oscillator_size: Option<(POSITION, POSITION)> = None;
-        if ((period as i64 - 100).abs() as TIME) < BLANKING_PERIOD {
+        if ((period as i64 - BLANKING_PERIOD as i64).abs() as TIME) < 100 {
             println!("***Tdc Lib***: The fast oscillator has been detected.");
             println!("***Tdc Lib***: Estimating the values of the beam...");
             let mut osc_estimate = prepare_tdc::OscillatorEstimate::new(NUMBER_OF_ELECTRONS_FOR_OSCILLATOR);
