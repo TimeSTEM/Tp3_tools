@@ -760,9 +760,9 @@ impl SpecKind for Live1DFrameHyperspec {
     fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         let shut = self.shutter.as_ref().unwrap();
         if shut.is_hyperspectral_complete() { return }
-        let frame_number = shut.get_counter()[pack.ci() as usize] as POSITION;
+        let pixel_number = shut.get_counter()[pack.ci() as usize] as POSITION;
         //We cannot depass frame_number otherwise the indexation will be bad
-        let index = frame_number * CAM_DESIGN.0 + pack.x();
+        let index = pixel_number * CAM_DESIGN.0 + pack.x();
         self.data[index as usize] += pack.tot() as u32;
     }
     fn add_tdc_hit2(&mut self, _pack: Packet, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
@@ -805,6 +805,80 @@ impl SpecKind for Live1DFrameHyperspec {
         self.shutter.as_ref().unwrap().get_start_pixel()
     }
 }
+
+pub struct Live2DFrameHyperspec {
+    data: Vec<u32>,
+    is_ready: bool,
+    timer: Instant,
+    shutter: Option<ShutterControl>,
+}
+
+impl SpecKind for Live2DFrameHyperspec {
+    fn is_ready(&self) -> bool {
+        self.is_ready
+    }
+    fn build_output(&mut self, _settings: &Settings) -> &[u8] {
+        //The number of pixels sent is updated on the reset or else function
+        let range = self.shutter.as_ref().expect("This mode must have the Shutter Control").get_index_range_to_send();
+        as_bytes(&self.data[range])
+    }
+    fn new(settings: &Settings) -> Self {
+        let len = (CAM_DESIGN.0 * CAM_DESIGN.1 * settings.xscan_size * settings.yscan_size) as usize;
+        let mut shutter = ShutterControl::default();
+        shutter.set_as_hyperspectral();
+        Self{ data: vec![0; len], is_ready: false, timer: Instant::now(), shutter: Some(shutter)}
+    }
+
+    #[inline]
+    fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+        let shut = self.shutter.as_ref().unwrap();
+        if shut.is_hyperspectral_complete() { return }
+        let pixel_number = shut.get_counter()[pack.ci() as usize] as POSITION;
+        //We cannot depass frame_number otherwise the indexation will be bad
+        let index = pixel_number * CAM_DESIGN.0 * CAM_DESIGN.1 + (pack.y() * CAM_DESIGN.0 + pack.x());
+        self.data[index as usize] += pack.tot() as u32;
+    }
+    fn add_tdc_hit2(&mut self, _pack: Packet, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
+    fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
+        frame_tdc.upt(&pack);
+    } 
+    fn add_shutter_hit(&mut self, pack: Packet, _frame_tdc: &mut TdcRef, settings: &Settings) {
+        let _temp_ready = self.shutter.as_mut().unwrap().try_set_time(pack.frame_time(), pack.ci(), pack.tdc_type() == 10);
+        let shutter_counter = self.shutter.as_ref().unwrap().get_counter()[pack.ci() as usize] as POSITION;
+        if shutter_counter >= settings.xscan_size * settings.yscan_size {
+            self.shutter.as_mut().unwrap().set_hyperspectral_as_complete();
+        }
+        let pixels_sent = self.shutter.as_ref().expect("Shutter must be present in Frame-based mode.").hyperspec_pixels_to_send.1;
+        if shutter_counter > pixels_sent + HYPERSPECTRAL_PIXEL_CHUNK {
+            self.is_ready = true;
+            let begin_pixel = pixels_sent;
+            let end_pixel = std::cmp::min(pixels_sent + HYPERSPECTRAL_PIXEL_CHUNK, settings.xscan_size * settings.yscan_size);
+            self.shutter.as_mut().unwrap().set_pixel_to_send(begin_pixel, end_pixel);
+            println!("***FB Hyperspec***: Sending_data with counter {}. Begin and end pixels are {} and {}", shutter_counter, begin_pixel, end_pixel);
+        }
+        /*
+        if !self.is_ready {
+            if self.timer.elapsed().as_millis() < TIME_INTERVAL_HYPERSPECTRAL_FRAME {
+                self.is_ready = false;
+            } else {
+                println!("sending_data with counter {}", shutter_counter);
+                self.is_ready = true;
+            }
+        }
+            */
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
+        self.is_ready = false;
+        self.timer = Instant::now();
+    }
+    fn shutter_control(&self) -> Option<&ShutterControl> {
+        self.shutter.as_ref()
+    }
+    fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
+        self.shutter.as_ref().unwrap().get_start_pixel()
+    }
+}
+
 
 
 

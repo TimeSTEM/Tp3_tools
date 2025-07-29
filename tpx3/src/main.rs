@@ -104,6 +104,13 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, Some(&vec_list), file_to_write)?;
             Ok(my_settings.mode)
         },
+        15 => {
+            let measurement = speclib::Live2DFrameHyperspec::new(&my_settings);
+            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
+            let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
+            Ok(my_settings.mode)
+        },
         _ => Err(Tp3ErrorKind::MiscModeNotImplemented(my_settings.mode)),
     }
 }
