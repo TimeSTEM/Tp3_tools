@@ -147,8 +147,10 @@ impl SpecKind for Live2D {
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
         as_bytes(&self.data)
     }
-    fn new(_settings: &Settings) -> Self {
-        Self{ data: tp3_vec!(2), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now() }
+    fn new(settings: &Settings) -> Self {
+        let data = tp3_vec!(2);
+        misc::check_bitdepth_and_data(&data, settings);
+        Self{ data, is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now() }
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
@@ -228,8 +230,10 @@ impl SpecKind for Live1D {
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
         as_bytes(&self.data)
     }
-    fn new(_settings: &Settings) -> Self {
-        Self{ data: tp3_vec!(1), is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now()}
+    fn new(settings: &Settings) -> Self {
+        let data = tp3_vec!(1);
+        misc::check_bitdepth_and_data(&data, settings);
+        Self{ data, is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now()}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
@@ -321,8 +325,9 @@ impl SpecKind for Coincidence2DV3 {
     }
     fn new(settings: &Settings) -> Self {
         let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
-        let temp_vec = vec![0; len];
-        Self { data: temp_vec, electron_buffer: CollectionElectron::new(), photon_buffer: CollectionPhoton::new(), timer: Instant::now()}
+        let data = vec![0; len];
+        misc::check_bitdepth_and_data(&data, settings);
+        Self { data, electron_buffer: CollectionElectron::new(), photon_buffer: CollectionPhoton::new(), timer: Instant::now()}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
@@ -369,8 +374,9 @@ impl SpecKind for Coincidence2DV2 {
     }
     fn new(settings: &Settings) -> Self {
         let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
-        let temp_vec = vec![0; len];
-        Self { data: temp_vec, electron_buffer: vec![(0, 0); CIRCULAR_BUFFER], photon_buffer: vec![0; LIST_SIZE_AUX_EVENTS], timer: Instant::now(), index: 0}
+        let data = vec![0; len];
+        misc::check_bitdepth_and_data(&data, settings);
+        Self { data, electron_buffer: vec![(0, 0); CIRCULAR_BUFFER], photon_buffer: vec![0; LIST_SIZE_AUX_EVENTS], timer: Instant::now(), index: 0}
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
@@ -456,8 +462,9 @@ impl SpecKind for Coincidence2D {
     }
     fn new(settings: &Settings) -> Self {
         let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
-        let temp_vec = vec![0; len];
-        Self { data: temp_vec, aux_data: vec![0; LIST_SIZE_AUX_EVENTS], aux_data2: vec![0; LIST_SIZE_AUX_EVENTS], timer: Instant::now()}
+        let data = vec![0; len];
+        misc::check_bitdepth_and_data(&data, settings);
+        Self { data, aux_data: vec![0; LIST_SIZE_AUX_EVENTS], aux_data2: vec![0; LIST_SIZE_AUX_EVENTS], timer: Instant::now()}
     }
     //This func gets electrons in which the TDC has already arrived by TCP. So it could be
     //electrons second tcp, first time, or electrons second tdc, second time.
@@ -550,6 +557,7 @@ impl SpecKind for Chrono {
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
         let data = vec![0; len];
+        misc::check_bitdepth_and_data(&data, settings);
         Self{ data, last_time: 0, frame_counter: 0, current_line: 0, timer: Instant::now()}
     }
     #[inline]
@@ -615,7 +623,9 @@ impl SpecKind for ChronoFrame {
     fn new(settings: &Settings) -> Self {
         let len = (settings.xspim_size*CAM_DESIGN.0) as usize;
         let shutter = ShutterControl::default();
-        Self{ data: vec![0; len], frame_counter: 0, current_line: 0, timer: Instant::now(), shutter: Some(shutter)}
+        let data = vec![0; len];
+        misc::check_bitdepth_and_data(&data, settings);
+        Self{ data, frame_counter: 0, current_line: 0, timer: Instant::now(), shutter: Some(shutter)}
     }
 
     #[inline]
@@ -677,8 +687,10 @@ impl SpecKind for Live2DFrame {
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
         as_bytes(&self.data)
     }
-    fn new(_settings: &Settings) -> Self {
-        Self{ data: tp3_vec!(2), is_ready: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
+    fn new(settings: &Settings) -> Self {
+        let data = tp3_vec!(2);
+        misc::check_bitdepth_and_data(&data, settings);
+        Self{ data, is_ready: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
     }
 
     #[inline]
@@ -740,8 +752,10 @@ impl SpecKind for Live1DFrame {
     fn build_output(&mut self, _settings: &Settings) -> &[u8] {
         as_bytes(&self.data)
     }
-    fn new(_settings: &Settings) -> Self {
-        Self{ data: tp3_vec!(1), is_ready: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
+    fn new(settings: &Settings) -> Self {
+        let data = tp3_vec!(1);
+        misc::check_bitdepth_and_data(&data, settings);
+        Self{ data, is_ready: false, timer: Instant::now(), shutter: Some(ShutterControl::default())}
     }
 
     #[inline]
@@ -814,7 +828,9 @@ impl SpecKind for Live1DFrameHyperspec {
         let len = (CAM_DESIGN.0 * settings.xscan_size * settings.yscan_size) as usize;
         let mut shutter = ShutterControl::default();
         shutter.set_as_hyperspectral(false);
-        Self{ data: vec![0; len], is_ready: false, timer: Instant::now(), shutter: Some(shutter)}
+        let data = vec![0; len];
+        misc::check_bitdepth_and_data(&data, settings);
+        Self{ data, is_ready: false, timer: Instant::now(), shutter: Some(shutter)}
     }
 
     #[inline]
@@ -893,7 +909,9 @@ impl SpecKind for Live2DFrameHyperspec {
         let len = (CAM_DESIGN.0 * CAM_DESIGN.1 * settings.xscan_size * settings.yscan_size) as usize;
         let mut shutter = ShutterControl::default();
         shutter.set_as_hyperspectral(true);
-        Self{ data: vec![0; len], is_ready: false, timer: Instant::now(), shutter: Some(shutter)}
+        let data = vec![0; len];
+        misc::check_bitdepth_and_data(&data, settings);
+        Self{ data, is_ready: false, timer: Instant::now(), shutter: Some(shutter)}
     }
 
     #[inline]
@@ -1142,8 +1160,6 @@ fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, ext
     }
     */
     msg.push_str("}\n");
-    println!("{:?}", msg);
-
     let s: Vec<u8> = msg.into_bytes();
     s
 }

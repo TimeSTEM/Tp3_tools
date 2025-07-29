@@ -423,6 +423,12 @@ pub mod misc {
     pub fn vector_len_in_bytes<T>(v: &Vec<T>) -> usize {
         v.len() * std::mem::size_of::<T>()
     }
+
+    //Check bitdepth with data
+    pub fn check_bitdepth_and_data<T>(v: &Vec<T>, settings: &Settings) {
+        let size = std::mem::size_of_val(&v[0]) as u32;
+        assert!(size == settings.bytedepth);
+    }
     
     //This checks if the electron is inside a given time_delay and time_width for a non-periodic
     //tdc reference. This is used with stocastic events.
