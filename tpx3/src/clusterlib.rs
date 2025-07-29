@@ -106,7 +106,7 @@ pub mod cluster {
                 let mut index_to_increase = None;
                 let mut photons_per_electron = 0;
                 for (index, photon) in photon_list.iter().skip(*min_index).enumerate() {
-                    if (photon.time() / 6 < electron.time() + time_delay + time_width) && (electron.time() + time_delay < photon.time() / 6 + time_width) {
+                    if (photon.time() < electron.time() + time_delay + time_width) && (electron.time() + time_delay < photon.time() + time_width) {
                         corr_array.add_electron(*electron);
                         corr_photons.add_photon(*photon);
                         if photons_per_electron == 0 {
@@ -115,7 +115,7 @@ pub mod cluster {
                         photons_per_electron += 1;
                         if index_to_increase.is_none() { index_to_increase = Some(index); }
                     }
-                    if photon.time() / 6 > electron.time() + time_delay + time_width {break;}
+                    if photon.time() > electron.time() + time_delay + time_width {break;}
                 }
                 if let Some(increase) = index_to_increase {
                     *min_index += increase / PHOTON_LIST_STEP;
