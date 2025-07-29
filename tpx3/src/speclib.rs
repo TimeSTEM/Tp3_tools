@@ -8,7 +8,7 @@ use crate::errorlib::Tp3ErrorKind;
 use crate::clusterlib::cluster::{SinglePhoton, CollectionPhoton, SingleElectron, CollectionElectron};
 use std::time::Instant;
 use std::io::Write;
-use crate::auxiliar::{value_types::*, FileManager};
+use crate::auxiliar::{value_types::*, FileManager, misc};
 use crate::constlib::*;
 //use rayon::prelude::*;
 
@@ -18,6 +18,7 @@ const CAM_DESIGN: (POSITION, POSITION) = Packet::chip_array();
 pub struct ShutterControl {
     time: [TIME; 4],
     counter: [COUNTER; 4],
+    is_2d: bool,
     hyperspectral: bool,
     hyperspectral_complete: bool,
     hyperspec_pixels_to_send: (POSITION, POSITION), //Start and end pixel that will be sent
@@ -44,8 +45,9 @@ impl ShutterControl {
         }
         false
     }
-    fn set_as_hyperspectral(&mut self) {
+    fn set_as_hyperspectral(&mut self, is_2d: bool) {
         self.hyperspectral = true;
+        self.is_2d = is_2d;
     }
     fn set_hyperspectral_as_complete(&mut self) {
         self.hyperspectral_complete = true;
@@ -61,11 +63,19 @@ impl ShutterControl {
     }
     fn get_index_range_to_send(&self) -> std::ops::Range<usize> {
         let (start_pixel, end_pixel) = self.hyperspec_pixels_to_send;
-        (start_pixel * CAM_DESIGN.0) as usize..(end_pixel * CAM_DESIGN.0) as usize
+        if !self.is_2d {
+            (start_pixel * CAM_DESIGN.0) as usize..(end_pixel * CAM_DESIGN.0) as usize
+        } else {
+            (start_pixel * CAM_DESIGN.0 * CAM_DESIGN.1) as usize..(end_pixel * CAM_DESIGN.0 * CAM_DESIGN.1) as usize
+        }
     }
-    fn get_pixel_to_send_size(&self) -> POSITION {
+    fn get_data_size_to_send(&self) -> usize {
         let (start_pixel, end_pixel) = self.hyperspec_pixels_to_send;
-        end_pixel - start_pixel
+        if !self.is_2d {
+            ((end_pixel - start_pixel) * CAM_DESIGN.0) as usize
+        } else {
+            ((end_pixel - start_pixel) * CAM_DESIGN.0 * CAM_DESIGN.1) as usize
+        }
     }
     fn get_counter(&self) -> [COUNTER; 4] {
         self.counter
@@ -91,8 +101,8 @@ pub trait SpecKind {
     fn get_frame_counter(&self, tdc_value: &TdcRef) -> COUNTER {
         tdc_value.counter() / 2
     }
-    fn data_size(&self) -> COUNTER {0} //TODO: must be implemented in header
-    fn data_height(&self) -> COUNTER {0} //TODO: must be implemented in header
+    fn data_size_in_bytes(&self) -> usize;
+    fn data_height(&self) -> COUNTER;
 }
 
 pub trait IsiBoxKind: SpecKind {
@@ -129,7 +139,6 @@ pub struct Live2D {
     last_time: TIME,
     timer: Instant,
 }
-
 
 impl SpecKind for Live2D {
     fn is_ready(&self) -> bool {
@@ -196,6 +205,12 @@ impl SpecKind for Live2D {
     fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
         self.frame_counter
     }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        CAM_DESIGN.1
+    }
 }
 
 pub struct Live1D {
@@ -205,7 +220,6 @@ pub struct Live1D {
     last_time: TIME,
     timer: Instant,
 }
-
 
 impl SpecKind for Live1D {
     fn is_ready(&self) -> bool {
@@ -272,6 +286,12 @@ impl SpecKind for Live1D {
     fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
         self.frame_counter
     }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        1
+    }
 }
 
 //Same implementation as the post-processing data. Currently not used.
@@ -322,8 +342,13 @@ impl SpecKind for Coincidence2DV3 {
         self.electron_buffer.clear();
         self.photon_buffer.clear();
     }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        self.data.len() as COUNTER / CAM_DESIGN.0
+    }
 }
-
 
 //Circular buffer for the elctrons. Currently not used. This is similar to what is done in the
 //FPGA.
@@ -404,6 +429,12 @@ impl SpecKind for Coincidence2DV2 {
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
         self.timer = Instant::now();
+    }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        self.data.len() as COUNTER / CAM_DESIGN.0
     }
 }
 
@@ -493,6 +524,12 @@ impl SpecKind for Coincidence2D {
             self.data.iter_mut().for_each(|x| *x = 0);
         }
     }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        self.data.len() as COUNTER / CAM_DESIGN.0
+    }
 }
 
 pub struct Chrono {
@@ -551,6 +588,12 @@ impl SpecKind for Chrono {
     }
     fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
         self.frame_counter
+    }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        self.data.len() as COUNTER / CAM_DESIGN.0
     }
 }
 
@@ -611,6 +654,12 @@ impl SpecKind for ChronoFrame {
     fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
         self.frame_counter
     }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        self.data.len() as COUNTER / CAM_DESIGN.0
+    }
 }
 
 
@@ -668,6 +717,12 @@ impl SpecKind for Live2DFrame {
     }
     fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
         self.shutter.as_ref().unwrap().get_counter()[0]
+    }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        CAM_DESIGN.1
     }
 }
 
@@ -731,6 +786,12 @@ impl SpecKind for Live1DFrame {
     fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
         self.shutter.as_ref().unwrap().get_counter()[0]
     }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        1
+    }
 }
 
 pub struct Live1DFrameHyperspec {
@@ -752,7 +813,7 @@ impl SpecKind for Live1DFrameHyperspec {
     fn new(settings: &Settings) -> Self {
         let len = (CAM_DESIGN.0 * settings.xscan_size * settings.yscan_size) as usize;
         let mut shutter = ShutterControl::default();
-        shutter.set_as_hyperspectral();
+        shutter.set_as_hyperspectral(false);
         Self{ data: vec![0; len], is_ready: false, timer: Instant::now(), shutter: Some(shutter)}
     }
 
@@ -804,6 +865,12 @@ impl SpecKind for Live1DFrameHyperspec {
     fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
         self.shutter.as_ref().unwrap().get_start_pixel()
     }
+    fn data_size_in_bytes(&self) -> usize {
+        self.shutter.as_ref().unwrap().get_data_size_to_send() * std::mem::size_of_val(&self.data[0])
+    }
+    fn data_height(&self) -> COUNTER {
+        1
+    }
 }
 
 pub struct Live2DFrameHyperspec {
@@ -825,7 +892,7 @@ impl SpecKind for Live2DFrameHyperspec {
     fn new(settings: &Settings) -> Self {
         let len = (CAM_DESIGN.0 * CAM_DESIGN.1 * settings.xscan_size * settings.yscan_size) as usize;
         let mut shutter = ShutterControl::default();
-        shutter.set_as_hyperspectral();
+        shutter.set_as_hyperspectral(true);
         Self{ data: vec![0; len], is_ready: false, timer: Instant::now(), shutter: Some(shutter)}
     }
 
@@ -876,6 +943,12 @@ impl SpecKind for Live2DFrameHyperspec {
     }
     fn get_frame_counter(&self, _tdc_value: &TdcRef) -> COUNTER {
         self.shutter.as_ref().unwrap().get_start_pixel()
+    }
+    fn data_size_in_bytes(&self) -> usize {
+        self.shutter.as_ref().unwrap().get_data_size_to_send() * std::mem::size_of_val(&self.data[0])
+    }
+    fn data_height(&self) -> COUNTER {
+        CAM_DESIGN.1
     }
 }
 
@@ -1031,6 +1104,8 @@ fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, ext
     msg.push_str(",\"frameNumber\":");
     msg.push_str(&((measurement.get_frame_counter(tdc)).to_string()));
     msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
+    msg.push_str(&((measurement.data_size_in_bytes().to_string())));
+    /*
     if set.mode == 6 || set.mode == 8 { //ChronoMode
         msg.push_str(&((set.xspim_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
     } else if set.mode == 7 { //Coincidence2D
@@ -1038,17 +1113,23 @@ fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, ext
     } else if set.mode == 11 { //Frame-based hyperspectral image
         let data_size = shutter_control.unwrap().get_pixel_to_send_size();
         msg.push_str(&((data_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
+    } else if set.mode == 15 { //Frame-based 2D hyperspectral image
+        let data_size = shutter_control.unwrap().get_pixel_to_send_size();
+        msg.push_str(&((data_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)*CAM_DESIGN.1).to_string()));
     } else {
         match set.bin {
             true => { msg.push_str(&((set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()))},
             false => { msg.push_str(&((set.bytedepth*(CAM_DESIGN.0+extra_pixels)*CAM_DESIGN.1).to_string()))},
         }
     }
+    */
     msg.push_str(",\"bitDepth\":");
     msg.push_str(&((set.bytedepth<<3).to_string()));
     msg.push_str(",\"width\":");
     msg.push_str(&((CAM_DESIGN.0+extra_pixels).to_string()));
     msg.push_str(",\"height\":");
+    msg.push_str(&(measurement.data_height().to_string()));
+    /*
     if set.mode == 6 || set.mode == 8 { //ChronoMode
         msg.push_str(&(set.xspim_size.to_string()));
     } else if set.mode == 7 { //Coincidence2D Mode
@@ -1059,7 +1140,9 @@ fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, ext
             false=>{msg.push_str(&(CAM_DESIGN.1.to_string()))},
         }
     }
+    */
     msg.push_str("}\n");
+    println!("{:?}", msg);
 
     let s: Vec<u8> = msg.into_bytes();
     s

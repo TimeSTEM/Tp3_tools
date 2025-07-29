@@ -419,6 +419,11 @@ pub mod misc {
         }
     }
 
+    //Get a vector size in bytes
+    pub fn vector_len_in_bytes<T>(v: &Vec<T>) -> usize {
+        v.len() * std::mem::size_of::<T>()
+    }
+    
     //This checks if the electron is inside a given time_delay and time_width for a non-periodic
     //tdc reference. This is used with stocastic events.
     #[inline]
