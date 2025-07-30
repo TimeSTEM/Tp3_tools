@@ -230,7 +230,7 @@ pub mod coincidence {
 			let json_source = parent_folder.join(json_filename);
 			let json_destination = destination_folder.join("reduced_raw.json");
 			
-            std::fs::copy(json_source, json_destination);
+            std::fs::copy(json_source, json_destination)?;
 			Ok(())
 		}
 
