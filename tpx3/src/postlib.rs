@@ -221,7 +221,7 @@ pub mod coincidence {
 			let tpx3_file = std::path::Path::new(&self.file);
 			
 			let stem_file = tpx3_file.file_stem().unwrap();
-			let stem_file = std::path::Path::ndsew(stem_file);
+			let stem_file = std::path::Path::new(stem_file);
 			let json_filename = format!("{}.json", stem_file.to_string_lossy());
 			
 			let parent_folder = tpx3_file.parent().unwrap();
