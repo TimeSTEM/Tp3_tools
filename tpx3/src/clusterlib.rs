@@ -214,15 +214,10 @@ pub mod cluster {
         pub fn relative_time(&self, reference_time: TIME) -> i64 {
             self.time() as i64 - reference_time as i64
         }
-        //This is multiplied by six to simulate the time bin of the TDC so in this case the
-        //electron bin is ~0.260 ps
-        pub fn relative_time_from_abs_tdc(&self, reference_time: TIME) -> i64 {
-            (self.time()*6) as i64 - reference_time as i64
-        }
         //Similar to the function above, but it uses the coincident photon associated already
         pub fn relative_time_from_coincident_photon(&self) -> Option<i64> {
             let reference_time = self.coincident_photon()?.time();
-            Some((self.time()*6) as i64 - reference_time as i64)
+            Some((self.time()) as i64 - reference_time as i64)
         }
         fn tot_to_energy(&self) -> u16 {
             let index = self.x() as usize + 1024 * self.y() as usize;
