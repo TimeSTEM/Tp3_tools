@@ -216,10 +216,28 @@ pub mod coincidence {
                 Err(_) => { Err(Tp3ErrorKind::CoincidenceCantReadFile) }
             }
         }
+		
+		fn copy_json(&self) -> Result<(), Tp3ErrorKind> {
+			let tpx3_file = std::path::Path::new(&self.file);
+			
+			let stem_file = tpx3_file.file_stem().unwrap();
+			let stem_file = std::path::Path::ndsew(stem_file);
+			let json_filename = format!("{}.json", stem_file.to_string_lossy());
+			
+			let parent_folder = tpx3_file.parent().unwrap();
+			let destination_folder = parent_folder.join(stem_file);
+			
+			let json_source = parent_folder.join(json_filename);
+			let json_destination = destination_folder.join("reduced_raw.json");
+			
+            std::fs::copy(json_source, json_destination);
+			Ok(())
+		}
 
         pub fn prepare_to_search(&mut self) -> Result<(), Tp3ErrorKind> {
             if self.save_locally {self.try_create_folder()?;};
             self.is_file_readable()?;
+			self.copy_json()?;
             Ok(())
         }
         
