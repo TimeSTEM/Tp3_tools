@@ -377,6 +377,10 @@ impl TdcRef {
         Some((self.counter as TIME / 2) * self.period? + self.begin_time)
     }
 
+    pub fn is_fast_oscillator(&self) -> bool {
+        self.oscillator_size.is_some()
+    }
+
     //pub fn electron_relative_time(&self, ele_time: TIME) -> TIME {
     //    ele_time - self.begin_frame - VIDEO_TIME
     //}

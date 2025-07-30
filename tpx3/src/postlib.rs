@@ -49,7 +49,7 @@ pub mod coincidence {
 
         //Condition of the FastOscillator
         fn is_fast_oscillator(&self) -> bool {
-            false
+            self.my_settings.mode == 99 //TODO: this is incorrect and for debug purposes only
         }
 
         //Get spectralImage TDC
@@ -180,7 +180,14 @@ pub mod coincidence {
             } else {
                 Some(TdcRef::new_no_read(MAIN_TDC).expect("Could not create non periodic TDC reference."))
             };
-            self.tdc2 = Some(TdcRef::new_no_read(SECONDARY_TDC).expect("Could not create non periodic (photon) TDC reference."));
+            self.tdc2 = if self.is_fast_oscillator() {
+                let mut empty_filemanager = FileManager::new_empty();
+                let temp = TdcRef::new_periodic(SECONDARY_TDC, &mut file0, &self.my_settings, &mut empty_filemanager).expect("Could not create period TDC reference.");
+                assert!(temp.is_fast_oscillator());
+                Some(temp)
+            } else {
+                Some(TdcRef::new_no_read(SECONDARY_TDC).expect("Could not create non periodic (photon) TDC reference."))
+            };
         }
 
 
@@ -353,7 +360,7 @@ pub mod coincidence {
                     },
                     _ => {
                         match packet.id() {
-                            6 if packet.tdc_type() == coinc_data.tdc2.as_ref().unwrap().id() => { //Oscillator of Photon
+                            6 if packet.tdc_type() == coinc_data.tdc2.as_ref().unwrap().id() => { //Oscillator or Photon
                                 let photon = SinglePhoton::new(packet, 0, coinc_data.tdc1.as_ref(), current_raw_index);
                                 temp_tdc.add_photon(photon);
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
