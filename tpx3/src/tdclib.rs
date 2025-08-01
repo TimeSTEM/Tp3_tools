@@ -291,7 +291,7 @@ use crate::constlib::*;
 use crate::packetlib::Packet;
 use std::io::Write;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct TdcRef {
     tdctype: u8,
     counter: COUNTER,

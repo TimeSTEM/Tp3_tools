@@ -36,11 +36,31 @@ pub mod coincidence {
         file: String,
         my_settings: Settings,
         save_locally: bool,
-        tdc1: Option<TdcRef>, //If its a Hyperspectral Image, the Reference TDC should be here.
-        tdc2: Option<TdcRef>, //If its a Fast Oscillator experiment, the Reference TDC should be here.
+        tdc1: TdcRef, //If its a Hyperspectral Image, the Reference TDC should be here.
+        tdc2: TdcRef, //If its a Fast Oscillator experiment, the Reference TDC should be here.
     }
 
     impl ElectronData {
+
+        //This is the tdc that the hyperspec should be connected
+        fn spim_or_photon_tdc(&self) -> &TdcRef {
+            &self.tdc1
+        }
+        
+        //This is the tdc that the hyperspec should be connected as mut
+        fn spim_or_photon_tdc_as_mut(&mut self) -> &mut TdcRef {
+            &mut self.tdc1
+        }
+        
+        //This is the tdc that the fast oscillator should be connected
+        fn fast_oscillator_or_photon_tdc(&self) -> &TdcRef {
+            &self.tdc2
+        }
+        
+        //This is the tdc that the fast oscillator should be connected as mut
+        fn fast_oscillator_or_photon_tdc_as_mut(&mut self) -> &mut TdcRef {
+            &mut self.tdc2
+        }
 
         //Condition to be a SpectralImage
         fn is_spim(&self) -> bool {
@@ -53,27 +73,46 @@ pub mod coincidence {
         }
 
         //Get spectralImage TDC
-        fn get_spim_tdc(&self) -> Option<TdcRef> {
+        fn get_spim_tdc(&self) -> Option<&TdcRef> {
             if self.is_spim() {
-                self.tdc1
+                Some(self.spim_or_photon_tdc())
+            } else {
+                None
+            }
+        }
+ 
+        //Get spectralImage TDC as mut
+        fn get_spim_tdc_as_mut(&mut self) -> Option<&mut TdcRef> {
+            if self.is_spim() {
+                Some(self.spim_or_photon_tdc_as_mut())
             } else {
                 None
             }
         }
 
         //Get Oscillator TDC
-        fn get_oscillator_tdc(&self) -> Option<TdcRef> {
+        fn get_oscillator_tdc(&self) -> Option<&TdcRef> {
             if self.is_fast_oscillator() {
-                self.tdc2
+                Some(self.fast_oscillator_or_photon_tdc())
             } else {
                 None
             }
         }
 
+        //Get Oscillator TDC as mut
+        fn get_oscillator_tdc_as_mut(&mut self) -> Option<&mut TdcRef> {
+            if self.is_fast_oscillator() {
+                Some(self.fast_oscillator_or_photon_tdc_as_mut())
+            } else {
+                None
+            }
+        }
+
+
         //Called for all the electrons (not only coincident)
         fn add_electron(&mut self, val: &SingleElectron) {
             self.spectrum[val.x() as usize] += 1;
-            if let Some(index) = val.get_or_not_spim_index(self.get_spim_tdc().as_ref(), self.spim_size.0, self.spim_size.1) {
+            if let Some(index) = val.get_or_not_spim_index(self.get_spim_tdc(), self.spim_size.0, self.spim_size.1) {
                 self.spim_frame[index as usize] += 1;
             }
         }
@@ -81,7 +120,7 @@ pub mod coincidence {
         //Called for all the photons (not only coincident)
         fn add_photon(&mut self, val: &SinglePhoton) {
             self.spectrum[PIXELS_X as usize - 1] += 1;
-            if let Some(index) = val.get_or_not_spim_index(self.get_spim_tdc().as_ref(), self.spim_size.0, self.spim_size.1) {
+            if let Some(index) = val.get_or_not_spim_index(self.get_spim_tdc(), self.spim_size.0, self.spim_size.1) {
                 self.spim_frame[index as usize] += 1;
             }
         }
@@ -167,22 +206,24 @@ pub mod coincidence {
         fn create_tdcs(&mut self) {
             //Opening the raw data file. We have already checked if the file opens so no worries here.
             let mut file0 = fs::File::open(&self.file).unwrap();
-            self.tdc1 = if self.is_spim() {
+
+            if self.is_spim() {
                 if self.spim_size.0 == 0 || self.spim_size.1 == 0 {
                     panic!("***Coincidence***: Spim mode is on. X and Y pixels must be greater than 0.");
                 }
                 let mut empty_filemanager = FileManager::new_empty();
-                Some(TdcRef::new_periodic(MAIN_TDC, &mut file0, &self.my_settings, &mut empty_filemanager).expect("Could not create period TDC reference."))
-            } else {
-                Some(TdcRef::new_no_read(MAIN_TDC).expect("Could not create non periodic TDC reference."))
+                let temp = TdcRef::new_periodic(MAIN_TDC, &mut file0, &self.my_settings, &mut empty_filemanager).expect("Could not create period TDC reference.");
+                let spim_tdc = self.spim_or_photon_tdc_as_mut();
+                *spim_tdc = temp;
             };
-            self.tdc2 = if self.is_fast_oscillator() {
+            
+
+            if self.is_fast_oscillator() {
                 let mut empty_filemanager = FileManager::new_empty();
                 let temp = TdcRef::new_periodic(SECONDARY_TDC, &mut file0, &self.my_settings, &mut empty_filemanager).expect("Could not create period TDC reference.");
                 assert!(temp.is_fast_oscillator());
-                Some(temp)
-            } else {
-                Some(TdcRef::new_no_read(SECONDARY_TDC).expect("Could not create non periodic (photon) TDC reference."))
+                let fast_oscillator = self.fast_oscillator_or_photon_tdc_as_mut();
+                *fast_oscillator = temp;
             };
         }
 
@@ -199,8 +240,8 @@ pub mod coincidence {
                 file: file_path,
                 my_settings,
                 save_locally,
-                tdc1: None,
-                tdc2: None,
+                tdc1: TdcRef::new_no_read(MAIN_TDC).expect("Could not create non periodic (photon) TDC reference."),
+                tdc2: TdcRef::new_no_read(SECONDARY_TDC).expect("Could not create non periodic (photon) TDC reference.")
             }
         } 
 
@@ -276,7 +317,7 @@ pub mod coincidence {
             &self.reduced_raw_data
         }
         pub fn create_spim_index(&self) -> Vec<INDEXHYPERSPEC> {
-            self.coinc_electrons.iter().map(|se| se.get_or_not_spim_index(self.tdc1.as_ref(), self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)).collect()
+            self.coinc_electrons.iter().map(|se| se.get_or_not_spim_index(self.get_spim_tdc(), self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)).collect()
         }
 
         fn early_output_data(&mut self) {
@@ -355,47 +396,47 @@ pub mod coincidence {
                     },
                     _ => {
                         match packet.id() {
-                            6 if packet.tdc_type() == coinc_data.tdc2.as_ref().unwrap().id() => { //Oscillator or Photon
-                                if coinc_data.is_fast_oscillator() {
-                                    coinc_data.tdc2.as_mut().unwrap().upt(&packet);
-                                } else {
-                                    let photon = SinglePhoton::new(packet, 0, coinc_data.get_spim_tdc().as_ref(), current_raw_index);
+                            6 if packet.tdc_type() == coinc_data.fast_oscillator_or_photon_tdc().id() => { //Oscillator or Photon
+                                if let Some(fast_oscillator_tdc) = coinc_data.get_oscillator_tdc_as_mut() {
+                                    fast_oscillator_tdc.upt(&packet);
+                                } else { //if its not synchronized measurement, this tdc is used as a event-channel.
+                                    let photon = SinglePhoton::new(packet, 0, coinc_data.get_spim_tdc(), current_raw_index);
                                     temp_tdc.add_photon(photon);
                                 }
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
                             },
-                            6 if packet.tdc_type() == coinc_data.tdc1.as_ref().unwrap().id() => { //Hyperspec or Photon
-                                if coinc_data.is_spim() {
-                                    coinc_data.tdc1.as_mut().unwrap().upt(&packet);
+                            6 if packet.tdc_type() == coinc_data.spim_or_photon_tdc().id() => { //Hyperspec or Photon
+                                if let Some(spim_tdc) = coinc_data.get_spim_tdc_as_mut() {
+                                    spim_tdc.upt(&packet);
                                 } else { //if its not synchronized measurement, this tdc is used as a event-channel.
-                                    let photon = SinglePhoton::new(packet, 1, coinc_data.get_spim_tdc().as_ref(), current_raw_index);
+                                    let photon = SinglePhoton::new(packet, 1, coinc_data.get_spim_tdc(), current_raw_index);
                                     temp_tdc.add_photon(photon);
                                 }
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
                             },
                             11 => {
                                 let electron_time = coinc_data.get_oscillator_tdc().map(|tdc| tdc.tr_electron_correct_by_blanking(&packet)).flatten();
-                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc().as_ref(), current_raw_index, electron_time);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, electron_time);
                                 temp_edata.add_electron(se);
                             },
                             12 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet::new(0, packet_change(pack_oct)[0]);
-                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc().as_ref(), current_raw_index, None);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None);
                                 temp_edata.add_electron(se);
                             },
                             13 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet::new(1, packet_change(pack_oct)[0]);
-                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc().as_ref(), current_raw_index, None);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None);
                                 temp_edata.add_electron(se);
                             },
                             14 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet::new(2, packet_change(pack_oct)[0]);
-                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc().as_ref(), current_raw_index, None);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None);
                                 temp_edata.add_electron(se);
                             },
                             15 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet::new(3, packet_change(pack_oct)[0]);
-                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc().as_ref(), current_raw_index, None);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None);
                                 temp_edata.add_electron(se);
                             },
                             _ => {

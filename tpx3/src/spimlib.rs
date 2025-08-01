@@ -428,6 +428,7 @@ pub fn build_spim<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
     let (tx, rx) = mpsc::channel();
     let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
+    let line_tdc_clone = line_tdc.clone();
 
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
@@ -443,7 +444,7 @@ pub fn build_spim<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
  
     let start = Instant::now();
     for mut tl in rx {
-        let result = tl.build_output(&my_settings, &line_tdc, scan_list);
+        let result = tl.build_output(&my_settings, &line_tdc_clone, scan_list);
         if ns_sock.write(result).is_err() {println!("Client disconnected on data."); break;}
     }
 
@@ -461,6 +462,7 @@ pub fn build_spim_isi<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
     let mut last_ci = 0;
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     let mut list = meas_type.copy_empty();
+    let line_tdc_clone = line_tdc.clone();
 
     
     thread::spawn(move || {
@@ -473,7 +475,7 @@ pub fn build_spim_isi<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
  
     let start = Instant::now();
     for mut tl in rx {
-        let result = tl.build_output(&my_settings, &line_tdc, None);
+        let result = tl.build_output(&my_settings, &line_tdc_clone, None);
         let x = handler.get_data();
         if ns_sock.write(as_bytes(result)).is_err() {println!("Client disconnected on data."); break;}
         if x.len() > 0 && ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
