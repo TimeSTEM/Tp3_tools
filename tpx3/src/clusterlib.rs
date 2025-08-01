@@ -191,18 +191,12 @@ pub mod cluster {
         pub fn spim_slice(&self) -> COUNTER {
             self.data.1
         }
-        //pub fn cluster_size(&self) -> u16 {
-        //    self.data.2
-        //}
         pub fn raw_packet_data(&self) -> &Packet {
             &self.data.2
         }
         pub fn raw_packet_index(&self) -> usize {
             self.data.3
         }
-        //pub fn spim_line(&self) -> POSITION {
-        //    self.data.5
-        //}
         pub fn coincident_photon(&self) -> Option<SinglePhoton> {
             self.data.4
         }
