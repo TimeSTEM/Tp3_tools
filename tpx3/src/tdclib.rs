@@ -599,7 +599,7 @@ impl TdcRef {
     
             Some(eff_tdc - y_corr.abs().round() as TIME)
         } else {
-            Some(pack.electron_time_in_tdc_units())
+            None
         }
     }
 

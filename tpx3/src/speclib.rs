@@ -331,7 +331,7 @@ impl SpecKind for Coincidence2DV3 {
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
-        let se = SingleElectron::new(pack, None, 0);
+        let se = SingleElectron::new(pack, None, 0, None);
         self.electron_buffer.add_electron(se);
     }
     fn add_tdc_hit2(&mut self, pack: Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {

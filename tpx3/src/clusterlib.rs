@@ -129,10 +129,10 @@ pub mod cluster {
         }
     }
 
-    ///Spim dT, Spim Slice, raw packet, packet index, CoincidencePhoton
+    ///Spim dT, Spim Slice, raw packet, packet index, CoincidencePhoton, Electron Time substitute
     #[derive(Copy, Clone, Eq)]
     pub struct SingleElectron {
-        data: (TIME, COUNTER, Packet, usize, Option<SinglePhoton>),
+        data: (TIME, COUNTER, Packet, usize, Option<SinglePhoton>, Option<TIME>),
     }
     
     ///Important for sorting
@@ -153,25 +153,26 @@ pub mod cluster {
     }
 
     impl SingleElectron {
-        pub fn new(pack: Packet, begin_frame: Option<&TdcRef>, raw_index: usize) -> Self {
+        pub fn new(pack: Packet, begin_frame: Option<&TdcRef>, raw_index: usize, subs_etime: Option<TIME>) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
                     let ele_time = spim_tdc.sync_electron_frame_time(&pack).unwrap();
                     let frame = spim_tdc.frame().unwrap_or(0);
                     SingleElectron {
-                        data: (ele_time, frame, pack, raw_index, None)
+                        data: (ele_time, frame, pack, raw_index, None, subs_etime)
                     }
                 },
                 None => {
                     SingleElectron {
-                        data: (0, 0, pack, raw_index, None),
+                        data: (0, 0, pack, raw_index, None, subs_etime),
                     }
                 },
             }
         }
 
         pub fn time(&self) -> TIME {
-            self.raw_packet_data().electron_time_in_tdc_units()
+            self.data.5.unwrap_or(self.raw_packet_data().electron_time_in_tdc_units())
+            //self.raw_packet_data().electron_time_in_tdc_units()
         }
         pub fn time_corrected_by_oscillator(&self, oscillator: TdcRef) -> Option<TIME> {
             oscillator.tr_electron_correct_by_blanking(self.raw_packet_data())
