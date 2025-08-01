@@ -1009,7 +1009,7 @@ pub mod calibration {
                 let electron_tot_reference = electron.frame_dt() as i64;
                 let time_diference = (electron_time - electron_tot_reference) as i8;
                 self.rel_time.push(time_diference);
-                self.cluster_size.push(electron.cluster_size());
+                //self.cluster_size.push(electron.cluster_size());
             }
         }
         pub fn output_relative_calibration_time(&self) {

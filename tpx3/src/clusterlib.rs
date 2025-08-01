@@ -49,7 +49,8 @@ pub mod cluster {
             self.data.push(electron);
         }
         fn first_value(&self) -> SingleElectron {
-            *self.data.iter().find(|x| x.cluster_size() == 1).unwrap()
+            //*self.data.iter().find(|x| x.cluster_size() == 1).unwrap()
+            self.data[0]
         }
         fn remove_clusters(&mut self, correction_type: &ClusterCorrectionTypes) {
             let mut new_elist: CollectionElectron = CollectionElectron::new();
@@ -128,10 +129,10 @@ pub mod cluster {
         }
     }
 
-    ///Spim dT, Spim Slice, Cluster Size, raw packet, packet index, Spim Line, CoincidencePhoton
+    ///Spim dT, Spim Slice, raw packet, packet index, CoincidencePhoton
     #[derive(Copy, Clone, Eq)]
     pub struct SingleElectron {
-        data: (TIME, COUNTER, u16, Packet, usize, POSITION, Option<SinglePhoton>),
+        data: (TIME, COUNTER, Packet, usize, Option<SinglePhoton>),
     }
     
     ///Important for sorting
@@ -158,12 +159,12 @@ pub mod cluster {
                     let ele_time = spim_tdc.sync_electron_frame_time(&pack).unwrap();
                     let frame = spim_tdc.frame().unwrap_or(0);
                     SingleElectron {
-                        data: (ele_time, frame, 1, pack, raw_index, spim_tdc.current_line().unwrap(), None)
+                        data: (ele_time, frame, pack, raw_index, None)
                     }
                 },
                 None => {
                     SingleElectron {
-                        data: (0, 0, 1, pack, raw_index, 0, None),
+                        data: (0, 0, pack, raw_index, None),
                     }
                 },
             }
@@ -190,23 +191,23 @@ pub mod cluster {
         pub fn spim_slice(&self) -> COUNTER {
             self.data.1
         }
-        pub fn cluster_size(&self) -> u16 {
-            self.data.2
-        }
+        //pub fn cluster_size(&self) -> u16 {
+        //    self.data.2
+        //}
         pub fn raw_packet_data(&self) -> &Packet {
-            &self.data.3
+            &self.data.2
         }
         pub fn raw_packet_index(&self) -> usize {
+            self.data.3
+        }
+        //pub fn spim_line(&self) -> POSITION {
+        //    self.data.5
+        //}
+        pub fn coincident_photon(&self) -> Option<SinglePhoton> {
             self.data.4
         }
-        pub fn spim_line(&self) -> POSITION {
-            self.data.5
-        }
-        pub fn coincident_photon(&self) -> Option<SinglePhoton> {
-            self.data.6
-        }
         pub fn associate_coincident_photon(&mut self, photon: SinglePhoton) {
-            self.data.6 = Some(photon)
+            self.data.4 = Some(photon)
         }
         pub fn image_index(&self) -> POSITION {
             self.x() + PIXELS_X*self.y()
