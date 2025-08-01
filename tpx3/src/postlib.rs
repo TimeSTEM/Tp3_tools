@@ -415,8 +415,8 @@ pub mod coincidence {
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
                             },
                             11 => {
-                                let electron_time = coinc_data.get_oscillator_tdc().map(|tdc| tdc.tr_electron_correct_by_blanking(&packet)).flatten();
-                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, electron_time);
+                                //let electron_time = coinc_data.get_oscillator_tdc().map(|tdc| tdc.tr_electron_correct_by_blanking(&packet)).flatten();
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None);
                                 temp_edata.add_electron(se);
                             },
                             12 => { //In some versions, the id can be a modified one, based on the CI.
