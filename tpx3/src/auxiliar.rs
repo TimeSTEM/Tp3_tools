@@ -434,7 +434,14 @@ pub mod misc {
     //tdc reference. This is used with stocastic events.
     #[inline]
     pub fn check_if_in(etime: &TIME, phtime: &TIME, settings: &Settings) -> bool {
-        (*phtime < etime + settings.time_delay + settings.time_width) && (etime + settings.time_delay < *phtime + settings.time_width)
+        check_if_in_by_time(etime, phtime, &settings.time_width, &settings.time_delay)
+    }
+    
+    //This checks if the electron is inside a given time_delay and time_width for a non-periodic
+    //tdc reference. Use times directly
+    #[inline]
+    pub fn check_if_in_by_time(etime: &TIME, phtime: &TIME, time_width: &TIME, time_delay: &TIME) -> bool {
+        (*phtime < etime + time_delay + time_width) && (etime + time_delay < *phtime + time_width)
     }
     
     //This creates the scan_list used for decoding non-trivial scan patterns

@@ -8,7 +8,7 @@ pub mod cluster {
     use crate::constlib::*;
     use rayon::prelude::*;
     use std::cmp::Ordering;
-    use crate::auxiliar::value_types::*;
+    use crate::auxiliar::{value_types::*, misc::check_if_in_by_time};
     
     fn transform_energy_calibration(v: &[u8]) -> &[f32] {
         unsafe {
@@ -107,7 +107,7 @@ pub mod cluster {
                 let mut index_to_increase = None;
                 let mut photons_per_electron = 0;
                 for (index, photon) in photon_list.iter().skip(*min_index).enumerate() {
-                    if (photon.time() < electron.time() + time_delay + time_width) && (electron.time() + time_delay < photon.time() + time_width) {
+                    if check_if_in_by_time(&electron.time(), &photon.time(), &time_width, &time_delay) {
                         corr_array.add_electron(*electron);
                         corr_photons.add_photon(*photon);
                         if photons_per_electron == 0 {
