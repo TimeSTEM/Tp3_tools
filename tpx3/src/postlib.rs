@@ -156,7 +156,7 @@ pub mod coincidence {
         }
         */
 
-        fn add_coincident_electron(&mut self, mut val: SingleElectron) {
+        fn add_coincident_electron(&mut self, val: SingleElectron) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[PIXELS_X as usize-1] += 1; //Adding the photon
             self.coinc_electrons.add_electron(val);
@@ -182,7 +182,7 @@ pub mod coincidence {
             //self.index_to_add_in_raw.
             let coinc_electron = temp_edata.search_coincidence(temp_tdc, &mut self.index_to_add_in_raw, time_delay, time_width);
 
-            //Qdding electron in the coincidence action
+            //Adding electron in the coincidence action
             coinc_electron.into_iter().for_each(|electron| self.add_coincident_electron(electron));
 
             /*
