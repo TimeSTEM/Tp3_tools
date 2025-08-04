@@ -168,7 +168,7 @@ pub mod coincidence {
             //temp_tdc.dedup_by(|a, b| a.raw_packet_data() == b.raw_packet_data());
 
             //Sorting and removing clusters (if need) for electrons.
-            temp_edata.sort();
+            //temp_edata.sort();
             //temp_edata.dedup_by(|a, b| a.raw_packet_data().data() == b.raw_packet_data().data());
             //temp_edata.try_clean(0, &self.remove_clusters);
 

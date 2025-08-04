@@ -125,7 +125,7 @@ pub mod cluster {
                         photons_per_electron += 1;
                         if index_to_increase.is_none() { index_to_increase = Some(index); }
                     }
-                    if photon.time() > electron.time() + time_delay + time_width {break;}
+                    if photon.time() > electron.time() + time_delay + time_width + 1_000 {break;}
                 }
                 if let Some(increase) = index_to_increase {
                     min_index += increase / PHOTON_LIST_STEP;
