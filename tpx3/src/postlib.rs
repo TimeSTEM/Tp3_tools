@@ -156,17 +156,13 @@ pub mod coincidence {
         }
         */
 
-        fn add_coincident_electron(&mut self, mut val: SingleElectron, photon: SinglePhoton) {
+        fn add_coincident_electron(&mut self, mut val: SingleElectron) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[PIXELS_X as usize-1] += 1; //Adding the photon
-            val.associate_coincident_photon(photon);
             self.coinc_electrons.add_electron(val);
         }
         
         fn add_events(&mut self, mut temp_edata: CollectionElectron, temp_tdc: &mut CollectionPhoton, time_delay: TIME, time_width: TIME, _line_offset: i64) {
-            
-            let mut min_index = 0;
-
             //Sorting photons.
             temp_tdc.sort();
             temp_tdc.dedup_by(|a, b| a.raw_packet_data() == b.raw_packet_data());
@@ -184,10 +180,10 @@ pub mod coincidence {
 
             //This effectivelly searches for coincidence. It also adds electrons in
             //self.index_to_add_in_raw.
-            let (mut coinc_electron, mut coinc_photon) = temp_edata.search_coincidence(temp_tdc, &mut self.index_to_add_in_raw, &mut min_index, time_delay, time_width);
+            let coinc_electron = temp_edata.search_coincidence(temp_tdc, &mut self.index_to_add_in_raw, time_delay, time_width);
 
-            //TODO: why this does not work with into_iter?
-            coinc_electron.drain(..).zip(coinc_photon.drain(..)).for_each(|(ele, pho)| self.add_coincident_electron(ele, pho));
+            //coinc_electron.drain(..).zip(coinc_photon.drain(..)).for_each(|(ele, pho)| self.add_coincident_electron(ele, pho));
+            coinc_electron.into_iter().for_each(|electron| self.add_coincident_electron(electron));
 
             /*
             //Second trial to search for coincidence. This seems to be faster but need to make sure of the result. 

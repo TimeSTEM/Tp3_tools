@@ -312,14 +312,14 @@ impl SpecKind for Coincidence2DV3 {
     }
     fn build_output(&mut self, settings: &Settings) -> &[u8] {
         let mut rpi = Vec::new();
-        let mut index = 0;
         self.electron_buffer.sort();
         self.photon_buffer.sort();
-        let (coinc_electron, coinc_photon) = self.electron_buffer.search_coincidence(&mut self.photon_buffer, &mut rpi, &mut index, settings.time_delay, settings.time_width);
-        coinc_electron.iter().zip(coinc_photon.iter()).for_each(|(ele, photon)| {
-            let delay = (photon.time() / 6 - settings.time_delay + settings.time_width - ele.time()) as POSITION;
-            let index = ele.x() + delay * CAM_DESIGN.0;
-            self.data[index as usize] += 1;
+        let coinc_electron = self.electron_buffer.search_coincidence(&mut self.photon_buffer, &mut rpi, settings.time_delay, settings.time_width);
+        coinc_electron.iter().for_each(|_ele| {
+            //#TODO: This is broken need to be fixed if you want it to use
+            //let delay = (photon.time() / 6 - settings.time_delay + settings.time_width - ele.time()) as POSITION;
+            //let index = ele.x() + delay * CAM_DESIGN.0;
+            //self.data[index as usize] += 1;
         });
         as_bytes(&self.data)
     }

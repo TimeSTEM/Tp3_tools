@@ -32,10 +32,17 @@ pub mod cluster {
             &mut self.data
         }
     }
-
     impl Default for CollectionElectron {
         fn default() -> Self {
             Self::new()
+        }
+    }
+    impl IntoIterator for CollectionElectron {
+        type Item = SingleElectron;
+        type IntoIter = std::vec::IntoIter<Self::Item>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            self.data.into_iter()
         }
     }
 
@@ -48,26 +55,26 @@ pub mod cluster {
         pub fn add_electron(&mut self, electron: SingleElectron) {
             self.data.push(electron);
         }
-        fn first_value(&self) -> SingleElectron {
+        fn first_value(&self) -> &SingleElectron {
             //*self.data.iter().find(|x| x.cluster_size() == 1).unwrap()
-            self.data[0]
+            &self.data[0]
         }
         fn remove_clusters(&mut self, correction_type: &ClusterCorrectionTypes) {
             let mut new_elist: CollectionElectron = CollectionElectron::new();
-            let mut last: SingleElectron = self.first_value();
+            let mut last: SingleElectron = self.first_value().clone();
             let mut cluster_vec: Vec<SingleElectron> = Vec::new();
             for x in self.iter() {
                     //if x.cluster_size() == 1 {
                         if x.is_new_cluster(&last) {
                             if let Some(new_from_cluster) = correction_type.new_from_cluster(&cluster_vec) {
                                 for electrons_in_cluster in new_from_cluster.iter() {
-                                    new_elist.add_electron(*electrons_in_cluster);
+                                    new_elist.add_electron(electrons_in_cluster.clone());
                                 }
                             }
                             cluster_vec.clear();
                         }
-                        last = *x;
-                        cluster_vec.push(*x);
+                        last = x.clone();
+                        cluster_vec.push(x.clone());
                     //} else {
                     //    new_elist.add_electron(*x);
                     //}
@@ -100,16 +107,18 @@ pub mod cluster {
             self.data.clear();
         }
         //This should return an Iterator so there is no need of allocating two vectors.
-        pub fn search_coincidence(&self, photon_list: &CollectionPhoton, raw_packet_index: &mut Vec<usize>, min_index: &mut usize, time_delay: TIME, time_width: TIME) -> (Self, CollectionPhoton) {
+        pub fn search_coincidence(&self, photon_list: &CollectionPhoton, raw_packet_index: &mut Vec<usize>, time_delay: TIME, time_width: TIME) -> Self {
             let mut corr_array = Self::new();
-            let mut corr_photons = CollectionPhoton::new();
+            let mut min_index = 0;
             for electron in self.iter() {
                 let mut index_to_increase = None;
                 let mut photons_per_electron = 0;
-                for (index, photon) in photon_list.iter().skip(*min_index).enumerate() {
+                for (index, photon) in photon_list.iter().skip(min_index).enumerate() {
                     if check_if_in_by_time(&electron.time(), &photon.time(), &time_width, &time_delay) {
-                        corr_array.add_electron(*electron);
-                        corr_photons.add_photon(*photon);
+                        let mut coinc_electron = electron.clone();
+                        let coinc_photon = photon.clone();
+                        coinc_electron.associate_coincident_photon(coinc_photon);
+                        corr_array.add_electron(coinc_electron);
                         if photons_per_electron == 0 {
                             raw_packet_index.push(electron.raw_packet_index());
                         }
@@ -119,10 +128,10 @@ pub mod cluster {
                     if photon.time() > electron.time() + time_delay + time_width {break;}
                 }
                 if let Some(increase) = index_to_increase {
-                    *min_index += increase / PHOTON_LIST_STEP;
+                    min_index += increase / PHOTON_LIST_STEP;
                 }
             }
-            (corr_array, corr_photons)
+            corr_array
         }
         pub fn reorder_by_packet_index(&mut self) {
             self.data.par_sort_unstable_by_key(|i| i.raw_packet_index());
@@ -130,7 +139,7 @@ pub mod cluster {
     }
 
     ///Spim dT, Spim Slice, raw packet, packet index, CoincidencePhoton, Electron Time substitute
-    #[derive(Copy, Clone, Eq)]
+    #[derive(Clone, Eq)]
     pub struct SingleElectron {
         data: (TIME, COUNTER, Packet, usize, Option<SinglePhoton>, Option<TIME>),
     }
@@ -198,8 +207,8 @@ pub mod cluster {
         pub fn raw_packet_index(&self) -> usize {
             self.data.3
         }
-        pub fn coincident_photon(&self) -> Option<SinglePhoton> {
-            self.data.4
+        pub fn coincident_photon(&self) -> Option<&SinglePhoton> {
+            self.data.4.as_ref()
         }
         pub fn associate_coincident_photon(&mut self, photon: SinglePhoton) {
             self.data.4 = Some(photon)
@@ -279,7 +288,7 @@ pub mod cluster {
     }
 
     ///The absolute time (units of 260 ps), the channel, the g2_dT, Spim dT, raw packet, packet_index
-    #[derive(Copy, Clone, Eq)]
+    #[derive(Clone, Eq)]
     pub struct SinglePhoton {
         data: (TIME, COUNTER, Option<i16>, TIME, Packet, usize),
     }
@@ -369,9 +378,10 @@ pub mod cluster {
             let electron = self.electron.pop()?;
             let mut index = 0;
             for photon in self.photon.iter().skip(self.photon_counter) {
-                if (photon.time() / 6 < electron.time() + self.time_delay + self.time_width) && (electron.time() + self.time_delay < photon.time() / 6 + self.time_width) {
+                //if (photon.time() / 6 < electron.time() + self.time_delay + self.time_width) && (electron.time() + self.time_delay < photon.time() / 6 + self.time_width) {
+                if check_if_in_by_time(&electron.time(), &photon.time(), &self.time_width, &self.time_delay) {
                     self.photon_counter += index / PHOTON_LIST_STEP;
-                    return Some((electron, *photon));
+                    return Some((electron, photon.clone()));
                 }
                 if photon.time() / 6 > electron.time() + self.time_delay + self.time_width {break;}
                 index += 1;
@@ -416,7 +426,7 @@ pub mod cluster {
                 ClusterCorrectionTypes::NoCorrection => {
                     let mut val = CollectionElectron::new();
                     for electron in cluster {
-                        val.add_electron(*electron);
+                        val.add_electron(electron.clone());
                         //val.add_electron(SingleElectron{
                         //    data: (electron.frame_dt(), electron.spim_slice(), 1, electron.raw_packet_data(), electron.raw_packet_index(), 0, electron.coincident_photon()),
                         //});
