@@ -165,12 +165,12 @@ pub mod coincidence {
         fn add_events(&mut self, mut temp_edata: CollectionElectron, temp_tdc: &mut CollectionPhoton, time_delay: TIME, time_width: TIME, _line_offset: i64) {
             //Sorting photons.
             temp_tdc.sort();
-            temp_tdc.dedup_by(|a, b| a.raw_packet_data() == b.raw_packet_data());
+            //temp_tdc.dedup_by(|a, b| a.raw_packet_data() == b.raw_packet_data());
 
             //Sorting and removing clusters (if need) for electrons.
             temp_edata.sort();
-            temp_edata.dedup_by(|a, b| a.raw_packet_data().data() == b.raw_packet_data().data());
-            temp_edata.try_clean(0, &self.remove_clusters);
+            //temp_edata.dedup_by(|a, b| a.raw_packet_data().data() == b.raw_packet_data().data());
+            //temp_edata.try_clean(0, &self.remove_clusters);
 
             //Adding photons to the last pixel. We also add the photons in the spectra image.
             temp_tdc.iter().for_each(|photon| self.add_photon(photon));
@@ -377,7 +377,6 @@ pub mod coincidence {
                       .progress_chars("=>-"));
 
         while let Ok(size) = file.read(&mut buffer) {
-            println!("start read");
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
             if limit_read_size != 0 && total_size as u32 >= limit_read_size {break;}
@@ -443,13 +442,9 @@ pub mod coincidence {
                     },
                 };
             });
-            println!("finish read");
             coinc_data.add_events(temp_edata, &mut temp_tdc, coinc_data.my_settings.time_delay, coinc_data.my_settings.time_width, 0);
-            println!("finish add events");
             coinc_data.add_packets_to_reduced_data(&buffer);
-            println!("finish add packets");
             coinc_data.early_output_data();
-            println!("finish early output");
         }
         println!("Total number of bytes read {}", total_size);
         coinc_data.output_hyperspec();
