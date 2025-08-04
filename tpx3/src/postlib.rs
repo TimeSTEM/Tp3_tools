@@ -168,9 +168,7 @@ pub mod coincidence {
             temp_tdc.dedup_by(|a, b| a.raw_packet_data() == b.raw_packet_data());
 
             //Sorting and removing clusters (if need) for electrons.
-            temp_edata.maximum_dt();
             temp_edata.sort();
-            temp_edata.maximum_dt();
             temp_edata.dedup_by(|a, b| a.raw_packet_data().data() == b.raw_packet_data().data());
             temp_edata.try_clean(0, &self.remove_clusters);
 
@@ -182,10 +180,10 @@ pub mod coincidence {
 
             //This effectivelly searches for coincidence. It also adds electrons in
             //self.index_to_add_in_raw.
-            let coinc_electron = temp_edata.search_coincidence(temp_tdc, &mut self.index_to_add_in_raw, time_delay, time_width);
+            //let coinc_electron = temp_edata.search_coincidence(temp_tdc, &mut self.index_to_add_in_raw, time_delay, time_width);
 
             //coinc_electron.drain(..).zip(coinc_photon.drain(..)).for_each(|(ele, pho)| self.add_coincident_electron(ele, pho));
-            coinc_electron.into_iter().for_each(|electron| self.add_coincident_electron(electron));
+            //coinc_electron.into_iter().for_each(|electron| self.add_coincident_electron(electron));
 
             /*
             //Second trial to search for coincidence. This seems to be faster but need to make sure of the result. 

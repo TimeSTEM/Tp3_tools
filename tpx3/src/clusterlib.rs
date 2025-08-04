@@ -136,6 +136,8 @@ pub mod cluster {
         pub fn reorder_by_packet_index(&mut self) {
             self.data.par_sort_unstable_by_key(|i| i.raw_packet_index());
         }
+
+        //This prints the maximum value of dt between consecutive electrons.
         pub fn maximum_dt(&self) {
             let mut last = None;
             let mut max_dt = 0;
