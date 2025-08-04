@@ -180,10 +180,10 @@ pub mod coincidence {
 
             //This effectivelly searches for coincidence. It also adds electrons in
             //self.index_to_add_in_raw.
-            //let coinc_electron = temp_edata.search_coincidence(temp_tdc, &mut self.index_to_add_in_raw, time_delay, time_width);
+            let coinc_electron = temp_edata.search_coincidence(temp_tdc, &mut self.index_to_add_in_raw, time_delay, time_width);
 
-            //coinc_electron.drain(..).zip(coinc_photon.drain(..)).for_each(|(ele, pho)| self.add_coincident_electron(ele, pho));
-            //coinc_electron.into_iter().for_each(|electron| self.add_coincident_electron(electron));
+            //Qdding electron in the coincidence action
+            coinc_electron.into_iter().for_each(|electron| self.add_coincident_electron(electron));
 
             /*
             //Second trial to search for coincidence. This seems to be faster but need to make sure of the result. 
@@ -443,7 +443,7 @@ pub mod coincidence {
                 };
             });
             coinc_data.add_events(temp_edata, &mut temp_tdc, coinc_data.my_settings.time_delay, coinc_data.my_settings.time_width, 0);
-            coinc_data.add_packets_to_reduced_data(&buffer);
+            //coinc_data.add_packets_to_reduced_data(&buffer);
             coinc_data.early_output_data();
         }
         println!("Total number of bytes read {}", total_size);
