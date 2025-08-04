@@ -444,7 +444,7 @@ pub mod coincidence {
             });
             coinc_data.add_events(temp_edata, &mut temp_tdc, coinc_data.my_settings.time_delay, coinc_data.my_settings.time_width, 0);
             coinc_data.add_packets_to_reduced_data(&buffer);
-            //coinc_data.early_output_data();
+            coinc_data.early_output_data();
         }
         println!("Total number of bytes read {}", total_size);
         coinc_data.output_hyperspec();
