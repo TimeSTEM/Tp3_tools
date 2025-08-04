@@ -125,7 +125,7 @@ pub mod cluster {
                         photons_per_electron += 1;
                         if index_to_increase.is_none() { index_to_increase = Some(index); }
                     }
-                    if photon.time() > electron.time() + time_delay + time_width + 1_000 {break;}
+                    if photon.time() > electron.time() + time_delay + time_width {break;}
                 }
                 if let Some(increase) = index_to_increase {
                     min_index += increase / PHOTON_LIST_STEP;
@@ -135,6 +135,21 @@ pub mod cluster {
         }
         pub fn reorder_by_packet_index(&mut self) {
             self.data.par_sort_unstable_by_key(|i| i.raw_packet_index());
+        }
+        pub fn maximum_dt(&self) {
+            let mut last = None;
+            let mut max_dt = 0;
+            for electron in self.iter() {
+                let time = electron.time();
+                if last.is_some() {
+                    let dt = (time as i64 - last.unwrap() as i64).abs(); 
+                    if dt > max_dt {
+                        max_dt = dt;
+                    }
+                }
+                last = Some(time);
+            }
+            println!("maximum dt is {}", max_dt);
         }
     }
 

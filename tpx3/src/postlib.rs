@@ -165,12 +165,14 @@ pub mod coincidence {
         fn add_events(&mut self, mut temp_edata: CollectionElectron, temp_tdc: &mut CollectionPhoton, time_delay: TIME, time_width: TIME, _line_offset: i64) {
             //Sorting photons.
             temp_tdc.sort();
-            //temp_tdc.dedup_by(|a, b| a.raw_packet_data() == b.raw_packet_data());
+            temp_tdc.dedup_by(|a, b| a.raw_packet_data() == b.raw_packet_data());
 
             //Sorting and removing clusters (if need) for electrons.
-            //temp_edata.sort();
-            //temp_edata.dedup_by(|a, b| a.raw_packet_data().data() == b.raw_packet_data().data());
-            //temp_edata.try_clean(0, &self.remove_clusters);
+            temp_edata.maximum_dt();
+            temp_edata.sort();
+            temp_edata.maximum_dt();
+            temp_edata.dedup_by(|a, b| a.raw_packet_data().data() == b.raw_packet_data().data());
+            temp_edata.try_clean(0, &self.remove_clusters);
 
             //Adding photons to the last pixel. We also add the photons in the spectra image.
             temp_tdc.iter().for_each(|photon| self.add_photon(photon));
