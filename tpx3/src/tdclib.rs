@@ -570,7 +570,8 @@ impl TdcRef {
 
             const PI: f64 = std::f64::consts::PI;
             const INV_PI: f64 = 1.0 / PI;
-            const SCALE: f64 = 24.0 * INV_PI;
+            const QUADRANT_SIZE: f64 = (BLANKING_PERIOD as f64 / PERIOD_DIVIDER as f64) / 4.0;
+            const SCALE: f64 = QUADRANT_SIZE * INV_PI;
             const HALF_PI: f64 = PI / 2.0;
 
             let y = pack.y();
@@ -590,14 +591,15 @@ impl TdcRef {
             }
     
             let y_corr = match quarter_period {
-                0 => ((y_normalized.asin() + HALF_PI) * SCALE) - 24.0,
-                1 => (y_normalized.acos() * SCALE) - 48.0,
-                2 => ((y_normalized.asin() + HALF_PI) * SCALE) - 72.0,
-                3 => (y_normalized.acos() * SCALE) - 96.0,
+                0 => ((y_normalized.asin() + HALF_PI) * SCALE) - QUADRANT_SIZE,
+                1 => (y_normalized.acos() * SCALE) - 2.0 * QUADRANT_SIZE,
+                2 => ((y_normalized.asin() + HALF_PI) * SCALE) - 3.0 * QUADRANT_SIZE,
+                3 => (y_normalized.acos() * SCALE) - 4.0 * QUADRANT_SIZE,
                 _ => return None,
             };
+            assert!(y_corr < 0.0);
     
-            Some(eff_tdc - y_corr.abs().round() as TIME)
+            Some(eff_tdc + y_corr.round() as TIME)
         } else {
             None
         }

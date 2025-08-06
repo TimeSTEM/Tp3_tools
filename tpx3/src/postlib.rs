@@ -306,6 +306,9 @@ pub mod coincidence {
         pub fn create_rel_time(&self) -> Vec<i16> {
             self.coinc_electrons.iter().map(|se| se.relative_time_from_coincident_photon().unwrap().fold()).collect()
         }
+        pub fn create_rel_packet_time(&self) -> Vec<i16> {
+            self.coinc_electrons.iter().map(|se| se.relative_packet_time_from_coincident_photon().unwrap().fold()).collect()
+        }
         pub fn create_condensed_packet(&self) -> Vec<u64> {
             self.coinc_electrons.iter().map(|se| se.raw_packet_data().modified_packet_data()).collect()
         }
@@ -331,9 +334,14 @@ pub mod coincidence {
             let time: Vec<TIME> = self.create_abs_time();
             let condensed_packet: Vec<u64> = self.create_condensed_packet();
             let spim_index: Vec<INDEXHYPERSPEC> = self.create_spim_index();
+            //let packet_time: Vec<TIME> = self.
             
             output_data(&channel, self.file.clone(), "channel.txt");
             output_data(&relative_time, self.file.clone(), "tH.txt");
+            if self.is_fast_oscillator() {
+                let relative_packet_time: Vec<i16> = self.create_rel_packet_time();
+                output_data(&relative_packet_time, self.file.clone(), "tpacketH.txt");
+            }
             output_data(&x, self.file.clone(), "xH.txt");
             output_data(&y, self.file.clone(), "yH.txt");
             output_data(&tot, self.file.clone(), "tot.txt");
