@@ -197,11 +197,10 @@ pub mod cluster {
         }
 
         pub fn time(&self) -> TIME {
-            self.data.5.unwrap_or(self.raw_packet_data().electron_time_in_tdc_units())
-            //self.raw_packet_data().electron_time_in_tdc_units()
-        }
-        pub fn packet_time(&self) -> TIME {
             self.raw_packet_data().electron_time_in_tdc_units()
+        }
+        pub fn corrected_time(&self) -> Option<TIME> {
+            self.data.5
         }
         pub fn x(&self) -> POSITION {
             self.raw_packet_data().x()
@@ -242,10 +241,10 @@ pub mod cluster {
             Some((self.time()) as i64 - reference_time as i64)
         }
         //Similar to the function above, but it uses the coincident photon associated already, and
-        //uses the packet value instead of the Option<CORRECTED_TIME>
-        pub fn relative_packet_time_from_coincident_photon(&self) -> Option<i64> {
+        //uses the corrected time value
+        pub fn relative_corrected_time_from_coincident_photon(&self) -> Option<i64> {
             let reference_time = self.coincident_photon()?.time();
-            Some((self.packet_time()) as i64 - reference_time as i64)
+            Some((self.corrected_time()?) as i64 - reference_time as i64)
         }
         fn tot_to_energy(&self) -> u16 {
             let index = self.x() as usize + 1024 * self.y() as usize;

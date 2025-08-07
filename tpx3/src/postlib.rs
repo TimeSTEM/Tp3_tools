@@ -307,7 +307,7 @@ pub mod coincidence {
             self.coinc_electrons.iter().map(|se| se.relative_time_from_coincident_photon().unwrap().fold()).collect()
         }
         pub fn create_rel_packet_time(&self) -> Vec<i16> {
-            self.coinc_electrons.iter().map(|se| se.relative_packet_time_from_coincident_photon().unwrap().fold()).collect()
+            self.coinc_electrons.iter().map(|se| se.relative_corrected_time_from_coincident_photon().unwrap().fold()).collect()
         }
         pub fn create_condensed_packet(&self) -> Vec<u64> {
             self.coinc_electrons.iter().map(|se| se.raw_packet_data().modified_packet_data()).collect()
@@ -419,9 +419,15 @@ pub mod coincidence {
                                 coinc_data.add_packet_to_raw_index(current_raw_index);
                             },
                             11 => {
-                                let electron_time = coinc_data.get_oscillator_tdc().map(|tdc| tdc.tr_electron_correct_by_blanking(&packet)).flatten();
-                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, electron_time);
-                                temp_edata.add_electron(se);
+                                if let Some(oscillator_tdc) = coinc_data.get_oscillator_tdc() { //Oscillator is present
+                                    if let Some(electron_time) = oscillator_tdc.tr_electron_correct_by_blanking(&packet) { //The electron time can be corrected
+                                        let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, Some(electron_time));
+                                        temp_edata.add_electron(se);
+                                    }
+                                } else {
+                                    let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None);
+                                    temp_edata.add_electron(se);
+                                }
                             },
                             12 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet::new(0, packet_change(pack_oct)[0]);
