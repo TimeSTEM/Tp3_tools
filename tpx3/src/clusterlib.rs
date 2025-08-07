@@ -158,7 +158,7 @@ pub mod cluster {
     ///Spim dT, Spim Slice, raw packet, packet index, CoincidencePhoton, Electron Time substitute
     #[derive(Clone, Eq)]
     pub struct SingleElectron {
-        data: (TIME, COUNTER, Packet, usize, Option<SinglePhoton>, Option<TIME>),
+        data: (TIME, COUNTER, Packet, usize, Option<SinglePhoton>, Option<TIME>, Option<TIME>),
     }
     
     ///Important for sorting
@@ -179,18 +179,18 @@ pub mod cluster {
     }
 
     impl SingleElectron {
-        pub fn new(pack: Packet, begin_frame: Option<&TdcRef>, raw_index: usize, subs_etime: Option<TIME>) -> Self {
+        pub fn new(pack: Packet, begin_frame: Option<&TdcRef>, raw_index: usize, subs_etime: Option<TIME>, new: Option<TIME>) -> Self {
             match begin_frame {
                 Some(spim_tdc) => {
                     let ele_time = spim_tdc.sync_electron_frame_time(&pack).unwrap();
                     let frame = spim_tdc.frame().unwrap_or(0);
                     SingleElectron {
-                        data: (ele_time, frame, pack, raw_index, None, subs_etime)
+                        data: (ele_time, frame, pack, raw_index, None, subs_etime, new)
                     }
                 },
                 None => {
                     SingleElectron {
-                        data: (0, 0, pack, raw_index, None, subs_etime),
+                        data: (0, 0, pack, raw_index, None, subs_etime, new),
                     }
                 },
             }
@@ -201,6 +201,9 @@ pub mod cluster {
         }
         pub fn corrected_time(&self) -> Option<TIME> {
             self.data.5
+        }
+        pub fn new_field(&self) -> Option<TIME> {
+            self.data.6
         }
         pub fn x(&self) -> POSITION {
             self.raw_packet_data().x()

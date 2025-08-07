@@ -306,6 +306,9 @@ pub mod coincidence {
         pub fn create_rel_time(&self) -> Vec<i16> {
             self.coinc_electrons.iter().map(|se| se.relative_time_from_coincident_photon().unwrap().fold()).collect()
         }
+        pub fn create_new_field(&self) -> Vec<TIME> {
+            self.coinc_electrons.iter().map(|se| se.new_field().unwrap()).collect()
+        }
         pub fn create_rel_packet_time(&self) -> Vec<i16> {
             self.coinc_electrons.iter().map(|se| se.relative_corrected_time_from_coincident_photon().unwrap().fold()).collect()
         }
@@ -341,6 +344,8 @@ pub mod coincidence {
             if self.is_fast_oscillator() {
                 let relative_packet_time: Vec<i16> = self.create_rel_packet_time();
                 output_data(&relative_packet_time, self.file.clone(), "tpacketH.txt");
+                let new_field: Vec<TIME> = self.create_new_field();
+                output_data(&new_field, self.file.clone(), "new_field.txt");
             }
             output_data(&x, self.file.clone(), "xH.txt");
             output_data(&y, self.file.clone(), "yH.txt");
@@ -421,32 +426,33 @@ pub mod coincidence {
                             11 => {
                                 if let Some(oscillator_tdc) = coinc_data.get_oscillator_tdc() { //Oscillator is present
                                     if let Some(electron_time) = oscillator_tdc.tr_electron_correct_by_blanking(&packet) { //The electron time can be corrected
-                                        let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, Some(electron_time));
+                                        let closest_tdc = oscillator_tdc.get_closest_tdc(packet.electron_time_in_tdc_units());
+                                        let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, Some(electron_time), Some(closest_tdc));
                                         temp_edata.add_electron(se);
                                     }
                                 } else {
-                                    let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None);
+                                    let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None, None);
                                     temp_edata.add_electron(se);
                                 }
                             },
                             12 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet::new(0, packet_change(pack_oct)[0]);
-                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None, None);
                                 temp_edata.add_electron(se);
                             },
                             13 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet::new(1, packet_change(pack_oct)[0]);
-                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None, None);
                                 temp_edata.add_electron(se);
                             },
                             14 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet::new(2, packet_change(pack_oct)[0]);
-                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None, None);
                                 temp_edata.add_electron(se);
                             },
                             15 => { //In some versions, the id can be a modified one, based on the CI.
                                 let packet = Packet::new(3, packet_change(pack_oct)[0]);
-                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None);
+                                let se = SingleElectron::new(packet, coinc_data.get_spim_tdc(), current_raw_index, None, None);
                                 temp_edata.add_electron(se);
                             },
                             _ => {
@@ -865,7 +871,7 @@ pub mod ntime_resolved {
         }
 
         fn add_electron(&mut self, packet: Packet, packet_index: usize) {
-            let se = SingleElectron::new(packet, self.tdc_periodic.as_ref(), packet_index, None);
+            let se = SingleElectron::new(packet, self.tdc_periodic.as_ref(), packet_index, None, None);
             self.ensemble.add_electron(se);
         }
 
@@ -1106,7 +1112,7 @@ pub mod calibration {
                     _ => {
                         let packet = Packet::new(ci, packet_change(pack_oct)[0]);
                         if packet.id() == 11 {
-                            let se = SingleElectron::new(packet, None, current_raw_index, None);
+                            let se = SingleElectron::new(packet, None, current_raw_index, None, None);
                             temp_electrons.add_electron(se);
                             //temp_edata.electron.add_electron(se);
                         }

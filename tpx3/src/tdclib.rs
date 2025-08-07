@@ -513,7 +513,7 @@ impl TdcRef {
     //This gets the closest time for a period TDC. Here, the TDC time found is always greater than
     //the electron time.
     #[inline]
-    fn get_closest_tdc(&self, time: TIME) -> TIME {
+    pub fn get_closest_tdc(&self, time: TIME) -> TIME {
         let period = self.period().expect("Period must exist in time-resolved mode.");
         let last_tdc_time = self.time();
      
@@ -581,8 +581,6 @@ impl TdcRef {
             }
 
             let y = y as f64;
-            //let ymin = 96.0;
-            //let ymax = 166.0;
             let ymin = ymin_osc as f64;
             let ymax = ymax_osc as f64;
     
