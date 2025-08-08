@@ -325,7 +325,7 @@ impl TdcRef {
         self.last_hard_counter = hard_counter;
         self.counter = self.last_hard_counter as COUNTER + self.counter_overflow * 4096 - self.counter_offset;
         let time_overflow = self.time > time;
-        println!("updating tdc {}", time - self.time);
+        //println!("updating tdc {}", time - self.time);
         self.time = time;
         if let (Some(spimy), Some(period)) = (self.ticks_to_frame, self.period) {
             //New frame
@@ -567,10 +567,13 @@ impl TdcRef {
 
             let delta = eff_tdc - ele_time;
             let quarter_period = ((delta * 4 * PERIOD_DIVIDER) / BLANKING_PERIOD) as usize;
+            let quarter_period_frac = ((delta * 4 * PERIOD_DIVIDER) as f64 / BLANKING_PERIOD as f64).fract();
+            if quarter_period_frac < 0.25 || quarter_period_frac > 0.75 {
+                return None
+            }
             if quarter_period > 3 {
                 return None;
             }
-
 
             const PI: f64 = std::f64::consts::PI;
             const INV_PI: f64 = 1.0 / PI;
@@ -601,9 +604,9 @@ impl TdcRef {
                 _ => return None,
             };
             
-            if pack.y() == ymax_osc && pack.tot() > 30 && quarter_period == 0 {
-                println!("delta at maximum Y: {}. Tcor is {}. Original time is {}. New time is {}", delta, y_corr.abs().round() as TIME, ele_time, eff_tdc - y_corr.abs().round() as TIME);
-            }
+            //if pack.y() == ymax_osc && pack.tot() > 30 && quarter_period == 0 {
+            //    println!("delta at maximum Y: {}. Tcor is {}. Original time is {}. New time is {}", delta, y_corr.abs().round() as TIME, ele_time, eff_tdc - y_corr.abs().round() as TIME);
+            //}
 
             //Some(eff_tdc + y_corr.round() as TIME)
             Some(eff_tdc - y_corr.abs().round() as TIME)
