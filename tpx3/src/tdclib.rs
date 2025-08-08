@@ -572,7 +572,7 @@ impl TdcRef {
             }
 
             if pack.y() == ymax_osc {
-                println!("delta at maximum Y: {}", delta);
+                println!("delta at maximum Y: {}. Quarter is {}", delta, quarter_period);
             }
 
             const PI: f64 = std::f64::consts::PI;
