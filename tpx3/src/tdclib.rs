@@ -602,7 +602,7 @@ impl TdcRef {
             };
             
             if pack.y() == ymax_osc && pack.tot() > 30 && quarter_period == 0 {
-                println!("delta at maximum Y: {}. new time is {}. Original time is {}. Difference is {}", delta, eff_tdc - y_corr.abs().round() as TIME, pack.electron_time_in_tdc_units(), eff_tdc - y_corr.abs().round() as TIME - pack.electron_time_in_tdc_units());
+                println!("delta at maximum Y: {}. Tcor is {}. Original time is {}. New time is {}", delta, y_corr.abs().round() as TIME, ele_time, eff_tdc - y_corr.abs().round() as TIME);
             }
 
             //Some(eff_tdc + y_corr.round() as TIME)
