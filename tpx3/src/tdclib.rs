@@ -571,7 +571,7 @@ impl TdcRef {
                 return None;
             }
 
-            if pack.y() == ymax_osc {
+            if pack.y() == ymax_osc && pack.tot() > 30 {
                 println!("delta at maximum Y: {}. Quarter is {}", delta, quarter_period);
             }
 
