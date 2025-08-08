@@ -557,6 +557,8 @@ impl TdcRef {
         }
     }
 
+    //We only use the electron time to know the quadrant. We then afterwards use the Y to determine
+    //the exact time of arrival.
     pub fn tr_electron_correct_by_blanking(&self, pack: &Packet) -> Option<TIME> {
         if let Some((ymax_osc, ymin_osc)) = self.oscillator_size {
             let ele_time = pack.electron_time_in_tdc_units();
@@ -566,6 +568,10 @@ impl TdcRef {
             let quarter_period = ((delta * 4 * PERIOD_DIVIDER) / BLANKING_PERIOD) as usize;
             if quarter_period > 3 {
                 return None;
+            }
+
+            if pack.y() == ymax_osc {
+                println!("delta at maximum Y: {}", delta);
             }
 
             const PI: f64 = std::f64::consts::PI;
