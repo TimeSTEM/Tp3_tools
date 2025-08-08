@@ -571,9 +571,6 @@ impl TdcRef {
                 return None;
             }
 
-            if pack.y() == ymax_osc && pack.tot() > 30 {
-                println!("delta at maximum Y: {}. Quarter is {}", delta, quarter_period);
-            }
 
             const PI: f64 = std::f64::consts::PI;
             const INV_PI: f64 = 1.0 / PI;
@@ -603,6 +600,11 @@ impl TdcRef {
                 3 => (y_normalized.acos() * SCALE) - 4.0 * QUADRANT_SIZE,
                 _ => return None,
             };
+            
+            if pack.y() == ymax_osc && pack.tot() > 30 && quarter_period == 0 {
+                println!("delta at maximum Y: {}. new time is {}. Original time is {}", delta, eff_tdc - y_corr.abs().round() as TIME, pack.electron_time_in_tdc_units());
+            }
+
             //Some(eff_tdc + y_corr.round() as TIME)
             Some(eff_tdc - y_corr.abs().round() as TIME)
         } else {
