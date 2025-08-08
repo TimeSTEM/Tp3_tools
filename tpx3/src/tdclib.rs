@@ -325,6 +325,7 @@ impl TdcRef {
         self.last_hard_counter = hard_counter;
         self.counter = self.last_hard_counter as COUNTER + self.counter_overflow * 4096 - self.counter_offset;
         let time_overflow = self.time > time;
+        println!("updating tdc {}", time - self.time);
         self.time = time;
         if let (Some(spimy), Some(period)) = (self.ticks_to_frame, self.period) {
             //New frame
