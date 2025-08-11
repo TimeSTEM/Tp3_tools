@@ -9,6 +9,8 @@ pub mod coincidence {
     use crate::auxiliar::{Settings, value_types::*, misc::{output_data, packet_change}, FileManager};
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
+    use std::sync::mpsc;
+    use std::thread;
 
     //When we would like to have large E-PH timeoffsets, such as skipping entire line periods, the
     //difference between E-PH could not fit in i16. We fold these big numbers to fit in a i16
@@ -553,7 +555,9 @@ pub mod coincidence {
             
     }
     
-    pub fn search_coincidence(coinc_data_set: &mut ElectronDataSettings, limit_read_size: u32){
+    pub fn search_coincidence(mut coinc_data_set: ElectronDataSettings, limit_read_size: u32){
+
+        let (tx, rx) = mpsc::channel();
 
         //Creating the appropriate TDCs
         coinc_data_set.create_tdcs();
@@ -571,6 +575,18 @@ pub mod coincidence {
                       .unwrap()
                       .progress_chars("=>-"));
 
+        //Consumer
+        for received in rx {
+            let (mut coinc_data, mut temp_edata, mut temp_tdc): (ElectronData, CollectionElectron, CollectionPhoton) = received;
+            coinc_data.add_events(temp_edata, &mut temp_tdc, coinc_data.my_settings.time_delay, coinc_data.my_settings.time_width, 0);
+            coinc_data.add_packets_to_reduced_data(&buffer);
+            coinc_data.early_output_data();
+            coinc_data.output_hyperspec();
+
+        }
+
+        //Producer
+        thread::spawn( move || {
         while let Ok(size) = file.read(&mut buffer) {
             if size == 0 {println!("Finished Reading."); break;}
             total_size += size;
@@ -645,11 +661,13 @@ pub mod coincidence {
                     },
                 };
             });
-            coinc_data.add_events(temp_edata, &mut temp_tdc, coinc_data.my_settings.time_delay, coinc_data.my_settings.time_width, 0);
-            coinc_data.add_packets_to_reduced_data(&buffer);
-            coinc_data.early_output_data();
-            coinc_data.output_hyperspec();
+            tx.send((coinc_data, temp_edata, temp_tdc)).unwrap();
+            //coinc_data.add_events(temp_edata, &mut temp_tdc, coinc_data.my_settings.time_delay, coinc_data.my_settings.time_width, 0);
+            //coinc_data.add_packets_to_reduced_data(&buffer);
+            //coinc_data.early_output_data();
+            //coinc_data.output_hyperspec();
         }
+        });
         println!("Total number of bytes read {}", total_size);
     }
 }

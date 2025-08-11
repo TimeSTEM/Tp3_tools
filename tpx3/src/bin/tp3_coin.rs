@@ -52,7 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("***Coincidence***: Error during prepare: {:?}.", error);
                     return;
                 }
-                search_coincidence(&mut electron_data, 0);
+                search_coincidence(electron_data, 0);
             } else {
                 println!("***Coincidence***: Skipping file {}. No JSON file has been found.", dir);
          }
