@@ -54,7 +54,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 search_coincidence(&mut electron_data, 0);
             } else {
-                println!("***Coincidence***: Skipping file {}. No JSON file is present.", dir);
+                println!("***Coincidence***: Skipping file {}. No JSON file has been found.", dir);
          }
         }
     });
