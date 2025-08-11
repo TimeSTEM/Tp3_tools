@@ -567,10 +567,10 @@ impl TdcRef {
 
             let delta = eff_tdc - ele_time;
             let quarter_period = ((delta * 4 * PERIOD_DIVIDER) / BLANKING_PERIOD) as usize;
-            let quarter_period_frac = ((delta * 4 * PERIOD_DIVIDER) as f64 / BLANKING_PERIOD as f64).fract();
-            if quarter_period_frac < 0.25 || quarter_period_frac > 0.75 {
-                return None
-            }
+            //let quarter_period_frac = ((delta * 4 * PERIOD_DIVIDER) as f64 / BLANKING_PERIOD as f64).fract();
+            //if quarter_period_frac < 0.25 || quarter_period_frac > 0.75 {
+            //    return None
+            //}
             if quarter_period > 3 {
                 return None;
             }
