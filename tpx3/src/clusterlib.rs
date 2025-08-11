@@ -431,7 +431,7 @@ pub mod cluster {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub enum ClusterCorrectionTypes {
         NoCorrection,
         //AverageCorrection,
