@@ -511,7 +511,6 @@ pub mod coincidence {
                 tx.send((channel_sender, buffer.clone())).unwrap();
             }
         });
-        println!("Total number of bytes read {}", total_size);
 
         //Consumer
         for received in rx {
