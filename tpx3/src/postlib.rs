@@ -388,7 +388,7 @@ pub mod coincidence {
 
             output_data(&channel, self.edata_settings.file.clone(), "channel.txt");
             output_data(&relative_time, self.edata_settings.file.clone(), "tH.txt");
-            output_data(&relative_corrected_time, self.edata_settings.file.clone(), "tpacketH.txt");
+            output_data(&relative_corrected_time, self.edata_settings.file.clone(), "tcorH.txt");
             output_data(&x, self.edata_settings.file.clone(), "xH.txt");
             output_data(&y, self.edata_settings.file.clone(), "yH.txt");
             output_data(&tot, self.edata_settings.file.clone(), "tot.txt");
