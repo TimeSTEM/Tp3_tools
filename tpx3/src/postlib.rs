@@ -354,10 +354,14 @@ pub mod coincidence {
             self.coinc_electrons.iter().map(|se| se.time()).collect()
         }
         pub fn create_rel_time(&self) -> Vec<i16> {
-            self.coinc_electrons.iter().map(|se| se.relative_time_from_coincident_photon().unwrap().fold()).collect()
+            self.coinc_electrons.iter()
+                .filter_map(|se| se.relative_time_from_coincident_photon()
+                                            .map(|value| value.fold())).collect()
         }
         pub fn create_rel_corrected_time(&self) -> Vec<i16> {
-            self.coinc_electrons.iter().map(|se| se.relative_corrected_time_from_coincident_photon().unwrap().fold()).collect()
+            self.coinc_electrons.iter()
+                .filter_map(|se| se.relative_corrected_time_from_coincident_photon()
+                            .map(|value| value.fold())).collect()
         }
         pub fn create_condensed_packet(&self) -> Vec<u64> {
             self.coinc_electrons.iter().map(|se| se.raw_packet_data().modified_packet_data()).collect()
