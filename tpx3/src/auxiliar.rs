@@ -578,7 +578,7 @@ pub mod raw_into_readable {
                                 data_handler.add_tdc(photon);
                             },
                             11 => { //Electron hit
-                                let se = SingleElectron::new(packet, None, current_raw_index, None, None);
+                                let se = SingleElectron::new(packet, None, current_raw_index, None);
                                 data_handler.add_electron(se);
                             },
                             _ => {},
