@@ -245,6 +245,11 @@ pub mod coincidence {
         fn add_packet_to_raw_index(&mut self, index: usize) {
             self.index_to_add_in_raw.push(index);
         }
+
+        //This adds the indexes collected with the ChannelSender
+        fn add_packet_to_raw_index_from_channel_sender(&mut self, channel_sender: &mut ChannelSender) {
+            self.index_to_add_in_raw.append(&mut channel_sender.raw_index);
+        }
         
         //This adds the packet to the reduced raw value and clear the index list afterwards
         fn add_packets_to_reduced_data(&mut self, buffer: &[u8]) {
@@ -511,8 +516,9 @@ pub mod coincidence {
         //Consumer
         for received in rx {
             let (mut channel_sender, buffer): (ChannelSender, Vec<u8>) = received;
-            coinc_data.add_events(&mut channel_sender, coinc_data.edata_settings.my_settings.time_delay, coinc_data.edata_settings.my_settings.time_width, 0);
-            coinc_data.add_packets_to_reduced_data(&buffer);
+            coinc_data.add_packet_to_raw_index_from_channel_sender(&mut channel_sender); //Add standard packets
+            coinc_data.add_events(&mut channel_sender, coinc_data.edata_settings.my_settings.time_delay, coinc_data.edata_settings.my_settings.time_width, 0); //Ad coincidence packets
+            coinc_data.add_packets_to_reduced_data(&buffer); //Sort and exports the packets to raw_reduced_data
             coinc_data.early_output_data();
         }
         coinc_data.output_hyperspec();
