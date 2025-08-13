@@ -512,11 +512,11 @@ impl TdcRef {
     }
 
     //This gets the closest time for a period TDC. Here, the TDC time found is always greater than
-    //the electron time.
+    //the electron time. The tdc_offset argument is used with the fast oscillator.
     #[inline]
-    pub fn get_closest_tdc(&self, time: TIME) -> TIME {
+    fn get_closest_tdc(&self, time: TIME, tdc_offset: TIME) -> TIME {
         let period = self.period().expect("Period must exist in time-resolved mode.");
-        let last_tdc_time = self.time();
+        let last_tdc_time = self.time() + tdc_offset;
      
         //This case TDC time is always greater than electron time
         let xper;
@@ -528,13 +528,13 @@ impl TdcRef {
             last_tdc_time + (xper * period) / PERIOD_DIVIDER
         };
         eff_tdc
-    }
+    } 
 
     //This checks if the electron is inside a given time_delay and time_width for a periodic tdc
     //and returns the closest TDC.
     pub fn tr_electron_check_if_in(&self, pack: &Packet, settings: &Settings) -> Option<TIME> {
         let ele_time = pack.electron_time_in_tdc_units();
-        let eff_tdc = self.get_closest_tdc(ele_time);
+        let eff_tdc = self.get_closest_tdc(ele_time, 0);
      
         //This case photon time is always greater than electron time
         if check_if_in(&ele_time, &eff_tdc, settings) {
@@ -548,7 +548,7 @@ impl TdcRef {
     //and returns the closest TDC.
     pub fn tr_tdc_check_if_in(&self, pack: &Packet, settings: &Settings) -> Option<TIME> {
         let tdc_time = pack.tdc_time_abs_norm();
-        let eff_tdc = self.get_closest_tdc(tdc_time);
+        let eff_tdc = self.get_closest_tdc(tdc_time, 0);
      
         //This case photon time is always greater than electron time
         if check_if_in(&tdc_time, &eff_tdc, settings) {
@@ -563,8 +563,15 @@ impl TdcRef {
     pub fn tr_electron_correct_by_blanking(&self, pack: &Packet) -> Option<TIME> {
         if let Some((ymax_osc, ymin_osc)) = self.oscillator_size {
             let ele_time = pack.electron_time_in_tdc_units();
-            let eff_tdc = self.get_closest_tdc(ele_time);
+            let offset = match pack.ci() {
+                0 => 12,
+                1 => 8,
+                2 => 8,
+                3 => 8,
+                _ => return None,
+            };
 
+            let eff_tdc = self.get_closest_tdc(ele_time, offset);
             let delta = eff_tdc - ele_time;
             let quarter_period = ((delta * 4 * PERIOD_DIVIDER) / BLANKING_PERIOD) as usize;
             //let quarter_period_frac = ((delta * 4 * PERIOD_DIVIDER) as f64 / BLANKING_PERIOD as f64).fract();
