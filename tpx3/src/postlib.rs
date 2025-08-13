@@ -421,10 +421,10 @@ pub mod coincidence {
 
         //Consumer & Producer 
         let (tx, rx) = mpsc::channel();
-        let mut coinc_data = ElectronData::new_from_settings(&coinc_data_set);
 
         //Creating the appropriate TDCs
         coinc_data_set.create_tdcs();
+        let mut coinc_data = ElectronData::new_from_settings(&coinc_data_set);
 
         //Opening the raw data file. We have already checked if the file opens so no worries here.
         let mut ci = 0;
