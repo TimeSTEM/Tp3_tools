@@ -563,11 +563,13 @@ impl TdcRef {
     pub fn tr_electron_correct_by_blanking(&self, pack: &Packet) -> Option<TIME> {
         if let Some((ymax_osc, ymin_osc)) = self.oscillator_size {
             let ele_time = pack.electron_time_in_tdc_units();
-            let offset = match pack.ci() {
-                0 => 12,
-                1 => 8,
-                2 => 8,
-                3 => 8,
+
+            //Getting the offset (equivalent of phase shift the tdc)
+            let offset = match pack.x() {
+                0..=255 => 12,       // inclusive range 0 to 255
+                256..=511 => 8,      // inclusive range 256 to 511
+                512..=767 => 8,      // inclusive range 512 to 767
+                768..=1023 => 8,     // example for the next range
                 _ => return None,
             };
 
