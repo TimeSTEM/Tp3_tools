@@ -325,13 +325,14 @@ impl TdcRef {
         self.last_hard_counter = hard_counter;
         self.counter = self.last_hard_counter as COUNTER + self.counter_overflow * 4096 - self.counter_offset;
         let time_overflow = self.time > time;
-        //println!("updating tdc {}", time - self.time);
+        //println!("updating tdc {}. Counter is {}. Ticks to frame is {:?}. Line is {:?}", time - self.time, self.counter, self.ticks_to_frame, (self.counter / 2) % (self.subsample * self.ticks_to_frame.unwrap()));
         self.time = time;
         if let (Some(spimy), Some(period)) = (self.ticks_to_frame, self.period) {
             //New frame
             if (self.counter / 2) % (self.subsample * spimy) == 0 {
+                //println!("new frame dT: {}", time - self.begin_frame);
                 self.begin_frame = time;
-                self.new_frame = true
+                self.new_frame = true;
             //Not new frame but a time overflow
             } else if time_overflow {
                 //I temporally correct the begin_frame time by supossing what is the next frame time. This
