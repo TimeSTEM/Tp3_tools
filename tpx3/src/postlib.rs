@@ -50,6 +50,15 @@ pub mod coincidence {
         pub fn add_index(&mut self, val: usize) {
             self.raw_index.push(val);
         }
+        pub fn sort_all(&mut self) {
+            //Sorting photons.
+            self.temp_photon.sort();
+            self.temp_photon.dedup_by(|a, b| a.raw_packet_data() == b.raw_packet_data());
+
+            //Sorting and removing clusters (if need) for electrons.
+            self.temp_electron.sort();
+            self.temp_electron.dedup_by(|a, b| a.raw_packet_data().data() == b.raw_packet_data().data());
+        }
 
     }
  
@@ -281,12 +290,12 @@ pub mod coincidence {
         
         fn add_events(&mut self, channel_sender: &mut ChannelSender, time_delay: TIME, time_width: TIME, _line_offset: i64) {
             //Sorting photons.
-            channel_sender.temp_photon.sort();
-            channel_sender.temp_photon.dedup_by(|a, b| a.raw_packet_data() == b.raw_packet_data());
+            //channel_sender.temp_photon.sort();
+            //channel_sender.temp_photon.dedup_by(|a, b| a.raw_packet_data() == b.raw_packet_data());
 
             //Sorting and removing clusters (if need) for electrons.
-            channel_sender.temp_electron.sort();
-            channel_sender.temp_electron.dedup_by(|a, b| a.raw_packet_data().data() == b.raw_packet_data().data());
+            //channel_sender.temp_electron.sort();
+            //channel_sender.temp_electron.dedup_by(|a, b| a.raw_packet_data().data() == b.raw_packet_data().data());
             channel_sender.temp_electron.try_clean(0, &self.edata_settings.remove_clusters);
 
             //Adding photons to the last pixel. We also add the photons in the spectra image.
@@ -512,6 +521,8 @@ pub mod coincidence {
                         },
                     };
                 });
+                channel_sender.sort_all();
+                println!("finishing at {}", total_size);
                 tx.send((channel_sender, buffer.clone())).unwrap();
             }
         });
@@ -523,6 +534,7 @@ pub mod coincidence {
             coinc_data.add_events(&mut channel_sender, coinc_data.edata_settings.my_settings.time_delay, coinc_data.edata_settings.my_settings.time_width, 0); //Ad coincidence packets
             coinc_data.add_packets_to_reduced_data(&buffer); //Sort and exports the packets to raw_reduced_data
             coinc_data.early_output_data();
+            println!("outputting data");
         }
         coinc_data.output_hyperspec();
 
