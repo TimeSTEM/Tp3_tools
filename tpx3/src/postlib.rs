@@ -9,7 +9,7 @@ pub mod coincidence {
     use crate::auxiliar::{Settings, value_types::*, misc::{output_data, packet_change}, FileManager};
     use crate::constlib::*;
     use indicatif::{ProgressBar, ProgressStyle};
-    use std::sync::mpsc;
+    use std::sync::{mpsc, Arc, Mutex, Condvar};
     use std::thread;
 
     //When we would like to have large E-PH timeoffsets, such as skipping entire line periods, the
@@ -447,10 +447,25 @@ pub mod coincidence {
                       .unwrap()
                       .progress_chars("=>-"));
 
+        //This memory-bounds the problem. It means we cannot have the producer TOO fast.
+        let counter = Arc::new((Mutex::new(0), Condvar::new()));
+
         //Producer
+        let counter_tx = Arc::clone(&counter);
         thread::spawn( move || {
             let mut buffer: Vec<u8> = vec![0; TP3_BUFFER_SIZE];
             while let Ok(size) = file.read(&mut buffer) {
+                
+                //Memory-bound the thread using Condvar.
+                let (lock, cvar) = &*counter_tx;
+                let mut count = lock.lock().unwrap();
+                while *count >= 2 {
+                    println!("blocking...");
+                    count = cvar.wait(count).unwrap();
+                    println!("blocking is over");
+                }
+                *count += 1;
+
                 if size == 0 {println!("Finished Reading."); break;}
                 total_size += size;
                 if limit_read_size != 0 && total_size as u32 >= limit_read_size {break;}
@@ -528,12 +543,19 @@ pub mod coincidence {
         });
 
         //Consumer
+        let counter_rx = Arc::clone(&counter);
         for received in rx {
+            println!("starting treating data");
             let (mut channel_sender, buffer): (ChannelSender, Vec<u8>) = received;
             coinc_data.add_packet_to_raw_index_from_channel_sender(&mut channel_sender); //Add standard packets
             coinc_data.add_events(&mut channel_sender, coinc_data.edata_settings.my_settings.time_delay, coinc_data.edata_settings.my_settings.time_width, 0); //Ad coincidence packets
             coinc_data.add_packets_to_reduced_data(&buffer); //Sort and exports the packets to raw_reduced_data
             coinc_data.early_output_data();
+            
+            let (lock, cvar) = &*counter_rx;
+            let mut count = lock.lock().unwrap();
+            *count -= 1;
+            cvar.notify_one();
             println!("outputting data");
         }
         coinc_data.output_hyperspec();
