@@ -459,10 +459,8 @@ pub mod coincidence {
                 //Memory-bound the thread using Condvar.
                 let (lock, cvar) = &*counter_tx;
                 let mut count = lock.lock().unwrap();
-                while *count >= 2 {
-                    println!("blocking...");
+                while *count >= MEMORY_BOUND_QUEUE_SIZE {
                     count = cvar.wait(count).unwrap();
-                    println!("blocking is over");
                 }
                 *count += 1;
 
@@ -537,7 +535,6 @@ pub mod coincidence {
                     };
                 });
                 channel_sender.sort_all();
-                println!("finishing at {}", total_size);
                 tx.send((channel_sender, buffer.clone())).unwrap();
             }
         });
@@ -545,7 +542,6 @@ pub mod coincidence {
         //Consumer
         let counter_rx = Arc::clone(&counter);
         for received in rx {
-            println!("starting treating data");
             let (mut channel_sender, buffer): (ChannelSender, Vec<u8>) = received;
             coinc_data.add_packet_to_raw_index_from_channel_sender(&mut channel_sender); //Add standard packets
             coinc_data.add_events(&mut channel_sender, coinc_data.edata_settings.my_settings.time_delay, coinc_data.edata_settings.my_settings.time_width, 0); //Ad coincidence packets
@@ -556,7 +552,6 @@ pub mod coincidence {
             let mut count = lock.lock().unwrap();
             *count -= 1;
             cvar.notify_one();
-            println!("outputting data");
         }
         coinc_data.output_hyperspec();
 
