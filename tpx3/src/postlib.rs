@@ -534,7 +534,6 @@ pub mod coincidence {
                         },
                     };
                 });
-                channel_sender.sort_all();
                 tx.send((channel_sender, buffer.clone())).unwrap();
             }
         });
@@ -543,6 +542,7 @@ pub mod coincidence {
         let counter_rx = Arc::clone(&counter);
         for received in rx {
             let (mut channel_sender, buffer): (ChannelSender, Vec<u8>) = received;
+            channel_sender.sort_all();
             coinc_data.add_packet_to_raw_index_from_channel_sender(&mut channel_sender); //Add standard packets
             coinc_data.add_events(&mut channel_sender, coinc_data.edata_settings.my_settings.time_delay, coinc_data.edata_settings.my_settings.time_width, 0); //Ad coincidence packets
             coinc_data.add_packets_to_reduced_data(&buffer); //Sort and exports the packets to raw_reduced_data
