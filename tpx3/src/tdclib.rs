@@ -325,13 +325,14 @@ impl TdcRef {
         self.last_hard_counter = hard_counter;
         self.counter = self.last_hard_counter as COUNTER + self.counter_overflow * 4096 - self.counter_offset;
         let time_overflow = self.time > time;
-        //println!("updating tdc {}", time - self.time);
+        //println!("updating tdc {}. Counter is {}. Ticks to frame is {:?}. Line is {:?}", time - self.time, self.counter, self.ticks_to_frame, (self.counter / 2) % (self.subsample * self.ticks_to_frame.unwrap()));
         self.time = time;
         if let (Some(spimy), Some(period)) = (self.ticks_to_frame, self.period) {
             //New frame
             if (self.counter / 2) % (self.subsample * spimy) == 0 {
+                //println!("new frame dT: {}", time - self.begin_frame);
                 self.begin_frame = time;
-                self.new_frame = true
+                self.new_frame = true;
             //Not new frame but a time overflow
             } else if time_overflow {
                 //I temporally correct the begin_frame time by supossing what is the next frame time. This
@@ -512,11 +513,11 @@ impl TdcRef {
     }
 
     //This gets the closest time for a period TDC. Here, the TDC time found is always greater than
-    //the electron time.
+    //the electron time. The tdc_offset argument is used with the fast oscillator.
     #[inline]
-    pub fn get_closest_tdc(&self, time: TIME) -> TIME {
+    fn get_closest_tdc(&self, time: TIME, tdc_offset: TIME) -> TIME {
         let period = self.period().expect("Period must exist in time-resolved mode.");
-        let last_tdc_time = self.time();
+        let last_tdc_time = self.time() + tdc_offset;
      
         //This case TDC time is always greater than electron time
         let xper;
@@ -528,13 +529,13 @@ impl TdcRef {
             last_tdc_time + (xper * period) / PERIOD_DIVIDER
         };
         eff_tdc
-    }
+    } 
 
     //This checks if the electron is inside a given time_delay and time_width for a periodic tdc
     //and returns the closest TDC.
     pub fn tr_electron_check_if_in(&self, pack: &Packet, settings: &Settings) -> Option<TIME> {
         let ele_time = pack.electron_time_in_tdc_units();
-        let eff_tdc = self.get_closest_tdc(ele_time);
+        let eff_tdc = self.get_closest_tdc(ele_time, 0);
      
         //This case photon time is always greater than electron time
         if check_if_in(&ele_time, &eff_tdc, settings) {
@@ -548,7 +549,7 @@ impl TdcRef {
     //and returns the closest TDC.
     pub fn tr_tdc_check_if_in(&self, pack: &Packet, settings: &Settings) -> Option<TIME> {
         let tdc_time = pack.tdc_time_abs_norm();
-        let eff_tdc = self.get_closest_tdc(tdc_time);
+        let eff_tdc = self.get_closest_tdc(tdc_time, 0);
      
         //This case photon time is always greater than electron time
         if check_if_in(&tdc_time, &eff_tdc, settings) {
@@ -563,8 +564,17 @@ impl TdcRef {
     pub fn tr_electron_correct_by_blanking(&self, pack: &Packet) -> Option<TIME> {
         if let Some((ymax_osc, ymin_osc)) = self.oscillator_size {
             let ele_time = pack.electron_time_in_tdc_units();
-            let eff_tdc = self.get_closest_tdc(ele_time);
 
+            //Getting the offset (equivalent of phase shift the tdc)
+            let offset = match pack.x() {
+                0..=255 => 12,       // inclusive range 0 to 255
+                256..=511 => 8,      // inclusive range 256 to 511
+                512..=767 => 8,      // inclusive range 512 to 767
+                768..=1023 => 8,     // example for the next range
+                _ => return None,
+            };
+
+            let eff_tdc = self.get_closest_tdc(ele_time, offset);
             let delta = eff_tdc - ele_time;
             let quarter_period = ((delta * 4 * PERIOD_DIVIDER) / BLANKING_PERIOD) as usize;
             //let quarter_period_frac = ((delta * 4 * PERIOD_DIVIDER) as f64 / BLANKING_PERIOD as f64).fract();

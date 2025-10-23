@@ -47,12 +47,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if &dir[path_length - 4 ..path_length] == "tpx3" {
             if let Ok(settings) = Settings::get_settings_from_json(&dir[0..path_length - 5]) {
                 println!("***Coincidence***: File {} has the following settings from json: {:?}.", dir, settings);
-                let mut electron_data = ElectronData::new(dir.to_owned(), cluster::grab_cluster_correction(cluster_correction), settings, true);
+                let mut electron_data = ElectronDataSettings::new(dir.to_owned(), cluster::grab_cluster_correction(cluster_correction), settings, true);
                 if let Err(error) = electron_data.prepare_to_search() {
                     println!("***Coincidence***: Error during prepare: {:?}.", error);
                     return;
                 }
-                search_coincidence(&mut electron_data, 0);
+                search_coincidence(electron_data, 0);
             } else {
                 println!("***Coincidence***: Skipping file {}. No JSON file has been found.", dir);
          }
