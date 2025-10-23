@@ -51,7 +51,7 @@ pub static BTOT: &[u8; 1024 * 256 * 4] = include_bytes!("btot_v2.dat");
 
 //Coincidence values using the Timepix3//
 pub const TP3_BUFFER_SIZE: usize = 512_000_000; //Buffer size when reading files
-pub const MEMORY_BOUND_QUEUE_SIZE: usize = 1; //Max number of threads in the producer thread. 1 means basically no threading.
+pub const MEMORY_BOUND_QUEUE_SIZE: usize = 2; //Max number of threads in the producer thread. 1 means basically no threading.
 pub const PHOTON_LIST_STEP: usize = 5; //How many photons in the list before a step is taken during coincidence searching
 pub const LIST_SIZE_AUX_EVENTS: usize = 4; //List size of Coincidence2D struct in speclib.
 pub const CIRCULAR_BUFFER: usize = 4096;
