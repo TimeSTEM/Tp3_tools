@@ -2,14 +2,14 @@
 
 use crate::packetlib::Packet;
 use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, packet_change, check_if_in}};
-use crate::tdclib::{TdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
-use crate::isi_box_new;
+use crate::tdclib::TdcRef;
 use crate::errorlib::Tp3ErrorKind;
 use crate::clusterlib::cluster::{SinglePhoton, CollectionPhoton, SingleElectron, CollectionElectron};
 use std::time::Instant;
 use std::io::Write;
 use crate::auxiliar::{value_types::*, FileManager, misc};
 use crate::constlib::*;
+use crate::ttx;
 //use rayon::prelude::*;
 
 const CAM_DESIGN: (POSITION, POSITION) = Packet::chip_array();
@@ -103,6 +103,7 @@ pub trait SpecKind {
     }
     fn data_size_in_bytes(&self) -> usize;
     fn data_height(&self) -> COUNTER;
+    fn ttx_index(&mut self, _ts: u64, _channel: u32) {}
 }
 
 pub trait IsiBoxKind: SpecKind {
@@ -295,6 +296,10 @@ impl SpecKind for Live1D {
     }
     fn data_height(&self) -> COUNTER {
         1
+    }
+    fn ttx_index(&mut self, _ttx_time: u64, ttx_channel: u32) {
+        //self.data[ttx_channel as usize] += 1;
+        add_index!(self, CAM_DESIGN.0-1);
     }
 }
 
@@ -1032,10 +1037,14 @@ pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
     let mut last_ci = 0;
     let mut buffer_pack_data: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
     let start = Instant::now();
-    
+    let mut ttx = ttx::TTXRef::new(false, &my_settings);
+    if let Some(in_ttx) = &mut ttx {
+        in_ttx.prepare_periodic(vec![0]);
+    };
+
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         file_to_write.write_all(&buffer_pack_data[0..size])?;
-        if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
+        if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc, &mut ttx) {
             let msg = create_header(&meas_type, &my_settings, &frame_tdc, 0, meas_type.shutter_control());
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             if ns_sock.write(meas_type.build_output(&my_settings)).is_err() {println!("Client disconnected on data."); break;}
@@ -1048,6 +1057,7 @@ pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
 
 }
 
+/*
 pub fn build_spectrum_isi<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
     where V: TimepixRead,
           U: Write,
@@ -1080,9 +1090,10 @@ pub fn build_spectrum_isi<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings
     println!("Total elapsed time is: {:?}.", start.elapsed());
     Ok(())
 }
+*/
 
 
-fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, settings: &Settings, frame_tdc: &mut TdcRef, ref_tdc: &mut TdcRef) -> bool {
+fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, settings: &Settings, frame_tdc: &mut TdcRef, ref_tdc: &mut TdcRef, ttx: &mut Option<ttx::TTXRef>) -> bool {
 
     let iterator = data.chunks_exact(8);
     
@@ -1113,6 +1124,13 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
             },
         };
     };
+    
+    if let Some(in_ttx) = ttx {
+        in_ttx.inform_scan_tdc(frame_tdc);
+        in_ttx.build_data(final_data);
+    }
+
+
     final_data.is_ready()
 }
 

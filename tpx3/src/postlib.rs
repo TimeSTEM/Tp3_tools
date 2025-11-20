@@ -47,6 +47,11 @@ pub mod coincidence {
         pub fn add_photon(&mut self, val: SinglePhoton) {
             self.temp_photon.add_photon(val);
         }
+        //This adds the index of the 64-bit packet that will be afterwards added to the electron
+        //data and then to the reduced raw. We should not do on the fly as the order of the packets will not be preserved for
+        //photons and electrons, for example (we would add one photon but then check later if there
+        //is a correspondent electron). So we should run once and then run again for the
+        //recorded indexes.
         pub fn add_index(&mut self, val: usize) {
             self.raw_index.push(val);
         }
@@ -244,15 +249,6 @@ pub mod coincidence {
             if let Some(index) = val.get_or_not_spim_index(self.edata_settings.get_spim_tdc(), self.spim_size.0, self.spim_size.1) {
                 self.spim_frame[index as usize] += 1;
             }
-        }
-
-        //This adds the index of the 64-bit packet that will be afterwards added to the reduced
-        //raw. We should not do on the fly as the order of the packets will not be preserved for
-        //photons and electrons, for example (we would add one photon but then check later if there
-        //is a correspondent electron). So we should run once and then run again for the
-        //recorded indexes.
-        fn add_packet_to_raw_index(&mut self, index: usize) {
-            self.index_to_add_in_raw.push(index);
         }
 
         //This adds the indexes collected with the ChannelSender
