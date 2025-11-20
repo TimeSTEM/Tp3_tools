@@ -2,11 +2,31 @@ use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::*;
 use timepix3::tdclib::*;
 use timepix3::constlib::*;
+use timepix3::ttx;
 use timepix3::{speclib, speclib::SpecKind, spimlib, spimlib::SpimKind};
+use std::thread;
+use std::time::Duration;
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
-    
+
+    //let x = ttx::TimeTagger::new();
+    let mut x = ttx::TTXRef::new(true, 2048);
+    //x.start_stream();
+    //thread::sleep(Duration::from_millis(250));
+    x.prepare_periodic(vec![1]);
+    for _ in 0..10 {
+        x.build_data();
+    }
+    //x.add_channel(1, true);
+    //x.start_stream();
+    //println!("here");
+    //x.get_data();
+
+    //let data = x.get_timestamps();
+    //let result = ttx::determine_spread_period(&data);
+    drop(x);
+
     let (my_settings, mut pack, ns) = Settings::create_settings(NIONSWIFT_IP_ADDRESS, NIONSWIFT_PORT)?;
     let mut file_to_write = my_settings.create_file()?;
 
