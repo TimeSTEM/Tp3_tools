@@ -2,12 +2,17 @@ use timepix3::errorlib::Tp3ErrorKind;
 use timepix3::auxiliar::*;
 use timepix3::tdclib::*;
 use timepix3::constlib::*;
+use timepix3::ttx;
 use timepix3::{speclib, speclib::SpecKind, spimlib, spimlib::SpimKind};
 
 
 fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
 
     let (my_settings, mut pack, ns) = Settings::create_settings(NIONSWIFT_IP_ADDRESS, NIONSWIFT_PORT)?;
+    let mut ttx = ttx::TTXRef::new();
+    if let Some(in_ttx) = &mut ttx {
+        in_ttx.apply_settings(false, &my_settings);
+    }
     let mut file_to_write = my_settings.create_file()?;
 
     match my_settings.mode {
@@ -15,14 +20,14 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             let measurement = speclib::Live1D::new(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         0 if !my_settings.bin => {
             let measurement = speclib::Live2D::new(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         2 => {
@@ -43,42 +48,42 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             let measurement = speclib::Chrono::new(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         7 => {
             let measurement = speclib::Coincidence2D::new(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         8 => {
             let measurement = speclib::ChronoFrame::new(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         10 if my_settings.bin => {
             let measurement = speclib::Live1DFrame::new(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         10 if !my_settings.bin => {
             let measurement = speclib::Live2DFrame::new(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         11 => {
             let measurement = speclib::Live1DFrameHyperspec::new(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         12 => {
@@ -108,7 +113,7 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             let measurement = speclib::Live2DFrameHyperspec::new(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write)?;
+            speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         _ => Err(Tp3ErrorKind::MiscModeNotImplemented(my_settings.mode)),

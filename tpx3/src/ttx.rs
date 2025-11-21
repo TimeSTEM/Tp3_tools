@@ -14,8 +14,10 @@ pub struct MyTimeTagger;
 extern "C" {
     fn mytt_create() -> *mut MyTimeTagger;
     fn mytt_destroy(t: *mut MyTimeTagger);
+    fn mytt_reset(t: *mut MyTimeTagger);
     fn mytt_add_channel(t: *mut MyTimeTagger, channel: i32, is_test_signal: bool);
     fn mytt_start_stream(t: *mut MyTimeTagger);
+    fn mytt_stop_stream(t: *mut MyTimeTagger);
     fn mytt_get_data(t: *mut MyTimeTagger);
     fn mytt_get_timestamps(t: *mut MyTimeTagger, out_len: *mut usize) -> *const u64;
     fn mytt_get_channels(t: *mut MyTimeTagger, out_len: *mut usize) -> *const u32;
@@ -35,12 +37,20 @@ impl TimeTagger {
         TimeTagger { inner: ptr }
     }
 
+    pub fn reset(&self) {
+        unsafe { mytt_reset(self.inner) }
+    }
+
     pub fn add_channel(&self, channel: i32, is_test: bool) {
         unsafe { mytt_add_channel(self.inner, channel, is_test) }
     }
 
     pub fn start_stream(&self) {
         unsafe { mytt_start_stream(self.inner) }
+    }
+ 
+    pub fn stop_stream(&self) {
+        unsafe { mytt_stop_stream(self.inner) }
     }
 
     pub fn get_data(&self) {
@@ -65,6 +75,7 @@ impl TimeTagger {
 
 impl Drop for TimeTagger {
     fn drop(&mut self) {
+        //unsafe { mytt_reset(self.inner) }
         unsafe { mytt_destroy(self.inner) }
     }
 }
@@ -85,24 +96,24 @@ pub struct TTXRef {
     scan_ref_time: Option<TIME>,
     scan_ref_counter: Option<COUNTER>,
     scan_ref_period: Option<TIME>,
+    ttx_into_tpx3_correction: Option<i64>,
 }
 
 impl TTXRef {
     //pub fn new(is_scanning: bool, my_settings: &Settings) -> Self {
-    pub fn new(is_scanning: bool, my_settings: &Settings) -> Option<Self> {
+    pub fn new() -> Option<Self> {
         let ttx = TimeTagger::new();
         if ttx.inner.is_null() {
             return None;
         }
-        ttx.set_stream_block_size(4096, 20);
-        ttx.add_channel(1, true);
+        ttx.set_stream_block_size(2048, 1);
         Some(TTXRef {
             ttx,
             counter: [0; 16],
             begin_time: [0; 16],
             time: [0; 16],
             period: [None; 16],
-            ticks_to_frame: if is_scanning { None } else { Some(my_settings.yspim_size)},
+            ticks_to_frame: None,
             subsample: 1,
             //video_delay: 0, //my_settings.video_time,
             begin_frame: 0,
@@ -111,7 +122,26 @@ impl TTXRef {
             scan_ref_time: None,
             scan_ref_counter: None,
             scan_ref_period: None,
+            ttx_into_tpx3_correction: None,
         })
+    }
+
+    pub fn reset(&self) {
+        self.ttx.reset();
+    }
+
+    pub fn apply_settings(&mut self, is_scanning: bool, my_settings: &Settings) {
+        if is_scanning {
+            self.ticks_to_frame = Some(my_settings.yspim_size);
+        }
+    }
+
+    pub fn stop_stream(&self) {
+        self.ttx.stop_stream();
+    }
+
+    pub fn add_channel(&mut self, channel: i32, is_test: bool) {
+        self.ttx.add_channel(channel, is_test);
     }
 
     pub fn prepare_periodic(&mut self, periodic_channels: Vec<u32>) {
@@ -136,16 +166,17 @@ impl TTXRef {
                 }
                 if self.begin_time[ch as usize - 1] == 0 { //We save the initial time. If its periodic, we will get the period in the next interaction
                     self.begin_time[ch as usize - 1] = ts;
+                    println!("***TTX***: begin time is {:?}", self.begin_time);
                     if periodic_channels.contains(&ch) {check_next_scan[ch as usize - 1] = true};
                 }
                 self.counter[ch as usize - 1] += 1;
                 self.time[ch as usize - 1] = ts;
             });
-        //println!("{:?} and {:?} and {:?}", self.counter, self.begin_time, self.period);
+        println!("***TTX***: {:?} and {:?} and {:?}", self.counter, self.begin_time, self.period);
     }
 
     pub fn build_data<K: SpecKind>(&mut self, speckind: &mut K) {
-        let start = Instant::now();
+        //let start = Instant::now();
         self.ttx.get_data();
         let mut timestamps = self.ttx.get_timestamps();
         while timestamps.len() == 0 {
@@ -167,25 +198,35 @@ impl TTXRef {
                         }
                     }
                 }
-                speckind.ttx_index(self.into_tdc_time(ts), ch);
+                speckind.ttx_index(self.into_tdc_time(ts).unwrap_or_else(|| ts), ch);
             });
         //println!("Counter is: {:?} and {:?}", self.time, timestamps.len());
     }
 
     pub fn inform_scan_tdc(&mut self, scan_tdc: &mut tdclib::TdcRef) {
+        //println!("***TTX***: scan tdc period is {:?}", scan_tdc.period());
+        if (scan_tdc.period().is_none() || self.period[0].is_none()) { return }
+
         self.scan_ref_counter = Some(scan_tdc.counter());
         self.scan_ref_time = Some(scan_tdc.time());
         self.scan_ref_period = scan_tdc.period();
-    }
+        //println!("***TTX***: Synchronizing TTX with TPX3. The period on TTX is {:?}. The period on TPX3 is {:?}.", self.period[0], self.scan_ref_period);
 
-    pub fn into_tdc_time(&self, ts: u64) -> u64 {
+        //The difference in counter time between TTX and TPX3, in ps
         let counter_time_difference = (self.counter[0] as i64 - self.scan_ref_counter.unwrap() as i64) * self.period[0].unwrap() as i64; //in ps
+        
+        //For the given counter above, the time difference, in ps
         let offset = self.scan_ref_time.unwrap() as i64 - (self.time[0] / 260) as i64; //in ps
+        
+        //The correction is the time difference discounted the counter time, in ps
         let correction = offset - counter_time_difference; //in ps
 
-        let ts_into = (ts as i64 / 260) + correction / 260;
-        ts_into as u64
+        self.ttx_into_tpx3_correction = Some(correction);
+    }
 
+    pub fn into_tdc_time(&self, ts: u64) -> Option<u64> {
+        let ts_into = (ts as i64 / 260) + self.ttx_into_tpx3_correction? / 260;
+        Some(ts_into as u64)
     }
 }
 

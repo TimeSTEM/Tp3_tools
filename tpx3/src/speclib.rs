@@ -189,6 +189,13 @@ impl SpecKind for Live2D {
         } else {
             TdcRef::new_no_read(SECONDARY_TDC)
         }
+    } 
+    fn build_main_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        if my_settings.time_resolved {
+            TdcRef::new_periodic(MAIN_TDC, pack, my_settings, file_to_write)
+        } else {
+            TdcRef::new_no_read(MAIN_TDC)
+        }
     }
     fn add_tdc_hit2(&mut self, pack: Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(&pack);
@@ -213,6 +220,9 @@ impl SpecKind for Live2D {
     }
     fn data_height(&self) -> COUNTER {
         CAM_DESIGN.1
+    }
+    fn ttx_index(&mut self, _ttx_time: u64, ttx_channel: u32) {
+        add_index!(self, CAM_DESIGN.0-1);
     }
 }
 
@@ -298,7 +308,6 @@ impl SpecKind for Live1D {
         1
     }
     fn ttx_index(&mut self, _ttx_time: u64, ttx_channel: u32) {
-        //self.data[ttx_channel as usize] += 1;
         add_index!(self, CAM_DESIGN.0-1);
     }
 }
@@ -1028,7 +1037,7 @@ pub fn run_spectrum<V, U, Y>(mut pack: V, ns: U, my_settings: Settings, kind: Y,
 }
 */
 
-pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W, mut file_to_write: FileManager) -> Result<(), Tp3ErrorKind> 
+pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W, mut file_to_write: FileManager, mut ttx: Option<ttx::TTXRef>) -> Result<(), Tp3ErrorKind> 
     where V: TimepixRead,
           U: Write,
           W: SpecKind
@@ -1037,9 +1046,11 @@ pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
     let mut last_ci = 0;
     let mut buffer_pack_data: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
     let start = Instant::now();
-    let mut ttx = ttx::TTXRef::new(false, &my_settings);
     if let Some(in_ttx) = &mut ttx {
-        in_ttx.prepare_periodic(vec![0]);
+        in_ttx.add_channel(1, true);
+        in_ttx.prepare_periodic(vec![1]);
+        in_ttx.inform_scan_tdc(&mut frame_tdc);
+        //in_ttx.stop_stream();
     };
 
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {

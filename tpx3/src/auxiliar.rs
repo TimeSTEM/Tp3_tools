@@ -159,7 +159,10 @@ impl Settings {
             true => {
                 let file = match File::open(READ_DEBUG_FILE) {
                     Ok(file) => file,
-                    Err(_) => return Err(Tp3ErrorKind::SetNoReadFile),
+                    //Err(_) => return Err(Tp3ErrorKind::SetNoReadFile),
+                    Err(_) => {
+                        println!("Cannot find DEBUG FILE. Using the UnitRead instead."); 
+                        return Ok((my_settings, Box::new(misc::UnitRead), ns_sock)) },
                 };
                 println!("Debug mode. Will one file a single time.");
                 Ok((my_settings, Box::new(file), ns_sock))
@@ -322,6 +325,16 @@ pub mod misc {
     use crate::auxiliar::value_types::*;
     use std::net::TcpStream;
     use std::fs::File;
+
+
+    //This is a UnitRead. It does not actually reads anythings and returns 0 as size.
+    pub struct UnitRead;
+    impl TimepixRead for UnitRead {}
+    impl Read for UnitRead {
+        fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
+            Ok(0)
+        }
+    }
 
     pub fn default_read_exact<R: Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> Result<usize, Tp3ErrorKind> {
         let mut size = 0;
