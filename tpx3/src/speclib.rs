@@ -103,7 +103,7 @@ pub trait SpecKind {
     }
     fn data_size_in_bytes(&self) -> usize;
     fn data_height(&self) -> COUNTER;
-    fn ttx_index(&mut self, _ts: u64, _channel: u32) {}
+    fn ttx_index(&mut self, _ts: u64, _channel: i32, _ts_correction: Option<TIME>) {}
 }
 
 pub trait IsiBoxKind: SpecKind {
@@ -190,13 +190,6 @@ impl SpecKind for Live2D {
             TdcRef::new_no_read(SECONDARY_TDC)
         }
     } 
-    fn build_main_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        if my_settings.time_resolved {
-            TdcRef::new_periodic(MAIN_TDC, pack, my_settings, file_to_write)
-        } else {
-            TdcRef::new_no_read(MAIN_TDC)
-        }
-    }
     fn add_tdc_hit2(&mut self, pack: Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(&pack);
         add_index!(self, CAM_DESIGN.0-1);
@@ -221,7 +214,7 @@ impl SpecKind for Live2D {
     fn data_height(&self) -> COUNTER {
         CAM_DESIGN.1
     }
-    fn ttx_index(&mut self, _ttx_time: u64, ttx_channel: u32) {
+    fn ttx_index(&mut self, _ttx_time: u64, _ttx_channel: i32, _ts_correction: Option<TIME>) {
         add_index!(self, CAM_DESIGN.0-1);
     }
 }
@@ -307,7 +300,7 @@ impl SpecKind for Live1D {
     fn data_height(&self) -> COUNTER {
         1
     }
-    fn ttx_index(&mut self, _ttx_time: u64, ttx_channel: u32) {
+    fn ttx_index(&mut self, _ttx_time: u64, _ttx_channel: i32, _ts_correction: Option<TIME>) {
         add_index!(self, CAM_DESIGN.0-1);
     }
 }
@@ -1046,11 +1039,11 @@ pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
     let mut last_ci = 0;
     let mut buffer_pack_data: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
     let start = Instant::now();
+
     if let Some(in_ttx) = &mut ttx {
-        in_ttx.add_channel(1, true);
-        in_ttx.prepare_periodic(vec![1]);
+        in_ttx.add_channel(1, false, true, true); //Both edges ON
+        in_ttx.prepare();
         in_ttx.inform_scan_tdc(&mut frame_tdc);
-        //in_ttx.stop_stream();
     };
 
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
@@ -1138,7 +1131,7 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
     
     if let Some(in_ttx) = ttx {
         in_ttx.inform_scan_tdc(frame_tdc);
-        in_ttx.build_data(final_data);
+        in_ttx.build_spec_data(final_data);
     }
 
 

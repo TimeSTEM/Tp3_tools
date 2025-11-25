@@ -475,41 +475,32 @@ impl TdcRef {
             None
         }
     }
-    
+  
+    #[inline]
+    pub fn sync_anytime_frame_time(&self, time: TIME) -> Option<TIME> {
+        let mut time = time;
+        if SYNC_MODE == 0 {
+            if time < self.begin_frame + VIDEO_TIME + self.video_delay{
+                let factor = (self.begin_frame + VIDEO_TIME + self.video_delay - time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
+                time += self.period?*(self.subsample*self.ticks_to_frame?) as TIME * factor;
+            }
+            Some(time - self.begin_frame - VIDEO_TIME - self.video_delay)
+        } else {
+            if time < self.time + VIDEO_TIME + self.video_delay {
+                let factor = (self.time + VIDEO_TIME + self.video_delay - time) / (self.period?) + 1;
+                time += self.period? * factor * self.current_line()? as u64;
+            }
+            Some(time - self.begin_frame - VIDEO_TIME - self.video_delay)
+        }
+    }   
     #[inline]
     pub fn sync_electron_frame_time(&self, pack: &Packet) -> Option<TIME> {
-        let mut ele_time = pack.electron_time_in_tdc_units();
-        if SYNC_MODE == 0 {
-            if ele_time < self.begin_frame + VIDEO_TIME + self.video_delay{
-                let factor = (self.begin_frame + VIDEO_TIME + self.video_delay - ele_time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
-                ele_time += self.period?*(self.subsample*self.ticks_to_frame?) as TIME * factor;
-            }
-            Some(ele_time - self.begin_frame - VIDEO_TIME - self.video_delay)
-        } else {
-            if ele_time < self.time + VIDEO_TIME + self.video_delay {
-                let factor = (self.time + VIDEO_TIME + self.video_delay - ele_time) / (self.period?) + 1;
-                ele_time += self.period? * factor * self.current_line()? as u64;
-            }
-            Some(ele_time - self.begin_frame - VIDEO_TIME - self.video_delay)
-        }
+        self.sync_anytime_frame_time(pack.electron_time_in_tdc_units())
     }
 
     #[inline]
     pub fn sync_tdc_frame_time(&self, pack: &Packet) -> Option<TIME> {
-        let mut tdc_time = pack.tdc_time_abs_norm();
-        if SYNC_MODE == 0 {
-            if tdc_time < self.begin_frame + VIDEO_TIME + self.video_delay{
-                let factor = (self.begin_frame + VIDEO_TIME + self.video_delay - tdc_time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
-                tdc_time += self.period?*(self.subsample*self.ticks_to_frame?) as TIME * factor;
-            }
-            Some(tdc_time - self.begin_frame - VIDEO_TIME - self.video_delay)
-        } else {
-            if tdc_time < self.time + VIDEO_TIME + self.video_delay {
-                let factor = (self.time + VIDEO_TIME + self.video_delay - tdc_time) / (self.period?) + 1;
-                tdc_time += self.period? * factor * self.current_line()? as u64;
-            }
-            Some(tdc_time - self.begin_frame - VIDEO_TIME - self.video_delay)
-        }
+        self.sync_anytime_frame_time(pack.tdc_time_abs_norm())
     }
 
     //This gets the closest time for a period TDC. Here, the TDC time found is always greater than

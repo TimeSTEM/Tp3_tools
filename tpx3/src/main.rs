@@ -6,10 +6,10 @@ use timepix3::ttx;
 use timepix3::{speclib, speclib::SpecKind, spimlib, spimlib::SpimKind};
 
 
-fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
+fn connect_and_loop(ttx_raw: &ttx::TimeTagger) -> Result<u8, Tp3ErrorKind> {
 
     let (my_settings, mut pack, ns) = Settings::create_settings(NIONSWIFT_IP_ADDRESS, NIONSWIFT_PORT)?;
-    let mut ttx = ttx::TTXRef::new();
+    let mut ttx = ttx::TTXRef::new_from_ttx(ttx_raw.clone()); // Creating the TTX object.
     if let Some(in_ttx) = &mut ttx {
         in_ttx.apply_settings(false, &my_settings);
     }
@@ -34,14 +34,14 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             let mut measurement = spimlib::Live::new(&my_settings);
             let spim_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let np_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None, file_to_write)?;
+            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None, file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         3 => {
             let mut measurement = spimlib::LiveFrame4D::new(&my_settings);
             let spim_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let np_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None, file_to_write)?;
+            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None, file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         6 => {
@@ -90,14 +90,14 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             let mut measurement = spimlib::LiveCoincidence::new(&my_settings);
             let spim_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let np_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None, file_to_write)?;
+            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None, file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         13 => {
             let mut measurement = spimlib::Live4D::new(&my_settings);
             let spim_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let np_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None, file_to_write)?;
+            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, None, file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         14 => {
@@ -106,7 +106,7 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
             let spim_tdc = TdcRef::new_periodic(TdcType::TdcOneFallingEdge, &mut pack, &my_settings, &mut file_to_write)?;
             let np_tdc = TdcRef::new_no_read(TdcType::TdcTwoRisingEdge)?;
             let measurement = spimlib::Live::new(&my_settings);
-            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, Some(&vec_list), file_to_write)?;
+            spimlib::build_spim(pack, ns, my_settings, spim_tdc, np_tdc, measurement, Some(&vec_list), file_to_write, ttx)?;
             Ok(my_settings.mode)
         },
         15 => {
@@ -122,8 +122,9 @@ fn connect_and_loop() -> Result<u8, Tp3ErrorKind> {
 
 fn main() {
     let mut log_file = simple_log::start().unwrap();
+    let ttx_raw = ttx::TTXRef::new_ttx(); // Creating the TTX object.
     loop {
-        match connect_and_loop() {
+        match connect_and_loop(&ttx_raw) {
             Ok(val) => {
                 simple_log::ok(&mut log_file, val).unwrap();
             },
