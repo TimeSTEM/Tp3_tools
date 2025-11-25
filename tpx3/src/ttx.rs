@@ -302,7 +302,7 @@ impl TTXRef {
                 let chi = (ch + 15) as usize;
                 self.time[chi] = ts;
                 self.counter[chi] += 1;
-                if let (Some(spimy), Some(_period)) = (self.ticks_to_frame, self.period[chi]) {
+                if let (Some(spimy), Some(_period)) = (self.ticks_to_frame, self.period[(ch.abs() - 1) as usize]) {
                     if ch == 1 { //SCAN SIGNAL
                         if self.counter[0] % (self.subsample * spimy) == 0 {
                             self.begin_frame = ts;
@@ -325,7 +325,7 @@ impl TTXRef {
                 let chi = (ch + 15) as usize;
                 self.time[chi] = ts;
                 self.counter[chi] += 1;
-                if let (Some(spimy), Some(_period)) = (self.ticks_to_frame, self.period[chi]) {
+                if let (Some(spimy), Some(_period)) = (self.ticks_to_frame, self.period[(ch.abs() - 1) as usize]) {
                     if ch == 1 { //SCAN SIGNAL
                         if self.counter[0] % (self.subsample * spimy) == 0 {
                             self.begin_frame = ts;
