@@ -11,5 +11,7 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=TTX");      // TTX.dll
     #[cfg(target_os = "linux")]
     println!("cargo:rustc-link-lib=dylib=TTX");      // Rust will look in lib/ for libTTX.so
+    #[cfg(target_os = "linux")]
+    println!("cargo:rustc-link-lib=dylib=TimeTagger");      // Rust will look in lib/ for libTimeTagger.so
 }
 
