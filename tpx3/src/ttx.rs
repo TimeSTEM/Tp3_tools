@@ -29,7 +29,7 @@ extern "C" {
 
 // FFI bindings
 #[cfg(target_os = "linux")]
-#[link(name = "TTX")] // TTX.so
+#[link(name = "TTTX")] // TTX.so
 #[allow(improper_ctypes)]
 extern "C" {
     fn mytt_create() -> *mut MyTimeTagger;
