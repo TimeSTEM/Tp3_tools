@@ -214,8 +214,10 @@ impl SpecKind for Live2D {
     fn data_height(&self) -> COUNTER {
         CAM_DESIGN.1
     }
-    fn ttx_index(&mut self, _ttx_time: u64, _ttx_channel: i32, _ts_correction: Option<TIME>) {
-        add_index!(self, CAM_DESIGN.0-1);
+    fn ttx_index(&mut self, ttx_time: u64, ttx_channel: i32, _ts_correction: Option<TIME>) {
+        if ttx_channel == 2 {
+            add_index!(self, CAM_DESIGN.0-1);
+        }
     }
 }
 
@@ -300,8 +302,10 @@ impl SpecKind for Live1D {
     fn data_height(&self) -> COUNTER {
         1
     }
-    fn ttx_index(&mut self, _ttx_time: u64, _ttx_channel: i32, _ts_correction: Option<TIME>) {
-        add_index!(self, CAM_DESIGN.0-1);
+    fn ttx_index(&mut self, ttx_time: u64, ttx_channel: i32, _ts_correction: Option<TIME>) {
+        if ttx_channel == 2 {
+            add_index!(self, CAM_DESIGN.0-1);
+        }
     }
 }
 
@@ -1041,7 +1045,8 @@ pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
     let start = Instant::now();
 
     if let Some(in_ttx) = &mut ttx {
-        in_ttx.add_channel(1, false, true, true); //Both edges ON
+        //in_ttx.add_channel(1, false, true, true); //Not test, Both edges ON, Periodic
+        in_ttx.add_channel(2, false, false, false);
         in_ttx.prepare();
         in_ttx.inform_scan_tdc(&mut frame_tdc);
     };

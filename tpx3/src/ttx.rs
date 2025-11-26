@@ -4,7 +4,8 @@ use crate::tdclib;
 use crate::speclib::SpecKind;
 use crate::spimlib::SpimKind;
 use crate::constlib::*;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+use std::thread;
 
 // Opaque type for FFI
 #[repr(C)]
@@ -206,6 +207,9 @@ impl TTXRef {
     pub fn prepare(&mut self) {
         self.ttx.start_stream();
         self.is_running = true;
+
+        thread::sleep(Duration::from_millis(100));
+
         
         self.ttx.get_data();
         let mut timestamps = self.ttx.get_timestamps();
@@ -281,9 +285,9 @@ impl TTXRef {
             self.low_time[(channel-1) as usize] = Some(low_time);
         }
         for channel in &self.active_channels {
-            self.begin_time[(channel + 15) as usize] = get_begin_time(&timestamps, &channels, *channel).unwrap();
-            self.counter[(channel + 15) as usize] = get_counter(&timestamps, &channels, *channel).unwrap();
-            self.time[(channel + 15) as usize] = get_last_time(&timestamps, &channels, *channel).unwrap();
+            //self.begin_time[(channel + 15) as usize] = get_begin_time(&timestamps, &channels, *channel);
+            //self.counter[(channel + 15) as usize] = get_counter(&timestamps, &channels, *channel);
+            //self.time[(channel + 15) as usize] = get_last_time(&timestamps, &channels, *channel);
         }
         //println!("The period {:?}", get_period(&timestamps, &channels, 1));
         //println!("The high time {:?}", get_high_time(&timestamps, &channels, 1));
@@ -296,6 +300,8 @@ impl TTXRef {
         self.ttx.get_data();
         let timestamps = self.ttx.get_timestamps();
         let channels = self.ttx.get_channels();
+        
+        println!("length is {}", timestamps.len());
         
         timestamps.iter().zip(channels.iter())
             .for_each(|(&ts, &ch)| {
