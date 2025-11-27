@@ -70,3 +70,6 @@ pub const DETECTOR_SIZE: (POSITION, POSITION) = (256, 256);
 pub const DETECTOR_LIMITS: ((POSITION, POSITION), (POSITION, POSITION)) = ((512, 768), (0, 256));
 pub const MAX_CHANNELS: usize = 8;
 pub const TIME_INTERVAL_4DFRAMES: u128 = 100; //In milliseconds
+
+//***TTX LIB***//
+pub const MINIMUM_TTX_CHANNEL_COUNT: u32 = 10; //Number of hits we need to have in the TTX to determine properties

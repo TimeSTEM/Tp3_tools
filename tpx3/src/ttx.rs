@@ -4,8 +4,7 @@ use crate::tdclib;
 use crate::speclib::SpecKind;
 use crate::spimlib::SpimKind;
 use crate::constlib::*;
-use std::time::{Duration, Instant};
-use std::thread;
+use crate::auxiliar::FileManager;
 
 // Opaque type for FFI
 #[repr(C)]
@@ -113,7 +112,6 @@ impl Drop for TimeTagger {
     }
 }
 
-//#[derive(Debug, Clone)]
 pub struct TTXRef {
     ttx: TimeTagger,
     counter: [COUNTER; 32],
@@ -135,6 +133,7 @@ pub struct TTXRef {
     scan_ref_period: Option<TIME>,
     ttx_into_tpx3_correction: Option<i64>,
     is_running: bool,
+    file: FileManager,
 }
 
 impl Drop for TTXRef {
@@ -144,7 +143,6 @@ impl Drop for TTXRef {
 }
 
 impl TTXRef {
-
     pub fn new_ttx() -> TimeTagger {
         return TimeTagger::new()
     }
@@ -169,12 +167,12 @@ impl TTXRef {
             video_delay: 0, //my_settings.video_time,
             begin_frame: 0,
             new_frame: false,
-            //oscillator_size: None,
             scan_ref_time: None,
             scan_ref_counter: None,
             scan_ref_period: None,
             ttx_into_tpx3_correction: None,
             is_running: false,
+            file: FileManager::new_empty(),
         })
     }
 
@@ -186,6 +184,7 @@ impl TTXRef {
         if is_scanning {
             self.ticks_to_frame = Some(my_settings.yspim_size);
             self.video_delay = my_settings.video_time;
+            self.file = my_settings.create_ttx_file().expect("***TTX Lib***: Could not create TTX file.");
         }
     }
 
@@ -205,20 +204,34 @@ impl TTXRef {
     }
 
     pub fn prepare(&mut self) {
+        //Closure to determine if we have gather enough information about channels
+        let active_channels = self.active_channels.clone();
+        let get_counter_for_active_channels = {|ts: &[u64], ch: &[i32]| {
+            for channel in active_channels.iter() {
+                if get_counter(ts, ch, *channel) < MINIMUM_TTX_CHANNEL_COUNT { return false }
+            }
+            true
+        }};
+
+        //Start the stream
         self.ttx.start_stream();
         self.is_running = true;
 
-        thread::sleep(Duration::from_millis(100));
-
+        //Creating the timstamps and channel structs
+        let mut timestamps = Vec::new();
+        let mut channels = Vec::new();
         
         self.ttx.get_data();
-        let mut timestamps = self.ttx.get_timestamps();
-        while timestamps.len() == 0 { //Guarantee we have data, specially at the beginning
-            self.ttx.get_data();
-            timestamps = self.ttx.get_timestamps();
-        }
-        let channels = self.ttx.get_channels();
+        timestamps.append(&mut self.ttx.get_timestamps());
+        channels.append(&mut self.ttx.get_channels());
 
+        while get_counter_for_active_channels(&timestamps, &channels) { //Guarantee we have data, specially at the beginning
+            self.ttx.get_data();
+            timestamps.append(&mut self.ttx.get_timestamps());
+        }
+        channels.append(&mut self.ttx.get_channels());
+
+        //Auxiliary functions
         fn get_period(ts: &[u64], ch: &[i32], desired_channel: i32) -> Option<u64> {
             let filtered: Vec<u64> = ts.iter().zip(ch.iter())
                 .filter_map(|(&ts, &ch)| (ch == desired_channel).then_some(ts))
@@ -256,15 +269,10 @@ impl TTXRef {
 
             Some(filtered[0])
         }
-        fn get_counter(ts: &[u64], ch: &[i32], desired_channel: i32) -> Option<u32> {
-            let filtered: Vec<u64> = ts.iter().zip(ch.iter())
-                .filter_map(|(&ts, &ch)| (ch == desired_channel).then_some(ts))
-                .collect();
-
-            let len = filtered.len(); //only in pairs so this removes the odd value;
-            if len == 0 {return None}
-
-            Some(len as u32)
+        fn get_counter(ts: &[u64], ch: &[i32], desired_channel: i32) -> u32 {
+            ts.iter().zip(ch.iter())
+                .filter(|(&_ts, &ch)| (ch == desired_channel))
+                .count() as u32
         }
         fn get_last_time(ts: &[u64], ch: &[i32], desired_channel: i32) -> Option<u64> {
             let filtered: Vec<u64> = ts.iter().zip(ch.iter())
@@ -276,6 +284,8 @@ impl TTXRef {
 
             Some(filtered[len - 1])
         }
+
+        //Determining values
         for channel in &self.periodic_channels {
             let period = get_period(&timestamps, &channels, *channel).unwrap();
             let high_time = get_high_time(&timestamps, &channels, *channel).unwrap();
@@ -285,10 +295,11 @@ impl TTXRef {
             self.low_time[(channel-1) as usize] = Some(low_time);
         }
         for channel in &self.active_channels {
-            //self.begin_time[(channel + 15) as usize] = get_begin_time(&timestamps, &channels, *channel);
-            //self.counter[(channel + 15) as usize] = get_counter(&timestamps, &channels, *channel);
-            //self.time[(channel + 15) as usize] = get_last_time(&timestamps, &channels, *channel);
+            self.begin_time[(channel + 15) as usize] = get_begin_time(&timestamps, &channels, *channel).unwrap();
+            self.counter[(channel + 15) as usize] = get_counter(&timestamps, &channels, *channel);
+            self.time[(channel + 15) as usize] = get_last_time(&timestamps, &channels, *channel).unwrap();
         }
+        //println!("***TTX Lib***: Creating a new TTX reference: {:?}.", self);
         //println!("The period {:?}", get_period(&timestamps, &channels, 1));
         //println!("The high time {:?}", get_high_time(&timestamps, &channels, 1));
         //println!("The begin time {:?}", get_begin_time(&timestamps, &channels, 1));
@@ -370,30 +381,6 @@ impl TTXRef {
         let ts_into = (ts as i64 / 260) + self.ttx_into_tpx3_correction? / 260;
         Some(ts_into as u64)
     } 
-
-    /*
-    pub fn get_positional_index(&self, dt: TIME, xspim: POSITION, yspim: POSITION, _list_scan: SlType) -> Option<POSITION> {
-        let determ = |dt: TIME, dt_partial: TIME, period: TIME, xspim: POSITION, low_time: TIME, yspim: POSITION| {
-            let mut r = (dt / period) as POSITION / self.subsample; //how many periods -> which line to put.
-            let rin = ((xspim as TIME * dt_partial) / low_time) as POSITION; //Column correction. Maybe not even needed.
-                
-            if r > (yspim-1) {
-                if r > 4096 {return None;}
-                r %= yspim;
-            }
-                
-            let index = r * xspim + rin;
-            Some(index)
-        };
-
-        let val = dt % self.period[0]?;
-        if val < self.low_time[0]? {
-            determ(dt, val, self.period[0]?, xspim, self.low_time[0]?, yspim)
-        } else {
-            None
-        }
-    }
-    */
 
     #[inline]
     pub fn sync_anytime_frame_time(&self, mut time: TIME) -> Option<TIME> {

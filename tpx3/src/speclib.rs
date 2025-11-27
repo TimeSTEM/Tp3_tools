@@ -1045,8 +1045,8 @@ pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
     let start = Instant::now();
 
     if let Some(in_ttx) = &mut ttx {
-        //in_ttx.add_channel(1, false, true, true); //Not test, Both edges ON, Periodic
-        in_ttx.add_channel(2, false, false, false);
+        in_ttx.add_channel(1, false, true, true); //Not test, both edges ON, periodic
+        in_ttx.add_channel(2, false, false, false); //Not test, both edges off, non-periodic
         in_ttx.prepare();
         in_ttx.inform_scan_tdc(&mut frame_tdc);
     };
@@ -1065,42 +1065,6 @@ pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
     Ok(())
 
 }
-
-/*
-pub fn build_spectrum_isi<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
-    where V: TimepixRead,
-          U: Write,
-          W: IsiBoxKind
-{
-
-    let mut handler = isi_box_new!(spec);
-    handler.bind_and_connect()?;
-    handler.configure_scan_parameters(32, 32, 8334)?;
-    handler.configure_measurement_type(false)?;
-    handler.start_threads();
-    
-    let mut last_ci = 0;
-    let mut buffer_pack_data = [0; BUFFER_SIZE];
-    let start = Instant::now();
-
-    while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
-        if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
-            let x = handler.get_data();
-            let msg = create_header(&meas_type, &my_settings, &frame_tdc, CHANNELS as POSITION, meas_type.shutter_control());
-            if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
-            meas_type.append_from_isi(&x);
-            let result = meas_type.build_output(&my_settings);
-            if ns_sock.write(result).is_err() {println!("Client disconnected on data."); break;}
-            meas_type.reset_or_else(&frame_tdc, &my_settings);
-            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
-        }
-    }
-    handler.stop_threads();
-    println!("Total elapsed time is: {:?}.", start.elapsed());
-    Ok(())
-}
-*/
-
 
 fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, settings: &Settings, frame_tdc: &mut TdcRef, ref_tdc: &mut TdcRef, ttx: &mut Option<ttx::TTXRef>) -> bool {
 
@@ -1139,53 +1103,22 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
         in_ttx.build_spec_data(final_data);
     }
 
-
     final_data.is_ready()
 }
 
-fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, extra_pixels: POSITION, shutter_control: Option<&ShutterControl>) -> Vec<u8> {
+fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, extra_pixels: POSITION, _shutter_control: Option<&ShutterControl>) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(tdc.time().to_string()));
     msg.push_str(",\"frameNumber\":");
     msg.push_str(&((measurement.get_frame_counter(tdc)).to_string()));
     msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
     msg.push_str(&((measurement.data_size_in_bytes().to_string())));
-    /*
-    if set.mode == 6 || set.mode == 8 { //ChronoMode
-        msg.push_str(&((set.xspim_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
-    } else if set.mode == 7 { //Coincidence2D
-        msg.push_str(&((set.time_width as POSITION*4*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
-    } else if set.mode == 11 { //Frame-based hyperspectral image
-        let data_size = shutter_control.unwrap().get_pixel_to_send_size();
-        msg.push_str(&((data_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
-    } else if set.mode == 15 { //Frame-based 2D hyperspectral image
-        let data_size = shutter_control.unwrap().get_pixel_to_send_size();
-        msg.push_str(&((data_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)*CAM_DESIGN.1).to_string()));
-    } else {
-        match set.bin {
-            true => { msg.push_str(&((set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()))},
-            false => { msg.push_str(&((set.bytedepth*(CAM_DESIGN.0+extra_pixels)*CAM_DESIGN.1).to_string()))},
-        }
-    }
-    */
     msg.push_str(",\"bitDepth\":");
     msg.push_str(&((set.bytedepth<<3).to_string()));
     msg.push_str(",\"width\":");
     msg.push_str(&((CAM_DESIGN.0+extra_pixels).to_string()));
     msg.push_str(",\"height\":");
     msg.push_str(&(measurement.data_height().to_string()));
-    /*
-    if set.mode == 6 || set.mode == 8 { //ChronoMode
-        msg.push_str(&(set.xspim_size.to_string()));
-    } else if set.mode == 7 { //Coincidence2D Mode
-        msg.push_str(&((set.time_width*4).to_string()));
-    } else {
-        match set.bin {
-            true=>{msg.push_str(&(1.to_string()))},
-            false=>{msg.push_str(&(CAM_DESIGN.1.to_string()))},
-        }
-    }
-    */
     msg.push_str("}\n");
     let s: Vec<u8> = msg.into_bytes();
     s

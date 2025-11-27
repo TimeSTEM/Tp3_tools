@@ -120,6 +120,19 @@ impl Settings {
             }
         }
     }
+    pub fn create_ttx_file(&self) -> Result<FileManager, errorlib::Tp3ErrorKind> {
+        match self.save_locally {
+            false => {Ok(FileManager(None))},
+            true => {
+            let file =
+                OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(self.create_savefile_header() + ".ttx")?;
+            Ok(FileManager(Some(BufWriter::new(file))))
+            }
+        }
+    }
 
     ///Create Settings structure reading from a TCP.
     pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, TcpStream), Tp3ErrorKind> {
