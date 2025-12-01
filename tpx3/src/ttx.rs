@@ -65,9 +65,10 @@ unsafe impl Send for TimeTagger {}
 //unsafe impl Sync for TimeTagger {}
 
 impl TimeTagger {
-    fn new() -> Self {
+    fn new() -> Option<Self> {
         let ptr = unsafe { mytt_create() };
-        TimeTagger { inner: ptr }
+        if ptr.is_null() { return None }
+        Some(TimeTagger { inner: ptr })
     }
 
     fn reset(&self) {
@@ -135,7 +136,8 @@ pub struct TTXRef {
     scan_ref_period: Option<TIME>,
     ttx_into_tpx3_correction: Option<i64>,
     is_running: bool,
-    file: FileManager,
+    ts_file: FileManager,
+    ch_file: FileManager,
 }
 
 impl Drop for TTXRef {
@@ -145,14 +147,12 @@ impl Drop for TTXRef {
 }
 
 impl TTXRef {
-    pub fn new_ttx() -> TimeTagger {
+    pub fn new_ttx() -> Option<TimeTagger> {
         return TimeTagger::new()
     }
 
-    pub fn new_from_ttx(ttx: TimeTagger) -> Option<Self> {
-        if ttx.inner.is_null() {
-            return None;
-        }
+    pub fn new_from_ttx(ttx: Option<TimeTagger>) -> Option<Self> {
+        let ttx = ttx?;
         ttx.set_stream_block_size(2048, 10);
         Some(TTXRef {
             ttx,
@@ -174,7 +174,8 @@ impl TTXRef {
             scan_ref_period: None,
             ttx_into_tpx3_correction: None,
             is_running: false,
-            file: FileManager::new_empty(),
+            ts_file: FileManager::new_empty(),
+            ch_file: FileManager::new_empty(),
         })
     }
 
@@ -186,7 +187,8 @@ impl TTXRef {
         if is_scanning {
             self.ticks_to_frame = Some(my_settings.yspim_size);
             self.video_delay = my_settings.video_time;
-            self.file = my_settings.create_ttx_file().expect("***TTX Lib***: Could not create TTX file.");
+            self.ts_file = my_settings.create_ttx_file("_ts").expect("***TTX Lib***: Could not create TTX file.");
+            self.ch_file = my_settings.create_ttx_file("_ch").expect("***TTX Lib***: Could not create TTX file.");
         }
     }
 
@@ -205,10 +207,11 @@ impl TTXRef {
         self.active_channels.push(channel);
     }
 
-    fn poll_data(&mut self) -> Result<(), Tp3ErrorKind> {
+    fn poll_data(&mut self) { //-> Result<(), Tp3ErrorKind> {
         self.ttx.get_data();
-        self.file.write_all(misc::as_bytes(self.ttx.get_timestamps()))?;
-        Ok(())
+        self.ts_file.write_all(misc::as_bytes(self.ttx.get_timestamps())).expect("***TTX Lib***: Could not save timestamp data.");
+        self.ch_file.write_all(misc::as_bytes(self.ttx.get_channels())).expect("***TTX Lib***: Could not save channel data.");
+        //Ok(())
     }
 
     pub fn prepare(&mut self) {
@@ -229,12 +232,12 @@ impl TTXRef {
         let mut timestamps = Vec::new();
         let mut channels = Vec::new();
         
-        self.ttx.get_data();
+        self.poll_data();
         timestamps.append(&mut self.ttx.get_timestamps().to_vec());
         channels.append(&mut self.ttx.get_channels().to_vec());
 
         while get_counter_for_active_channels(&timestamps, &channels) { //Guarantee we have data, specially at the beginning
-            self.ttx.get_data();
+            self.poll_data();
             timestamps.append(&mut self.ttx.get_timestamps().to_vec());
         }
         channels.append(&mut self.ttx.get_channels().to_vec());
@@ -318,7 +321,7 @@ impl TTXRef {
     }
 
     pub fn build_spec_data<K: SpecKind>(&mut self, speckind: &mut K) {
-        self.ttx.get_data();
+        self.poll_data();
         let timestamps = self.ttx.get_timestamps();
         let channels = self.ttx.get_channels();
         
@@ -342,7 +345,7 @@ impl TTXRef {
 
     pub fn build_spim_data<K: SpimKind>(&mut self, spimkind: &mut K) {
         //let start = Instant::now();
-        self.ttx.get_data();
+        self.poll_data();
         let timestamps = self.ttx.get_timestamps();
         let channels = self.ttx.get_channels();
         
@@ -413,6 +416,5 @@ pub fn determine_spread_period(timestamp: &[u64]) {
         (diff * diff) as u64
     })
     .sum::<u64>() / events;
-
     //println!("Number of events: {}. Average value is: {}. The standard deviation is: {}.", events, average, std);
 }

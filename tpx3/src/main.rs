@@ -6,7 +6,7 @@ use timepix3::ttx;
 use timepix3::{speclib, speclib::SpecKind, spimlib, spimlib::SpimKind};
 
 
-fn connect_and_loop(ttx_raw: &ttx::TimeTagger) -> Result<u8, Tp3ErrorKind> {
+fn connect_and_loop(ttx_raw: &Option<ttx::TimeTagger>) -> Result<u8, Tp3ErrorKind> {
 
     let (my_settings, mut pack, ns) = Settings::create_settings(NIONSWIFT_IP_ADDRESS, NIONSWIFT_PORT)?;
     let mut ttx = ttx::TTXRef::new_from_ttx(ttx_raw.clone()); // Creating the TTX object.

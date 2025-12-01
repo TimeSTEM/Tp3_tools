@@ -120,7 +120,7 @@ impl Settings {
             }
         }
     }
-    pub fn create_ttx_file(&self) -> Result<FileManager, errorlib::Tp3ErrorKind> {
+    pub fn create_ttx_file(&self, prefix: &str) -> Result<FileManager, errorlib::Tp3ErrorKind> {
         match self.save_locally {
             false => {Ok(FileManager(None))},
             true => {
@@ -128,7 +128,7 @@ impl Settings {
                 OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open(self.create_savefile_header() + ".ttx")?;
+                .open(self.create_savefile_header() + prefix + ".ttx")?;
             Ok(FileManager(Some(BufWriter::new(file))))
             }
         }
