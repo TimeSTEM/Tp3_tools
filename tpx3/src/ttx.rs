@@ -67,7 +67,11 @@ unsafe impl Send for TimeTagger {}
 impl TimeTagger {
     fn new() -> Option<Self> {
         let ptr = unsafe { mytt_create() };
-        if ptr.is_null() { return None }
+        if ptr.is_null() { 
+            println!("***TTX Lib***: Could not find the TTX device.");
+            return None 
+        }
+        println!("***TTX Lib***: TTX device properly loaded.");
         Some(TimeTagger { inner: ptr })
     }
 
