@@ -31,7 +31,7 @@ extern "C" {
 
 // FFI bindings
 #[cfg(target_os = "linux")]
-#[link(name = "TTTX")] // TTX.so
+#[link(name = "TTX")] // TTX.so
 #[allow(improper_ctypes)]
 extern "C" {
     fn mytt_create() -> *mut MyTimeTagger;
@@ -157,7 +157,7 @@ impl TTXRef {
 
     pub fn new_from_ttx(ttx: Option<TimeTagger>) -> Option<Self> {
         let ttx = ttx?;
-        ttx.set_stream_block_size(2048, 10);
+        ttx.set_stream_block_size(256, 1);
         Some(TTXRef {
             ttx,
             counter: [0; 32],
@@ -223,7 +223,7 @@ impl TTXRef {
         let active_channels = self.active_channels.clone();
         let get_counter_for_active_channels = {|ts: &[u64], ch: &[i32]| {
             for channel in active_channels.iter() {
-                if get_counter(ts, ch, *channel) < MINIMUM_TTX_CHANNEL_COUNT { return false }
+                if get_counter(ts, ch, *channel) > MINIMUM_TTX_CHANNEL_COUNT { return false }
             }
             true
         }};
@@ -243,8 +243,8 @@ impl TTXRef {
         while get_counter_for_active_channels(&timestamps, &channels) { //Guarantee we have data, specially at the beginning
             self.poll_data();
             timestamps.append(&mut self.ttx.get_timestamps().to_vec());
+            channels.append(&mut self.ttx.get_channels().to_vec());
         }
-        channels.append(&mut self.ttx.get_channels().to_vec());
 
         //Auxiliary functions
         fn get_period(ts: &[u64], ch: &[i32], desired_channel: i32) -> Option<u64> {
@@ -312,9 +312,9 @@ impl TTXRef {
             self.low_time[(channel-1) as usize] = Some(low_time);
         }
         for channel in &self.active_channels {
-            self.begin_time[(channel + 15) as usize] = get_begin_time(&timestamps, &channels, *channel).unwrap();
+            self.begin_time[(channel + 15) as usize] = get_begin_time(&timestamps, &channels, *channel).unwrap_or(0);
             self.counter[(channel + 15) as usize] = get_counter(&timestamps, &channels, *channel);
-            self.time[(channel + 15) as usize] = get_last_time(&timestamps, &channels, *channel).unwrap();
+            self.time[(channel + 15) as usize] = get_last_time(&timestamps, &channels, *channel).unwrap_or(0);
         }
         //println!("***TTX Lib***: Creating a new TTX reference: {:?}.", self);
         //println!("The period {:?}", get_period(&timestamps, &channels, 1));
@@ -329,14 +329,12 @@ impl TTXRef {
         let timestamps = self.ttx.get_timestamps();
         let channels = self.ttx.get_channels();
         
-        println!("length is {}", timestamps.len());
-
         for (&ts, &ch) in timestamps.iter().zip(channels.iter()) {
             let chi = (ch + 15) as usize;
             self.time[chi] = ts;
             self.counter[chi] += 1;
             if let (Some(spimy), Some(_period)) = (self.ticks_to_frame, self.period[(ch.abs() - 1) as usize]) {
-                if ch == 1 { //SCAN SIGNAL
+                if ch == 1 { //SCAN SIGNAL RISING EDGE
                     if self.counter[0] % (self.subsample * spimy) == 0 {
                         self.begin_frame = ts;
                         self.new_frame = true;
@@ -372,28 +370,28 @@ impl TTXRef {
     }
 
     pub fn inform_scan_tdc(&mut self, scan_tdc: &mut tdclib::TdcRef) {
-        //println!("***TTX***: scan tdc period is {:?}", scan_tdc.period());
         if scan_tdc.period().is_none() || self.period[0].is_none() { return }
 
         self.scan_ref_counter = Some(scan_tdc.counter());
         self.scan_ref_time = Some(scan_tdc.time());
         self.scan_ref_period = scan_tdc.period();
-        //println!("***TTX***: Synchronizing TTX with TPX3. The period on TTX is {:?}. The period on TPX3 is {:?}.", self.period[0], self.scan_ref_period);
 
         //The difference in counter time between TTX and TPX3, in ps
-        let counter_time_difference = (self.counter[0] as i64 - self.scan_ref_counter.unwrap() as i64) * self.period[0].unwrap() as i64; //in ps
+        let counter_time_difference = (self.scan_ref_counter.unwrap() as i64 / 2 - self.counter[16] as i64) * self.period[0].unwrap() as i64; //in ps
         
         //For the given counter above, the time difference, in ps
-        let offset = self.scan_ref_time.unwrap() as i64 - (self.time[0] / 260) as i64; //in ps
+        let offset = self.scan_ref_time.unwrap() as i64 * 26041666 / 100000 - self.time[16] as i64; //in ps
         
         //The correction is the time difference discounted the counter time, in ps
         let correction = offset - counter_time_difference; //in ps
 
         self.ttx_into_tpx3_correction = Some(correction);
+        //println!("***TTX***: Synchronizing TTX with TPX3. The time/counter/period on TTX is {:?}, {:?} and {:?}.", self.time[16], self.counter[16] * 2, self.period[0]);
+        //println!("***TTX***: Synchronizing TTX with TPX3. The time/counter/period on TPx3 is {:?}, {:?} and {:?}.", self.scan_ref_time.unwrap(), self.scan_ref_counter.unwrap(), self.scan_ref_period.unwrap());
     }
 
     pub fn into_tdc_time(&self, ts: u64) -> Option<u64> {
-        let ts_into = (ts as i64 / 260) + self.ttx_into_tpx3_correction? / 260;
+        let ts_into = (ts as i64 * 100000 / 26041666) + self.ttx_into_tpx3_correction? * 100000 / 26041666;
         Some(ts_into as u64)
     } 
 
