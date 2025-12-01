@@ -1,10 +1,12 @@
 use std::slice;
-use crate::auxiliar::{Settings, value_types::*};
+use std::io::Write;
+use crate::auxiliar::{Settings, value_types::*, misc};
 use crate::tdclib;
 use crate::speclib::SpecKind;
 use crate::spimlib::SpimKind;
 use crate::constlib::*;
 use crate::auxiliar::FileManager;
+use crate::errorlib::Tp3ErrorKind;
 
 // Opaque type for FFI
 #[repr(C)]
@@ -63,43 +65,43 @@ unsafe impl Send for TimeTagger {}
 //unsafe impl Sync for TimeTagger {}
 
 impl TimeTagger {
-    pub fn new() -> Self {
+    fn new() -> Self {
         let ptr = unsafe { mytt_create() };
         TimeTagger { inner: ptr }
     }
 
-    pub fn reset(&self) {
+    fn reset(&self) {
         unsafe { mytt_reset(self.inner) }
     }
 
-    pub fn add_channel(&self, channel: i32, is_test: bool) {
+    fn add_channel(&self, channel: i32, is_test: bool) {
         unsafe { mytt_add_channel(self.inner, channel, is_test) }
     }
 
-    pub fn start_stream(&self) {
+    fn start_stream(&self) {
         unsafe { mytt_start_stream(self.inner) }
     }
  
-    pub fn stop_stream(&self) {
+    fn stop_stream(&self) {
         unsafe { mytt_stop_stream(self.inner) }
     }
 
-    pub fn get_data(&self) {
+    fn get_data(&self) {
         unsafe { mytt_get_data(self.inner) }
     }
 
-    pub fn get_timestamps(&self) -> Vec<u64> {
+    fn get_timestamps(&self) -> &[u64] {
         let mut len = 0;
         let ptr = unsafe { mytt_get_timestamps(self.inner, &mut len) };
-        unsafe { slice::from_raw_parts(ptr, len).to_vec() }
+        unsafe { slice::from_raw_parts(ptr, len) }
     }
 
-    pub fn get_channels(&self) -> Vec<i32> {
+    fn get_channels(&self) -> &[i32] {
         let mut len = 0;
         let ptr = unsafe { mytt_get_channels(self.inner, &mut len) };
-        unsafe { slice::from_raw_parts(ptr, len).to_vec() }
+        unsafe { slice::from_raw_parts(ptr, len) }
     }
-    pub fn set_stream_block_size(&self, max_events: i32, max_latency: i32) {
+    fn set_stream_block_size(&self, max_events: i32, max_latency: i32) {
         unsafe { mytt_set_stream_block_size(self.inner, max_events, max_latency) }
     }
 }
@@ -203,6 +205,12 @@ impl TTXRef {
         self.active_channels.push(channel);
     }
 
+    fn poll_data(&mut self) -> Result<(), Tp3ErrorKind> {
+        self.ttx.get_data();
+        self.file.write_all(misc::as_bytes(self.ttx.get_timestamps()))?;
+        Ok(())
+    }
+
     pub fn prepare(&mut self) {
         //Closure to determine if we have gather enough information about channels
         let active_channels = self.active_channels.clone();
@@ -222,14 +230,14 @@ impl TTXRef {
         let mut channels = Vec::new();
         
         self.ttx.get_data();
-        timestamps.append(&mut self.ttx.get_timestamps());
-        channels.append(&mut self.ttx.get_channels());
+        timestamps.append(&mut self.ttx.get_timestamps().to_vec());
+        channels.append(&mut self.ttx.get_channels().to_vec());
 
         while get_counter_for_active_channels(&timestamps, &channels) { //Guarantee we have data, specially at the beginning
             self.ttx.get_data();
-            timestamps.append(&mut self.ttx.get_timestamps());
+            timestamps.append(&mut self.ttx.get_timestamps().to_vec());
         }
-        channels.append(&mut self.ttx.get_channels());
+        channels.append(&mut self.ttx.get_channels().to_vec());
 
         //Auxiliary functions
         fn get_period(ts: &[u64], ch: &[i32], desired_channel: i32) -> Option<u64> {
@@ -245,6 +253,8 @@ impl TTXRef {
 
             Some(sum / len as u64)
         }
+
+
 
         fn get_high_time(ts: &[u64], ch: &[i32], desired_channel: i32) -> Option<u64> {
             let filtered: Vec<u64> = ts.iter().zip(ch.iter())
@@ -313,22 +323,21 @@ impl TTXRef {
         let channels = self.ttx.get_channels();
         
         println!("length is {}", timestamps.len());
-        
-        timestamps.iter().zip(channels.iter())
-            .for_each(|(&ts, &ch)| {
-                let chi = (ch + 15) as usize;
-                self.time[chi] = ts;
-                self.counter[chi] += 1;
-                if let (Some(spimy), Some(_period)) = (self.ticks_to_frame, self.period[(ch.abs() - 1) as usize]) {
-                    if ch == 1 { //SCAN SIGNAL
-                        if self.counter[0] % (self.subsample * spimy) == 0 {
-                            self.begin_frame = ts;
-                            self.new_frame = true;
-                        }
+
+        for (&ts, &ch) in timestamps.iter().zip(channels.iter()) {
+            let chi = (ch + 15) as usize;
+            self.time[chi] = ts;
+            self.counter[chi] += 1;
+            if let (Some(spimy), Some(_period)) = (self.ticks_to_frame, self.period[(ch.abs() - 1) as usize]) {
+                if ch == 1 { //SCAN SIGNAL
+                    if self.counter[0] % (self.subsample * spimy) == 0 {
+                        self.begin_frame = ts;
+                        self.new_frame = true;
                     }
                 }
-                speckind.ttx_index(ts, ch, self.into_tdc_time(ts));
-            });
+            }
+            speckind.ttx_index(ts, ch, self.into_tdc_time(ts));
+        };
     }
 
     pub fn build_spim_data<K: SpimKind>(&mut self, spimkind: &mut K) {
@@ -337,21 +346,20 @@ impl TTXRef {
         let timestamps = self.ttx.get_timestamps();
         let channels = self.ttx.get_channels();
         
-        timestamps.iter().zip(channels.iter())
-            .for_each(|(&ts, &ch)| {
-                let chi = (ch + 15) as usize;
-                self.time[chi] = ts;
-                self.counter[chi] += 1;
-                if let (Some(spimy), Some(_period)) = (self.ticks_to_frame, self.period[(ch.abs() - 1) as usize]) {
-                    if ch == 1 { //SCAN SIGNAL
-                        if self.counter[0] % (self.subsample * spimy) == 0 {
-                            self.begin_frame = ts;
-                            self.new_frame = true;
-                        }
+        for (&ts, &ch) in timestamps.iter().zip(channels.iter()) {
+            let chi = (ch + 15) as usize;
+            self.time[chi] = ts;
+            self.counter[chi] += 1;
+            if let (Some(spimy), Some(_period)) = (self.ticks_to_frame, self.period[(ch.abs() - 1) as usize]) {
+                if ch == 1 { //SCAN SIGNAL
+                    if self.counter[0] % (self.subsample * spimy) == 0 {
+                        self.begin_frame = ts;
+                        self.new_frame = true;
                     }
                 }
-                spimkind.ttx_index(ts, ch, self.sync_anytime_frame_time(ts));
-            });
+            }
+            spimkind.ttx_index(ts, ch, self.sync_anytime_frame_time(ts));
+        };
         //println!("Counter is: {:?} and {:?}", self.time, timestamps.len());
         //println!("elapsed time is {:?}. Length is {}", start.elapsed(), timestamps.len());
     }

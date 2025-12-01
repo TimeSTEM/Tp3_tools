@@ -214,7 +214,7 @@ impl SpecKind for Live2D {
     fn data_height(&self) -> COUNTER {
         CAM_DESIGN.1
     }
-    fn ttx_index(&mut self, ttx_time: u64, ttx_channel: i32, _ts_correction: Option<TIME>) {
+    fn ttx_index(&mut self, _ttx_time: u64, ttx_channel: i32, _ts_correction: Option<TIME>) {
         if ttx_channel == 2 {
             add_index!(self, CAM_DESIGN.0-1);
         }
@@ -302,7 +302,7 @@ impl SpecKind for Live1D {
     fn data_height(&self) -> COUNTER {
         1
     }
-    fn ttx_index(&mut self, ttx_time: u64, ttx_channel: i32, _ts_correction: Option<TIME>) {
+    fn ttx_index(&mut self, _ttx_time: u64, ttx_channel: i32, _ts_correction: Option<TIME>) {
         if ttx_channel == 2 {
             add_index!(self, CAM_DESIGN.0-1);
         }
