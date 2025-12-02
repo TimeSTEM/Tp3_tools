@@ -261,8 +261,6 @@ impl TTXRef {
             Some(sum / len as u64)
         }
 
-
-
         fn get_high_time(ts: &[u64], ch: &[i32], desired_channel: i32) -> Option<u64> {
             let filtered: Vec<u64> = ts.iter().zip(ch.iter())
                 .filter_map(|(&ts, &ch)| (ch.abs() == desired_channel).then_some(ts))
@@ -328,6 +326,11 @@ impl TTXRef {
         self.poll_data();
         let timestamps = self.ttx.get_timestamps();
         let channels = self.ttx.get_channels();
+
+        let hist = determine_cross_correlation(timestamps, channels, 3, 4, 1, 100);
+        if hist.len() > 0 {
+            print_histogram(&hist);
+        }
         
         for (&ts, &ch) in timestamps.iter().zip(channels.iter()) {
             let chi = (ch + 15) as usize;
@@ -412,11 +415,60 @@ pub fn determine_spread_period(timestamp: &[u64]) {
         .map(|(&x, &y)| y - x).collect();
 
     let events = result.len() as u64;
+    if events == 0 { return }
     let average = result.iter().sum::<u64>() / events;
-    let std = result.iter().map(|&x| {
+    let variance = result.iter().map(|&x| {
         let diff = x as i64 - average as i64;
         (diff * diff) as u64
     })
     .sum::<u64>() / events;
-    //println!("Number of events: {}. Average value is: {}. The standard deviation is: {}.", events, average, std);
+    println!("***TTX Lib***: Number of events: {}. Average value is: {}. The standard deviation is: {}.", events, average, (variance as f64).sqrt());
+}
+
+pub fn determine_cross_correlation(timestamp: &[u64], channels: &[i32], ch1: i32, ch2: i32, bin_width: i64, max_lag: i64) -> Vec<i64> {
+    let vec1: Vec<i64> = timestamp.iter().zip(channels.iter())
+        .filter_map(|(&ts, &ch)| (ch == ch1).then_some(ts as i64)).collect();
+    
+    let vec2: Vec<i64> = timestamp.iter().zip(channels.iter())
+        .filter_map(|(&ts, &ch)| (ch == ch2).then_some(ts as i64)).collect();
+
+    let nbins = (2 * max_lag / bin_width + 1) as usize;
+    let mut hist = vec![0i64; nbins];
+
+    let mut i_start = 0;
+    let mut i_end = 0;
+
+    for t1 in &vec1 {
+        let start = t1 - max_lag;
+        let end = t1 + max_lag;
+
+        // This can be used for unsorted data. If sorted, see below
+        //let s = vec2.partition_point(|&x| x < start);
+        //let e = vec2.partition_point(|&x| x <= end);
+        
+
+        // Two-pointer algorithm
+        // Sorted data, we advance the start index
+        while i_start < vec2.len() && vec2[i_start] < start {
+            i_start += 1;
+        }
+        
+        // Sorted data, we advance the end index
+        while i_end < vec2.len() && vec2[i_end] < end {
+            i_end += 1;
+        }
+
+        for t2 in &vec2[i_start..i_end] {
+            let tau = t2 - t1;
+            let idx = ((tau + max_lag) / bin_width) as usize;
+            hist[idx] += 1;
+        }
+    }
+    hist
+}
+
+pub fn print_histogram(hist: &[i64]) {
+    for (i, &v) in hist.iter().enumerate() {
+        println!("{:4}: {}", i, "*".repeat(v as usize));
+    }
 }
