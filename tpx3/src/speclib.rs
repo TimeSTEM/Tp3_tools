@@ -1046,7 +1046,9 @@ pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
 
     if let Some(in_ttx) = &mut ttx {
         in_ttx.add_channel(1, false, true, true); //Not test, both edges ON, periodic
-        in_ttx.add_channel(2, false, false, false); //Not test, both edges off, non-periodic
+        //in_ttx.add_channel(2, false, false, false); //Not test, both edges off, non-periodic
+        //in_ttx.add_channel(4, true, false, false); //Not test, both edges off, non-periodic
+        //in_ttx.add_channel(5, true, false, false); //Not test, both edges off, non-periodic
         in_ttx.prepare();
         in_ttx.inform_scan_tdc(&mut frame_tdc);
     };

@@ -220,9 +220,9 @@ impl TTXRef {
 
     pub fn prepare(&mut self) {
         //Closure to determine if we have gather enough information about channels
-        let active_channels = self.active_channels.clone();
-        let get_counter_for_active_channels = {|ts: &[u64], ch: &[i32]| {
-            for channel in active_channels.iter() {
+        let periodic_channels = self.periodic_channels.clone();
+        let get_counter_for_periodic_channels = {|ts: &[u64], ch: &[i32]| {
+            for channel in periodic_channels.iter() {
                 if get_counter(ts, ch, *channel) > MINIMUM_TTX_CHANNEL_COUNT { return false }
             }
             true
@@ -240,7 +240,7 @@ impl TTXRef {
         timestamps.append(&mut self.ttx.get_timestamps().to_vec());
         channels.append(&mut self.ttx.get_channels().to_vec());
 
-        while get_counter_for_active_channels(&timestamps, &channels) { //Guarantee we have data, specially at the beginning
+        while get_counter_for_periodic_channels(&timestamps, &channels) { //Guarantee we have data, specially at the beginning
             self.poll_data();
             timestamps.append(&mut self.ttx.get_timestamps().to_vec());
             channels.append(&mut self.ttx.get_channels().to_vec());
@@ -323,13 +323,29 @@ impl TTXRef {
     }
 
     pub fn build_spec_data<K: SpecKind>(&mut self, speckind: &mut K) {
-        self.poll_data();
-        let timestamps = self.ttx.get_timestamps();
-        let channels = self.ttx.get_channels();
-
-        let hist = determine_cross_correlation(timestamps, channels, 3, 4, 1, 100);
-        if hist.len() > 0 {
-            print_histogram(&hist);
+        //self.poll_data();
+        //let timestamps = self.ttx.get_timestamps();
+        //let channels = self.ttx.get_channels();
+        
+        //Creating the timstamps and channel structs
+        let mut timestamps = Vec::new();
+        let mut channels = Vec::new();
+        
+        while timestamps.len() < 100000 {
+            self.poll_data();
+            timestamps.append(&mut self.ttx.get_timestamps().to_vec());
+            channels.append(&mut self.ttx.get_channels().to_vec());
+        }
+        
+        
+        //let hist = determine_cross_correlation(timestamps, channels, 4, 5, 1, 100);
+        //if let Some(nhist) = hist {
+        //    print_histogram(&nhist);
+        //}
+        
+        let hist = determine_channel_jitter(&timestamps, &channels, self.period[0].unwrap() as i64, 1, 10, 100);
+        if let Some(nhist) = hist {
+            print_histogram(&nhist);
         }
         
         for (&ts, &ch) in timestamps.iter().zip(channels.iter()) {
@@ -425,7 +441,33 @@ pub fn determine_spread_period(timestamp: &[u64]) {
     println!("***TTX Lib***: Number of events: {}. Average value is: {}. The standard deviation is: {}.", events, average, (variance as f64).sqrt());
 }
 
-pub fn determine_cross_correlation(timestamp: &[u64], channels: &[i32], ch1: i32, ch2: i32, bin_width: i64, max_lag: i64) -> Vec<i64> {
+pub fn determine_channel_jitter(timestamp: &[u64], channels: &[i32], period: i64, ch1: i32, bin_width: i64, max_lag: i64) -> Option<Vec<i64>> {
+    
+    let channel_times: Vec<i64> = timestamp.iter().zip(channels.iter())
+        .filter_map(|(&ts, &ch)| (ch == ch1).then_some(ts as i64)).collect();
+
+    let diffs: Vec<i64> = channel_times.iter().zip(channel_times.iter().skip(1))
+        .map(|(&x, &y)| y - x - period).collect();
+        
+    
+    //println!("channel_times is {:?}", diffs);
+    if diffs.len() == 0 { return None }
+    
+    let nbins = (2 * max_lag / bin_width + 1) as usize;
+    let mut hist = vec![0i64; nbins];
+
+    for dt in &diffs {
+        if dt.abs() <= max_lag { 
+            let idx = ((dt + max_lag) / bin_width) as usize;
+            hist[idx] += 1;
+        }
+    }
+    Some(hist)
+}
+
+
+
+pub fn determine_cross_correlation(timestamp: &[u64], channels: &[i32], ch1: i32, ch2: i32, bin_width: i64, max_lag: i64) -> Option<Vec<i64>> {
     let vec1: Vec<i64> = timestamp.iter().zip(channels.iter())
         .filter_map(|(&ts, &ch)| (ch == ch1).then_some(ts as i64)).collect();
     
@@ -437,6 +479,8 @@ pub fn determine_cross_correlation(timestamp: &[u64], channels: &[i32], ch1: i32
 
     let mut i_start = 0;
     let mut i_end = 0;
+
+    if vec1.len() == 0 || vec2.len() == 0 { return None }
 
     for t1 in &vec1 {
         let start = t1 - max_lag;
@@ -464,11 +508,12 @@ pub fn determine_cross_correlation(timestamp: &[u64], channels: &[i32], ch1: i32
             hist[idx] += 1;
         }
     }
-    hist
+    Some(hist)
 }
 
 pub fn print_histogram(hist: &[i64]) {
+    let total_counts: i64 = hist.iter().sum();
     for (i, &v) in hist.iter().enumerate() {
-        println!("{:4}: {}", i, "*".repeat(v as usize));
+        println!("{:4}: {}", i, "*".repeat((v * 500 / total_counts) as usize));
     }
 }
