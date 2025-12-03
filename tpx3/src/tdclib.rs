@@ -290,6 +290,7 @@ use crate::auxiliar::{value_types::*, FileManager};
 use crate::constlib::*;
 use crate::packetlib::Packet;
 use std::io::Write;
+use crate::ttx::Histogram;
 
 #[derive(Debug, Clone)]
 pub struct TdcRef {
@@ -309,6 +310,9 @@ pub struct TdcRef {
     begin_frame: TIME,
     new_frame: bool,
     oscillator_size: Option<(POSITION, POSITION)>,
+    hist: Histogram,
+    timestamp: Vec<u64>,
+    channels: Vec<i32>,
 }
 
 impl TdcRef {
@@ -327,6 +331,17 @@ impl TdcRef {
         let time_overflow = self.time > time;
         //println!("updating tdc {}. Counter is {}. Ticks to frame is {:?}. Line is {:?}", time - self.time, self.counter, self.ticks_to_frame, (self.counter / 2) % (self.subsample * self.ticks_to_frame.unwrap()));
         self.time = time;
+        //if self.counter / 2 % 1000 == 0 {
+        //    println!("updating tdc. Counter and time is {} and {}.", self.counter, self.time);
+        //}
+        //self.timestamp.push(self.time);
+        //self.channels.push(1);
+        //if self.timestamp.len() > 1000 {
+        //    self.hist.determine_channel_jitter(&self.timestamp, &self.channels, self.period.unwrap() as i64, 1);
+        //    self.hist.print_histogram();
+        //    self.timestamp.clear();
+        //    self.channels.clear();
+        //}
         if let (Some(spimy), Some(period)) = (self.ticks_to_frame, self.period) {
             //New frame
             if (self.counter / 2) % (self.subsample * spimy) == 0 {
@@ -687,6 +702,9 @@ impl TdcRef {
             new_frame: false,
             time: last_time,
             oscillator_size,
+            hist: Histogram::new(1, 20),
+            timestamp: Vec::new(),
+            channels: Vec::new(),
         };
         println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
         Ok(per_ref)
@@ -714,6 +732,9 @@ impl TdcRef {
             new_frame: false,
             time: last_time,
             oscillator_size: None,
+            hist: Histogram::new(1, 20),
+            timestamp: Vec::new(),
+            channels: Vec::new(),
         };
         println!("***Tdc Lib***: Creating a new tdc reference: {:?}.", per_ref);
         Ok(per_ref)

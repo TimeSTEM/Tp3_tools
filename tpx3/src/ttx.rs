@@ -138,7 +138,7 @@ pub struct TTXRef {
     scan_ref_time: Option<TIME>,
     scan_ref_counter: Option<COUNTER>,
     scan_ref_period: Option<TIME>,
-    ttx_into_tpx3_correction: Option<i64>,
+    ttx_into_tpx3_correction: Option<f64>,
     is_running: bool,
     ts_file: FileManager,
     ch_file: FileManager,
@@ -181,7 +181,7 @@ impl TTXRef {
             is_running: false,
             ts_file: FileManager::new_empty(),
             ch_file: FileManager::new_empty(),
-            histogram: Histogram::new(1, 100),
+            histogram: Histogram::new(5, 100),
         })
     }
 
@@ -330,13 +330,17 @@ impl TTXRef {
         let timestamps = self.ttx.get_timestamps();
         let channels = self.ttx.get_channels();
         
-        self.histogram.determine_channel_jitter(timestamps, channels, self.period[0].unwrap() as i64, 1);
-        self.histogram.print_histogram();
+        //self.histogram.determine_channel_jitter(timestamps, channels, self.period[0].unwrap() as i64, 1);
+        //self.histogram.determine_cross_correlation(timestamps, channels, 4, 5);
+        //self.histogram.print_histogram();
         
         for (&ts, &ch) in timestamps.iter().zip(channels.iter()) {
             let chi = (ch + 15) as usize;
             self.time[chi] = ts;
             self.counter[chi] += 1;
+            //if ch == 1 && self.counter[16] % 1000 == 0 { //SCAN SIGNAL RISING EDGE
+            //    println!("***TTX***: counter, time, time_into_tpx and correction {}, {} and {:?} and {:?}", self.counter[16], self.time[16], self.into_tdc_time(self.time[16]), self.ttx_into_tpx3_correction)
+            //}
             if let (Some(spimy), Some(_period)) = (self.ticks_to_frame, self.period[(ch.abs() - 1) as usize]) {
                 if ch == 1 { //SCAN SIGNAL RISING EDGE
                     if self.counter[0] % (self.subsample * spimy) == 0 {
@@ -384,18 +388,18 @@ impl TTXRef {
         let counter_time_difference = (self.scan_ref_counter.unwrap() as i64 / 2 - self.counter[16] as i64) * self.period[0].unwrap() as i64; //in ps
         
         //For the given counter above, the time difference, in ps
-        let offset = self.scan_ref_time.unwrap() as i64 * 26041666 / 100000 - self.time[16] as i64; //in ps
+        let offset = self.scan_ref_time.unwrap() as f64 * (1562.5 / 6.0) - self.time[16] as f64; //in ps
         
         //The correction is the time difference discounted the counter time, in ps
-        let correction = offset - counter_time_difference; //in ps
+        let correction: f64 = offset - counter_time_difference as f64; //in ps
 
         self.ttx_into_tpx3_correction = Some(correction);
-        //println!("***TTX***: Synchronizing TTX with TPX3. The time/counter/period on TTX is {:?}, {:?} and {:?}.", self.time[16], self.counter[16] * 2, self.period[0]);
+        //println!("***TTX***: Synchronizing TTX with TPX3. The time/counter/period on TTX is {:?}, {:?} and {:?}. The value in TPX3 domain is: {:?}.", self.time[16], self.counter[16], self.period[0], self.into_tdc_time(self.time[16]));
         //println!("***TTX***: Synchronizing TTX with TPX3. The time/counter/period on TPx3 is {:?}, {:?} and {:?}.", self.scan_ref_time.unwrap(), self.scan_ref_counter.unwrap(), self.scan_ref_period.unwrap());
     }
 
     pub fn into_tdc_time(&self, ts: u64) -> Option<u64> {
-        let ts_into = (ts as i64 * 100000 / 26041666) + self.ttx_into_tpx3_correction? * 100000 / 26041666;
+        let ts_into = (ts as f64 / (1562.5 / 6.0)) + self.ttx_into_tpx3_correction? / (1562.5 / 6.0);
         Some(ts_into as u64)
     } 
 
@@ -411,14 +415,15 @@ impl TTXRef {
 
 }
 
-struct Histogram {
+#[derive(Debug, Clone)]
+pub struct Histogram {
     bin_width: i64,
     max_lag: i64,
     hist: Vec<i64>,
 }
 
 impl Histogram {
-    fn new(bin_width: i64, max_lag: i64) -> Self {
+    pub fn new(bin_width: i64, max_lag: i64) -> Self {
         let nbins = (2 * max_lag / bin_width + 1) as usize;
         Histogram {
             bin_width,
@@ -491,10 +496,41 @@ impl Histogram {
 
     pub fn print_histogram(&self) {
         let total_counts: i64 = self.hist.iter().sum();
+        if total_counts == 0 { return; }
+        if total_counts % 2 != 0 { return; }
+
+        let max_counts: i64 = *self.hist.iter().max().unwrap();
+        let half_max = max_counts / 2;
+
+        // Find FWHM interval
+        let mut fwhm_start = None;
+        let mut fwhm_end = None;
+
         for (i, &v) in self.hist.iter().enumerate() {
-            println!("{:4}: {}", i, "*".repeat((v * 500 / total_counts) as usize));
+            if v >= half_max {
+                if fwhm_start.is_none() {
+                    fwhm_start = Some(i);
+                }
+                fwhm_end = Some(i);
+            }
+        }
+
+        println!("number of counts: {}", total_counts);
+
+        for (i, &v) in self.hist.iter().enumerate() {
+            let scaled = (v * 500 / total_counts) as usize;
+
+            // If inside FWHM → print using '#'
+            let c = if let (Some(s), Some(e)) = (fwhm_start, fwhm_end) {
+                if i >= s && i <= e { '#' } else { '*' }
+            } else {
+                '*'
+            };
+
+            println!("{:4} ps: {}", i as i64 * self.bin_width - self.max_lag, c.to_string().repeat(scaled));
         }
     }
+
 }
 
 pub fn determine_spread_period(timestamp: &[u64]) {
