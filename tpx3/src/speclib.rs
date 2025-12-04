@@ -1079,9 +1079,13 @@ pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
 
 fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, settings: &Settings, frame_tdc: &mut TdcRef, ref_tdc: &mut TdcRef, ttx: &mut Option<ttx::TTXRef>) -> bool {
 
-    let iterator = data.chunks_exact(8);
-    
-    for x in iterator {
+    let mut first_tpx = 0;
+    let mut last_tpx = 0;
+    let mut set_tpx_times = {|time: TIME| {
+        if first_tpx == 0 {first_tpx = time;}
+        last_tpx = time;
+    }};
+    for x in data.chunks_exact(8) {
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
@@ -1092,9 +1096,11 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
                     },
                     6 if packet.tdc_type() == frame_tdc.id() => { //Tdc value 1
                         final_data.add_tdc_hit1(packet, frame_tdc, settings);
+                        set_tpx_times(packet.tdc_time_abs_norm());
                     },
                     6 if packet.tdc_type() == ref_tdc.id() => { //Tdc value 2
                         final_data.add_tdc_hit2(packet, settings, ref_tdc);
+                        set_tpx_times(packet.tdc_time_abs_norm());
                     },
                     5 if packet.tdc_type() == 10 || packet.tdc_type() == 15  => { //Shutter value.
                         final_data.add_shutter_hit(packet, frame_tdc, settings);
@@ -1108,6 +1114,7 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
             },
         };
     };
+    println!("***Spec Lib***: The values inside the loop is min/max: {} / {}", first_tpx, last_tpx);
     
     if let Some(in_ttx) = ttx {
         in_ttx.inform_scan_tdc(frame_tdc);
