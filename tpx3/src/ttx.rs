@@ -6,7 +6,7 @@ use crate::speclib::SpecKind;
 use crate::spimlib::SpimKind;
 use crate::constlib::*;
 use crate::auxiliar::FileManager;
-use crate::errorlib::Tp3ErrorKind;
+//use crate::errorlib::Tp3ErrorKind;
 
 // Opaque type for FFI
 #[repr(C)]
@@ -329,10 +329,10 @@ impl TTXRef {
         self.poll_data();
         let timestamps = self.ttx.get_timestamps();
         let channels = self.ttx.get_channels();
-        
-        //self.histogram.determine_channel_jitter(timestamps, channels, self.period[0].unwrap() as i64, 1);
-        //self.histogram.determine_cross_correlation(timestamps, channels, 4, 5);
-        //self.histogram.print_histogram();
+
+        //self.histogram.add_events(timestamps, channels);
+        //self.histogram.try_determine_channel_jitter(self.period[0].unwrap() as i64, 1);
+        //self.histogram.try_determine_cross_correlation(4, 5);
         
         for (&ts, &ch) in timestamps.iter().zip(channels.iter()) {
             let chi = (ch + 15) as usize;
@@ -420,6 +420,8 @@ pub struct Histogram {
     bin_width: i64,
     max_lag: i64,
     hist: Vec<i64>,
+    timestamps: Vec<u64>,
+    channels: Vec<i32>,
 }
 
 impl Histogram {
@@ -429,22 +431,44 @@ impl Histogram {
             bin_width,
             max_lag,
             hist: vec![0i64; nbins],
+            timestamps: Vec::new(),
+            channels: Vec::new(),
         }
     }
-    fn set_hist_size(&mut self) {
+    pub fn set_hist_size(&mut self) {
         let nbins = (2 * self.max_lag / self.bin_width + 1) as usize;
         self.hist = vec![0i64; nbins];
     }
-    fn set_bin_width(&mut self, value: i64) {
+    pub fn set_bin_width(&mut self, value: i64) {
         self.bin_width = value;
         self.set_hist_size();
     }
-    fn set_max_lag(&mut self, value: i64) {
+    pub fn set_max_lag(&mut self, value: i64) {
         self.max_lag = value;
         self.set_hist_size();
     }
-    pub fn determine_channel_jitter(&mut self, timestamp: &[u64], channels: &[i32], period: i64, ch1: i32) {
-        let channel_times: Vec<i64> = timestamp.iter().zip(channels.iter())
+    pub fn try_determine_channel_jitter(&mut self, period: i64, ch1: i32) {
+        if self.timestamps.len() > 1000 {
+            self.determine_channel_jitter(period, ch1);
+            self.print_histogram();
+        }
+    }
+    pub fn try_determine_cross_correlation(&mut self, ch1: i32, ch2: i32) {
+        if self.timestamps.len() > 1000 {
+            self.determine_cross_correlation(ch1, ch2);
+            self.print_histogram();
+        }
+    }
+    pub fn add_event(&mut self, timestamp: u64, channel: i32) {
+        self.timestamps.push(timestamp);
+        self.channels.push(channel);
+    }
+    pub fn add_events(&mut self, timestamp: &[u64], channel: &[i32]) {
+        self.timestamps.append(&mut timestamp.to_vec());
+        self.channels.append(&mut channel.to_vec());
+    }
+    fn determine_channel_jitter(&mut self, period: i64, ch1: i32) {
+        let channel_times: Vec<i64> = self.timestamps.iter().zip(self.channels.iter())
             .filter_map(|(&ts, &ch)| (ch == ch1).then_some(ts as i64)).collect();
 
         let diffs: Vec<i64> = channel_times.iter().zip(channel_times.iter().skip(1))
@@ -456,12 +480,14 @@ impl Histogram {
                 self.hist[idx] += 1;
             }
         }
+        self.timestamps.clear();
+        self.channels.clear();
     }
-    pub fn determine_cross_correlation(&mut self, timestamp: &[u64], channels: &[i32], ch1: i32, ch2: i32) {
-        let vec1: Vec<i64> = timestamp.iter().zip(channels.iter())
+    fn determine_cross_correlation(&mut self, ch1: i32, ch2: i32) {
+        let vec1: Vec<i64> = self.timestamps.iter().zip(self.channels.iter())
         .filter_map(|(&ts, &ch)| (ch == ch1).then_some(ts as i64)).collect();
     
-        let vec2: Vec<i64> = timestamp.iter().zip(channels.iter())
+        let vec2: Vec<i64> = self.timestamps.iter().zip(self.channels.iter())
         .filter_map(|(&ts, &ch)| (ch == ch2).then_some(ts as i64)).collect();
 
         let mut i_start = 0;
@@ -492,9 +518,11 @@ impl Histogram {
                 self.hist[idx] += 1;
             }
         }
+        self.timestamps.clear();
+        self.channels.clear();
     }
 
-    pub fn print_histogram(&self) {
+    fn print_histogram(&self) {
         let total_counts: i64 = self.hist.iter().sum();
         if total_counts == 0 { return; }
         if total_counts % 2 != 0 { return; }
@@ -531,96 +559,4 @@ impl Histogram {
         }
     }
 
-}
-
-pub fn determine_spread_period(timestamp: &[u64]) {
-    let result: Vec<u64> = timestamp.iter().zip(timestamp.iter().skip(1))
-        .map(|(&x, &y)| y - x).collect();
-
-    let events = result.len() as u64;
-    if events == 0 { return }
-    let average = result.iter().sum::<u64>() / events;
-    let variance = result.iter().map(|&x| {
-        let diff = x as i64 - average as i64;
-        (diff * diff) as u64
-    })
-    .sum::<u64>() / events;
-    println!("***TTX Lib***: Number of events: {}. Average value is: {}. The standard deviation is: {}.", events, average, (variance as f64).sqrt());
-}
-
-pub fn determine_channel_jitter(timestamp: &[u64], channels: &[i32], period: i64, ch1: i32, bin_width: i64, max_lag: i64) -> Option<Vec<i64>> {
-    
-    let channel_times: Vec<i64> = timestamp.iter().zip(channels.iter())
-        .filter_map(|(&ts, &ch)| (ch == ch1).then_some(ts as i64)).collect();
-
-    let diffs: Vec<i64> = channel_times.iter().zip(channel_times.iter().skip(1))
-        .map(|(&x, &y)| y - x - period).collect();
-        
-    
-    //println!("channel_times is {:?}", diffs);
-    if diffs.len() == 0 { return None }
-    
-    let nbins = (2 * max_lag / bin_width + 1) as usize;
-    let mut hist = vec![0i64; nbins];
-
-    for dt in &diffs {
-        if dt.abs() <= max_lag { 
-            let idx = ((dt + max_lag) / bin_width) as usize;
-            hist[idx] += 1;
-        }
-    }
-    Some(hist)
-}
-
-
-
-pub fn determine_cross_correlation(timestamp: &[u64], channels: &[i32], ch1: i32, ch2: i32, bin_width: i64, max_lag: i64) -> Option<Vec<i64>> {
-    let vec1: Vec<i64> = timestamp.iter().zip(channels.iter())
-        .filter_map(|(&ts, &ch)| (ch == ch1).then_some(ts as i64)).collect();
-    
-    let vec2: Vec<i64> = timestamp.iter().zip(channels.iter())
-        .filter_map(|(&ts, &ch)| (ch == ch2).then_some(ts as i64)).collect();
-
-    let nbins = (2 * max_lag / bin_width + 1) as usize;
-    let mut hist = vec![0i64; nbins];
-
-    let mut i_start = 0;
-    let mut i_end = 0;
-
-    if vec1.len() == 0 || vec2.len() == 0 { return None }
-
-    for t1 in &vec1 {
-        let start = t1 - max_lag;
-        let end = t1 + max_lag;
-
-        // This can be used for unsorted data. If sorted, see below
-        //let s = vec2.partition_point(|&x| x < start);
-        //let e = vec2.partition_point(|&x| x <= end);
-        
-
-        // Two-pointer algorithm
-        // Sorted data, we advance the start index
-        while i_start < vec2.len() && vec2[i_start] < start {
-            i_start += 1;
-        }
-        
-        // Sorted data, we advance the end index
-        while i_end < vec2.len() && vec2[i_end] < end {
-            i_end += 1;
-        }
-
-        for t2 in &vec2[i_start..i_end] {
-            let tau = t2 - t1;
-            let idx = ((tau + max_lag) / bin_width) as usize;
-            hist[idx] += 1;
-        }
-    }
-    Some(hist)
-}
-
-pub fn print_histogram(hist: &[i64]) {
-    let total_counts: i64 = hist.iter().sum();
-    for (i, &v) in hist.iter().enumerate() {
-        println!("{:4}: {}", i, "*".repeat((v * 500 / total_counts) as usize));
-    }
 }

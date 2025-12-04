@@ -86,8 +86,10 @@ pub trait SpecKind {
     fn is_ready(&self) -> bool;
     fn build_output(&mut self, settings: &Settings) -> &[u8];
     fn new(settings: &Settings) -> Self;
-    fn build_main_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(MAIN_TDC)
+    fn build_main_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        // The default is to build a periodic TDC in order to sync with other instruments.
+        //TdcRef::new_no_read(MAIN_TDC)
+        TdcRef::new_periodic(MAIN_TDC, pack, my_settings, file_to_write)
     }
     fn build_aux_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(SECONDARY_TDC)
@@ -139,6 +141,7 @@ pub struct Live2D {
     frame_counter: COUNTER,
     last_time: TIME,
     timer: Instant,
+    hist: ttx::Histogram,
 }
 
 impl SpecKind for Live2D {
@@ -151,7 +154,7 @@ impl SpecKind for Live2D {
     fn new(settings: &Settings) -> Self {
         let data = tp3_vec!(2);
         misc::check_bitdepth_and_data(&data, settings);
-        Self{ data, is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now() }
+        Self{ data, is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now(), hist: ttx::Histogram::new(1, 20) }
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
@@ -192,13 +195,19 @@ impl SpecKind for Live2D {
     } 
     fn add_tdc_hit2(&mut self, pack: Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(&pack);
+        self.hist.add_event(pack.tdc_time_abs_norm(), 2);
         add_index!(self, CAM_DESIGN.0-1);
     }
     fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(&pack);
+        self.hist.add_event(pack.tdc_time_abs_norm(), 1);
         add_index!(self, CAM_DESIGN.0-2);
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
+        // Printing the histogram here //
+        //self.hist.try_determine_channel_jitter(frame_tdc.period().unwrap() as i64, 1);
+        //self.hist.try_determine_cross_correlation(1, 2);
+
         self.timer = Instant::now();
         self.is_ready = false;
         if !settings.cumul {
