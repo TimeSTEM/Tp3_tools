@@ -1081,6 +1081,7 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
 
     let mut first_tpx = 0;
     let mut last_tpx = 0;
+    let mut nevents = 0;
     let mut set_tpx_times = {|time: TIME| {
         if first_tpx == 0 {first_tpx = time;}
         last_tpx = time;
@@ -1097,10 +1098,12 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
                     6 if packet.tdc_type() == frame_tdc.id() => { //Tdc value 1
                         final_data.add_tdc_hit1(packet, frame_tdc, settings);
                         set_tpx_times(packet.tdc_time_abs_norm());
+                        nevents += 1;
                     },
                     6 if packet.tdc_type() == ref_tdc.id() => { //Tdc value 2
                         final_data.add_tdc_hit2(packet, settings, ref_tdc);
                         set_tpx_times(packet.tdc_time_abs_norm());
+                        nevents += 1;
                     },
                     5 if packet.tdc_type() == 10 || packet.tdc_type() == 15  => { //Shutter value.
                         final_data.add_shutter_hit(packet, frame_tdc, settings);
@@ -1114,7 +1117,7 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
             },
         };
     };
-    println!("***Spec Lib***: The values inside the loop is min/max: {} / {}", first_tpx, last_tpx);
+    println!("***Spec Lib***: The values inside the loop is min/max/nevents: {} / {} / {}", first_tpx, last_tpx, nevents);
     
     if let Some(in_ttx) = ttx {
         in_ttx.inform_scan_tdc(frame_tdc);

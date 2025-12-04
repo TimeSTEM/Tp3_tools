@@ -360,7 +360,7 @@ impl TTXRef {
             speckind.ttx_index(ts, ch, self.into_tdc_time(ts));
             set_ttx_times(self.into_tdc_time(ts).unwrap());
         };
-        println!("***TTX***: The values inside the loop is min/max: {} / {}", first_ttx, last_ttx);
+        println!("***TTX***: The values inside the loop is min/max/nevents: {} / {} / {}.", first_ttx, last_ttx, timestamps.len());
     }
 
     pub fn build_spim_data<K: SpimKind>(&mut self, spimkind: &mut K) {
