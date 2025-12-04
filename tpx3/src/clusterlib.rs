@@ -109,26 +109,35 @@ pub mod cluster {
         //This should return an Iterator so there is no need of allocating two vectors.
         pub fn search_coincidence(&self, photon_list: &CollectionPhoton, raw_packet_index: &mut Vec<usize>, time_delay: TIME, time_width: TIME) -> Self {
             let mut corr_array = Self::new();
-            let mut min_index = 0;
+
+            let mut start_pointer = 0;
+            let mut end_pointer = 0;
+
             for electron in self.iter() {
-                let mut index_to_increase = None;
-                let mut photons_per_electron = 0;
-                for (index, photon) in photon_list.iter().skip(min_index).enumerate() {
-                    if check_if_in_by_time(&electron.time(), &photon.time(), &time_width, &time_delay) {
-                        let mut coinc_electron = electron.clone();
-                        let coinc_photon = photon.clone();
-                        coinc_electron.associate_coincident_photon(coinc_photon);
-                        corr_array.add_electron(coinc_electron);
-                        if photons_per_electron == 0 {
-                            raw_packet_index.push(electron.raw_packet_index());
-                        }
-                        photons_per_electron += 1;
-                        if index_to_increase.is_none() { index_to_increase = Some(index); }
-                    }
-                    if photon.time() > electron.time() + time_delay + time_width {break;}
+
+                let electron_time = electron.time();
+                let start_time = electron_time + time_delay - time_width;
+                let end_time = electron_time + time_delay + time_width;
+                
+                // Advancing the initial pointer
+                while start_pointer < photon_list.len() && photon_list[start_pointer].time() < start_time {
+                    start_pointer += 1;
                 }
-                if let Some(increase) = index_to_increase {
-                    min_index += increase / PHOTON_LIST_STEP;
+
+                // Advancing the end pointer
+                while end_pointer < photon_list.len() && photon_list[end_pointer].time() <= end_time {
+                    end_pointer += 1;
+                }
+
+                // This is the photons that are coincident already. Can be 0 or many
+                let photon_slice = &photon_list[start_pointer..end_pointer];
+                if !photon_slice.is_empty() {
+                    raw_packet_index.push(electron.raw_packet_index());
+                }
+                for photon in photon_slice {
+                    let mut coinc_electron = electron.clone();
+                    coinc_electron.associate_coincident_photon(photon.clone());
+                    corr_array.add_electron(coinc_electron);
                 }
             }
             corr_array
