@@ -318,6 +318,88 @@ impl SpecKind for Live1D {
     }
 }
 
+// This a mixed implementation. Saves all electrons and photons but in a reduced struct for
+// performance
+pub struct Coincidence2DV4 {
+    data: Vec<u32>,
+    electrons: Vec<(TIME, POSITION)>,
+    photons: Vec<TIME>,
+    hits: COUNTER,
+    timer: Instant,
+}
+
+impl SpecKind for Coincidence2DV4 {
+    fn is_ready(&self) -> bool {
+        self.timer.elapsed().as_millis() > TIME_INTERVAL_COINCIDENCE_HISTOGRAM
+    }
+    fn build_output(&mut self, settings: &Settings) -> &[u8] {
+        self.electrons.sort_unstable_by_key(|&(time, _pos)| time);
+        self.photons.sort_unstable();
+
+        let mut start_pointer = 0;
+        let mut end_pointer = 0;
+
+        for electron in &self.electrons {
+
+            let start_time = electron.0 + settings.time_delay - settings.time_width;
+            let end_time = electron.0 + settings.time_delay + settings.time_width;
+                
+            // Advancing the initial pointer
+            while start_pointer < self.photons.len() && self.photons[start_pointer] < start_time {
+                start_pointer += 1;
+            }
+
+            // Advancing the end pointer
+            while end_pointer < self.photons.len() && self.photons[end_pointer] <= end_time {
+                end_pointer += 1;
+            }
+
+            // This is the photons that are coincident already. Can be 0 or many
+            let photon_slice = &self.photons[start_pointer..end_pointer];
+            for photon in photon_slice {
+                let delay = (electron.0 + settings.time_width + settings.time_delay - photon) as POSITION;
+                //if *photon >= start_time && *photon <= end_time {
+                let index = (electron.1 + delay * CAM_DESIGN.0) as usize;
+                self.data[index] += 1;
+                //}
+            }
+        }
+        as_bytes(&self.data)
+    }
+    fn new(settings: &Settings) -> Self {
+        let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
+        let data = vec![0; len];
+        misc::check_bitdepth_and_data(&data, settings);
+        Self { data, electrons: Vec::new(), hits: 0, photons: Vec::new(), timer: Instant::now()}
+    }
+    #[inline]
+    fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+        self.hits += 1;
+        if self.hits % 2 == 0 {
+            self.electrons.push((pack.electron_time_in_tdc_units(), pack.x()));
+        }
+    }
+    fn add_tdc_hit2(&mut self, pack: Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
+        ref_tdc.upt(&pack);
+        self.photons.push(pack.tdc_time_abs_norm());
+    }
+    fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
+        frame_tdc.upt(&pack);
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
+        self.timer = Instant::now();
+        self.electrons.clear();
+        self.photons.clear();
+    }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        self.data.len() as COUNTER / CAM_DESIGN.0
+    }
+}
+
+
 //Same implementation as the post-processing data. Currently not used.
 pub struct Coincidence2DV3 {
     data: Vec<u32>,
@@ -335,11 +417,10 @@ impl SpecKind for Coincidence2DV3 {
         self.electron_buffer.sort();
         self.photon_buffer.sort();
         let coinc_electron = self.electron_buffer.search_coincidence(&mut self.photon_buffer, &mut rpi, settings.time_delay, settings.time_width);
-        coinc_electron.iter().for_each(|_ele| {
-            //#TODO: This is broken need to be fixed if you want it to use
-            //let delay = (photon.time() / 6 - settings.time_delay + settings.time_width - ele.time()) as POSITION;
-            //let index = ele.x() + delay * CAM_DESIGN.0;
-            //self.data[index as usize] += 1;
+        coinc_electron.iter().for_each(|ele| {
+            let delay = (ele.relative_time_from_coincident_photon().unwrap() + settings.time_width as i64 + settings.time_delay as i64) as POSITION;
+            let index = (ele.x() + delay * CAM_DESIGN.0) as usize;
+            self.data[index] += 1;
         });
         as_bytes(&self.data)
     }
@@ -1117,7 +1198,7 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
             },
         };
     };
-    println!("***Spec Lib***: The values inside the loop is min/max/nevents: {} / {} / {}", first_tpx, last_tpx, nevents);
+    //println!("***Spec Lib***: The values inside the loop is min/max/nevents: {} / {} / {}", first_tpx, last_tpx, nevents);
     
     if let Some(in_ttx) = ttx {
         in_ttx.inform_scan_tdc(frame_tdc);
