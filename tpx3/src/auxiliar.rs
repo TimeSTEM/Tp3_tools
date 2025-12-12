@@ -496,6 +496,23 @@ pub mod misc {
         tfile.write_all(as_bytes(data)).unwrap();
     }
 
+    //This is used to search for coincidences. This algorithm is used in either live or
+    //post-processing programs.
+    pub fn upt_coincidence_pointer<T, F: Fn(&T) -> TIME>(t1: TIME, time2: &[T], start_pointer: &mut usize, end_pointer: &mut usize, time_delay: TIME, time_width: TIME, get_time: F) {
+
+        let start_time = t1 + time_delay - time_width;
+        let end_time = t1 + time_delay + time_width;
+                
+        // Advancing the initial pointer
+        while *start_pointer < time2.len() && get_time(&time2[*start_pointer]) < start_time {
+            *start_pointer += 1;
+        }
+
+        // Advancing the end pointer
+        while *end_pointer < time2.len() && get_time(&time2[*end_pointer]) <= end_time {
+            *end_pointer += 1;
+        }
+    }
 }
 
 pub mod value_types {

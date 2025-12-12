@@ -10,7 +10,7 @@ use std::io::Write;
 use crate::auxiliar::{value_types::*, FileManager, misc};
 use crate::constlib::*;
 use crate::ttx;
-//use rayon::prelude::*;
+use rayon::prelude::*;
 
 const CAM_DESIGN: (POSITION, POSITION) = Packet::chip_array();
 
@@ -333,7 +333,7 @@ impl SpecKind for Coincidence2DV4 {
         self.timer.elapsed().as_millis() > TIME_INTERVAL_COINCIDENCE_HISTOGRAM
     }
     fn build_output(&mut self, settings: &Settings) -> &[u8] {
-        self.electrons.sort_unstable_by_key(|&(time, _pos)| time);
+        self.electrons.par_sort_unstable_by_key(|&(time, _pos)| time);
         self.photons.sort_unstable();
 
         let mut start_pointer = 0;
@@ -341,27 +341,15 @@ impl SpecKind for Coincidence2DV4 {
 
         for electron in &self.electrons {
 
-            let start_time = electron.0 + settings.time_delay - settings.time_width;
-            let end_time = electron.0 + settings.time_delay + settings.time_width;
-                
-            // Advancing the initial pointer
-            while start_pointer < self.photons.len() && self.photons[start_pointer] < start_time {
-                start_pointer += 1;
-            }
-
-            // Advancing the end pointer
-            while end_pointer < self.photons.len() && self.photons[end_pointer] <= end_time {
-                end_pointer += 1;
-            }
+            // Updating the pointers
+            misc::upt_coincidence_pointer(electron.0, &self.photons, &mut start_pointer, &mut end_pointer, settings.time_delay, settings.time_width, |&x| x);
 
             // This is the photons that are coincident already. Can be 0 or many
             let photon_slice = &self.photons[start_pointer..end_pointer];
             for photon in photon_slice {
                 let delay = (electron.0 + settings.time_width + settings.time_delay - photon) as POSITION;
-                //if *photon >= start_time && *photon <= end_time {
                 let index = (electron.1 + delay * CAM_DESIGN.0) as usize;
                 self.data[index] += 1;
-                //}
             }
         }
         as_bytes(&self.data)

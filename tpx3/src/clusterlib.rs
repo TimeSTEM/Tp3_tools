@@ -8,7 +8,7 @@ pub mod cluster {
     use crate::constlib::*;
     use rayon::prelude::*;
     use std::cmp::Ordering;
-    use crate::auxiliar::{value_types::*, misc::check_if_in_by_time};
+    use crate::auxiliar::{value_types::*, misc::check_if_in_by_time, misc};
     
     fn transform_energy_calibration(v: &[u8]) -> &[f32] {
         unsafe {
@@ -115,19 +115,8 @@ pub mod cluster {
 
             for electron in self.iter() {
 
-                let electron_time = electron.time();
-                let start_time = electron_time + time_delay - time_width;
-                let end_time = electron_time + time_delay + time_width;
-                
-                // Advancing the initial pointer
-                while start_pointer < photon_list.len() && photon_list[start_pointer].time() < start_time {
-                    start_pointer += 1;
-                }
-
-                // Advancing the end pointer
-                while end_pointer < photon_list.len() && photon_list[end_pointer].time() <= end_time {
-                    end_pointer += 1;
-                }
+                // Update the coincidence pointer
+                misc::upt_coincidence_pointer(electron.time(), &photon_list, &mut start_pointer, &mut end_pointer, time_delay, time_width, |p| p.time());
 
                 // This is the photons that are coincident already. Can be 0 or many
                 let photon_slice = &photon_list[start_pointer..end_pointer];
