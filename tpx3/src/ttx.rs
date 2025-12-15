@@ -357,8 +357,8 @@ impl TTXRef {
                     }
                 }
             }
-            speckind.ttx_index(ts, ch, self.into_tdc_time(ts));
-            set_ttx_times(self.into_tdc_time(ts).unwrap());
+            speckind.ttx_index(ts, ch, self.into_tpx3_tdc_time(ts));
+            set_ttx_times(self.into_tpx3_tdc_time(ts).unwrap());
         };
         //println!("***TTX***: The values inside the loop is min/max/nevents: {} / {} / {}.", first_ttx, last_ttx, timestamps.len());
     }
@@ -408,10 +408,22 @@ impl TTXRef {
         //println!("***TTX***: Synchronizing TTX with TPX3. The time/counter/period on TPx3 is {:?}, {:?} and {:?}.", self.scan_ref_time.unwrap(), self.scan_ref_counter.unwrap(), self.scan_ref_period.unwrap());
     }
 
-    pub fn into_tdc_time(&self, ts: u64) -> Option<u64> {
+    pub fn into_tpx3_tdc_time(&self, ts: u64) -> Option<u64> {
         let ts_into = (ts as f64 / (1562.5 / 6.0)) + self.ttx_into_tpx3_correction? / (1562.5 / 6.0);
         Some(ts_into as u64)
-    } 
+    }
+
+    fn into_tpx3_coarse_ticks(&self, ts: u64) -> Option<u64> {
+        let ts_into = (ts as f64 / 3125.0) + self.ttx_into_tpx3_correction? / 3125.0;
+        Some(ts_into as u64)
+    }   
+
+    fn into_tpx3_fine_ticks(&self, ts: u64) -> Option<u64> {
+        //TODO: This will be zero all the time. Need to check in the scope.
+        let total_ticks = (ts as f64 / (1562.5 / 6.0)) + self.ttx_into_tpx3_correction? / (1562.5 / 6.0);
+        let coarse_ticks = (ts as f64 / 3125.0) + self.ttx_into_tpx3_correction? / 3125.0;
+        Some((total_ticks - 12.0 * coarse_ticks) as u64)
+    }  
 
     #[inline]
     pub fn sync_anytime_frame_time(&self, mut time: TIME) -> Option<TIME> {
@@ -420,7 +432,31 @@ impl TTXRef {
             time += self.period[0]?*(self.subsample*self.ticks_to_frame?) as TIME * factor;
         }
         Some(time - self.begin_frame - VIDEO_TIME - self.video_delay)
-    } 
+    }
+
+    pub fn into_tdc_packet(&self, file_manager: &mut FileManager) {
+        let ts_slice = self.ttx.get_timestamps();
+        let ch_slice = self.ttx.get_channels();
+
+        let mut initial_counter = self.counter;
+        let result: Vec<u64> = ts_slice.iter().zip(ch_slice.iter())
+            .filter_map(|(ts, ch)| {
+                if *ch == 1 { //Rising EDGE
+                    initial_counter[16] += 1;
+                    let packet_value: u64 = (6 << 60) | (15 << 56) | ((initial_counter[16] as u64) << 44) | (self.into_tpx3_coarse_ticks(*ts)? << 9) | (self.into_tpx3_fine_ticks(*ts)? << 5) ;
+                    Some(packet_value)
+                } else if *ch == -1 {
+                    initial_counter[14] += 1;
+                    let packet_value: u64 = (6 << 60) | (10 << 56) | ((initial_counter[14] as u64) << 44) | (self.into_tpx3_coarse_ticks(*ts)? << 9) | (self.into_tpx3_fine_ticks(*ts)? << 5) ;
+                    Some(packet_value)
+                } else {
+                    None
+                }
+            })
+        .collect::<Vec<u64>>();
+
+        file_manager.write_all(misc::as_bytes(&result)).expect("***TTX Lib***: Could not save timestamp into Timepix3 raw data.");
+    }
 
 
 }

@@ -386,6 +386,11 @@ impl SpecKind for Coincidence2DV4 {
     }
     fn data_height(&self) -> COUNTER {
         self.data.len() as COUNTER / CAM_DESIGN.0
+    }    
+    fn ttx_index(&mut self, _ts: u64, channel: i32, ts_correction: Option<TIME>) {
+        if let Some(time_tpx3) = ts_correction {
+            if channel > 0 { self.photons.push((time_tpx3, channel as u32)); }
+        }
     }
 }
 
