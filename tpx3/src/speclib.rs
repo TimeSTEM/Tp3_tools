@@ -322,8 +322,8 @@ impl SpecKind for Live1D {
 // performance
 pub struct Coincidence2DV4 {
     data: Vec<u32>,
-    electrons: Vec<(TIME, POSITION)>,
-    photons: Vec<TIME>,
+    electrons: Vec<(TIME, POSITION)>, //Time and X
+    photons: Vec<(TIME, COUNTER)>, //Time and Channel
     hits: COUNTER,
     timer: Instant,
 }
@@ -342,13 +342,14 @@ impl SpecKind for Coincidence2DV4 {
         for electron in &self.electrons {
 
             // Updating the pointers
-            misc::upt_coincidence_pointer(electron.0, &self.photons, &mut start_pointer, &mut end_pointer, settings.time_delay, settings.time_width, |&x| x);
+            misc::upt_coincidence_pointer(electron.0, &self.photons, &mut start_pointer, &mut end_pointer, settings.time_delay, settings.time_width, |&x| x.0);
 
-            // This is the photons that are coincident already. Can be 0 or many
+            // This is the photons that are coincident already. Can be 0 or many. The channel is
+            // inside photon.1
             let photon_slice = &self.photons[start_pointer..end_pointer];
             for photon in photon_slice {
-                let delay = (electron.0 + settings.time_width + settings.time_delay - photon) as POSITION;
-                let index = (electron.1 + delay * CAM_DESIGN.0) as usize;
+                let delay = (electron.0 + settings.time_width + settings.time_delay - photon.0) as POSITION;
+                let index = (electron.1 + delay * CAM_DESIGN.0 + (photon.1 - 1) * 2*settings.time_width as u32 * CAM_DESIGN.0) as usize;
                 self.data[index] += 1;
             }
         }
@@ -369,10 +370,11 @@ impl SpecKind for Coincidence2DV4 {
     }
     fn add_tdc_hit2(&mut self, pack: Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(&pack);
-        self.photons.push(pack.tdc_time_abs_norm());
+        self.photons.push((pack.tdc_time_abs_norm(), 2));
     }
     fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(&pack);
+        self.photons.push((pack.tdc_time_abs_norm(), 1));
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
         self.timer = Instant::now();

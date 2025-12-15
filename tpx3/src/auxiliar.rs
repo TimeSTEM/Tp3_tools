@@ -504,7 +504,7 @@ pub mod misc {
         let end_time = t1 + time_delay + time_width;
                 
         // Advancing the initial pointer
-        while *start_pointer < time2.len() && get_time(&time2[*start_pointer]) < start_time {
+        while *start_pointer < time2.len() && get_time(&time2[*start_pointer]) <= start_time {
             *start_pointer += 1;
         }
 
