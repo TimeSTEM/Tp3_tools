@@ -89,37 +89,34 @@ mod prepare_tdc {
                 TdcType::NoTdc => TdcType::NoTdc,
             };
 
-            let mut fal = self.get_timelist(&fal_tdc_type);
-            let mut ris = self.get_timelist(&ris_tdc_type);
-            //let last_fal = fal.pop().expect("Please get at least 01 falling Tdc");
-            let last_fal = match fal.pop() {
-                Some(val) => val,
-                None => return None,
-            };
-            let last_ris = match ris.pop() {
-                Some(val) => val,
-                None => return None,
-            };
-            if last_fal > last_ris {
-                Some(last_fal - last_ris)
-            } else {
-                let new_ris = match ris.pop () {
-                    Some(val) => val,
-                    None => return None,
-                };
-                Some(last_fal - new_ris)
+            let fal = self.get_timelist(&fal_tdc_type);
+            let ris = self.get_timelist(&ris_tdc_type);
+            if fal.len() == 0 || ris.len() == 0 { return None };
+            
+            let mut high_times = Vec::new();
+            let mut fal_iter = fal.iter();
+            let mut current_fal = fal_iter.next();
+
+            for r in &ris {
+                while let Some(f) = current_fal {
+                    if f > r { 
+                        high_times.push(f - r);
+                        current_fal = fal_iter.next();
+                        break;
+                    }
+                    current_fal = fal_iter.next();
+                }
             }
+            Some(high_times.iter().sum::<TIME>() / high_times.len() as TIME)
         }
         
-        pub fn find_period(&self) -> Result<TIME, Tp3ErrorKind> {
-            let mut tdc_time = self.get_auto_timelist();
-            let last = tdc_time.pop().expect("Please get at least 02 Tdc's");
-            let before_last = tdc_time.pop().expect("Please get at least 02 Tdc's");
-            if last > before_last {
-                Ok(last - before_last)
-            } else {
-                Err(Tp3ErrorKind::TdcBadPeriod)
-            }
+        pub fn find_period(&self) -> Result<f64, Tp3ErrorKind> {
+            let tdc_time = self.get_auto_timelist();
+            let periods: Vec<TIME> = tdc_time.iter().zip(tdc_time.iter()
+                .skip(1))
+                .map(|(t0,t1)| t1 - t0)
+                .collect();
+            Ok(periods.iter().sum::<TIME>() as f64 / periods.len() as f64)
         }
         
         fn get_counter(&self) -> Result<COUNTER, Tp3ErrorKind> {
@@ -236,7 +233,6 @@ impl Clone for TdcType {
             TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
             TdcType::NoTdc => TdcType::NoTdc,
         }
-        //match self {
     }
 }
 
@@ -303,6 +299,7 @@ pub struct TdcRef {
     period: Option<TIME>,
     high_time: Option<TIME>,
     low_time: Option<TIME>,
+    period_float: Option<f64>,
     ticks_to_frame: Option<COUNTER>, //Here it means it is a scan reference.
     subsample: POSITION,
     video_delay: TIME,
@@ -364,6 +361,10 @@ impl TdcRef {
 
     pub fn period(&self) -> Option<TIME> {
         Some(self.period?)
+    }
+    
+    pub fn period_float(&self) -> Option<f64> {
+        Some(self.period_float?)
     }
 
     pub fn new_frame(&self) -> bool {
@@ -621,7 +622,7 @@ impl TdcRef {
 
     pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
-        let mut tdc_search = prepare_tdc::TdcSearch::new(&tdc_type, 3);
+        let mut tdc_search = prepare_tdc::TdcSearch::new(&tdc_type, 5);
         let start = Instant::now();
 
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
@@ -649,7 +650,8 @@ impl TdcRef {
         let counter_offset = tdc_search.get_counter_offset();
         let begin_time = tdc_search.get_begintime();
         let last_time = tdc_search.get_lasttime();
-        let period = tdc_search.find_period()?;
+        let period = tdc_search.find_period()? as TIME;
+        let period_float = tdc_search.find_period()?;
         let high_time = tdc_search.find_high_time().map(|time| time);
         let low_time = tdc_search.find_high_time().map(|time| period - time);
 
@@ -685,6 +687,7 @@ impl TdcRef {
             subsample: ratio,
             video_delay: my_settings.video_time,
             period: Some(period),
+            period_float: Some(period_float),
             high_time,
             low_time,
             new_frame: false,
@@ -712,6 +715,7 @@ impl TdcRef {
             subsample: 1,
             video_delay: 0,
             period: None,
+            period_float: None,
             high_time: None,
             low_time: None,
             new_frame: false,

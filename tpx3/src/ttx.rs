@@ -135,9 +135,9 @@ pub struct TTXRef {
     begin_frame: TIME,
     new_frame: bool,
     //oscillator_size: Option<(POSITION, POSITION)>,
-    scan_ref_time: Option<TIME>,
-    scan_ref_counter: Option<COUNTER>,
-    scan_ref_period: Option<TIME>,
+    //scan_ref_time: Option<TIME>,
+    //scan_ref_counter: Option<COUNTER>,
+    //scan_ref_period: Option<TIME>,
     ttx_into_tpx3_correction: Option<f64>,
     is_running: bool,
     ts_file: FileManager,
@@ -174,14 +174,11 @@ impl TTXRef {
             video_delay: 0, //my_settings.video_time,
             begin_frame: 0,
             new_frame: false,
-            scan_ref_time: None,
-            scan_ref_counter: None,
-            scan_ref_period: None,
             ttx_into_tpx3_correction: None,
             is_running: false,
             ts_file: FileManager::new_empty(),
             ch_file: FileManager::new_empty(),
-            histogram: Histogram::new(5, 100),
+            histogram: Histogram::new(1, 20),
         })
     }
 
@@ -254,14 +251,15 @@ impl TTXRef {
             let filtered: Vec<u64> = ts.iter().zip(ch.iter())
                 .filter_map(|(&ts, &ch)| (ch == desired_channel).then_some(ts))
                 .collect();
+                
+            let periods: Vec<u64> = filtered.iter().zip(filtered.iter()
+                .skip(1))
+                .map(|(t0,t1)| t1 - t0)
+                .collect();
+                
+            if periods.len() == 0 { return None }
 
-            let len = filtered.len() / 2; //only in pairs so this removes the odd value;
-            if len < 1 {return None}
-            let sum = filtered.chunks_exact(2)
-                .map(|val| val[1] - val[0])
-                .sum::<u64>();
-
-            Some(sum / len as u64)
+            Some(periods.iter().sum::<u64>() / periods.len() as u64)
         }
 
         fn get_high_time(ts: &[u64], ch: &[i32], desired_channel: i32) -> Option<u64> {
@@ -346,9 +344,16 @@ impl TTXRef {
             let chi = (ch + 15) as usize;
             self.time[chi] = ts;
             self.counter[chi] += 1;
-            //if ch == 1 && self.counter[16] % 1000 == 0 { //SCAN SIGNAL RISING EDGE
-            //    println!("***TTX***: counter, time, time_into_tpx and correction {}, {} and {:?} and {:?}", self.counter[16], self.time[16], self.into_tdc_time(self.time[16]), self.ttx_into_tpx3_correction)
-            //}
+            
+            /* DEBUGGING PURPOSES
+            if let Some(tpx_time) = self.into_tpx3_tdc_time(ts) {
+                self.histogram.add_event(tpx_time, ch);
+            }
+            if ch == 1 && self.counter[16] % 1000 == 0 { //SCAN SIGNAL RISING EDGE
+                println!("***TTX***: counter, time, time_into_tpx and correction {}, {} and {:?} and {:?}", self.counter[16], self.time[16], self.into_tpx3_tdc_time(self.time[16]), self.ttx_into_tpx3_correction)
+            }
+            */
+            
             if let (Some(spimy), Some(_period)) = (self.ticks_to_frame, self.period[(ch.abs() - 1) as usize]) {
                 if ch == 1 { //SCAN SIGNAL RISING EDGE
                     if self.counter[0] % (self.subsample * spimy) == 0 {
@@ -364,7 +369,6 @@ impl TTXRef {
     }
 
     pub fn build_spim_data<K: SpimKind>(&mut self, spimkind: &mut K) {
-        //let start = Instant::now();
         self.poll_data();
         let timestamps = self.ttx.get_timestamps();
         let channels = self.ttx.get_channels();
@@ -383,33 +387,32 @@ impl TTXRef {
             }
             spimkind.ttx_index(ts, ch, self.sync_anytime_frame_time(ts));
         };
-        //println!("Counter is: {:?} and {:?}", self.time, timestamps.len());
-        //println!("elapsed time is {:?}. Length is {}", start.elapsed(), timestamps.len());
     }
 
     pub fn inform_scan_tdc(&mut self, scan_tdc: &mut tdclib::TdcRef) {
         if scan_tdc.period().is_none() || self.period[0].is_none() { return }
 
-        self.scan_ref_counter = Some(scan_tdc.counter());
-        self.scan_ref_time = Some(scan_tdc.time());
-        self.scan_ref_period = scan_tdc.period();
-
         //The difference in counter time between TTX and TPX3, in ps
-        let counter_time_difference = (self.scan_ref_counter.unwrap() as i64 / 2 - self.counter[16] as i64) * self.period[0].unwrap() as i64; //in ps
+        let counter_time_difference = (scan_tdc.counter() as i64 - 2 * self.counter[16] as i64) * self.period[0].unwrap() as i64 / 2; //in ps
         
         //For the given counter above, the time difference, in ps
-        let offset = self.scan_ref_time.unwrap() as f64 * (1562.5 / 6.0) - self.time[16] as f64; //in ps
+        let offset = scan_tdc.time() as f64 * CLOCK_RATIO - self.time[16] as f64; //in ps
         
         //The correction is the time difference discounted the counter time, in ps
         let correction: f64 = offset - counter_time_difference as f64; //in ps
 
-        self.ttx_into_tpx3_correction = Some(correction);
-        //println!("***TTX***: Synchronizing TTX with TPX3. The time/counter/period on TTX is {:?}, {:?} and {:?}. The value in TPX3 domain is: {:?}.", self.time[16], self.counter[16], self.period[0], self.into_tdc_time(self.time[16]));
-        //println!("***TTX***: Synchronizing TTX with TPX3. The time/counter/period on TPx3 is {:?}, {:?} and {:?}.", self.scan_ref_time.unwrap(), self.scan_ref_counter.unwrap(), self.scan_ref_period.unwrap());
+        // IIR filter 10-order.
+        self.ttx_into_tpx3_correction = match self.ttx_into_tpx3_correction {
+            Some(prev) => Some(0.9 * prev + 0.1 * correction),
+            None => Some(correction),
+        };
+        
+        //self.histogram.try_determine_channel_jitter(scan_tdc.period().unwrap() as i64, 1);
+        //println!("correction done at tpx counter {} and ttx counter {}", scan_tdc.counter(), self.counter[16]);
     }
 
     pub fn into_tpx3_tdc_time(&self, ts: u64) -> Option<u64> {
-        let ts_into = (ts as f64 / (1562.5 / 6.0)) + self.ttx_into_tpx3_correction? / (1562.5 / 6.0);
+        let ts_into = (ts as f64 / CLOCK_RATIO) + self.ttx_into_tpx3_correction? / CLOCK_RATIO;
         Some(ts_into as u64)
     }
 
@@ -590,7 +593,7 @@ impl Histogram {
         println!("number of counts: {}", total_counts);
 
         for (i, &v) in self.hist.iter().enumerate() {
-            let scaled = (v * 500 / total_counts) as usize;
+            let scaled = (v * 100 / total_counts) as usize;
 
             // If inside FWHM → print using '#'
             let c = if let (Some(s), Some(e)) = (fwhm_start, fwhm_end) {
