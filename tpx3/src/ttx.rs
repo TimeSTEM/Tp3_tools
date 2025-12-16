@@ -414,15 +414,13 @@ impl TTXRef {
     }
 
     fn into_tpx3_coarse_ticks(&self, ts: u64) -> Option<u64> {
-        let ts_into = (ts as f64 / 3125.0) + self.ttx_into_tpx3_correction? / 3125.0;
-        Some(ts_into as u64)
+        let ts_into = self.into_tpx3_tdc_time(ts)?;
+        Some(ts_into / 12)
     }   
 
     fn into_tpx3_fine_ticks(&self, ts: u64) -> Option<u64> {
-        //TODO: This will be zero all the time. Need to check in the scope.
-        let total_ticks = (ts as f64 / (1562.5 / 6.0)) + self.ttx_into_tpx3_correction? / (1562.5 / 6.0);
-        let coarse_ticks = (ts as f64 / 3125.0) + self.ttx_into_tpx3_correction? / 3125.0;
-        Some((total_ticks - 12.0 * coarse_ticks) as u64)
+        let ts_into = self.into_tpx3_tdc_time(ts)?;
+        Some(ts_into % 12)
     }  
 
     #[inline]
