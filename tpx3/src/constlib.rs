@@ -28,9 +28,10 @@ pub const BUFFER_SIZE: usize = 16384 * 2;
 pub const NIONSWIFT_IP_ADDRESS: [u8; 4] = [192, 168, 0, 11];
 pub const NIONSWIFT_PORT: u16 = 8088;
 pub const SAVE_LOCALLY_FILE: &str = "/media/asi/Data21/TP3_Data/";
-pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\Test_TPX_ps_11042025/2025_04_11_14_33_31.tpx3";
+pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\reduced_raw_alissa.tpx3";
+//pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\Test_TPX_ps_11042025/2025_04_11_14_33_31.tpx3";
 //pub const READ_DEBUG_FILE: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_spim.tpx3";
-pub const READ_DEBUG_FILE_JSON: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\raw000000_spim";
+pub const READ_DEBUG_FILE_JSON: &str = "C:\\Users\\AUAD\\Documents\\Tp3_tools\\tpx3\\src\\bin\\Data\\reduced_raw_alissa";
 
 //***Packet-related values***//
 pub const PIXELS_X: POSITION = 1025;
@@ -73,3 +74,4 @@ pub const TIME_INTERVAL_4DFRAMES: u128 = 100; //In milliseconds
 
 //***TTX LIB***//
 pub const MINIMUM_TTX_CHANNEL_COUNT: u32 = 10; //Number of hits we need to have in the TTX to determine properties
+pub const CLOCK_RATIO: f64 = 1562.5 / 6.0; //This is the clock ratio in ps from the TTX and Timepix3. In principle TTX is 1 ps, so the ratio is ~260 ps. TODO: Adjust
