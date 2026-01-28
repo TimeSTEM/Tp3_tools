@@ -322,7 +322,9 @@ impl TdcRef {
         self.last_hard_counter = hard_counter;
         self.counter = self.last_hard_counter as COUNTER + self.counter_overflow * 4096 - self.counter_offset;
         let time_overflow = self.time > time;
-        //println!("updating tdc {}. Counter is {}. Ticks to frame is {:?}. Line is {:?}", time - self.time, self.counter, self.ticks_to_frame, (self.counter / 2) % (self.subsample * self.ticks_to_frame.unwrap()));
+        //if let Some(ticks) = self.ticks_to_frame {
+        //    println!("very absolute time {}. absolut time {}. updating tdc {}. Counter is {}. Ticks to frame is {:?}. Line is {:?}", packet.tdc_time_abs(), time, time - self.time, self.counter, self.ticks_to_frame, (self.counter / 2) % (self.subsample * ticks));
+        //}
         self.time = time;
         //if self.counter / 2 % 1000 == 0 {
         //    println!("updating tdc. Counter and time is {} and {}.", self.counter, self.time);
@@ -330,19 +332,21 @@ impl TdcRef {
         if let (Some(spimy), Some(period)) = (self.ticks_to_frame, self.period) {
             //New frame
             if (self.counter / 2) % (self.subsample * spimy) == 0 {
-                //println!("new frame dT: {}", time - self.begin_frame);
+                //println!("new frame dT: {} and absolute is {}", time - self.begin_frame, time);
                 self.begin_frame = time;
                 self.new_frame = true;
             //Not new frame but a time overflow
             } else if time_overflow {
                 //I temporally correct the begin_frame time by supossing what is the next frame time. This
                 //will be correctly updated in the next cycle.
-                let frame_time = period * (self.subsample * spimy) as TIME;
-                self.begin_frame = if frame_time > ELECTRON_OVERFLOW {
-                    (self.begin_frame + frame_time) - ELECTRON_OVERFLOW
-                } else {
-                    (self.begin_frame + frame_time) % ELECTRON_OVERFLOW
-                };
+                // Temporally disabled. We correct the electron if overflow and the scan may not
+                // have a frame time equal to lines * period.
+                //let frame_time = period * (self.subsample * spimy) as TIME;
+                //self.begin_frame = if frame_time > ELECTRON_OVERFLOW_IN_TDC_UNITS {
+                //    (self.begin_frame + frame_time) - ELECTRON_OVERFLOW_IN_TDC_UNITS
+                //} else {
+                //    (self.begin_frame + frame_time) % ELECTRON_OVERFLOW_IN_TDC_UNITS
+                //};
                 self.new_frame = false 
             //Does nothing. No new frame and no time overflow
             } else {
@@ -376,7 +380,7 @@ impl TdcRef {
     }
     
     pub fn current_line(&self) -> Option<POSITION> {
-        Some(((self.counter / 2) % self.ticks_to_frame?) as POSITION)
+        Some(((self.counter / 2) % (self.subsample * self.ticks_to_frame?)) as POSITION)
     }
 
     pub fn estimate_time(&self) -> Option<TIME> {
@@ -484,17 +488,25 @@ impl TdcRef {
     pub fn sync_anytime_frame_time(&self, time: TIME) -> Option<TIME> {
         let mut time = time;
         if SYNC_MODE == 0 {
-            if time < self.begin_frame + VIDEO_TIME + self.video_delay{
+            if time < self.begin_frame + VIDEO_TIME + self.video_delay {
+                // The electron time rolled. So we simply add an overflow
+                if self.begin_frame - time > ELECTRON_OVERFLOW_IN_TDC_UNITS >> 2 {
+                    time += ELECTRON_OVERFLOW_IN_TDC_UNITS;
+                    return Some(time - self.begin_frame - VIDEO_TIME - self.video_delay);
+                }
                 let factor = (self.begin_frame + VIDEO_TIME + self.video_delay - time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
                 time += self.period?*(self.subsample*self.ticks_to_frame?) as TIME * factor;
             }
             Some(time - self.begin_frame - VIDEO_TIME - self.video_delay)
         } else {
-            if time < self.time + VIDEO_TIME + self.video_delay {
-                let factor = (self.time + VIDEO_TIME + self.video_delay - time) / (self.period?) + 1;
-                time += self.period? * factor * self.current_line()? as u64;
-            }
-            Some(time - self.begin_frame - VIDEO_TIME - self.video_delay)
+            //if time < self.time + VIDEO_TIME + self.video_delay {
+            //    let factor = (self.time + VIDEO_TIME + self.video_delay - time) / (self.period?) + 1;
+            //    time += self.period? * factor * self.current_line()? as u64;
+            //}
+            //Some(time - self.begin_frame - VIDEO_TIME - self.video_delay)
+            let line_delay = time - self.time - VIDEO_TIME - self.video_delay;
+            Some(line_delay + self.period? * (self.current_line()?) as u64)
+            //Some(time - self.time - VIDEO_TIME - self.video_delay)
         }
     }   
     #[inline]
