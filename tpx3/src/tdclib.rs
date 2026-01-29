@@ -330,7 +330,7 @@ impl TdcRef {
         //if self.counter / 2 % 1000 == 0 {
         //    println!("updating tdc. Counter and time is {} and {}.", self.counter, self.time);
         //}
-        if let (Some(spimy), Some(_period)) = (self.ticks_to_frame, self.period) {
+        if let (Some(spimy), Some(period)) = (self.ticks_to_frame, self.period) {
             //New frame
             if (self.counter / 2) % (self.subsample * spimy) == 0 {
                 //println!("new frame dT: {} and absolute is {}", time - self.begin_frame, time);
@@ -344,14 +344,14 @@ impl TdcRef {
                 //I temporally correct the begin_frame time by supossing what is the next frame time. This
                 //will be correctly updated in the next cycle. Correction should be either done
                 //here or in the electron
-                if let Some(frame_time) = self.frame_time {
-                    //let frame_time = period * (self.subsample * spimy) as TIME;
-                    self.begin_frame = if frame_time > ELECTRON_OVERFLOW_IN_TDC_UNITS {
-                        (self.begin_frame + frame_time) - ELECTRON_OVERFLOW_IN_TDC_UNITS
-                    } else {
-                        (self.begin_frame + frame_time) % ELECTRON_OVERFLOW_IN_TDC_UNITS
-                    };
-                }
+                //println!("{}", frame_time);
+                let frame_time = period * (self.subsample * spimy) as TIME;
+                self.begin_frame = if frame_time > ELECTRON_OVERFLOW_IN_TDC_UNITS {
+                    (self.begin_frame + frame_time) - ELECTRON_OVERFLOW_IN_TDC_UNITS
+                } else {
+                    (self.begin_frame + frame_time) % ELECTRON_OVERFLOW_IN_TDC_UNITS
+                };
+                //println!("{} and {:?} and both times {} and {}. new begin frameand {} ", frame_time, self.frame_time, old_time, self.time, self.begin_frame);
                 self.new_frame = false 
             //Does nothing. No new frame and no time overflow
             } else {
