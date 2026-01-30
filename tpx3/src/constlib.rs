@@ -8,6 +8,7 @@ pub const HYPERSPECTRAL_PIXEL_CHUNK: POSITION = 500; //In number of pixels
 pub const TIME_INTERVAL_COINCIDENCE_HISTOGRAM: u128 = 2000; //in milliseconds
 pub const VIDEO_TIME: TIME = 0;
 pub const ELECTRON_OVERFLOW: TIME = 17_179_869_184;
+pub const ELECTRON_OVERFLOW_IN_TDC_UNITS: TIME = 103_079_215_104;
 pub const TDC_OVERFLOW: TIME = 68_719_476_736;
 pub const SYNC_MODE: u8 = 0; //0 synchronizes on the frame, 1 synchronizes on the line.
 pub const REMOVE_RETURN: bool = true; //This removes the electrons in the flyback mode. UNIFORM_PIXEL must be false to this in order to take place.
