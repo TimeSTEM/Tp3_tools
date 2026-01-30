@@ -5,9 +5,9 @@ use std::path::PathBuf;
 fn main() {
 
     // Preventing re-compiling every time.
-    //println!("cargo:rerun-if-changed=build.rs");
-    //println!("cargo:rerun-if-changed=lib/TTX.dll");
-    //println!("cargo:rerun-if-changed=lib/libTTX.so");
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=lib/TTX.dll");
+    println!("cargo:rerun-if-changed=lib/libTTX.so");
 
     // Tell Rust where to find native libraries
     println!("cargo:rustc-link-search=native=lib");
