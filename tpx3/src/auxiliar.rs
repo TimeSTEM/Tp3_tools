@@ -120,6 +120,19 @@ impl Settings {
             }
         }
     }
+    pub fn create_ttx_file(&self, prefix: &str) -> Result<FileManager, errorlib::Tp3ErrorKind> {
+        match self.save_locally {
+            false => {Ok(FileManager(None))},
+            true => {
+            let file =
+                OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(self.create_savefile_header() + prefix + ".ttx")?;
+            Ok(FileManager(Some(BufWriter::new(file))))
+            }
+        }
+    }
 
     ///Create Settings structure reading from a TCP.
     pub fn create_settings(host_computer: [u8; 4], port: u16) -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, TcpStream), Tp3ErrorKind> {
@@ -133,8 +146,8 @@ impl Settings {
         
         let pack_listener = TcpListener::bind("127.0.0.1:8098").expect("Could not bind to TP3.");
         let ns_listener = TcpListener::bind(&addrs[..]).expect("Could not bind to NS.");
-        println!("Packet Tcp socket connected at: {:?}", pack_listener);
-        println!("Nionswift Tcp socket connected at: {:?}", ns_listener);
+        println!("***AUXILIAR***: Packet Tcp socket connected at: {:?}", pack_listener);
+        println!("***AUXILIAR***: Nionswift Tcp socket connected at: {:?}", ns_listener);
 
         let debug: bool = match ns_listener.local_addr() {
             Ok(val) if val == addrs[1] => true,
@@ -142,26 +155,29 @@ impl Settings {
         };
 
         let (mut ns_sock, ns_addr) = ns_listener.accept().expect("Could not connect to Nionswift.");
-        println!("Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
+        println!("***AUXILIAR***: Nionswift connected at {:?} and {:?}.", ns_addr, ns_sock);
         
         //Reading from a JSON over TCP
         let mut cam_settings = [0_u8; CONFIG_SIZE];
         let size =  ns_sock.read(&mut cam_settings)?;
         let my_settings: Settings = serde_json::from_str(std::str::from_utf8(&cam_settings[0..size])?)?;
-        println!("***Settings***: value is: {:?}.", my_settings);
+        println!("***AUXILIAR***: value is: {:?}.", my_settings);
 
         match debug {
             false => {
                 let (pack_sock, packet_addr) = pack_listener.accept().expect("Could not connect to TP3.");
-                println!("Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
+                println!("***AUXILIAR***: Localhost TP3 detected at {:?} and {:?}.", packet_addr, pack_sock);
                 Ok((my_settings, Box::new(pack_sock), ns_sock))
             },
             true => {
                 let file = match File::open(READ_DEBUG_FILE) {
                     Ok(file) => file,
-                    Err(_) => return Err(Tp3ErrorKind::SetNoReadFile),
+                    //Err(_) => return Err(Tp3ErrorKind::SetNoReadFile),
+                    Err(_) => {
+                        println!("***AUXILIAR***: Cannot find DEBUG FILE. Using the UnitRead instead."); 
+                        return Ok((my_settings, Box::new(misc::UnitRead), ns_sock)) },
                 };
-                println!("Debug mode. Will one file a single time.");
+                println!("***AUXILIAR***: Debug mode. Will one file a single time.");
                 Ok((my_settings, Box::new(file), ns_sock))
             },
         }
@@ -221,9 +237,9 @@ impl Settings {
     
     pub fn create_debug_settings() -> Result<(Settings, Box<dyn misc::TimepixRead + Send>, Box<dyn Write + Send>), Tp3ErrorKind> {
     
-        println!("{:?}", READ_DEBUG_FILE_JSON);
+        println!("***AUXILIAR***: Debug settings are {:?}", READ_DEBUG_FILE_JSON);
         let my_settings = Settings::get_settings_from_json(READ_DEBUG_FILE_JSON)?;
-        println!("Received settings is {:?}. Mode is {}.", my_settings, my_settings.mode);
+        println!("***AUXILIAR***: Received settings is {:?}. Mode is {}.", my_settings, my_settings.mode);
 
         let in_file = match File::open(READ_DEBUG_FILE) {
             Ok(file) => file,
@@ -322,6 +338,16 @@ pub mod misc {
     use crate::auxiliar::value_types::*;
     use std::net::TcpStream;
     use std::fs::File;
+
+
+    //This is a UnitRead. It does not actually reads anythings and returns 0 as size.
+    pub struct UnitRead;
+    impl TimepixRead for UnitRead {}
+    impl Read for UnitRead {
+        fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
+            Ok(0)
+        }
+    }
 
     pub fn default_read_exact<R: Read + ?Sized>(this: &mut R, mut buf: &mut [u8]) -> Result<usize, Tp3ErrorKind> {
         let mut size = 0;
@@ -470,6 +496,23 @@ pub mod misc {
         tfile.write_all(as_bytes(data)).unwrap();
     }
 
+    //This is used to search for coincidences. This algorithm is used in either live or
+    //post-processing programs.
+    pub fn upt_coincidence_pointer<T, F: Fn(&T) -> TIME>(t1: TIME, time2: &[T], start_pointer: &mut usize, end_pointer: &mut usize, time_delay: TIME, time_width: TIME, get_time: F) {
+
+        let start_time = t1 + time_delay - time_width;
+        let end_time = t1 + time_delay + time_width;
+                
+        // Advancing the initial pointer
+        while *start_pointer < time2.len() && get_time(&time2[*start_pointer]) <= start_time {
+            *start_pointer += 1;
+        }
+
+        // Advancing the end pointer
+        while *end_pointer < time2.len() && get_time(&time2[*end_pointer]) <= end_time {
+            *end_pointer += 1;
+        }
+    }
 }
 
 pub mod value_types {

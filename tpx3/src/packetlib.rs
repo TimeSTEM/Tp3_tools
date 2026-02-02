@@ -235,16 +235,16 @@ impl Packet {
     #[inline]
     ///This value goes to a maximum of the electron time overflow. Guarantee that tdc_time_norm -
     ///electron_time >= 0. It is in units of 1.5625 ns.
-    pub fn tdc_time_norm(&self) -> TIME {
+    fn tdc_time_norm(&self) -> TIME {
         let time = self.tdc_time();
-        time - (time / (17_179_869_184)) * 17_179_869_184
+        time - (time / (ELECTRON_OVERFLOW)) * ELECTRON_OVERFLOW
     }
 
     #[inline]
     ///This values goes to maximum of the electron time overflow * 6. It is in units of 0.260 ps.
     pub fn tdc_time_abs_norm(&self) -> TIME {
         let time = self.tdc_time_abs();
-        time - (time / (103_079_215_104)) * 103_079_215_104
+        time - (time / (ELECTRON_OVERFLOW_IN_TDC_UNITS)) * ELECTRON_OVERFLOW_IN_TDC_UNITS
     }
     
     #[inline]

@@ -89,37 +89,34 @@ mod prepare_tdc {
                 TdcType::NoTdc => TdcType::NoTdc,
             };
 
-            let mut fal = self.get_timelist(&fal_tdc_type);
-            let mut ris = self.get_timelist(&ris_tdc_type);
-            //let last_fal = fal.pop().expect("Please get at least 01 falling Tdc");
-            let last_fal = match fal.pop() {
-                Some(val) => val,
-                None => return None,
-            };
-            let last_ris = match ris.pop() {
-                Some(val) => val,
-                None => return None,
-            };
-            if last_fal > last_ris {
-                Some(last_fal - last_ris)
-            } else {
-                let new_ris = match ris.pop () {
-                    Some(val) => val,
-                    None => return None,
-                };
-                Some(last_fal - new_ris)
+            let fal = self.get_timelist(&fal_tdc_type);
+            let ris = self.get_timelist(&ris_tdc_type);
+            if fal.len() == 0 || ris.len() == 0 { return None };
+            
+            let mut high_times = Vec::new();
+            let mut fal_iter = fal.iter();
+            let mut current_fal = fal_iter.next();
+
+            for r in &ris {
+                while let Some(f) = current_fal {
+                    if f > r { 
+                        high_times.push(f - r);
+                        current_fal = fal_iter.next();
+                        break;
+                    }
+                    current_fal = fal_iter.next();
+                }
             }
+            Some(high_times.iter().sum::<TIME>() / high_times.len() as TIME)
         }
         
-        pub fn find_period(&self) -> Result<TIME, Tp3ErrorKind> {
-            let mut tdc_time = self.get_auto_timelist();
-            let last = tdc_time.pop().expect("Please get at least 02 Tdc's");
-            let before_last = tdc_time.pop().expect("Please get at least 02 Tdc's");
-            if last > before_last {
-                Ok(last - before_last)
-            } else {
-                Err(Tp3ErrorKind::TdcBadPeriod)
-            }
+        pub fn find_period(&self) -> Result<f64, Tp3ErrorKind> {
+            let tdc_time = self.get_auto_timelist();
+            let periods: Vec<TIME> = tdc_time.iter().zip(tdc_time.iter()
+                .skip(1))
+                .map(|(t0,t1)| t1 - t0)
+                .collect();
+            Ok(periods.iter().sum::<TIME>() as f64 / periods.len() as f64)
         }
         
         fn get_counter(&self) -> Result<COUNTER, Tp3ErrorKind> {
@@ -236,7 +233,6 @@ impl Clone for TdcType {
             TdcType::TdcTwoFallingEdge => TdcType::TdcTwoFallingEdge,
             TdcType::NoTdc => TdcType::NoTdc,
         }
-        //match self {
     }
 }
 
@@ -303,7 +299,9 @@ pub struct TdcRef {
     period: Option<TIME>,
     high_time: Option<TIME>,
     low_time: Option<TIME>,
+    period_float: Option<f64>,
     ticks_to_frame: Option<COUNTER>, //Here it means it is a scan reference.
+    frame_time: Option<TIME>, //Somehow the frame time can be different of the lines * period.
     subsample: POSITION,
     video_delay: TIME,
     begin_frame: TIME,
@@ -325,24 +323,35 @@ impl TdcRef {
         self.last_hard_counter = hard_counter;
         self.counter = self.last_hard_counter as COUNTER + self.counter_overflow * 4096 - self.counter_offset;
         let time_overflow = self.time > time;
-        //println!("updating tdc {}. Counter is {}. Ticks to frame is {:?}. Line is {:?}", time - self.time, self.counter, self.ticks_to_frame, (self.counter / 2) % (self.subsample * self.ticks_to_frame.unwrap()));
+        //if let Some(ticks) = self.ticks_to_frame {
+        //    println!("very absolute time {}. absolut time {}. updating tdc {}. Counter is {}. Ticks to frame is {:?}. Line is {:?}", packet.tdc_time_abs(), time, time - self.time, self.counter, self.ticks_to_frame, (self.counter / 2) % (self.subsample * ticks));
+        //}
         self.time = time;
+        //if self.counter / 2 % 1000 == 0 {
+        //    println!("updating tdc. Counter and time is {} and {}.", self.counter, self.time);
+        //}
         if let (Some(spimy), Some(period)) = (self.ticks_to_frame, self.period) {
             //New frame
             if (self.counter / 2) % (self.subsample * spimy) == 0 {
-                //println!("new frame dT: {}", time - self.begin_frame);
+                //println!("new frame dT: {} and absolute is {}", time - self.begin_frame, time);
+                if time > self.begin_frame && self.frame_time.is_none() {
+                    self.frame_time = Some(time - self.begin_frame);
+                }
                 self.begin_frame = time;
                 self.new_frame = true;
             //Not new frame but a time overflow
             } else if time_overflow {
                 //I temporally correct the begin_frame time by supossing what is the next frame time. This
-                //will be correctly updated in the next cycle.
+                //will be correctly updated in the next cycle. Correction should be either done
+                //here or in the electron
+                //println!("{}", frame_time);
                 let frame_time = period * (self.subsample * spimy) as TIME;
                 self.begin_frame = if frame_time > ELECTRON_OVERFLOW_IN_TDC_UNITS {
                     (self.begin_frame + frame_time) - ELECTRON_OVERFLOW_IN_TDC_UNITS
                 } else {
                     (self.begin_frame + frame_time) % ELECTRON_OVERFLOW_IN_TDC_UNITS
                 };
+                //println!("{} and {:?} and both times {} and {}. new begin frameand {} ", frame_time, self.frame_time, old_time, self.time, self.begin_frame);
                 self.new_frame = false 
             //Does nothing. No new frame and no time overflow
             } else {
@@ -362,6 +371,10 @@ impl TdcRef {
     pub fn period(&self) -> Option<TIME> {
         Some(self.period?)
     }
+    
+    pub fn period_float(&self) -> Option<f64> {
+        Some(self.period_float?)
+    }
 
     pub fn new_frame(&self) -> bool {
         self.new_frame
@@ -372,7 +385,7 @@ impl TdcRef {
     }
     
     pub fn current_line(&self) -> Option<POSITION> {
-        Some(((self.counter / 2) % self.ticks_to_frame?) as POSITION)
+        Some(((self.counter / 2) % (self.subsample * self.ticks_to_frame?)) as POSITION)
     }
 
     pub fn estimate_time(&self) -> Option<TIME> {
@@ -475,41 +488,33 @@ impl TdcRef {
             None
         }
     }
-    
+  
+    #[inline]
+    pub fn sync_anytime_frame_time(&self, time: TIME) -> Option<TIME> {
+        let mut time = time;
+        // The electron time rolled. Correcting here.
+        //if self.begin_frame > time + (ELECTRON_OVERFLOW_IN_TDC_UNITS >> 2) {
+        //    time += ELECTRON_OVERFLOW_IN_TDC_UNITS;
+        //}
+        if SYNC_MODE == 0 {
+            if time < self.begin_frame + VIDEO_TIME + self.video_delay {
+                let factor = (self.begin_frame + VIDEO_TIME + self.video_delay - time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
+                time += self.period?*(self.subsample*self.ticks_to_frame?) as TIME * factor;
+            }
+            Some(time - self.begin_frame - VIDEO_TIME - self.video_delay)
+        } else {
+            let line_delay = time - self.time - VIDEO_TIME - self.video_delay;
+            Some(line_delay + self.period? * (self.current_line()?) as u64)
+        }
+    }   
     #[inline]
     pub fn sync_electron_frame_time(&self, pack: &Packet) -> Option<TIME> {
-        let mut ele_time = pack.electron_time_in_tdc_units();
-        if SYNC_MODE == 0 {
-            if ele_time < self.begin_frame + VIDEO_TIME + self.video_delay{
-                let factor = (self.begin_frame + VIDEO_TIME + self.video_delay - ele_time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
-                ele_time += self.period?*(self.subsample*self.ticks_to_frame?) as TIME * factor;
-            }
-            Some(ele_time - self.begin_frame - VIDEO_TIME - self.video_delay)
-        } else {
-            if ele_time < self.time + VIDEO_TIME + self.video_delay {
-                let factor = (self.time + VIDEO_TIME + self.video_delay - ele_time) / (self.period?) + 1;
-                ele_time += self.period? * factor * self.current_line()? as u64;
-            }
-            Some(ele_time - self.begin_frame - VIDEO_TIME - self.video_delay)
-        }
+        self.sync_anytime_frame_time(pack.electron_time_in_tdc_units())
     }
 
     #[inline]
     pub fn sync_tdc_frame_time(&self, pack: &Packet) -> Option<TIME> {
-        let mut tdc_time = pack.tdc_time_abs_norm();
-        if SYNC_MODE == 0 {
-            if tdc_time < self.begin_frame + VIDEO_TIME + self.video_delay{
-                let factor = (self.begin_frame + VIDEO_TIME + self.video_delay - tdc_time) / (self.period?*(self.subsample*self.ticks_to_frame?) as TIME) + 1;
-                tdc_time += self.period?*(self.subsample*self.ticks_to_frame?) as TIME * factor;
-            }
-            Some(tdc_time - self.begin_frame - VIDEO_TIME - self.video_delay)
-        } else {
-            if tdc_time < self.time + VIDEO_TIME + self.video_delay {
-                let factor = (self.time + VIDEO_TIME + self.video_delay - tdc_time) / (self.period?) + 1;
-                tdc_time += self.period? * factor * self.current_line()? as u64;
-            }
-            Some(tdc_time - self.begin_frame - VIDEO_TIME - self.video_delay)
-        }
+        self.sync_anytime_frame_time(pack.tdc_time_abs_norm())
     }
 
     //This gets the closest time for a period TDC. Here, the TDC time found is always greater than
@@ -627,7 +632,7 @@ impl TdcRef {
 
     pub fn new_periodic<T: TimepixRead>(tdc_type: TdcType, sock: &mut T, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<Self, Tp3ErrorKind> {
         let mut buffer_pack_data = vec![0; 16384];
-        let mut tdc_search = prepare_tdc::TdcSearch::new(&tdc_type, 3);
+        let mut tdc_search = prepare_tdc::TdcSearch::new(&tdc_type, 5);
         let start = Instant::now();
 
         println!("***Tdc Lib***: Searching for Tdc: {}.", tdc_type.associate_str());
@@ -655,7 +660,8 @@ impl TdcRef {
         let counter_offset = tdc_search.get_counter_offset();
         let begin_time = tdc_search.get_begintime();
         let last_time = tdc_search.get_lasttime();
-        let period = tdc_search.find_period()?;
+        let period = tdc_search.find_period()? as TIME;
+        let period_float = tdc_search.find_period()?;
         let high_time = tdc_search.find_high_time().map(|time| time);
         let low_time = tdc_search.find_high_time().map(|time| period - time);
 
@@ -691,6 +697,8 @@ impl TdcRef {
             subsample: ratio,
             video_delay: my_settings.video_time,
             period: Some(period),
+            period_float: Some(period_float),
+            frame_time: None,
             high_time,
             low_time,
             new_frame: false,
@@ -718,6 +726,8 @@ impl TdcRef {
             subsample: 1,
             video_delay: 0,
             period: None,
+            period_float: None,
+            frame_time: None,
             high_time: None,
             low_time: None,
             new_frame: false,

@@ -2,7 +2,7 @@
 
 use crate::packetlib::Packet;
 use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, as_bytes_mut, packet_change}, FileManager};
-use crate::tdclib::{TdcRef, isi_box::{IsiBoxHand, IsiBoxType}};
+use crate::tdclib::TdcRef;
 use crate::errorlib::Tp3ErrorKind;
 use std::time::Instant;
 use std::io::Write;
@@ -10,6 +10,7 @@ use std::sync::mpsc;
 use std::thread;
 use crate::auxiliar::value_types::*;
 use crate::constlib::*;
+use crate::ttx;
 
 ///`SpimKind` is the main trait that measurement types must obey. Custom measurements must all
 ///implement these methods.
@@ -26,6 +27,7 @@ pub trait SpimKind {
     fn copy_empty(&mut self) -> Self;
     fn is_ready(&mut self, line_tdc: &TdcRef) -> bool;
     fn new(settings: &Settings) -> Self;
+    fn ttx_index(&mut self, _ts: u64, _channel: i32, _ts_correction: Option<TIME>) {}
 }
 
 #[inline]
@@ -205,6 +207,9 @@ impl SpimKind for Live {
     }
     fn new(_settings: &Settings) -> Self {
         Live{ data: Vec::with_capacity(BUFFER_SIZE / 8), data_out: Vec::new(), _timer: Instant::now()}
+    }
+    fn ttx_index(&mut self, _ts: u64, _channel: i32, dt: Option<TIME>) {
+        self.data.push((PIXELS_X-1, dt.unwrap() / 260));
     }
 }
 
@@ -420,7 +425,7 @@ impl SpimKind for LiveFrame4D<MaskValues> {
 }
 
 ///Reads timepix3 socket and writes in the output socket a list of frequency followed by a list of unique indexes. First TDC must be a periodic reference, while the second can be nothing, periodic tdc or a non periodic tdc.
-pub fn build_spim<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut line_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W, scan_list: SlType, mut file_to_write: FileManager) -> Result<(), Tp3ErrorKind>
+pub fn build_spim<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut line_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W, scan_list: SlType, mut file_to_write: FileManager, mut ttx: Option<ttx::TTXRef>) -> Result<(), Tp3ErrorKind>
     where V: 'static + Send + TimepixRead,
           W: 'static + Send + SpimKind,
           U: 'static + Send + Write,
@@ -430,10 +435,16 @@ pub fn build_spim<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
     let mut buffer_pack_data = [0; BUFFER_SIZE];
     let line_tdc_clone = line_tdc.clone();
 
+    // Starting TTX
+    if let Some(in_ttx) = &mut ttx {
+        in_ttx.add_channel(1, false, true, true); //Both edges ON
+        in_ttx.inform_scan_tdc(&mut line_tdc);
+    };
+
     thread::spawn(move || {
         while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
             file_to_write.write_all(&buffer_pack_data[0..size]).expect("Could not save data into file.");
-            build_spim_data(&mut meas_type, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut line_tdc, &mut ref_tdc);
+            build_spim_data(&mut meas_type, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut line_tdc, &mut ref_tdc, &mut ttx);
             if meas_type.is_ready(&line_tdc) {
                let list2 = meas_type.copy_empty();
                if tx.send(meas_type).is_err() {println!("Cannot send data over the thread channel."); break;}
@@ -453,41 +464,7 @@ pub fn build_spim<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settin
     Ok(())
 }
 
-pub fn build_spim_isi<V, W, U>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut line_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W, mut handler: IsiBoxType<Vec<u32>>) -> Result<(), Tp3ErrorKind>
-    where V: 'static + Send + TimepixRead,
-          W: 'static + Send + SpimKind,
-          U: 'static + Send + Write,
-{
-    let (tx, rx) = mpsc::channel();
-    let mut last_ci = 0;
-    let mut buffer_pack_data = [0; BUFFER_SIZE];
-    let mut list = meas_type.copy_empty();
-    let line_tdc_clone = line_tdc.clone();
-
-    
-    thread::spawn(move || {
-        while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
-            build_spim_data(&mut list, &buffer_pack_data[0..size], &mut last_ci, &my_settings, &mut line_tdc, &mut ref_tdc);
-            if tx.send(list).is_err() {println!("Cannot send data over the thread channel."); break;}
-            list = meas_type.copy_empty();
-        }
-    });
- 
-    let start = Instant::now();
-    for mut tl in rx {
-        let result = tl.build_output(&my_settings, &line_tdc_clone, None);
-        let x = handler.get_data();
-        if ns_sock.write(as_bytes(result)).is_err() {println!("Client disconnected on data."); break;}
-        if x.len() > 0 && ns_sock.write(as_bytes(&x)).is_err() {println!("Client disconnected on data."); break;}
-    }
-
-    handler.stop_threads();
-    let elapsed = start.elapsed(); 
-    println!("Total elapsed time is: {:?}.", elapsed);
-    Ok(())
-}
-
-fn build_spim_data<W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut TdcRef, ref_tdc: &mut TdcRef) {
+fn build_spim_data<W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut u8, settings: &Settings, line_tdc: &mut TdcRef, ref_tdc: &mut TdcRef, ttx: &mut Option<ttx::TTXRef>) {
     data.chunks_exact(8).for_each(|x| {
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
@@ -509,4 +486,9 @@ fn build_spim_data<W: SpimKind>(list: &mut W, data: &[u8], last_ci: &mut u8, set
             },
         };
     });
+
+    if let Some(in_ttx) = ttx {
+        in_ttx.inform_scan_tdc(line_tdc);
+        in_ttx.build_spim_data(list);
+    }
 }

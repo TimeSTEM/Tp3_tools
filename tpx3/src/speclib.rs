@@ -2,15 +2,15 @@
 
 use crate::packetlib::Packet;
 use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, packet_change, check_if_in}};
-use crate::tdclib::{TdcRef, isi_box, isi_box::{IsiBoxTools, IsiBoxHand}};
-use crate::isi_box_new;
+use crate::tdclib::TdcRef;
 use crate::errorlib::Tp3ErrorKind;
 use crate::clusterlib::cluster::{SinglePhoton, CollectionPhoton, SingleElectron, CollectionElectron};
 use std::time::Instant;
 use std::io::Write;
 use crate::auxiliar::{value_types::*, FileManager, misc};
 use crate::constlib::*;
-//use rayon::prelude::*;
+use crate::ttx;
+use rayon::prelude::*;
 
 const CAM_DESIGN: (POSITION, POSITION) = Packet::chip_array();
 
@@ -86,8 +86,10 @@ pub trait SpecKind {
     fn is_ready(&self) -> bool;
     fn build_output(&mut self, settings: &Settings) -> &[u8];
     fn new(settings: &Settings) -> Self;
-    fn build_main_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        TdcRef::new_no_read(MAIN_TDC)
+    fn build_main_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        // The default is to build a periodic TDC in order to sync with other instruments.
+        //TdcRef::new_no_read(MAIN_TDC)
+        TdcRef::new_periodic(MAIN_TDC, pack, my_settings, file_to_write)
     }
     fn build_aux_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         TdcRef::new_no_read(SECONDARY_TDC)
@@ -103,6 +105,7 @@ pub trait SpecKind {
     }
     fn data_size_in_bytes(&self) -> usize;
     fn data_height(&self) -> COUNTER;
+    fn ttx_index(&mut self, _ts: u64, _channel: i32, _ts_correction: Option<TIME>) {}
 }
 
 pub trait IsiBoxKind: SpecKind {
@@ -138,6 +141,7 @@ pub struct Live2D {
     frame_counter: COUNTER,
     last_time: TIME,
     timer: Instant,
+    hist: ttx::Histogram,
 }
 
 impl SpecKind for Live2D {
@@ -150,7 +154,7 @@ impl SpecKind for Live2D {
     fn new(settings: &Settings) -> Self {
         let data = tp3_vec!(2);
         misc::check_bitdepth_and_data(&data, settings);
-        Self{ data, is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now() }
+        Self{ data, is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now(), hist: ttx::Histogram::new(1, 20) }
     }
     #[inline]
     fn add_electron_hit(&mut self, pack: Packet, settings: &Settings, _frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
@@ -188,16 +192,22 @@ impl SpecKind for Live2D {
         } else {
             TdcRef::new_no_read(SECONDARY_TDC)
         }
-    }
+    } 
     fn add_tdc_hit2(&mut self, pack: Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
         ref_tdc.upt(&pack);
+        self.hist.add_event(pack.tdc_time_abs_norm(), 2);
         add_index!(self, CAM_DESIGN.0-1);
     }
     fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(&pack);
+        self.hist.add_event(pack.tdc_time_abs_norm(), 1);
         add_index!(self, CAM_DESIGN.0-2);
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
+        // Printing the histogram here //
+        //self.hist.try_determine_channel_jitter(frame_tdc.period().unwrap() as i64, 1);
+        //self.hist.try_determine_cross_correlation(1, 2);
+
         self.timer = Instant::now();
         self.is_ready = false;
         if !settings.cumul {
@@ -212,6 +222,11 @@ impl SpecKind for Live2D {
     }
     fn data_height(&self) -> COUNTER {
         CAM_DESIGN.1
+    }
+    fn ttx_index(&mut self, _ttx_time: u64, ttx_channel: i32, _ts_correction: Option<TIME>) {
+        if ttx_channel == 2 {
+            add_index!(self, CAM_DESIGN.0-1);
+        }
     }
 }
 
@@ -296,7 +311,89 @@ impl SpecKind for Live1D {
     fn data_height(&self) -> COUNTER {
         1
     }
+    fn ttx_index(&mut self, _ttx_time: u64, ttx_channel: i32, _ts_correction: Option<TIME>) {
+        if ttx_channel == 2 {
+            add_index!(self, CAM_DESIGN.0-1);
+        }
+    }
 }
+
+// This a mixed implementation. Saves all electrons and photons but in a reduced struct for
+// performance
+pub struct Coincidence2DV4 {
+    data: Vec<u32>,
+    electrons: Vec<(TIME, POSITION)>, //Time and X
+    photons: Vec<(TIME, COUNTER)>, //Time and Channel
+    hits: COUNTER,
+    timer: Instant,
+}
+
+impl SpecKind for Coincidence2DV4 {
+    fn is_ready(&self) -> bool {
+        self.timer.elapsed().as_millis() > TIME_INTERVAL_COINCIDENCE_HISTOGRAM
+    }
+    fn build_output(&mut self, settings: &Settings) -> &[u8] {
+        self.electrons.par_sort_unstable_by_key(|&(time, _pos)| time);
+        self.photons.sort_unstable();
+
+        let mut start_pointer = 0;
+        let mut end_pointer = 0;
+
+        for electron in &self.electrons {
+
+            // Updating the pointers
+            misc::upt_coincidence_pointer(electron.0, &self.photons, &mut start_pointer, &mut end_pointer, settings.time_delay, settings.time_width, |&x| x.0);
+
+            // This is the photons that are coincident already. Can be 0 or many. The channel is
+            // inside photon.1
+            let photon_slice = &self.photons[start_pointer..end_pointer];
+            for photon in photon_slice {
+                let delay = (electron.0 + settings.time_width + settings.time_delay - photon.0) as POSITION;
+                let index = (electron.1 + delay * CAM_DESIGN.0 + (photon.1 - 1) * 2*settings.time_width as u32 * CAM_DESIGN.0) as usize;
+                self.data[index] += 1;
+            }
+        }
+        as_bytes(&self.data)
+    }
+    fn new(settings: &Settings) -> Self {
+        let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
+        let data = vec![0; len];
+        misc::check_bitdepth_and_data(&data, settings);
+        Self { data, electrons: Vec::new(), hits: 0, photons: Vec::new(), timer: Instant::now()}
+    }
+    #[inline]
+    fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+        self.hits += 1;
+        if self.hits % 2 == 0 {
+            self.electrons.push((pack.electron_time_in_tdc_units(), pack.x()));
+        }
+    }
+    fn add_tdc_hit2(&mut self, pack: Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
+        ref_tdc.upt(&pack);
+        self.photons.push((pack.tdc_time_abs_norm(), 2));
+    }
+    fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
+        frame_tdc.upt(&pack);
+        self.photons.push((pack.tdc_time_abs_norm(), 1));
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
+        self.timer = Instant::now();
+        self.electrons.clear();
+        self.photons.clear();
+    }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        self.data.len() as COUNTER / CAM_DESIGN.0
+    }    
+    fn ttx_index(&mut self, _ts: u64, channel: i32, ts_correction: Option<TIME>) {
+        if let Some(time_tpx3) = ts_correction {
+            if channel > 0 { self.photons.push((time_tpx3, channel as u32)); }
+        }
+    }
+}
+
 
 //Same implementation as the post-processing data. Currently not used.
 pub struct Coincidence2DV3 {
@@ -315,11 +412,10 @@ impl SpecKind for Coincidence2DV3 {
         self.electron_buffer.sort();
         self.photon_buffer.sort();
         let coinc_electron = self.electron_buffer.search_coincidence(&mut self.photon_buffer, &mut rpi, settings.time_delay, settings.time_width);
-        coinc_electron.iter().for_each(|_ele| {
-            //#TODO: This is broken need to be fixed if you want it to use
-            //let delay = (photon.time() / 6 - settings.time_delay + settings.time_width - ele.time()) as POSITION;
-            //let index = ele.x() + delay * CAM_DESIGN.0;
-            //self.data[index as usize] += 1;
+        coinc_electron.iter().for_each(|ele| {
+            let delay = (ele.relative_time_from_coincident_photon().unwrap() + settings.time_width as i64 + settings.time_delay as i64) as POSITION;
+            let index = (ele.x() + delay * CAM_DESIGN.0) as usize;
+            self.data[index] += 1;
         });
         as_bytes(&self.data)
     }
@@ -1023,7 +1119,7 @@ pub fn run_spectrum<V, U, Y>(mut pack: V, ns: U, my_settings: Settings, kind: Y,
 }
 */
 
-pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W, mut file_to_write: FileManager) -> Result<(), Tp3ErrorKind> 
+pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W, mut file_to_write: FileManager, mut ttx: Option<ttx::TTXRef>) -> Result<(), Tp3ErrorKind> 
     where V: TimepixRead,
           U: Write,
           W: SpecKind
@@ -1032,10 +1128,19 @@ pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
     let mut last_ci = 0;
     let mut buffer_pack_data: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
     let start = Instant::now();
-    
+
+    if let Some(in_ttx) = &mut ttx {
+        in_ttx.add_channel(1, false, true, true); //Not test, both edges ON, periodic
+        //in_ttx.add_channel(2, false, false, false); //Not test, both edges off, non-periodic
+        //in_ttx.add_channel(4, true, false, false); //Not test, both edges off, non-periodic
+        //in_ttx.add_channel(5, true, false, false); //Not test, both edges off, non-periodic
+        in_ttx.prepare();
+        in_ttx.inform_scan_tdc(&mut frame_tdc);
+    };
+
     while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
         file_to_write.write_all(&buffer_pack_data[0..size])?;
-        if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
+        if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc, &mut ttx) {
             let msg = create_header(&meas_type, &my_settings, &frame_tdc, 0, meas_type.shutter_control());
             if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
             if ns_sock.write(meas_type.build_output(&my_settings)).is_err() {println!("Client disconnected on data."); break;}
@@ -1048,45 +1153,16 @@ pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Se
 
 }
 
-pub fn build_spectrum_isi<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W) -> Result<(), Tp3ErrorKind> 
-    where V: TimepixRead,
-          U: Write,
-          W: IsiBoxKind
-{
+fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, settings: &Settings, frame_tdc: &mut TdcRef, ref_tdc: &mut TdcRef, ttx: &mut Option<ttx::TTXRef>) -> bool {
 
-    let mut handler = isi_box_new!(spec);
-    handler.bind_and_connect()?;
-    handler.configure_scan_parameters(32, 32, 8334)?;
-    handler.configure_measurement_type(false)?;
-    handler.start_threads();
-    
-    let mut last_ci = 0;
-    let mut buffer_pack_data = [0; BUFFER_SIZE];
-    let start = Instant::now();
-
-    while let Ok(size) = pack_sock.read_timepix(&mut buffer_pack_data) {
-        if build_data(&buffer_pack_data[0..size], &mut meas_type, &mut last_ci, &my_settings, &mut frame_tdc, &mut ref_tdc) {
-            let x = handler.get_data();
-            let msg = create_header(&meas_type, &my_settings, &frame_tdc, CHANNELS as POSITION, meas_type.shutter_control());
-            if ns_sock.write(&msg).is_err() {println!("Client disconnected on header."); break;}
-            meas_type.append_from_isi(&x);
-            let result = meas_type.build_output(&my_settings);
-            if ns_sock.write(result).is_err() {println!("Client disconnected on data."); break;}
-            meas_type.reset_or_else(&frame_tdc, &my_settings);
-            if frame_tdc.counter() % 1000 == 0 { let elapsed = start.elapsed(); println!("Total elapsed time is: {:?}. Counter is {}.", elapsed, frame_tdc.counter());};
-        }
-    }
-    handler.stop_threads();
-    println!("Total elapsed time is: {:?}.", start.elapsed());
-    Ok(())
-}
-
-
-fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, settings: &Settings, frame_tdc: &mut TdcRef, ref_tdc: &mut TdcRef) -> bool {
-
-    let iterator = data.chunks_exact(8);
-    
-    for x in iterator {
+    let mut first_tpx = 0;
+    let mut last_tpx = 0;
+    let mut nevents = 0;
+    let mut set_tpx_times = {|time: TIME| {
+        if first_tpx == 0 {first_tpx = time;}
+        last_tpx = time;
+    }};
+    for x in data.chunks_exact(8) {
         match *x {
             [84, 80, 88, 51, nci, _, _, _] => *last_ci = nci,
             _ => {
@@ -1097,9 +1173,13 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
                     },
                     6 if packet.tdc_type() == frame_tdc.id() => { //Tdc value 1
                         final_data.add_tdc_hit1(packet, frame_tdc, settings);
+                        set_tpx_times(packet.tdc_time_abs_norm());
+                        nevents += 1;
                     },
                     6 if packet.tdc_type() == ref_tdc.id() => { //Tdc value 2
                         final_data.add_tdc_hit2(packet, settings, ref_tdc);
+                        set_tpx_times(packet.tdc_time_abs_norm());
+                        nevents += 1;
                     },
                     5 if packet.tdc_type() == 10 || packet.tdc_type() == 15  => { //Shutter value.
                         final_data.add_shutter_hit(packet, frame_tdc, settings);
@@ -1113,52 +1193,29 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
             },
         };
     };
+    //println!("***Spec Lib***: The values inside the loop is min/max/nevents: {} / {} / {}", first_tpx, last_tpx, nevents);
+    
+    if let Some(in_ttx) = ttx {
+        in_ttx.inform_scan_tdc(frame_tdc);
+        in_ttx.build_spec_data(final_data);
+    }
+
     final_data.is_ready()
 }
 
-fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, extra_pixels: POSITION, shutter_control: Option<&ShutterControl>) -> Vec<u8> {
+fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, extra_pixels: POSITION, _shutter_control: Option<&ShutterControl>) -> Vec<u8> {
     let mut msg: String = String::from("{\"timeAtFrame\":");
     msg.push_str(&(tdc.time().to_string()));
     msg.push_str(",\"frameNumber\":");
     msg.push_str(&((measurement.get_frame_counter(tdc)).to_string()));
     msg.push_str(",\"measurementID:\"Null\",\"dataSize\":");
     msg.push_str(&((measurement.data_size_in_bytes().to_string())));
-    /*
-    if set.mode == 6 || set.mode == 8 { //ChronoMode
-        msg.push_str(&((set.xspim_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
-    } else if set.mode == 7 { //Coincidence2D
-        msg.push_str(&((set.time_width as POSITION*4*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
-    } else if set.mode == 11 { //Frame-based hyperspectral image
-        let data_size = shutter_control.unwrap().get_pixel_to_send_size();
-        msg.push_str(&((data_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()));
-    } else if set.mode == 15 { //Frame-based 2D hyperspectral image
-        let data_size = shutter_control.unwrap().get_pixel_to_send_size();
-        msg.push_str(&((data_size*set.bytedepth*(CAM_DESIGN.0+extra_pixels)*CAM_DESIGN.1).to_string()));
-    } else {
-        match set.bin {
-            true => { msg.push_str(&((set.bytedepth*(CAM_DESIGN.0+extra_pixels)).to_string()))},
-            false => { msg.push_str(&((set.bytedepth*(CAM_DESIGN.0+extra_pixels)*CAM_DESIGN.1).to_string()))},
-        }
-    }
-    */
     msg.push_str(",\"bitDepth\":");
     msg.push_str(&((set.bytedepth<<3).to_string()));
     msg.push_str(",\"width\":");
     msg.push_str(&((CAM_DESIGN.0+extra_pixels).to_string()));
     msg.push_str(",\"height\":");
     msg.push_str(&(measurement.data_height().to_string()));
-    /*
-    if set.mode == 6 || set.mode == 8 { //ChronoMode
-        msg.push_str(&(set.xspim_size.to_string()));
-    } else if set.mode == 7 { //Coincidence2D Mode
-        msg.push_str(&((set.time_width*4).to_string()));
-    } else {
-        match set.bin {
-            true=>{msg.push_str(&(1.to_string()))},
-            false=>{msg.push_str(&(CAM_DESIGN.1.to_string()))},
-        }
-    }
-    */
     msg.push_str("}\n");
     let s: Vec<u8> = msg.into_bytes();
     s

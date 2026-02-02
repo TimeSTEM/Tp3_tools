@@ -1,0 +1,2 @@
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/yvesauad/Documents/Tp3_tools/tpx3/lib
+g++ -fPIC -shared quickstartv2.cpp -o libTTTX.so -lTimeTagger -std=c++17
