@@ -82,11 +82,6 @@ pub mod cluster {
             self.data = new_elist.data;
         }
 
-        pub fn check_if_overflow(&self) -> bool {
-            let first = self.data.get(0).expect("No first value detected.");
-            let last = self.data.iter().last().expect("No last value detected.");
-            first.time() > last.time()
-        }
         pub fn sort(&mut self) {
             self.data.par_sort_unstable();
         }

@@ -205,7 +205,7 @@ pub mod coincidence {
 
 
     //Non-standard data types 
-    pub struct ElectronData {
+    struct ElectronData {
         reduced_raw_data: Vec<u64>,
         index_to_add_in_raw: Vec<usize>,
         coinc_electrons: CollectionElectron,
@@ -277,7 +277,7 @@ pub mod coincidence {
             coinc_electron.into_iter().for_each(|electron| self.add_coincident_electron(electron));
         }
 
-        pub fn new_from_settings(eds: &ElectronDataSettings) -> Self {
+        fn new_from_settings(eds: &ElectronDataSettings) -> Self {
             Self {
                 reduced_raw_data: Vec::new(),
                 index_to_add_in_raw: Vec::new(),
@@ -295,44 +295,37 @@ pub mod coincidence {
             output_data(&self.spim_frame, self.edata_settings.file.clone(), "spim_frame.txt");
         }
 
-        pub fn get_electron_collection(&self) -> &CollectionElectron {
-            &self.coinc_electrons
-        }
-        pub fn create_x(&self) -> Vec<u16> {
+        fn create_x(&self) -> Vec<u16> {
             self.coinc_electrons.iter().map(|se| se.x() as u16).collect()
         }
-        pub fn create_y(&self) -> Vec<u16> {
+        fn create_y(&self) -> Vec<u16> {
             self.coinc_electrons.iter().map(|se| se.y() as u16).collect()
         }
-        pub fn create_channel(&self) -> Vec<u8> {
+        fn create_channel(&self) -> Vec<u8> {
             self.coinc_electrons.iter().map(|se| se.coincident_photon().unwrap().channel() as u8).collect()
         }
-        pub fn create_tot(&self) -> Vec<u16> {
+        fn create_tot(&self) -> Vec<u16> {
             self.coinc_electrons.iter().map(|se| se.tot()).collect()
         }
-        pub fn create_abs_time(&self) -> Vec<TIME> {
+        fn create_abs_time(&self) -> Vec<TIME> {
             self.coinc_electrons.iter().map(|se| se.time()).collect()
         }
-        pub fn create_rel_time(&self) -> Vec<i16> {
+        fn create_rel_time(&self) -> Vec<i16> {
             self.coinc_electrons.iter()
                 .filter_map(|se| se.relative_time_from_coincident_photon()
                                             .map(|value| value.fold())).collect()
         }
-        pub fn create_rel_corrected_time(&self) -> Vec<i16> {
+        fn create_rel_corrected_time(&self) -> Vec<i16> {
             self.coinc_electrons.iter()
                 .filter_map(|se| se.relative_corrected_time_from_coincident_photon()
                             .map(|value| value.fold())).collect()
         }
-        pub fn create_condensed_packet(&self) -> Vec<u64> {
+        fn create_condensed_packet(&self) -> Vec<u64> {
             self.coinc_electrons.iter().map(|se| se.raw_packet_data().modified_packet_data()).collect()
         }
-        pub fn create_reduced_raw(&self) -> &[u64] {
-            &self.reduced_raw_data
-        }
-        pub fn create_spim_index(&self) -> Vec<INDEXHYPERSPEC> {
+        fn create_spim_index(&self) -> Vec<INDEXHYPERSPEC> {
             self.coinc_electrons.iter().map(|se| se.get_or_not_spim_index(self.edata_settings.try_get_spim_tdc(), self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)).collect()
         }
-
         fn early_output_data(&mut self) {
             //This reorders the packet based on how they have arrived. If you are in the middle of
             //a time overflow and sort the data, output data would be strange without this.

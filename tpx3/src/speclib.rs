@@ -129,6 +129,7 @@ macro_rules! tp3_vec {
     }
 }
 
+///Transforms event-based mode into frames as a 2D image.
 pub struct Live2D {
     data: Vec<u32>,
     is_ready: bool,
@@ -224,6 +225,7 @@ impl SpecKind for Live2D {
     }
 }
 
+///Transforms event-based mode into frames as a 1D line.
 pub struct Live1D {
     data: Vec<u32>,
     is_ready: bool,
@@ -314,6 +316,7 @@ impl SpecKind for Live1D {
 
 // This a mixed implementation. Saves all electrons and photons but in a reduced struct for
 // performance
+///Real-time measurement of time-coincidences between electrons and TDC events, period or not.
 pub struct Coincidence2D {
     data: Vec<u32>,
     electrons: Vec<(TIME, POSITION)>, //Time and X
@@ -388,8 +391,7 @@ impl SpecKind for Coincidence2D {
     }
 }
 
-
-
+///A single-shot 2D measurement containing multiple 1D frames stacked as a function of time.
 pub struct Chrono {
     data: Vec<u32>,
     last_time: TIME,
@@ -683,7 +685,6 @@ impl SpecKind for Live1DFrameHyperspec {
         misc::check_bitdepth_and_data(&data, settings);
         Self{ data, is_ready: false, timer: Instant::now(), shutter: Some(shutter)}
     }
-
     #[inline]
     fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         let shut = self.shutter.as_ref().unwrap();
@@ -711,16 +712,6 @@ impl SpecKind for Live1DFrameHyperspec {
             self.shutter.as_mut().unwrap().set_pixel_to_send(begin_pixel, end_pixel);
             println!("***FB Hyperspec***: Sending_data with counter {}. Begin and end pixels are {} and {}", shutter_counter, begin_pixel, end_pixel);
         }
-        /*
-        if !self.is_ready {
-            if self.timer.elapsed().as_millis() < TIME_INTERVAL_HYPERSPECTRAL_FRAME {
-                self.is_ready = false;
-            } else {
-                println!("sending_data with counter {}", shutter_counter);
-                self.is_ready = true;
-            }
-        }
-            */
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
         self.is_ready = false;
@@ -764,7 +755,6 @@ impl SpecKind for Live2DFrameHyperspec {
         misc::check_bitdepth_and_data(&data, settings);
         Self{ data, is_ready: false, timer: Instant::now(), shutter: Some(shutter)}
     }
-
     #[inline]
     fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
         let shut = self.shutter.as_ref().unwrap();
@@ -792,16 +782,6 @@ impl SpecKind for Live2DFrameHyperspec {
             self.shutter.as_mut().unwrap().set_pixel_to_send(begin_pixel, end_pixel);
             println!("***FB Hyperspec***: Sending_data with counter {}. Begin and end pixels are {} and {}", shutter_counter, begin_pixel, end_pixel);
         }
-        /*
-        if !self.is_ready {
-            if self.timer.elapsed().as_millis() < TIME_INTERVAL_HYPERSPECTRAL_FRAME {
-                self.is_ready = false;
-            } else {
-                println!("sending_data with counter {}", shutter_counter);
-                self.is_ready = true;
-            }
-        }
-            */
     }
     fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
         self.is_ready = false;
