@@ -218,18 +218,13 @@ impl Packet {
         (self.data() & 0x00_00_FF_FF_FF_FF_FF_FF) as u64
     }
 
+    /*
+     * We do not use the TDC in the electron units anymore. Bad practice.
     #[inline]
     fn tdc_time(&self) -> TIME {
         let coarse = self.tdc_coarse();
         let fine = self.tdc_fine();
         coarse * 2 + fine / 6
-    }
-    
-    #[inline]
-    fn tdc_time_abs(&self) -> TIME {
-        let coarse = self.tdc_coarse();
-        let fine = self.tdc_fine();
-        coarse * 12 + fine
     }
     
     #[inline]
@@ -239,7 +234,14 @@ impl Packet {
         let time = self.tdc_time();
         time - (time / (ELECTRON_OVERFLOW)) * ELECTRON_OVERFLOW
     }
+    */
 
+    #[inline]
+    fn tdc_time_abs(&self) -> TIME {
+        let coarse = self.tdc_coarse();
+        let fine = self.tdc_fine();
+        coarse * 12 + fine
+    }
     #[inline]
     ///This values goes to maximum of the electron time overflow * 6. It is in units of 0.260 ps.
     pub fn tdc_time_abs_norm(&self) -> TIME {

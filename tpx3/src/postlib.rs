@@ -1,4 +1,7 @@
+//!`postlib` is a collection of tools to treat acquisition data.
 pub mod coincidence {
+    //!Used for temporally correlation between electrons and external events, by
+    //!means of the TDCs in the SPIDR readout or not.
     use crate::packetlib::Packet;
     use crate::tdclib::TdcRef;
     use crate::errorlib::Tp3ErrorKind;
@@ -15,7 +18,7 @@ pub mod coincidence {
     //When we would like to have large E-PH timeoffsets, such as skipping entire line periods, the
     //difference between E-PH could not fit in i16. We fold these big numbers to fit in a i16
     //vector, and thus reducing the size of the output data
-    pub trait FoldNumber<T>: Sized {
+    trait FoldNumber<T>: Sized {
         fn fold(self) -> T;
     }
 
@@ -25,15 +28,16 @@ pub mod coincidence {
         }
     }
 
-    //This is the struct that is sent over the channels
-    pub struct ChannelSender {
+    //This is the struct that is sent over the channels for parallelization. Basically we send data
+    //here and process in another thread.
+    struct ChannelSender {
         temp_electron: CollectionElectron,
         temp_photon: CollectionPhoton,
         raw_index: Vec<usize>
     }
 
     impl ChannelSender {
-        pub fn new() -> Self {
+        fn new() -> Self {
             Self {
                 temp_electron: CollectionElectron::new(),
                 temp_photon: CollectionPhoton::new(),
@@ -41,10 +45,10 @@ pub mod coincidence {
             }
         }
         
-        pub fn add_electron(&mut self, val: SingleElectron) {
+        fn add_electron(&mut self, val: SingleElectron) {
             self.temp_electron.add_electron(val);
         }
-        pub fn add_photon(&mut self, val: SinglePhoton) {
+        fn add_photon(&mut self, val: SinglePhoton) {
             self.temp_photon.add_photon(val);
         }
         //This adds the index of the 64-bit packet that will be afterwards added to the electron
@@ -52,10 +56,10 @@ pub mod coincidence {
         //photons and electrons, for example (we would add one photon but then check later if there
         //is a correspondent electron). So we should run once and then run again for the
         //recorded indexes.
-        pub fn add_index(&mut self, val: usize) {
+        pub fn add_packet_index(&mut self, val: usize) {
             self.raw_index.push(val);
         }
-        pub fn sort_all(&mut self) {
+        fn sort_all(&mut self) {
             //Sorting photons.
             self.temp_photon.sort();
             self.temp_photon.dedup_by(|a, b| a.raw_packet_data() == b.raw_packet_data());
@@ -67,7 +71,8 @@ pub mod coincidence {
 
     }
  
-    //The settings to be used to create electron data
+    //The settings to be used to create electron data. Used for taking actions in the data to be
+    //treated.
     #[derive(Clone)]
     pub struct ElectronDataSettings {
         remove_clusters: ClusterCorrectionTypes,
@@ -80,26 +85,6 @@ pub mod coincidence {
 
     impl ElectronDataSettings {
 
-        //This is the tdc that the hyperspec should be connected
-        fn spim_or_photon_tdc(&self) -> &TdcRef {
-            &self.tdc1
-        }
-        
-        //This is the tdc that the hyperspec should be connected as mut
-        fn spim_or_photon_tdc_as_mut(&mut self) -> &mut TdcRef {
-            &mut self.tdc1
-        }
-        
-        //This is the tdc that the fast oscillator should be connected
-        fn fast_oscillator_or_photon_tdc(&self) -> &TdcRef {
-            &self.tdc2
-        }
-        
-        //This is the tdc that the fast oscillator should be connected as mut
-        fn fast_oscillator_or_photon_tdc_as_mut(&mut self) -> &mut TdcRef {
-            &mut self.tdc2
-        }
-
         //Condition to be a SpectralImage
         fn is_spim(&self) -> bool {
             self.my_settings.mode == 2
@@ -111,36 +96,36 @@ pub mod coincidence {
         }
 
         //Get spectralImage TDC
-        fn get_spim_tdc(&self) -> Option<&TdcRef> {
+        fn try_get_spim_tdc(&self) -> Option<&TdcRef> {
             if self.is_spim() {
-                Some(self.spim_or_photon_tdc())
+                Some(&self.tdc1)
             } else {
                 None
             }
         }
  
         //Get spectralImage TDC as mut
-        fn get_spim_tdc_as_mut(&mut self) -> Option<&mut TdcRef> {
+        fn try_get_spim_tdc_mut(&mut self) -> Option<&mut TdcRef> {
             if self.is_spim() {
-                Some(self.spim_or_photon_tdc_as_mut())
+                Some(&mut self.tdc1)
             } else {
                 None
             }
         }
 
         //Get Oscillator TDC
-        fn get_oscillator_tdc(&self) -> Option<&TdcRef> {
+        fn try_get_oscillator_tdc(&self) -> Option<&TdcRef> {
             if self.is_fast_oscillator() {
-                Some(self.fast_oscillator_or_photon_tdc())
+                Some(&self.tdc2)
             } else {
                 None
             }
         }
 
         //Get Oscillator TDC as mut
-        fn get_oscillator_tdc_as_mut(&mut self) -> Option<&mut TdcRef> {
+        fn try_get_oscillator_tdc_mut(&mut self) -> Option<&mut TdcRef> {
             if self.is_fast_oscillator() {
-                Some(self.fast_oscillator_or_photon_tdc_as_mut())
+                Some(&mut self.tdc2)
             } else {
                 None
             }
@@ -156,19 +141,17 @@ pub mod coincidence {
                 }
                 let mut empty_filemanager = FileManager::new_empty();
                 let temp = TdcRef::new_periodic(MAIN_TDC, &mut file0, &self.my_settings, &mut empty_filemanager).expect("Could not create period TDC reference.");
-                let spim_tdc = self.spim_or_photon_tdc_as_mut();
-                *spim_tdc = temp;
+                self.tdc1 = temp;
             };
             
 
             if self.is_fast_oscillator() {
                 let mut empty_filemanager = FileManager::new_empty();
                 let temp = TdcRef::new_periodic(SECONDARY_TDC, &mut file0, &self.my_settings, &mut empty_filemanager).expect("Could not create period TDC reference.");
-                assert!(temp.is_fast_oscillator());
-                let fast_oscillator = self.fast_oscillator_or_photon_tdc_as_mut();
-                *fast_oscillator = temp;
+                self.tdc2 = temp;
             };
         }
+
         fn try_create_folder(&self) -> Result<(), Tp3ErrorKind> {
             let path_length = &self.file.len();
             match fs::create_dir(&self.file[..path_length - 5]) {
@@ -214,8 +197,8 @@ pub mod coincidence {
                 file: file_path,
                 my_settings,
                 save_locally,
-                tdc1: TdcRef::new_no_read(MAIN_TDC).expect("Could not create non periodic (photon) TDC reference."),
-                tdc2: TdcRef::new_no_read(SECONDARY_TDC).expect("Could not create non periodic (photon) TDC reference.")
+                tdc1: TdcRef::new_no_read(MAIN_TDC).expect("Could not create non-periodic TDC reference."),
+                tdc2: TdcRef::new_no_read(SECONDARY_TDC).expect("Could not create non-periodic TDC reference.")
             }
         } 
     }
@@ -235,23 +218,24 @@ pub mod coincidence {
 
     impl ElectronData {
 
-        //Called for all the electrons (not only coincident)
+        //Called for all the electrons (not only coincident).
         fn add_electron(&mut self, val: &SingleElectron) {
             self.spectrum[val.x() as usize] += 1;
-            if let Some(index) = val.get_or_not_spim_index(self.edata_settings.get_spim_tdc(), self.spim_size.0, self.spim_size.1) {
+            if let Some(index) = val.get_or_not_spim_index(self.edata_settings.try_get_spim_tdc(), self.spim_size.0, self.spim_size.1) {
                 self.spim_frame[index as usize] += 1;
             }
         }
         
-        //Called for all the photons (not only coincident)
+        //Called for all the photons (not only coincident).
         fn add_photon(&mut self, val: &SinglePhoton) {
             self.spectrum[PIXELS_X as usize - 1] += 1;
-            if let Some(index) = val.get_or_not_spim_index(self.edata_settings.get_spim_tdc(), self.spim_size.0, self.spim_size.1) {
+            if let Some(index) = val.get_or_not_spim_index(self.edata_settings.try_get_spim_tdc(), self.spim_size.0, self.spim_size.1) {
                 self.spim_frame[index as usize] += 1;
             }
         }
 
-        //This adds the indexes collected with the ChannelSender
+        //This adds the indexes collected with the ChannelSender (all the TDCs, for example, are
+        //automatically save to the raw reduced data)
         fn add_packet_to_raw_index_from_channel_sender(&mut self, channel_sender: &mut ChannelSender) {
             self.index_to_add_in_raw.append(&mut channel_sender.raw_index);
         }
@@ -259,7 +243,8 @@ pub mod coincidence {
         //This adds the packet to the reduced raw value and clear the index list afterwards
         fn add_packets_to_reduced_data(&mut self, buffer: &[u8]) {
             //Now we must add the concerned data to the reduced raw. We should first sort the indexes
-            //that we have saved
+            //that we have saved, ensuring that the data is saved in the same order as the raw
+            //data.
             self.index_to_add_in_raw.sort();
             //Then we should iterate and see matching indexes to add.
             for index in self.index_to_add_in_raw.iter() {
@@ -269,15 +254,6 @@ pub mod coincidence {
             self.index_to_add_in_raw.clear();
         }
 
-        /*
-        fn add_spim_line(&mut self, pack: &Packet) {
-            //This must be called only if "self.spim" is Some(TdcRef). Otherwise this channel is
-            //another photon
-            self.tdc1.as_mut().expect("Inconsistence in TdcRef regarding spectral imaging.")
-                .upt(pack);
-        }
-        */
-
         fn add_coincident_electron(&mut self, val: SingleElectron) {
             self.corr_spectrum[val.x() as usize] += 1; //Adding the electron
             self.corr_spectrum[PIXELS_X as usize-1] += 1; //Adding the photon
@@ -285,13 +261,7 @@ pub mod coincidence {
         }
         
         fn add_events(&mut self, channel_sender: &mut ChannelSender, time_delay: TIME, time_width: TIME, _line_offset: i64) {
-            //Sorting photons.
-            //channel_sender.temp_photon.sort();
-            //channel_sender.temp_photon.dedup_by(|a, b| a.raw_packet_data() == b.raw_packet_data());
-
-            //Sorting and removing clusters (if need) for electrons.
-            //channel_sender.temp_electron.sort();
-            //channel_sender.temp_electron.dedup_by(|a, b| a.raw_packet_data().data() == b.raw_packet_data().data());
+            //Removing clusters (if need) for electrons.
             channel_sender.temp_electron.try_clean(0, &self.edata_settings.remove_clusters);
 
             //Adding photons to the last pixel. We also add the photons in the spectra image.
@@ -300,25 +270,11 @@ pub mod coincidence {
             //Adding electrons to the spectra image
             channel_sender.temp_electron.iter().for_each(|electron| self.add_electron(electron));
 
-            //This effectivelly searches for coincidence. It also adds electrons in
-            //self.index_to_add_in_raw.
+            //This effectivelly searches for coincidence. It also adds electrons in self.index_to_add_in_raw.
             let coinc_electron = channel_sender.temp_electron.search_coincidence(&channel_sender.temp_photon, &mut self.index_to_add_in_raw, time_delay, time_width);
 
             //Adding electron in the coincidence action
             coinc_electron.into_iter().for_each(|electron| self.add_coincident_electron(electron));
-
-            /*
-            //Second trial to search for coincidence. This seems to be faster but need to make sure of the result. 
-            let searcher = CoincidenceSearcher::new(&mut temp_edata.electron, &mut temp_tdc.event_list, time_delay, time_width);
-            for (ele, pho) in searcher {
-                self.add_coincident_electron(ele, pho);
-                self.add_packet_to_raw_index(ele.raw_packet_index());
-            }
-            */
-
-            //Setting the new min_index in the case the photon list does not start from the
-            //beginning in the next interaction.
-            //temp_tdc.min_index = min_index;
         }
 
         pub fn new_from_settings(eds: &ElectronDataSettings) -> Self {
@@ -333,7 +289,6 @@ pub mod coincidence {
                 edata_settings: eds.clone(),
             }
         }
-
               
         fn output_hyperspec(&self) {
             if !self.edata_settings.save_locally { return; };
@@ -375,7 +330,7 @@ pub mod coincidence {
             &self.reduced_raw_data
         }
         pub fn create_spim_index(&self) -> Vec<INDEXHYPERSPEC> {
-            self.coinc_electrons.iter().map(|se| se.get_or_not_spim_index(self.edata_settings.get_spim_tdc(), self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)).collect()
+            self.coinc_electrons.iter().map(|se| se.get_or_not_spim_index(self.edata_settings.try_get_spim_tdc(), self.spim_size.0, self.spim_size.1).unwrap_or(POSITION::MAX)).collect()
         }
 
         fn early_output_data(&mut self) {
@@ -446,7 +401,9 @@ pub mod coincidence {
         //This memory-bounds the problem. It means we cannot have the producer TOO fast.
         let counter = Arc::new((Mutex::new(0), Condvar::new()));
 
-        //Producer
+        //Producer. It is a single thread but in principle if the consumer is too slow this could
+        //explose in memory. The MEMORY_BOUND_QUEUE_SIZE limits the value this thread can be ahead
+        //of the consumer.
         let counter_tx = Arc::clone(&counter);
         thread::spawn( move || {
             let mut buffer: Vec<u8> = vec![0; TP3_BUFFER_SIZE];
@@ -470,61 +427,61 @@ pub mod coincidence {
                     match *pack_oct {
                         [84, 80, 88, 51, nci, _, _, _] => {
                             ci=nci;
-                            channel_sender.add_index(current_raw_index);
+                            channel_sender.add_packet_index(current_raw_index);
                         },
                         _ => {
                             match packet.id() {
-                                6 if packet.tdc_type() == coinc_data_set.fast_oscillator_or_photon_tdc().id() => { //Oscillator or Photon
-                                    if let Some(fast_oscillator_tdc) = coinc_data_set.get_oscillator_tdc_as_mut() {
+                                6 if packet.tdc_type() == SECONDARY_TDC.associate_value() => { //Oscillator or Normal Event
+                                    if let Some(fast_oscillator_tdc) = coinc_data_set.try_get_oscillator_tdc_mut() {
                                         fast_oscillator_tdc.upt(&packet);
                                     } else { //if its not synchronized measurement, this tdc is used as a event-channel.
-                                        let photon = SinglePhoton::new(packet, 0, coinc_data_set.get_spim_tdc(), current_raw_index);
+                                        let photon = SinglePhoton::new(packet, 0, coinc_data_set.try_get_spim_tdc(), current_raw_index);
                                         channel_sender.add_photon(photon);
                                     }
-                                    channel_sender.add_index(current_raw_index);
+                                    channel_sender.add_packet_index(current_raw_index);
                                 },
-                                6 if packet.tdc_type() == coinc_data_set.spim_or_photon_tdc().id() => { //Hyperspec or Photon
-                                    if let Some(spim_tdc) = coinc_data_set.get_spim_tdc_as_mut() {
+                                6 if packet.tdc_type() == MAIN_TDC.associate_value() => { //Hyperspec or Normal Event
+                                    if let Some(spim_tdc) = coinc_data_set.try_get_spim_tdc_mut() {
                                         spim_tdc.upt(&packet);
                                     } else { //if its not synchronized measurement, this tdc is used as a event-channel.
-                                        let photon = SinglePhoton::new(packet, 1, coinc_data_set.get_spim_tdc(), current_raw_index);
+                                        let photon = SinglePhoton::new(packet, 1, coinc_data_set.try_get_spim_tdc(), current_raw_index);
                                         channel_sender.add_photon(photon);
                                     }
-                                    channel_sender.add_index(current_raw_index);
+                                    channel_sender.add_packet_index(current_raw_index);
                                 },
                                 11 => {
-                                    if let Some(oscillator_tdc) = coinc_data_set.get_oscillator_tdc() { //Oscillator is present
+                                    if let Some(oscillator_tdc) = coinc_data_set.try_get_oscillator_tdc() { //Oscillator is present
                                         if let Some(electron_time) = oscillator_tdc.tr_electron_correct_by_blanking(&packet) { //The electron time can be corrected
-                                            let se = SingleElectron::new(packet, coinc_data_set.get_spim_tdc(), current_raw_index, Some(electron_time));
+                                            let se = SingleElectron::new(packet, coinc_data_set.try_get_spim_tdc(), current_raw_index, Some(electron_time));
                                             channel_sender.add_electron(se);
                                         }
                                     } else {
-                                        let se = SingleElectron::new(packet, coinc_data_set.get_spim_tdc(), current_raw_index, None);
+                                        let se = SingleElectron::new(packet, coinc_data_set.try_get_spim_tdc(), current_raw_index, None);
                                         channel_sender.add_electron(se);
                                     }
                                 },
                                 12 => { //In some versions, the id can be a modified one, based on the CI.
                                     let packet = Packet::new(0, packet_change(pack_oct)[0]);
-                                    let se = SingleElectron::new(packet, coinc_data_set.get_spim_tdc(), current_raw_index, None);
+                                    let se = SingleElectron::new(packet, coinc_data_set.try_get_spim_tdc(), current_raw_index, None);
                                     channel_sender.add_electron(se);
                                 },
                                 13 => { //In some versions, the id can be a modified one, based on the CI.
                                     let packet = Packet::new(1, packet_change(pack_oct)[0]);
-                                    let se = SingleElectron::new(packet, coinc_data_set.get_spim_tdc(), current_raw_index, None);
+                                    let se = SingleElectron::new(packet, coinc_data_set.try_get_spim_tdc(), current_raw_index, None);
                                     channel_sender.add_electron(se);
                                 },
                                 14 => { //In some versions, the id can be a modified one, based on the CI.
                                     let packet = Packet::new(2, packet_change(pack_oct)[0]);
-                                    let se = SingleElectron::new(packet, coinc_data_set.get_spim_tdc(), current_raw_index, None);
+                                    let se = SingleElectron::new(packet, coinc_data_set.try_get_spim_tdc(), current_raw_index, None);
                                     channel_sender.add_electron(se);
                                 },
                                 15 => { //In some versions, the id can be a modified one, based on the CI.
                                     let packet = Packet::new(3, packet_change(pack_oct)[0]);
-                                    let se = SingleElectron::new(packet, coinc_data_set.get_spim_tdc(), current_raw_index, None);
+                                    let se = SingleElectron::new(packet, coinc_data_set.try_get_spim_tdc(), current_raw_index, None);
                                     channel_sender.add_electron(se);
                                 },
                                 _ => {
-                                    channel_sender.add_index(current_raw_index);
+                                    channel_sender.add_packet_index(current_raw_index);
                                 },
                             };
                         },
@@ -553,355 +510,6 @@ pub mod coincidence {
 
     }
 }
-
-/*
-pub mod isi_box {
-    use std::fs::OpenOptions;
-    use std::io::{Read, Write};
-    use crate::auxiliar::{misc::{as_int, as_bytes}, value_types::*};
-    use indicatif::{ProgressBar, ProgressStyle};
-    use crate::constlib::*;
-    use crate::postlib::coincidence::TdcStructureData;
-    
-    const ISI_CHANNEL_SHIFT: [u32; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-
-    /*
-    fn add_overflow(data: u64, value: u64) -> u64
-    {
-        (data + value) % 67108864
-    }
-    */
-    
-    fn subtract_overflow(data: u64, value: u64) -> u64
-    {
-        if data > value {
-            (data - value) % 67108864
-        } else {
-            (data + 67108864 - value) % 67108864
-        }
-    }
- 
-    type IsiListType = (TIME, u32, Option<u32>, Option<u32>, Option<i16>);
-    struct IsiListVec(Vec<IsiListType>);
-    struct IsiListVecg2(Vec<(i64, u32, Option<u32>, Option<u32>)>);
-
-    pub struct IsiList {
-        data_raw: IsiListVec, //Time, channel, spim index, spim frame, dT
-        x: POSITION,
-        y: POSITION,
-        pixel_time: TIME,
-        pub counter: u32,
-        pub overflow: u32,
-        last_time: u32,
-        pub start_time: Option<u32>,
-        line_time: Option<u32>,
-        line_offset: u32,
-    }
-
-
-    impl IsiList {
-        fn increase_counter(&mut self, data: u32) {
-  
-            if let Some(line_time) = self.line_time {
-                let mut time_dif = data as i32 - self.last_time as i32;
-                
-                if time_dif < 0 {
-                    time_dif += 67108864;
-                }
-
-
-                //Modulus of the time_dif relative to the line time
-                let fractional = time_dif as u32 - (time_dif as u32 / line_time) * line_time;
-
-                //If modulus > 1% or smaller than 99% of the line time, we have found an issue
-                if fractional > line_time / 100 && fractional < (line_time * 99) / 100 {
-                }
-
-
-                if (time_dif - line_time as i32).abs() > 10 {
-                    //println!("***IsiBox***: Probable line issue. Raw time is {}. Diference relative to the last time is {}. The spim frame is {:?}. Line counter is {}. Line time is {}. Last time is {}. Abs time is {}.", data, time_dif, self.spim_frame(), self.counter, line_time, self.last_time, self.get_abs_time(data));
-                }
-            }
-            
-            if data < self.last_time {self.overflow+=1;}
-            self.last_time = data;
-            self.counter += 1;
-        }
-
-        fn add_event(&mut self, channel: u32, data: u32) {
-            //self.data.0.push((self.get_abs_time(data), channel, self.spim_index(data), self.spim_frame(), None));
-            let data = if channel < 16 {
-                ISI_CHANNEL_SHIFT[channel as usize] + data
-            } else {
-                data
-            };
-            if self.counter >= self.line_offset {
-                self.data_raw.0.push((data as u64, channel, None, None, None));
-            }
-        }
-
-        fn determine_line_time(&mut self) {
-            let iter = self.scan_iterator().
-                filter_map(|(val1, val2)| {
-                    if val2.1.0 > val1.1.0 {
-                        Some((val2.1.0 - val1.1.0) as u32)
-                    } else {None}
-                });
-
-            let mut line = u32::MAX;
-            for val in iter {
-                if line == val {
-                    break;
-                }
-                line = val;
-            };
-            println!("***IsiBox***: Line time is (units of 120 ps): {}", line);
-            self.line_time = Some(line);
-        }
-
-        fn check_for_issues(&mut self) {
-            //Check if there is an issue in the first scan. This is very rare but can happens sometimes.
-            let iter = self.scan_iterator().
-                filter(|(val1, val2)| ((subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + 1_000) || (subtract_overflow(val2.1.0, val1.1.0) < self.line_time.unwrap() as u64 - 1_000))).
-                collect::<Vec<_>>();
-            for val in iter {
-                if val.0.0 == 0 { //First value is literally a bad scan line
-                    //Removing the bad vector
-                    self.data_raw.0.remove(0);
-                    break;
-                }
-            }
-            
-            let progress_size = ISI_NB_CORRECTION_ITERACTION;
-            let bar = ProgressBar::new(progress_size);
-            bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Checking for issues in the IsiBox data")
-                          .unwrap()
-                          .progress_chars("=>-"));
-
-            for _ in 0..progress_size {
-                bar.inc(1);
-                let iter = self.scan_iterator().
-                    filter(|(val1, val2)| ((subtract_overflow(val2.1.0, val1.1.0) > self.line_time.unwrap() as u64 + ISI_CORRECTION_MAX_DIF) || (subtract_overflow(val2.1.0, val1.1.0) < self.line_time.unwrap() as u64 - ISI_CORRECTION_MAX_DIF))).
-                    collect::<Vec<_>>();
-                //println!("***IsiBox***: Start of a correction cycle. The size is {}.", iter.len());
-                let mut number_of_insertions = 0;
-                if iter.is_empty() {
-                    //println!("***IsiBox***: values successfully corrected."); 
-                    break;}
-                for val in iter {
-                    //println!("{:?}", val);
-                    self.data_raw.0.insert(val.1.0+number_of_insertions, (subtract_overflow(val.1.1.0, self.line_time.unwrap() as u64), val.1.1.1, val.1.1.2, val.1.1.3, val.1.1.4));
-                    number_of_insertions += 1;
-                }
-            }
-            println!("***IsiBox***: reference values corrected.");
-        }
-
-        fn correct_data(&mut self, isi_overflow_correction: u32) {
-            let mut counter = 0;
-            let mut last_time = 0;
-            let mut overflow = 0;
-            let low = self.x as u64 * self.pixel_time;
-            let y = self.y;
-            let x = self.x;
-
-            
-            let spim_index = |data: u64, ct: u32, lt: u64| -> Option<u32> {
-                let line = ct % y;
-                let time = if data > VIDEO_TIME * 13 + lt {
-                    data - lt
-                } else {
-                    data + 67108864 - lt
-                };
-
-                if time > low {return None;}
-                let column = ((time * x as u64) / low) as u32;
-                let index = line * x + column;
-                
-                Some(index)
-            };
-            
-
-            self.data_raw.0.iter_mut().for_each(|x| {
-                //Correction time
-                let raw_time = x.0;
-                if x.0 > last_time {
-                    x.0 += (overflow + counter * isi_overflow_correction) as TIME * 67108864;
-                } else {
-                    x.0 += (overflow + counter * isi_overflow_correction + 1) as TIME  * 67108864;
-                };
-                //Correcting spim index
-                x.2 = spim_index(raw_time, counter, last_time);
-                //Correcting spim frame
-                x.3 = Some(counter / y);
-
-                //If it is a scan signal
-                if x.1 == 16 {
-                    if raw_time < last_time {
-                        overflow+=1;
-                    }
-                    counter += 1;
-                    last_time = raw_time;
-                }
-
-
-            });
-        }
-
-        
-        fn scan_iterator(&self) -> impl Iterator<Item=((usize, IsiListType), (usize, IsiListType))> + '_ {
-            let iter1 = self.data_raw.0.iter().
-                cloned().
-                enumerate().
-                filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
-            
-            let mut iter2 = self.data_raw.0.iter().
-                cloned().
-                enumerate().
-                filter(|(_index, (_time, channel, _spim_index, _spim_frame, _dt))| *channel == 16);
-
-            let _advance = iter2.next();
-
-            iter1.zip(iter2)
-        }
-        
-        pub fn get_timelist_with_tp3_tick(&self) -> Vec<TdcStructureData> {
-            let first = self.data_raw.0.iter().
-                filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == 16).
-                map(|(time, _channel, _spim_index, _spim_frame, _dt)| (*time * 1200 * 6) / 15625).
-                next().
-                unwrap();
-            
-            self.data_raw.0.iter().
-                map(|(time, channel, _spim_index, _spim_frame, dt)| (((*time * 1200 * 6) / 15625) - first, *channel, *dt, None)).
-                collect::<Vec<_>>()
-            
-        }
-
-        fn output_spim(&self) {
-            let spim_vec = self.data_raw.0.iter().
-                filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel != 16 && *channel != 24).
-                filter(|(_time, _channel, spim_index, spim_frame, _dt)| spim_index.is_some() && spim_frame.is_some()).
-                map(|(_time, channel, spim_index, _spim_frame, _dt)| spim_index.unwrap() * CHANNELS as u32 + channel).collect::<Vec<u32>>();
- 
-            let index_vec = self.data_raw.0.iter().
-                filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel != 16 && *channel != 24).
-                filter(|(_time, _channel, spim_index, spim_frame, _dt)| spim_index.is_some() && spim_frame.is_some()).
-                map(|(_time, _channel, _spim_index, spim_frame, _dt)| spim_frame.unwrap()).collect::<Vec<u32>>();
-
-            let mut tfile = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open("isi_si_complete.txt").expect("Could not output SI index.");
-            tfile.write_all(as_bytes(&spim_vec)).expect("Could not write time to file.");
-            
-            let mut tfile = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open("isi_si_complete_frame.txt").expect("Could not output SI frame.");
-            tfile.write_all(as_bytes(&index_vec)).expect("Could not write time to file.");
-        }
-
-        fn search_coincidence(&mut self, ch1: u32, ch2: u32) {
-            let progress_size = self.data_raw.0.len() as u64;
-            let vec1_len = self.data_raw.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch1).count();
-            let mut vec2 = self.data_raw.0.iter().filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).cloned().collect::<Vec<_>>();
-            let iter1 = self.data_raw.0.iter_mut();
-            let mut min_index = 0;
-            let mut corr = 0;
-
-
-            let mut new_list = IsiListVecg2(Vec::new());
-            let bar = ProgressBar::new(progress_size);
-            bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.white/black} {percent}% {pos:>7}/{len:7} [ETA: {eta}] Searching photon coincidences")
-                          .unwrap()
-                          .progress_chars("=>-"));
-        
-            for val1 in iter1 {
-                bar.inc(1);
-                if val1.1 != ch1 {continue;}
-                for (index, val2) in vec2[min_index..].iter_mut().enumerate() {
-                    let dt = val2.0 as i64 - val1.0 as i64;
-                    if dt.abs() < 5_000 {
-
-                        val1.4 = Some(dt as i16);
-                        val2.4 = Some(dt as i16);
-
-                        corr+=1;
-                        new_list.0.push((dt, val2.1, val2.2, val2.3));
-                        min_index += index / 10;
-                    }
-                    if dt > 100_000 {break;}
-                }
-            }
-
-            self.data_raw.0.iter_mut().
-                filter(|(_time, channel, _spim_index, _spim_frame, _dt)| *channel == ch2).
-                zip(vec2.iter()).
-                for_each(|(ph21, ph22)| {
-                    ph21.4 = ph22.4;
-                    assert_eq!(ph21.1, ph22.1);
-                });
-
-            
-            let dt_vec = new_list.0.iter().
-                filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
-                map(|(dtime, _channel, _spim_index, _spim_frame)| *dtime).
-                collect::<Vec<i64>>();
-            
-            println!("***IsiBox***: Size of the (first/second) channel: ({} / {}). Number of coincidences: {}. Number of output coincidences: {}. Ratio: {} %.", vec1_len, vec2.len(), corr, dt_vec.len(), dt_vec.len() as f32 * 100.0 / vec1_len as f32);
-            
-            let spim_index_vec = new_list.0.iter().
-                filter(|(_time, _channel, spim_index, spim_frame)| spim_index.is_some() && spim_frame.is_some()).
-                map(|(_dtime, _channel, spim_index, _spim_frame)| spim_index.unwrap()).
-                collect::<Vec<u32>>();
-
-            let mut tfile = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open("isi_g2.txt").expect("Could not output time histogram.");
-            tfile.write_all(as_bytes(&dt_vec)).expect("Could not write time to file.");
-            
-            let mut tfile = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open("isi_g2_index.txt").expect("Could not output time histogram.");
-            tfile.write_all(as_bytes(&spim_index_vec)).expect("Could not write time to file.");
-            
-        }
-    }
-
-    //Pixel time must be in nanoseconds.
-    pub fn get_channel_timelist<V>(mut data: V, spim_size: (POSITION, POSITION), pixel_time: TIME, line_offset: u32, isi_overflow_correction: u32) -> IsiList 
-        where V: Read
-        {
-            let mut list = IsiList{data_raw: IsiListVec(Vec::new()), x: spim_size.0, y: spim_size.1, pixel_time: (pixel_time * 83_333 / 10_000), counter: 0, overflow: 0, last_time: 0, start_time: None, line_time: None, line_offset};
-            let mut buffer = [0; 256_000];
-            while let Ok(size) = data.read(&mut buffer) {
-                if size == 0 {println!("***IsiBox***: Finished reading file."); break;}
-                buffer.chunks_exact(4).for_each( |x| {
-                    let channel = (as_int(x)[0] & 0xFC000000) >> 27;
-                    let _overflow = (as_int(x)[0] & 0x04000000) >> 26;
-                    let time = as_int(x)[0] & 0x03FFFFFF;
-                    list.add_event(channel, time);
-                    if channel == 16 {
-                        list.increase_counter(time);
-                    }
-                })
-            }
-            list.determine_line_time();
-            list.check_for_issues();
-            list.correct_data(isi_overflow_correction);
-            list.output_spim();
-            list.search_coincidence(0, 12);
-            list
-        }
-}
-*/
 
 pub mod ntime_resolved {
     use crate::packetlib::Packet;

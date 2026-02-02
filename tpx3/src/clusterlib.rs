@@ -8,7 +8,7 @@ pub mod cluster {
     use crate::constlib::*;
     use rayon::prelude::*;
     use std::cmp::Ordering;
-    use crate::auxiliar::{value_types::*, misc::check_if_in_by_time, misc};
+    use crate::auxiliar::{value_types::*, misc};
     
     fn transform_energy_calibration(v: &[u8]) -> &[f32] {
         unsafe {
@@ -362,51 +362,6 @@ pub mod cluster {
         }
         pub fn raw_packet_data(&self) -> Packet {
             self.data.4
-        }
-    }
-
-
-
-
-    ///This is used for searching coincidence as a iterator, but it does not seem
-    ///to be faster than normal double loop approach. This is done from backwards, by poping
-    ///elements from the vectors. That's why the photon is reversed at the beginning of the struct.
-    pub struct CoincidenceSearcher<'a> {
-        electron: &'a mut CollectionElectron,
-        photon: &'a mut CollectionPhoton,
-        photon_counter: usize,
-        time_delay: TIME,
-        time_width: TIME,
-    }
-
-    impl<'a> CoincidenceSearcher<'a> {
-        pub fn new(electron: &'a mut CollectionElectron, photon: &'a mut CollectionPhoton, time_delay: TIME, time_width: TIME) -> Self {
-            photon.reverse();
-            CoincidenceSearcher {
-                electron,
-                photon,
-                photon_counter: 0,
-                time_delay,
-                time_width,
-            }
-        }
-    }
-
-    impl<'a> Iterator for CoincidenceSearcher<'a> {
-        type Item = (SingleElectron, SinglePhoton);
-        fn next(&mut self) -> Option<Self::Item> {
-            let electron = self.electron.pop()?;
-            let mut index = 0;
-            for photon in self.photon.iter().skip(self.photon_counter) {
-                //if (photon.time() / 6 < electron.time() + self.time_delay + self.time_width) && (electron.time() + self.time_delay < photon.time() / 6 + self.time_width) {
-                if check_if_in_by_time(&electron.time(), &photon.time(), &self.time_width, &self.time_delay) {
-                    self.photon_counter += index / PHOTON_LIST_STEP;
-                    return Some((electron, photon.clone()));
-                }
-                if photon.time() / 6 > electron.time() + self.time_delay + self.time_width {break;}
-                index += 1;
-            }
-            self.next()
         }
     }
 

@@ -119,20 +119,9 @@ mod prepare_tdc {
             Ok(periods.iter().sum::<TIME>() as f64 / periods.len() as f64)
         }
         
-        fn get_counter(&self) -> Result<COUNTER, Tp3ErrorKind> {
-            let counter = self.data.iter()
-                .filter(|(_time, tdct)| tdct.associate_value()==self.tdc_choosen.associate_value())
-                .count() as COUNTER;
-            Ok(counter)
-        }
-
         pub fn get_counter_offset(&self) -> COUNTER {
             self.initial_counter.expect("***Tdc Lib***: Tdc initial counter offset was not found.")
         }
-
-        //fn get_last_hardware_counter(&self) -> u16 {
-        //    self.last_counter
-        //}
 
         pub fn get_lasttime(&self) -> TIME {
             let last_time = self.data.iter()

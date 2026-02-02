@@ -52,7 +52,7 @@ fn connect_and_loop(ttx_raw: &Option<ttx::TimeTagger>) -> Result<u8, Tp3ErrorKin
             Ok(my_settings.mode)
         },
         7 => {
-            let measurement = speclib::Coincidence2DV4::new(&my_settings);
+            let measurement = speclib::Coincidence2D::new(&my_settings);
             let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             let aux_tdc = measurement.build_aux_tdc(&mut pack, &my_settings, &mut file_to_write)?;
             speclib::build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement, file_to_write, ttx)?;

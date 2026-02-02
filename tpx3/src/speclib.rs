@@ -1,10 +1,9 @@
 //!`speclib` is a collection of tools to set EELS/4D acquisition.
 
 use crate::packetlib::Packet;
-use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, packet_change, check_if_in}};
+use crate::auxiliar::{Settings, misc::{TimepixRead, as_bytes, packet_change}};
 use crate::tdclib::TdcRef;
 use crate::errorlib::Tp3ErrorKind;
-use crate::clusterlib::cluster::{SinglePhoton, CollectionPhoton, SingleElectron, CollectionElectron};
 use std::time::Instant;
 use std::io::Write;
 use crate::auxiliar::{value_types::*, FileManager, misc};
@@ -106,11 +105,6 @@ pub trait SpecKind {
     fn data_size_in_bytes(&self) -> usize;
     fn data_height(&self) -> COUNTER;
     fn ttx_index(&mut self, _ts: u64, _channel: i32, _ts_correction: Option<TIME>) {}
-}
-
-pub trait IsiBoxKind: SpecKind {
-    fn isi_new(settings: &Settings) -> Self;
-    fn append_from_isi(&mut self, ext_data: &[u32]);
 }
 
 macro_rules! add_index {
@@ -320,7 +314,7 @@ impl SpecKind for Live1D {
 
 // This a mixed implementation. Saves all electrons and photons but in a reduced struct for
 // performance
-pub struct Coincidence2DV4 {
+pub struct Coincidence2D {
     data: Vec<u32>,
     electrons: Vec<(TIME, POSITION)>, //Time and X
     photons: Vec<(TIME, COUNTER)>, //Time and Channel
@@ -328,7 +322,7 @@ pub struct Coincidence2DV4 {
     timer: Instant,
 }
 
-impl SpecKind for Coincidence2DV4 {
+impl SpecKind for Coincidence2D {
     fn is_ready(&self) -> bool {
         self.timer.elapsed().as_millis() > TIME_INTERVAL_COINCIDENCE_HISTOGRAM
     }
@@ -395,245 +389,6 @@ impl SpecKind for Coincidence2DV4 {
 }
 
 
-//Same implementation as the post-processing data. Currently not used.
-pub struct Coincidence2DV3 {
-    data: Vec<u32>,
-    electron_buffer: CollectionElectron,
-    photon_buffer: CollectionPhoton,
-    timer: Instant,
-}
-
-impl SpecKind for Coincidence2DV3 {
-    fn is_ready(&self) -> bool {
-        self.timer.elapsed().as_millis() > TIME_INTERVAL_COINCIDENCE_HISTOGRAM
-    }
-    fn build_output(&mut self, settings: &Settings) -> &[u8] {
-        let mut rpi = Vec::new();
-        self.electron_buffer.sort();
-        self.photon_buffer.sort();
-        let coinc_electron = self.electron_buffer.search_coincidence(&mut self.photon_buffer, &mut rpi, settings.time_delay, settings.time_width);
-        coinc_electron.iter().for_each(|ele| {
-            let delay = (ele.relative_time_from_coincident_photon().unwrap() + settings.time_width as i64 + settings.time_delay as i64) as POSITION;
-            let index = (ele.x() + delay * CAM_DESIGN.0) as usize;
-            self.data[index] += 1;
-        });
-        as_bytes(&self.data)
-    }
-    fn new(settings: &Settings) -> Self {
-        let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
-        let data = vec![0; len];
-        misc::check_bitdepth_and_data(&data, settings);
-        Self { data, electron_buffer: CollectionElectron::new(), photon_buffer: CollectionPhoton::new(), timer: Instant::now()}
-    }
-    #[inline]
-    fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
-        let se = SingleElectron::new(pack, None, 0, None);
-        self.electron_buffer.add_electron(se);
-    }
-    fn add_tdc_hit2(&mut self, pack: Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(&pack);
-        let sp = SinglePhoton::new(pack, 1, None, 0);
-        self.photon_buffer.add_photon(sp);
-    }
-    fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(&pack);
-    }
-    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
-        self.timer = Instant::now();
-        self.electron_buffer.clear();
-        self.photon_buffer.clear();
-    }
-    fn data_size_in_bytes(&self) -> usize {
-        misc::vector_len_in_bytes(&self.data)
-    }
-    fn data_height(&self) -> COUNTER {
-        self.data.len() as COUNTER / CAM_DESIGN.0
-    }
-}
-
-//Circular buffer for the elctrons. Currently not used. This is similar to what is done in the
-//FPGA.
-pub struct Coincidence2DV2 {
-    data: Vec<u32>,
-    electron_buffer: Vec<(TIME, POSITION)>,
-    photon_buffer: Vec<TIME>,
-    index: usize,
-    timer: Instant,
-}
-
-impl SpecKind for Coincidence2DV2 {
-    fn is_ready(&self) -> bool {
-        self.timer.elapsed().as_millis() > TIME_INTERVAL_COINCIDENCE_HISTOGRAM
-    }
-    fn build_output(&mut self, _settings: &Settings) -> &[u8] {
-        as_bytes(&self.data)
-    }
-    fn new(settings: &Settings) -> Self {
-        let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
-        let data = vec![0; len];
-        misc::check_bitdepth_and_data(&data, settings);
-        Self { data, electron_buffer: vec![(0, 0); CIRCULAR_BUFFER], photon_buffer: vec![0; LIST_SIZE_AUX_EVENTS], timer: Instant::now(), index: 0}
-    }
-    #[inline]
-    fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
-        self.electron_buffer[self.index] = (pack.electron_time_in_tdc_units(), pack.x());
-        self.index += 1;
-        self.index %= CIRCULAR_BUFFER;
-    }
-    fn add_tdc_hit2(&mut self, pack: Packet, settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(&pack);
-        self.photon_buffer.push(pack.tdc_time_abs_norm());
-        self.photon_buffer.remove(0);
-
-        for phtime in &self.photon_buffer {
-            for ele in &mut self.electron_buffer {
-                if (*phtime < ele.0 + settings.time_delay + settings.time_width) &&
-                    (ele.0 + settings.time_delay < phtime + settings.time_width) {
-                        let delay = (phtime - settings.time_delay + settings.time_width - ele.0) as POSITION;
-                        let index = ele.1 + delay * CAM_DESIGN.0;
-                        *ele = (0, 0); //this electron should not appear again. It is already send.
-                        self.data[index as usize] += 1;
-                }
-            }
-        }
-
-        /*
-        //This is a rayon implementation
-
-        let all_indices_to_add: Vec<POSITION> = self.photon_buffer.par_iter()
-            .flat_map(|phtime| {
-                self.electron_buffer.iter()
-                    .filter_map(|ele| {
-                        if (*phtime < ele.0 + settings.time_delay + settings.time_width)
-                            && (ele.0 + settings.time_delay < phtime + settings.time_width)
-                        {
-                            let delay = (phtime - settings.time_delay + settings.time_width - ele.0) as POSITION;
-                            let index = ele.1 + delay * CAM_DESIGN.0;
-                            *ele = (0, 0); // This part needs to be handled carefully
-                            Some(index)
-                        } else {
-                            None
-                        }
-                    })
-                .collect::<Vec<_>>() // Collect the results for this photon
-            })
-        .collect(); // Collect all indices across all photons
-        
-        for index in all_indices_to_add {
-            self.data[index as usize] += 1;
-        }
-        */
-        
-
-    }
-    fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(&pack);
-    }
-    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
-        self.timer = Instant::now();
-    }
-    fn data_size_in_bytes(&self) -> usize {
-        misc::vector_len_in_bytes(&self.data)
-    }
-    fn data_height(&self) -> COUNTER {
-        self.data.len() as COUNTER / CAM_DESIGN.0
-    }
-}
-
-
-pub struct Coincidence2D {
-    data: Vec<u32>,
-    aux_data: Vec<TIME>,
-    aux_data2: Vec<TIME>,
-    timer: Instant,
-}
-
-impl SpecKind for Coincidence2D {
-    fn is_ready(&self) -> bool {
-        //Be careful with the timer. This is quite slow.
-        self.timer.elapsed().as_millis() > TIME_INTERVAL_COINCIDENCE_HISTOGRAM
-    }
-    fn build_output(&mut self, _settings: &Settings) -> &[u8] {
-        as_bytes(&self.data)
-    }
-    fn new(settings: &Settings) -> Self {
-        let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
-        let data = vec![0; len];
-        misc::check_bitdepth_and_data(&data, settings);
-        Self { data, aux_data: vec![0; LIST_SIZE_AUX_EVENTS], aux_data2: vec![0; LIST_SIZE_AUX_EVENTS], timer: Instant::now()}
-    }
-    //This func gets electrons in which the TDC has already arrived by TCP. So it could be
-    //electrons second tcp, first time, or electrons second tdc, second time.
-    #[inline]
-    fn add_electron_hit(&mut self, pack: Packet, settings: &Settings, frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
-        let etime = pack.electron_time_in_tdc_units();
-        if settings.time_resolved {
-            if let Some(phtime) = frame_tdc.tr_electron_check_if_in(&pack, settings) {
-                let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
-                let index = pack.x() + delay * CAM_DESIGN.0 + 2*settings.time_width as u32 * CAM_DESIGN.0;
-                add_index!(self, index);
-            }
-            if let Some(phtime) = ref_tdc.tr_electron_check_if_in(&pack, settings) {
-                if let Some(etime) = ref_tdc.tr_electron_correct_by_blanking(&pack) {
-                    let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
-                    let index = pack.x() + delay * CAM_DESIGN.0;
-                    add_index!(self, index);
-                }
-            }
-        } else {
-            for phtime in self.aux_data.iter() {
-                if check_if_in(&etime, phtime, settings) {
-                    let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
-                    let index = pack.x() + delay * CAM_DESIGN.0;
-                    add_index!(self, index);
-                }
-            }
-            for phtime in self.aux_data2.iter() {
-                if check_if_in(&etime, phtime, settings) {
-                    let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
-                    let index = pack.x() + delay * CAM_DESIGN.0 + 2*settings.time_width as u32 * CAM_DESIGN.0;
-                    add_index!(self, index);
-                }
-            }
-        }
-    }
-    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        if my_settings.time_resolved {
-            TdcRef::new_periodic(SECONDARY_TDC, pack, my_settings, file_to_write)
-        } else {
-            TdcRef::new_no_read(SECONDARY_TDC)
-        }
-    }
-    fn build_main_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
-        if my_settings.time_resolved {
-            TdcRef::new_periodic(MAIN_TDC, pack, my_settings, file_to_write)
-        } else {
-            TdcRef::new_no_read(MAIN_TDC)
-        }
-    }
-    fn add_tdc_hit2(&mut self, pack: Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
-        ref_tdc.upt(&pack);
-        self.aux_data.push(pack.tdc_time_abs_norm());
-        self.aux_data.remove(0);
-    }
-    fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
-        frame_tdc.upt(&pack);
-        self.aux_data2.push(pack.tdc_time_abs_norm());
-        self.aux_data2.remove(0);
-    }
-    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
-        self.timer = Instant::now();
-        if !settings.cumul {
-            self.data.iter_mut().for_each(|x| *x = 0);
-        }
-    }
-    fn data_size_in_bytes(&self) -> usize {
-        misc::vector_len_in_bytes(&self.data)
-    }
-    fn data_height(&self) -> COUNTER {
-        self.data.len() as COUNTER / CAM_DESIGN.0
-    }
-}
 
 pub struct Chrono {
     data: Vec<u32>,
@@ -1066,59 +821,6 @@ impl SpecKind for Live2DFrameHyperspec {
     }
 }
 
-
-
-
-impl IsiBoxKind for Live1D {
-    fn isi_new(_settings: &Settings) -> Self {
-        let len = (CAM_DESIGN.0 + CHANNELS as POSITION) as usize;
-        Self{ data: vec![0; len], is_ready: false, frame_counter: 0, last_time: 0, timer: Instant::now()}
-    }
-    fn append_from_isi(&mut self, ext_data: &[u32]) {
-        self.data[CAM_DESIGN.0 as usize..].iter_mut().zip(ext_data.iter()).for_each(|(a, b)| *a+=b);
-    }
-}
-
-/*
-///Reads timepix3 socket and writes in the output socket a header and a full frame (binned or not). A periodic tdc is mandatory in order to define frame time.
-///
-///# Examples
-pub fn run_spectrum<V, U, Y>(mut pack: V, ns: U, my_settings: Settings, kind: Y, mut file_to_write: FileManager) -> Result<u8, Tp3ErrorKind>
-    where V: TimepixRead,
-          U: Write,
-          Y: GenerateDepth,
-          SpecMeasurement<Y, u8>: SpecKind,
-          SpecMeasurement<Y, u16>: SpecKind,
-          SpecMeasurement<Y, u32>: SpecKind
-{
-
-    
-    match my_settings.bytedepth {
-        1 => {
-            let mut measurement = kind.gen8(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            let aux_tdc = measurement.build_aux_tdc()?;
-            build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
-        },
-        2 => {
-            let mut measurement = kind.gen16(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            let aux_tdc = measurement.build_aux_tdc()?;
-            build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
-        },
-        4 => {
-            let mut measurement = kind.gen32(&my_settings);
-            let frame_tdc = measurement.build_main_tdc(&mut pack, &my_settings, &mut file_to_write)?;
-            let aux_tdc = measurement.build_aux_tdc()?;
-            build_spectrum(pack, ns, my_settings, frame_tdc, aux_tdc, measurement)?;
-        },
-        _ => {return Err(Tp3ErrorKind::SetByteDepth)},
-    }
-    
-    Ok(my_settings.mode)
-}
-*/
-
 pub fn build_spectrum<V, U, W>(mut pack_sock: V, mut ns_sock: U, my_settings: Settings, mut frame_tdc: TdcRef, mut ref_tdc: TdcRef, mut meas_type: W, mut file_to_write: FileManager, mut ttx: Option<ttx::TTXRef>) -> Result<(), Tp3ErrorKind> 
     where V: TimepixRead,
           U: Write,
@@ -1157,7 +859,6 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
 
     let mut first_tpx = 0;
     let mut last_tpx = 0;
-    let mut nevents = 0;
     let mut set_tpx_times = {|time: TIME| {
         if first_tpx == 0 {first_tpx = time;}
         last_tpx = time;
@@ -1174,12 +875,10 @@ fn build_data<W: SpecKind>(data: &[u8], final_data: &mut W, last_ci: &mut u8, se
                     6 if packet.tdc_type() == frame_tdc.id() => { //Tdc value 1
                         final_data.add_tdc_hit1(packet, frame_tdc, settings);
                         set_tpx_times(packet.tdc_time_abs_norm());
-                        nevents += 1;
                     },
                     6 if packet.tdc_type() == ref_tdc.id() => { //Tdc value 2
                         final_data.add_tdc_hit2(packet, settings, ref_tdc);
                         set_tpx_times(packet.tdc_time_abs_norm());
-                        nevents += 1;
                     },
                     5 if packet.tdc_type() == 10 || packet.tdc_type() == 15  => { //Shutter value.
                         final_data.add_shutter_hit(packet, frame_tdc, settings);
@@ -1220,3 +919,248 @@ fn create_header<W: SpecKind>(measurement: &W, set: &Settings, tdc: &TdcRef, ext
     let s: Vec<u8> = msg.into_bytes();
     s
 }
+
+
+
+/* DEAD CODE. These are different coincidence implementations that i have tested but are not
+ * currently in-use.
+//Same implementation as the post-processing data. Currently not used.
+pub struct Coincidence2DV3 {
+    data: Vec<u32>,
+    electron_buffer: CollectionElectron,
+    photon_buffer: CollectionPhoton,
+    timer: Instant,
+}
+
+impl SpecKind for Coincidence2DV3 {
+    fn is_ready(&self) -> bool {
+        self.timer.elapsed().as_millis() > TIME_INTERVAL_COINCIDENCE_HISTOGRAM
+    }
+    fn build_output(&mut self, settings: &Settings) -> &[u8] {
+        let mut rpi = Vec::new();
+        self.electron_buffer.sort();
+        self.photon_buffer.sort();
+        let coinc_electron = self.electron_buffer.search_coincidence(&mut self.photon_buffer, &mut rpi, settings.time_delay, settings.time_width);
+        coinc_electron.iter().for_each(|ele| {
+            let delay = (ele.relative_time_from_coincident_photon().unwrap() + settings.time_width as i64 + settings.time_delay as i64) as POSITION;
+            let index = (ele.x() + delay * CAM_DESIGN.0) as usize;
+            self.data[index] += 1;
+        });
+        as_bytes(&self.data)
+    }
+    fn new(settings: &Settings) -> Self {
+        let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
+        let data = vec![0; len];
+        misc::check_bitdepth_and_data(&data, settings);
+        Self { data, electron_buffer: CollectionElectron::new(), photon_buffer: CollectionPhoton::new(), timer: Instant::now()}
+    }
+    #[inline]
+    fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+        let se = SingleElectron::new(pack, None, 0, None);
+        self.electron_buffer.add_electron(se);
+    }
+    fn add_tdc_hit2(&mut self, pack: Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
+        ref_tdc.upt(&pack);
+        let sp = SinglePhoton::new(pack, 1, None, 0);
+        self.photon_buffer.add_photon(sp);
+    }
+    fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
+        frame_tdc.upt(&pack);
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
+        self.timer = Instant::now();
+        self.electron_buffer.clear();
+        self.photon_buffer.clear();
+    }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        self.data.len() as COUNTER / CAM_DESIGN.0
+    }
+}
+
+//Circular buffer for the elctrons. Currently not used. This is similar to what is done in the
+//FPGA.
+pub struct Coincidence2DV2 {
+    data: Vec<u32>,
+    electron_buffer: Vec<(TIME, POSITION)>,
+    photon_buffer: Vec<TIME>,
+    index: usize,
+    timer: Instant,
+}
+
+impl SpecKind for Coincidence2DV2 {
+    fn is_ready(&self) -> bool {
+        self.timer.elapsed().as_millis() > TIME_INTERVAL_COINCIDENCE_HISTOGRAM
+    }
+    fn build_output(&mut self, _settings: &Settings) -> &[u8] {
+        as_bytes(&self.data)
+    }
+    fn new(settings: &Settings) -> Self {
+        let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
+        let data = vec![0; len];
+        misc::check_bitdepth_and_data(&data, settings);
+        Self { data, electron_buffer: vec![(0, 0); CIRCULAR_BUFFER], photon_buffer: vec![0; LIST_SIZE_AUX_EVENTS], timer: Instant::now(), index: 0}
+    }
+    #[inline]
+    fn add_electron_hit(&mut self, pack: Packet, _settings: &Settings, _frame_tdc: &TdcRef, _ref_tdc: &TdcRef) {
+        self.electron_buffer[self.index] = (pack.electron_time_in_tdc_units(), pack.x());
+        self.index += 1;
+        self.index %= CIRCULAR_BUFFER;
+    }
+    fn add_tdc_hit2(&mut self, pack: Packet, settings: &Settings, ref_tdc: &mut TdcRef) {
+        ref_tdc.upt(&pack);
+        self.photon_buffer.push(pack.tdc_time_abs_norm());
+        self.photon_buffer.remove(0);
+
+        for phtime in &self.photon_buffer {
+            for ele in &mut self.electron_buffer {
+                if (*phtime < ele.0 + settings.time_delay + settings.time_width) &&
+                    (ele.0 + settings.time_delay < phtime + settings.time_width) {
+                        let delay = (phtime - settings.time_delay + settings.time_width - ele.0) as POSITION;
+                        let index = ele.1 + delay * CAM_DESIGN.0;
+                        *ele = (0, 0); //this electron should not appear again. It is already send.
+                        self.data[index as usize] += 1;
+                }
+            }
+        }
+
+        /*
+        //This is a rayon implementation
+
+        let all_indices_to_add: Vec<POSITION> = self.photon_buffer.par_iter()
+            .flat_map(|phtime| {
+                self.electron_buffer.iter()
+                    .filter_map(|ele| {
+                        if (*phtime < ele.0 + settings.time_delay + settings.time_width)
+                            && (ele.0 + settings.time_delay < phtime + settings.time_width)
+                        {
+                            let delay = (phtime - settings.time_delay + settings.time_width - ele.0) as POSITION;
+                            let index = ele.1 + delay * CAM_DESIGN.0;
+                            *ele = (0, 0); // This part needs to be handled carefully
+                            Some(index)
+                        } else {
+                            None
+                        }
+                    })
+                .collect::<Vec<_>>() // Collect the results for this photon
+            })
+        .collect(); // Collect all indices across all photons
+        
+        for index in all_indices_to_add {
+            self.data[index as usize] += 1;
+        }
+        */
+        
+
+    }
+    fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
+        frame_tdc.upt(&pack);
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, _settings: &Settings) {
+        self.timer = Instant::now();
+    }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        self.data.len() as COUNTER / CAM_DESIGN.0
+    }
+}
+
+
+pub struct Coincidence2D {
+    data: Vec<u32>,
+    aux_data: Vec<TIME>,
+    aux_data2: Vec<TIME>,
+    timer: Instant,
+}
+
+impl SpecKind for Coincidence2D {
+    fn is_ready(&self) -> bool {
+        //Be careful with the timer. This is quite slow.
+        self.timer.elapsed().as_millis() > TIME_INTERVAL_COINCIDENCE_HISTOGRAM
+    }
+    fn build_output(&mut self, _settings: &Settings) -> &[u8] {
+        as_bytes(&self.data)
+    }
+    fn new(settings: &Settings) -> Self {
+        let len = 4*settings.time_width as usize * CAM_DESIGN.0 as usize;
+        let data = vec![0; len];
+        misc::check_bitdepth_and_data(&data, settings);
+        Self { data, aux_data: vec![0; LIST_SIZE_AUX_EVENTS], aux_data2: vec![0; LIST_SIZE_AUX_EVENTS], timer: Instant::now()}
+    }
+    //This func gets electrons in which the TDC has already arrived by TCP. So it could be
+    //electrons second tcp, first time, or electrons second tdc, second time.
+    #[inline]
+    fn add_electron_hit(&mut self, pack: Packet, settings: &Settings, frame_tdc: &TdcRef, ref_tdc: &TdcRef) {
+        let etime = pack.electron_time_in_tdc_units();
+        if settings.time_resolved {
+            if let Some(phtime) = frame_tdc.tr_electron_check_if_in(&pack, settings) {
+                let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
+                let index = pack.x() + delay * CAM_DESIGN.0 + 2*settings.time_width as u32 * CAM_DESIGN.0;
+                add_index!(self, index);
+            }
+            if let Some(phtime) = ref_tdc.tr_electron_check_if_in(&pack, settings) {
+                if let Some(etime) = ref_tdc.tr_electron_correct_by_blanking(&pack) {
+                    let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
+                    let index = pack.x() + delay * CAM_DESIGN.0;
+                    add_index!(self, index);
+                }
+            }
+        } else {
+            for phtime in self.aux_data.iter() {
+                if check_if_in(&etime, phtime, settings) {
+                    let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
+                    let index = pack.x() + delay * CAM_DESIGN.0;
+                    add_index!(self, index);
+                }
+            }
+            for phtime in self.aux_data2.iter() {
+                if check_if_in(&etime, phtime, settings) {
+                    let delay = (phtime - settings.time_delay + settings.time_width - etime) as POSITION;
+                    let index = pack.x() + delay * CAM_DESIGN.0 + 2*settings.time_width as u32 * CAM_DESIGN.0;
+                    add_index!(self, index);
+                }
+            }
+        }
+    }
+    fn build_aux_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        if my_settings.time_resolved {
+            TdcRef::new_periodic(SECONDARY_TDC, pack, my_settings, file_to_write)
+        } else {
+            TdcRef::new_no_read(SECONDARY_TDC)
+        }
+    }
+    fn build_main_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        if my_settings.time_resolved {
+            TdcRef::new_periodic(MAIN_TDC, pack, my_settings, file_to_write)
+        } else {
+            TdcRef::new_no_read(MAIN_TDC)
+        }
+    }
+    fn add_tdc_hit2(&mut self, pack: Packet, _settings: &Settings, ref_tdc: &mut TdcRef) {
+        ref_tdc.upt(&pack);
+        self.aux_data.push(pack.tdc_time_abs_norm());
+        self.aux_data.remove(0);
+    }
+    fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
+        frame_tdc.upt(&pack);
+        self.aux_data2.push(pack.tdc_time_abs_norm());
+        self.aux_data2.remove(0);
+    }
+    fn reset_or_else(&mut self, _frame_tdc: &TdcRef, settings: &Settings) {
+        self.timer = Instant::now();
+        if !settings.cumul {
+            self.data.iter_mut().for_each(|x| *x = 0);
+        }
+    }
+    fn data_size_in_bytes(&self) -> usize {
+        misc::vector_len_in_bytes(&self.data)
+    }
+    fn data_height(&self) -> COUNTER {
+        self.data.len() as COUNTER / CAM_DESIGN.0
+    }
+}
+*/
