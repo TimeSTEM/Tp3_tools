@@ -316,7 +316,7 @@ impl SpecKind for Live1D {
 
 // This a mixed implementation. Saves all electrons and photons but in a reduced struct for
 // performance
-///Real-time measurement of time-coincidences between electrons and TDC events, period or not.
+///Real-time measurement of time-coincidences between electrons and TDC events, periodic or not.
 pub struct Coincidence2D {
     data: Vec<u32>,
     electrons: Vec<(TIME, POSITION)>, //Time and X
@@ -458,6 +458,8 @@ impl SpecKind for Chrono {
     }
 }
 
+///A single-shot 2D measurement containing multiple 1D frames stacked as a function of time, using
+///frame-based mode.
 pub struct ChronoFrame {
     data: Vec<u32>,
     frame_counter: COUNTER,
@@ -525,7 +527,7 @@ impl SpecKind for ChronoFrame {
     }
 }
 
-
+///Transforms event-based mode into frames as a 2D image, when in frame-based mode.
 pub struct Live2DFrame {
     data: Vec<u32>,
     is_ready: bool,
@@ -591,6 +593,7 @@ impl SpecKind for Live2DFrame {
     }
 }
 
+///Transforms event-based mode into frames as a 1D line, when in frame-based mode.
 pub struct Live1DFrame {
     data: Vec<u32>,
     is_ready: bool,
@@ -661,6 +664,7 @@ impl SpecKind for Live1DFrame {
     }
 }
 
+///Hyperspectral imaging in frame-based mode as a 1D line.
 pub struct Live1DFrameHyperspec {
     data: Vec<u32>,
     is_ready: bool,
@@ -731,6 +735,7 @@ impl SpecKind for Live1DFrameHyperspec {
     }
 }
 
+///Hyperspectral imaging in frame-based mode as a 2D image.
 pub struct Live2DFrameHyperspec {
     data: Vec<u32>,
     is_ready: bool,

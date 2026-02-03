@@ -1,3 +1,5 @@
+//! `ttx` is to used with Swabian Instruments TTX. If the Swabian is not present, the
+//! library should work as usual.
 use std::slice;
 use std::io::Write;
 use crate::auxiliar::{Settings, value_types::*, misc};
@@ -10,28 +12,10 @@ use crate::auxiliar::FileManager;
 
 // Opaque type for FFI
 #[repr(C)]
-pub struct MyTimeTagger;
+struct MyTimeTagger;
 
 // FFI bindings
-#[cfg(target_os = "windows")]
 #[link(name = "TTX")] // TTX.dll
-#[allow(improper_ctypes)]
-extern "C" {
-    fn mytt_create() -> *mut MyTimeTagger;
-    fn mytt_destroy(t: *mut MyTimeTagger);
-    fn mytt_reset(t: *mut MyTimeTagger);
-    fn mytt_add_channel(t: *mut MyTimeTagger, channel: i32, is_test_signal: bool);
-    fn mytt_start_stream(t: *mut MyTimeTagger);
-    fn mytt_stop_stream(t: *mut MyTimeTagger);
-    fn mytt_get_data(t: *mut MyTimeTagger);
-    fn mytt_get_timestamps(t: *mut MyTimeTagger, out_len: *mut usize) -> *const u64;
-    fn mytt_get_channels(t: *mut MyTimeTagger, out_len: *mut usize) -> *const i32;
-    fn mytt_set_stream_block_size(t: *mut MyTimeTagger, max_events: i32, max_latency: i32);
-}
-
-// FFI bindings
-#[cfg(target_os = "linux")]
-#[link(name = "TTX")] // TTX.so
 #[allow(improper_ctypes)]
 extern "C" {
     fn mytt_create() -> *mut MyTimeTagger;
@@ -119,6 +103,8 @@ impl Drop for TimeTagger {
     }
 }
 
+/// This is very close to the TDC in TPX3. It keeps track of the functioning of the TTX. It works
+/// for all channels at once.
 pub struct TTXRef {
     ttx: TimeTagger,
     counter: [COUNTER; 32],
@@ -134,15 +120,11 @@ pub struct TTXRef {
     video_delay: TIME,
     begin_frame: TIME,
     new_frame: bool,
-    //oscillator_size: Option<(POSITION, POSITION)>,
-    //scan_ref_time: Option<TIME>,
-    //scan_ref_counter: Option<COUNTER>,
-    //scan_ref_period: Option<TIME>,
     ttx_into_tpx3_correction: Option<f64>,
     is_running: bool,
     ts_file: FileManager,
     ch_file: FileManager,
-    histogram: Histogram,
+    _histogram: Histogram,
 }
 
 impl Drop for TTXRef {
@@ -178,7 +160,7 @@ impl TTXRef {
             is_running: false,
             ts_file: FileManager::new_empty(),
             ch_file: FileManager::new_empty(),
-            histogram: Histogram::new(1, 20),
+            _histogram: Histogram::new(1, 20),
         })
     }
 
