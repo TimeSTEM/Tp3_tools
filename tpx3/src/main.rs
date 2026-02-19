@@ -122,7 +122,7 @@ fn connect_and_loop(ttx_raw: &Option<ttx::TimeTagger>) -> Result<u8, Tp3ErrorKin
 
 fn main() {
     let mut log_file = simple_log::start().unwrap();
-    let ttx_raw = ttx::TTXRef::new_ttx(); // Creating the TTX object.
+    let ttx_raw = if ACTIVATE_TTX {None} else {ttx::TTXRef::new_ttx()}; // Creating the TTX object.
     loop {
         match connect_and_loop(&ttx_raw) {
             Ok(val) => {

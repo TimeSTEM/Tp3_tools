@@ -87,7 +87,6 @@ pub trait SpecKind {
     fn new(settings: &Settings) -> Self;
     fn build_main_tdc<V: TimepixRead>(&self, pack: &mut V, my_settings: &Settings, file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
         // The default is to build a periodic TDC in order to sync with other instruments.
-        //TdcRef::new_no_read(MAIN_TDC)
         TdcRef::new_periodic(MAIN_TDC, pack, my_settings, file_to_write)
     }
     fn build_aux_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
@@ -698,6 +697,9 @@ impl SpecKind for Live1DFrameHyperspec {
         let index = pixel_number * CAM_DESIGN.0 + pack.x();
         self.data[index as usize] += pack.tot() as u32;
     }
+    fn build_main_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_no_read(MAIN_TDC)
+    }
     fn add_tdc_hit2(&mut self, _pack: Packet, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
     fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {
         frame_tdc.upt(&pack);
@@ -768,6 +770,9 @@ impl SpecKind for Live2DFrameHyperspec {
         //We cannot depass frame_number otherwise the indexation will be bad
         let index = pixel_number * CAM_DESIGN.0 * CAM_DESIGN.1 + (pack.y() * CAM_DESIGN.0 + pack.x());
         self.data[index as usize] += pack.tot() as u32;
+    }
+    fn build_main_tdc<V: TimepixRead>(&self, _pack: &mut V, _my_settings: &Settings, _file_to_write: &mut FileManager) -> Result<TdcRef, Tp3ErrorKind> {
+        TdcRef::new_no_read(MAIN_TDC)
     }
     fn add_tdc_hit2(&mut self, _pack: Packet, _settings: &Settings, _ref_tdc: &mut TdcRef) {}
     fn add_tdc_hit1(&mut self, pack: Packet, frame_tdc: &mut TdcRef, _settings: &Settings) {

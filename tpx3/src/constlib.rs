@@ -16,8 +16,9 @@ pub const HIGH_DYNAMIC_FRAME_BASED: bool = false; //This sums up *VALUE* frames 
 pub const HIGH_DYNAMIC_FRAME_BASED_VALUE: COUNTER = 16; //This sums up *VALUE* frames when using the frame-based mode;
 pub const MAIN_TDC: TdcType = TdcType::TdcOneRisingEdge; //The main TDC, used for external sync
 pub const SECONDARY_TDC: TdcType = TdcType::TdcTwoRisingEdge; //Secondary TDC
-pub const PERIOD_DIVIDER: TIME = 65536; //This divides the period detected by the Timepix3. The divided value is PERIOD_DIVIDER;
+pub const PERIOD_DIVIDER: TIME = 1; //This divides the period detected by the Timepix3. The divided value is PERIOD_DIVIDER. DEFAULT to 1 but 65536 for the oscillator;
 pub const BLANKING_PERIOD: TIME = 6446292; //This is what is received by the TDC after division. So (BLANKING_PERIOD / PERIOD_DIVIDER) * 0.260 ~ 25.57 ns (39.10 MHz).
+pub const ACTIVATE_TTX: bool = false; //Activate or not TTX.
 
 //***Estimating Oscillator properties***//
 pub const YMAX_PERCENTILE: f64 = 95.0; //The percentile for the upper part.
